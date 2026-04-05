@@ -1,5 +1,8 @@
+import path from "node:path";
+
 import { PrismaLibSQL } from "@prisma/adapter-libsql";
 import bcrypt from "bcryptjs";
+import { config as loadEnv } from "dotenv";
 import { PrismaClient } from "@prisma/client";
 
 import {
@@ -11,6 +14,9 @@ import {
   reportEntriesByDate,
   teamMembers,
 } from "../src/data/demo-data";
+
+loadEnv({ path: path.join(process.cwd(), ".env.local") });
+loadEnv();
 
 const adapter = new PrismaLibSQL({
   url: process.env.TURSO_DATABASE_URL!,
