@@ -4,11 +4,11 @@ import { PrismaLibSQL } from "@prisma/adapter-libsql";
 import bcrypt from "bcryptjs";
 import { config as loadEnv } from "dotenv";
 import {
+  DocumentCategory,
+  DocumentStatus,
   PrismaClient,
-  type DocumentCategory,
-  type DocumentStatus,
-  type Role,
-  type TaskPriority,
+  Role,
+  TaskPriority,
 } from "@prisma/client";
 
 import {
@@ -31,31 +31,31 @@ const adapter = new PrismaLibSQL({
 const prisma = new PrismaClient({ adapter });
 
 const roleMap = {
-  系统管理员: "admin",
-  指导教师: "teacher",
-  项目负责人: "leader",
-  团队成员: "member",
+  系统管理员: Role.admin,
+  指导教师: Role.teacher,
+  项目负责人: Role.leader,
+  团队成员: Role.member,
 } as const satisfies Record<string, Role>;
 
 const taskPriorityMap = {
-  高优先级: "high",
-  中优先级: "medium",
-  低优先级: "low",
-  进行中: "high",
-  已完成: "high",
+  高优先级: TaskPriority.high,
+  中优先级: TaskPriority.medium,
+  低优先级: TaskPriority.low,
+  进行中: TaskPriority.high,
+  已完成: TaskPriority.high,
 } as const satisfies Record<string, TaskPriority>;
 
 const documentCategoryMap = {
-  计划书: "plan",
-  PPT: "ppt",
-  答辩材料: "defense",
-  证明附件: "proof",
+  计划书: DocumentCategory.plan,
+  PPT: DocumentCategory.ppt,
+  答辩材料: DocumentCategory.defense,
+  证明附件: DocumentCategory.proof,
 } as const satisfies Record<string, DocumentCategory>;
 
 const documentStatusMap = {
-  待审核: "pending",
-  已审核: "approved",
-  需修改: "revision",
+  待审核: DocumentStatus.pending,
+  已审核: DocumentStatus.approved,
+  需修改: DocumentStatus.revision,
 } as const satisfies Record<string, DocumentStatus>;
 
 const uploadFolderByCategory = {
@@ -82,7 +82,7 @@ async function main() {
       username: "jiayingze",
       email: null,
       password: "jyz760309",
-      role: "admin" as Role,
+      role: Role.admin,
       avatar: "管",
       responsibility: "系统最高权限管理、账号与权限配置、全局运维",
     },
@@ -92,7 +92,7 @@ async function main() {
       username: "teacher",
       email: "teacher@competition.cn",
       password: "teacher123",
-      role: "teacher" as Role,
+      role: Role.teacher,
       avatar: "李",
       responsibility: "把关方向、审核文档、发布公告和校内资源协调",
     },
@@ -102,7 +102,7 @@ async function main() {
       username: "captain",
       email: "captain@competition.cn",
       password: "leader123",
-      role: "leader" as Role,
+      role: Role.leader,
       avatar: "陈",
       responsibility: "整体统筹、路演主线、答辩分工、任务推进",
     },
@@ -112,7 +112,7 @@ async function main() {
       username: "member",
       email: "member@competition.cn",
       password: "member123",
-      role: "member" as Role,
+      role: Role.member,
       avatar: "林",
       responsibility: "市场规模、用户访谈、竞品分析",
     },
