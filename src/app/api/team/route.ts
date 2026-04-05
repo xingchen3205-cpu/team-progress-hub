@@ -66,7 +66,6 @@ export async function GET(request: NextRequest) {
         blockers: "暂无",
       };
     }),
-    defaultPassword,
   });
 }
 
@@ -130,5 +129,5 @@ export async function POST(request: NextRequest) {
     },
   });
 
-  return NextResponse.json({ member: serializeUser(member), defaultPassword }, { status: 201 });
+  return NextResponse.json({ member: serializeUser(member) }, { status: 201 });
 }

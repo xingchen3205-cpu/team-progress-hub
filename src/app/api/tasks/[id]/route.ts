@@ -87,6 +87,12 @@ export async function DELETE(
   }
 
   const { id } = await params;
+
+  const task = await prisma.task.findUnique({ where: { id } });
+  if (!task) {
+    return NextResponse.json({ message: "任务不存在" }, { status: 404 });
+  }
+
   await prisma.task.delete({ where: { id } });
 
   return NextResponse.json({ success: true });

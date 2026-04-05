@@ -1909,6 +1909,9 @@ export function WorkspaceDashboard({
       {teamModalOpen ? (
         <Modal title="新增团队成员" onClose={() => setTeamModalOpen(false)}>
           <div className="space-y-4">
+            <p className="rounded-[18px] bg-[#f8fafc] px-4 py-3 text-sm leading-7 text-[#6b7280]">
+              新建账号默认初始密码为 `123456`，请成员首次登录后尽快修改。
+            </p>
             <div className="grid gap-4 md:grid-cols-2">
               <label className="block text-sm text-[#6b7280]">
                 姓名

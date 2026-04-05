@@ -92,7 +92,105 @@ export async function DELETE(
     return NextResponse.json({ message: "无权限" }, { status: 403 });
   }
 
-  await prisma.user.delete({ where: { id } });
+  if (target.id === user.id) {
+    return NextResponse.json({ message: "不能删除当前登录账号" }, { status: 400 });
+  }
+
+  const unfinishedTaskCount = await prisma.task.count({
+    where: {
+      assigneeId: target.id,
+      status: {
+        in: ["todo", "doing"],
+      },
+    },
+  });
+
+  if (unfinishedTaskCount > 0) {
+    return NextResponse.json(
+      { message: "该成员有未完成任务，无法删除，请先处理或转移任务。" },
+      { status: 409 },
+    );
+  }
+
+  const fallbackOwner =
+    (await prisma.user.findFirst({
+      where: {
+        id: {
+          not: target.id,
+        },
+        role: "leader",
+      },
+      orderBy: {
+        createdAt: "asc",
+      },
+    })) ??
+    (await prisma.user.findFirst({
+      where: {
+        id: {
+          not: target.id,
+        },
+      },
+      orderBy: {
+        createdAt: "asc",
+      },
+    }));
+
+  if (!fallbackOwner) {
+    return NextResponse.json({ message: "系统中缺少可接管关联数据的账号，暂时无法删除。" }, { status: 409 });
+  }
+
+  await prisma.$transaction([
+    prisma.task.updateMany({
+      where: {
+        assigneeId: target.id,
+      },
+      data: {
+        assigneeId: fallbackOwner.id,
+      },
+    }),
+    prisma.task.updateMany({
+      where: {
+        creatorId: target.id,
+      },
+      data: {
+        creatorId: fallbackOwner.id,
+      },
+    }),
+    prisma.announcement.updateMany({
+      where: {
+        authorId: target.id,
+      },
+      data: {
+        authorId: fallbackOwner.id,
+      },
+    }),
+    prisma.document.updateMany({
+      where: {
+        ownerId: target.id,
+      },
+      data: {
+        ownerId: fallbackOwner.id,
+      },
+    }),
+    prisma.documentVersion.updateMany({
+      where: {
+        uploaderId: target.id,
+      },
+      data: {
+        uploaderId: fallbackOwner.id,
+      },
+    }),
+    prisma.report.deleteMany({
+      where: {
+        userId: target.id,
+      },
+    }),
+    prisma.user.delete({
+      where: {
+        id: target.id,
+      },
+    }),
+  ]);
 
   return NextResponse.json({ success: true });
 }

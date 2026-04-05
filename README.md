@@ -22,6 +22,11 @@ npm install
 cp .env.example .env
 ```
 
+开发环境至少需要配置：
+
+- `DATABASE_URL`
+- `JWT_SECRET`
+
 3. 初始化数据库并写入种子数据
 
 ```bash
@@ -72,4 +77,5 @@ npm run dev
 
 - 当前数据库使用 SQLite，适合本地开发和原型阶段
 - 如果继续部署到 Vercel，`prisma/dev.db` 不能作为稳定的生产持久化方案
+- 生产部署前必须显式设置 `JWT_SECRET`，不要使用占位值，也不要把真实密钥提交到仓库
 - 下一步建议迁移到 PostgreSQL / Neon / Supabase / Turso 这类外部数据库

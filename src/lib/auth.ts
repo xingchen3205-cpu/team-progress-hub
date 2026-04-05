@@ -12,9 +12,15 @@ type AuthTokenPayload = {
   name: string;
 };
 
-const fallbackSecret = "team-progress-hub-dev-secret";
+const getJwtSecret = () => {
+  const secret = process.env.JWT_SECRET?.trim();
 
-const getJwtSecret = () => process.env.JWT_SECRET || fallbackSecret;
+  if (!secret) {
+    throw new Error("JWT_SECRET is not configured");
+  }
+
+  return secret;
+};
 
 export const authCookieOptions = {
   httpOnly: true,
