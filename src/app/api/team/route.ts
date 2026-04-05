@@ -19,6 +19,7 @@ export async function GET(request: NextRequest) {
     select: {
       id: true,
       name: true,
+      username: true,
       email: true,
       role: true,
       avatar: true,
@@ -57,7 +58,7 @@ export async function GET(request: NextRequest) {
 
       return {
         ...serializeUser(member),
-        account: member.email,
+        account: member.email || member.username,
         systemRole: serializeUser(member).roleLabel,
         progress,
         canBeManagedByLeader: member.role === "member",
@@ -82,24 +83,27 @@ export async function POST(request: NextRequest) {
   const body = (await request.json().catch(() => null)) as
     | {
         name?: string;
-        account?: string;
-        role?: "指导教师" | "项目负责人" | "团队成员";
+        username?: string;
+        email?: string;
+        role?: "系统管理员" | "指导教师" | "项目负责人" | "团队成员";
         responsibility?: string;
         password?: string;
       }
     | null;
 
   const roleMap = {
+    系统管理员: "admin",
     指导教师: "teacher",
     项目负责人: "leader",
     团队成员: "member",
   } as const;
 
   const name = body?.name?.trim();
-  const email = body?.account?.trim();
+  const username = body?.username?.trim();
+  const email = body?.email?.trim() || null;
   const role = body?.role ? roleMap[body.role] : "member";
 
-  if (!name || !email) {
+  if (!name || !username) {
     return NextResponse.json({ message: "成员信息不完整" }, { status: 400 });
   }
 
@@ -112,6 +116,7 @@ export async function POST(request: NextRequest) {
   const member = await prisma.user.create({
     data: {
       name,
+      username,
       email,
       role,
       password: passwordHash,
@@ -121,6 +126,7 @@ export async function POST(request: NextRequest) {
     select: {
       id: true,
       name: true,
+      username: true,
       email: true,
       role: true,
       avatar: true,

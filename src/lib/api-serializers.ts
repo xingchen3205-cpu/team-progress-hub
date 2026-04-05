@@ -78,10 +78,13 @@ export const formatTimeOnly = (value: Date | string) => {
   return `${hours}:${minutes}`;
 };
 
-export const serializeUser = (user: Pick<User, "id" | "name" | "email" | "role" | "avatar" | "responsibility">) => ({
+export const serializeUser = (
+  user: Pick<User, "id" | "name" | "username" | "email" | "role" | "avatar" | "responsibility">,
+) => ({
   id: user.id,
   name: user.name,
-  email: user.email,
+  username: user.username,
+  email: user.email ?? "",
   role: user.role,
   avatar: user.avatar,
   responsibility: user.responsibility ?? "",

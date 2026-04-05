@@ -73,6 +73,7 @@ export function LoginScreen() {
         },
         body: JSON.stringify({
           email: values.username.trim(),
+          username: values.username.trim(),
           password: values.password.trim(),
         }),
       });

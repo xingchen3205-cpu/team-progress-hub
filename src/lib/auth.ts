@@ -7,7 +7,7 @@ import { AUTH_COOKIE_NAME } from "@/lib/demo-auth";
 
 type AuthTokenPayload = {
   sub: string;
-  role: "teacher" | "leader" | "member";
+  role: "admin" | "teacher" | "leader" | "member";
   email: string;
   name: string;
 };
@@ -63,6 +63,7 @@ export const getSessionUser = async (request: NextRequest) => {
       select: {
         id: true,
         name: true,
+        username: true,
         email: true,
         role: true,
         avatar: true,

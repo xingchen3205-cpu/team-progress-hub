@@ -1,7 +1,8 @@
 CREATE TABLE "User" (
     "id" TEXT NOT NULL PRIMARY KEY,
     "name" TEXT NOT NULL,
-    "email" TEXT NOT NULL,
+    "username" TEXT NOT NULL,
+    "email" TEXT,
     "password" TEXT NOT NULL,
     "role" TEXT NOT NULL,
     "avatar" TEXT NOT NULL,
@@ -90,5 +91,6 @@ CREATE TABLE "DocumentVersion" (
     CONSTRAINT "DocumentVersion_uploaderId_fkey" FOREIGN KEY ("uploaderId") REFERENCES "User" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
 );
 
+CREATE UNIQUE INDEX "User_username_key" ON "User"("username");
 CREATE UNIQUE INDEX "User_email_key" ON "User"("email");
 CREATE UNIQUE INDEX "Report_userId_date_key" ON "Report"("userId", "date");

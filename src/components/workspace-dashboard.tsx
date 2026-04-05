@@ -93,7 +93,9 @@ type AnnouncementDraft = {
 
 type TeamDraft = {
   name: string;
-  account: string;
+  username: string;
+  email: string;
+  password: string;
   role: TeamRoleLabel;
   responsibility: string;
 };
@@ -114,6 +116,7 @@ type DocumentDraft = {
 type CurrentUser = {
   id: string;
   name: string;
+  username: string;
   email: string;
   role: RoleKey;
   avatar: string;
@@ -200,6 +203,23 @@ const taskPriorityStyles: Record<TaskDraft["priority"], string> = {
 };
 
 const rolePermissions = {
+  admin: {
+    visibleTabs: ["overview", "timeline", "board", "reports", "experts", "documents", "team"] as TabKey[],
+    canPublishAnnouncement: true,
+    canCreateTask: true,
+    canEditTask: true,
+    canDeleteTask: true,
+    canMoveAnyTask: true,
+    canSubmitReport: false,
+    canViewAllReports: true,
+    canUploadExpert: true,
+    canUploadDocument: true,
+    canReviewDocument: true,
+    canManageTeam: true,
+    canManageTeacherAccount: true,
+    canEditTimeline: true,
+    canResetPassword: true,
+  },
   teacher: {
     visibleTabs: ["overview", "timeline", "board", "reports", "experts", "documents", "team"] as TabKey[],
     canPublishAnnouncement: true,
@@ -215,6 +235,7 @@ const rolePermissions = {
     canManageTeam: true,
     canManageTeacherAccount: true,
     canEditTimeline: true,
+    canResetPassword: true,
   },
   leader: {
     visibleTabs: ["overview", "timeline", "board", "reports", "experts", "documents", "team"] as TabKey[],
@@ -231,6 +252,7 @@ const rolePermissions = {
     canManageTeam: true,
     canManageTeacherAccount: false,
     canEditTimeline: false,
+    canResetPassword: false,
   },
   member: {
     visibleTabs: ["overview", "timeline", "board", "reports", "experts", "documents"] as TabKey[],
@@ -247,6 +269,7 @@ const rolePermissions = {
     canManageTeam: false,
     canManageTeacherAccount: false,
     canEditTimeline: false,
+    canResetPassword: false,
   },
 } as const;
 
@@ -313,7 +336,9 @@ const defaultExpertDraft: ExpertDraft = {
 
 const defaultTeamDraft: TeamDraft = {
   name: "",
-  account: "",
+  username: "",
+  email: "",
+  password: "123456",
   role: "团队成员",
   responsibility: "",
 };
@@ -464,6 +489,9 @@ export function WorkspaceDashboard({
 
   const [teamModalOpen, setTeamModalOpen] = useState(false);
   const [teamDraft, setTeamDraft] = useState<TeamDraft>(defaultTeamDraft);
+  const [passwordModalOpen, setPasswordModalOpen] = useState(false);
+  const [passwordTargetMember, setPasswordTargetMember] = useState<TeamMember | null>(null);
+  const [passwordDraft, setPasswordDraft] = useState("");
   const [reportModalOpen, setReportModalOpen] = useState(false);
   const [reportDraft, setReportDraft] = useState<ReportDraft>(defaultReportDraft);
   const [documentModalOpen, setDocumentModalOpen] = useState(false);
@@ -574,10 +602,10 @@ export function WorkspaceDashboard({
   const reportEntries = reportEntriesByDay[selectedDate] ?? [];
   const reportEntryMap = new Map<string, ReportEntry>(reportEntries.map((item) => [item.memberId, item]));
   const firstAssignableMemberId =
-    members.find((item) => item.systemRole !== "指导教师")?.id ?? currentMemberId;
+    members.find((item) => !["指导教师", "系统管理员"].includes(item.systemRole))?.id ?? currentMemberId;
 
   const visibleReportMembers = permissions.canViewAllReports
-    ? members.filter((item) => item.systemRole !== "指导教师")
+    ? members.filter((item) => !["指导教师", "系统管理员"].includes(item.systemRole))
     : members.filter((item) => item.id === currentMemberId);
 
   const filteredDocuments = selectedCategory
@@ -599,7 +627,7 @@ export function WorkspaceDashboard({
     },
     {
       label: "本日汇报",
-      value: `${(reportEntriesByDay[reportDates[0]] ?? []).length} / ${members.filter((item) => item.systemRole !== "指导教师").length}`,
+      value: `${(reportEntriesByDay[reportDates[0]] ?? []).length} / ${members.filter((item) => !["指导教师", "系统管理员"].includes(item.systemRole)).length}`,
       description: "按当前日期统计已提交的成员汇报数。",
     },
     {
@@ -618,14 +646,36 @@ export function WorkspaceDashboard({
     if (!permissions.canManageTeam) {
       return false;
     }
-    if (currentRole === "teacher") {
+    if (currentRole === "admin") {
       return true;
+    }
+    if (currentRole === "teacher") {
+      return member.systemRole === "项目负责人" || member.systemRole === "团队成员";
     }
     if (currentRole === "leader") {
       return member.canBeManagedByLeader;
     }
     return false;
   };
+
+  const canResetMemberPassword = (member: TeamMember) => {
+    if (!permissions.canResetPassword) {
+      return false;
+    }
+
+    if (currentRole === "admin") {
+      return true;
+    }
+
+    return member.systemRole === "项目负责人" || member.systemRole === "团队成员";
+  };
+
+  const availableRoleOptions: TeamRoleLabel[] =
+    currentRole === "admin"
+      ? ["系统管理员", "指导教师", "项目负责人", "团队成员"]
+      : currentRole === "teacher"
+        ? ["项目负责人", "团队成员"]
+        : ["团队成员"];
 
   const canMoveTask = (task: BoardTask) =>
     permissions.canMoveAnyTask || (currentRole === "member" && task.assigneeId === currentMemberId);
@@ -957,14 +1007,21 @@ export function WorkspaceDashboard({
   };
 
   const saveTeamMember = async () => {
-    if (!teamDraft.name.trim() || !teamDraft.account.trim()) {
+    if (!teamDraft.name.trim() || !teamDraft.username.trim()) {
       return;
     }
 
     try {
       await requestJson("/api/team", {
         method: "POST",
-        body: JSON.stringify(teamDraft),
+        body: JSON.stringify({
+          name: teamDraft.name,
+          username: teamDraft.username,
+          email: teamDraft.email,
+          password: teamDraft.password || "123456",
+          role: teamDraft.role,
+          responsibility: teamDraft.responsibility,
+        }),
       });
       setTeamDraft(defaultTeamDraft);
       setTeamModalOpen(false);
@@ -983,6 +1040,33 @@ export function WorkspaceDashboard({
       refreshWorkspace();
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "角色更新失败");
+    }
+  };
+
+  const openPasswordModal = (member: TeamMember) => {
+    setPasswordTargetMember(member);
+    setPasswordDraft("");
+    setPasswordModalOpen(true);
+  };
+
+  const resetMemberPassword = async () => {
+    if (!passwordTargetMember || !passwordDraft.trim()) {
+      setLoadError("请输入新密码");
+      return;
+    }
+
+    try {
+      await requestJson(`/api/team/${passwordTargetMember.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          password: passwordDraft.trim(),
+        }),
+      });
+      setPasswordDraft("");
+      setPasswordTargetMember(null);
+      setPasswordModalOpen(false);
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "密码重置失败");
     }
   };
 
@@ -1595,7 +1679,7 @@ export function WorkspaceDashboard({
           >
             <span className="inline-flex items-center gap-2">
               <Plus className="h-4 w-4" />
-              <span>新增成员</span>
+              <span>创建账号</span>
             </span>
           </ActionButton>
         </div>
@@ -1604,7 +1688,7 @@ export function WorkspaceDashboard({
       <section className="grid gap-6 xl:grid-cols-2">
         {members.map((member) => {
           const editable = canManageMember(member);
-          const roleDisabled = currentRole !== "teacher" || !editable;
+          const roleDisabled = !editable || member.systemRole === "系统管理员";
 
           return (
             <article
@@ -1620,6 +1704,9 @@ export function WorkspaceDashboard({
                     <div>
                       <h3 className="text-base font-semibold text-[#111827]">{member.name}</h3>
                       <p className="mt-2 text-sm text-[#6b7280]">账号：{member.account}</p>
+                      {member.systemRole === "系统管理员" ? (
+                        <p className="mt-2 text-sm text-[#2563eb]">系统最高权限账号</p>
+                      ) : null}
                     </div>
                     <span className="rounded-full bg-[#eff6ff] px-3 py-1 text-sm text-[#2563eb]">
                       当前进度 {member.progress}
@@ -1640,20 +1727,33 @@ export function WorkspaceDashboard({
                           updateMemberRole(member.id, event.target.value as TeamRoleLabel)
                         }
                       >
-                        {currentRole === "teacher" ? <option value="指导教师">指导教师</option> : null}
-                        {currentRole === "teacher" ? <option value="项目负责人">项目负责人</option> : null}
-                        <option value="团队成员">团队成员</option>
+                        {availableRoleOptions.map((roleOption) => (
+                          <option key={roleOption} value={roleOption}>
+                            {roleOption}
+                          </option>
+                        ))}
                       </select>
                     </label>
 
-                    <ActionButton
-                      disabled={!editable}
-                      onClick={() => removeMember(member.id)}
-                      title="无权限"
-                      variant="danger"
-                    >
-                      删除账号
-                    </ActionButton>
+                    <div className="flex flex-wrap gap-3">
+                      {permissions.canResetPassword ? (
+                        <ActionButton
+                          disabled={!canResetMemberPassword(member)}
+                          onClick={() => openPasswordModal(member)}
+                          title="无权限"
+                        >
+                          重置密码
+                        </ActionButton>
+                      ) : null}
+                      <ActionButton
+                        disabled={!editable || member.systemRole === "系统管理员"}
+                        onClick={() => removeMember(member.id)}
+                        title="无权限"
+                        variant="danger"
+                      >
+                        删除账号
+                      </ActionButton>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -1803,7 +1903,7 @@ export function WorkspaceDashboard({
                 }
               >
                 {members
-                  .filter((item) => item.systemRole !== "指导教师")
+                  .filter((item) => !["指导教师", "系统管理员"].includes(item.systemRole))
                   .map((member) => (
                     <option key={member.id} value={member.id}>
                       {member.name}
@@ -2172,14 +2272,11 @@ export function WorkspaceDashboard({
       ) : null}
 
       {teamModalOpen ? (
-        <Modal title="新增团队成员" onClose={() => setTeamModalOpen(false)}>
+        <Modal title="创建账号" onClose={() => setTeamModalOpen(false)}>
           <div className="space-y-4">
-            <p className="rounded-[18px] bg-[#f8fafc] px-4 py-3 text-sm leading-7 text-[#6b7280]">
-              新建账号默认初始密码为 `123456`，请成员首次登录后尽快修改。
-            </p>
             <div className="grid gap-4 md:grid-cols-2">
               <label className="block text-sm text-[#6b7280]">
-                姓名
+                姓名 / 显示名
                 <input
                   className="mt-2 w-full rounded-xl border border-[#d1d9e6] px-4 py-3 text-sm text-[#111827]"
                   value={teamDraft.name}
@@ -2187,11 +2284,29 @@ export function WorkspaceDashboard({
                 />
               </label>
               <label className="block text-sm text-[#6b7280]">
-                账号
+                用户名
                 <input
                   className="mt-2 w-full rounded-xl border border-[#d1d9e6] px-4 py-3 text-sm text-[#111827]"
-                  value={teamDraft.account}
-                  onChange={(event) => setTeamDraft((current) => ({ ...current, account: event.target.value }))}
+                  value={teamDraft.username}
+                  onChange={(event) => setTeamDraft((current) => ({ ...current, username: event.target.value }))}
+                />
+              </label>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <label className="block text-sm text-[#6b7280]">
+                邮箱
+                <input
+                  className="mt-2 w-full rounded-xl border border-[#d1d9e6] px-4 py-3 text-sm text-[#111827]"
+                  value={teamDraft.email}
+                  onChange={(event) => setTeamDraft((current) => ({ ...current, email: event.target.value }))}
+                />
+              </label>
+              <label className="block text-sm text-[#6b7280]">
+                初始密码
+                <input
+                  className="mt-2 w-full rounded-xl border border-[#d1d9e6] px-4 py-3 text-sm text-[#111827]"
+                  value={teamDraft.password}
+                  onChange={(event) => setTeamDraft((current) => ({ ...current, password: event.target.value }))}
                 />
               </label>
             </div>
@@ -2199,15 +2314,16 @@ export function WorkspaceDashboard({
               角色
               <select
                 className="mt-2 w-full rounded-xl border border-[#d1d9e6] px-4 py-3 text-sm text-[#111827]"
-                disabled={currentRole !== "teacher"}
                 value={teamDraft.role}
                 onChange={(event) =>
                   setTeamDraft((current) => ({ ...current, role: event.target.value as TeamRoleLabel }))
                 }
               >
-                {currentRole === "teacher" ? <option value="指导教师">指导教师</option> : null}
-                {currentRole === "teacher" ? <option value="项目负责人">项目负责人</option> : null}
-                <option value="团队成员">团队成员</option>
+                {availableRoleOptions.map((roleOption) => (
+                  <option key={roleOption} value={roleOption}>
+                    {roleOption}
+                  </option>
+                ))}
               </select>
             </label>
             <label className="block text-sm text-[#6b7280]">
@@ -2224,6 +2340,31 @@ export function WorkspaceDashboard({
               <ActionButton onClick={() => setTeamModalOpen(false)}>取消</ActionButton>
               <ActionButton onClick={saveTeamMember} variant="primary">
                 保存成员
+              </ActionButton>
+            </div>
+          </div>
+        </Modal>
+      ) : null}
+
+      {passwordModalOpen ? (
+        <Modal title="重置密码" onClose={() => setPasswordModalOpen(false)}>
+          <div className="space-y-4">
+            <p className="text-sm leading-7 text-[#6b7280]">
+              正在为 {passwordTargetMember?.name ?? "该成员"} 设置新密码。
+            </p>
+            <label className="block text-sm text-[#6b7280]">
+              新密码
+              <input
+                className="mt-2 w-full rounded-xl border border-[#d1d9e6] px-4 py-3 text-sm text-[#111827]"
+                type="password"
+                value={passwordDraft}
+                onChange={(event) => setPasswordDraft(event.target.value)}
+              />
+            </label>
+            <div className="flex justify-end gap-3">
+              <ActionButton onClick={() => setPasswordModalOpen(false)}>取消</ActionButton>
+              <ActionButton onClick={resetMemberPassword} variant="primary">
+                确认重置
               </ActionButton>
             </div>
           </div>

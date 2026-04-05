@@ -28,13 +28,16 @@ export async function PATCH(
   const body = (await request.json().catch(() => null)) as
     | {
         name?: string;
-        account?: string;
-        role?: "指导教师" | "项目负责人" | "团队成员";
+        username?: string;
+        email?: string;
+        role?: "系统管理员" | "指导教师" | "项目负责人" | "团队成员";
         responsibility?: string;
+        password?: string;
       }
     | null;
 
   const roleMap = {
+    系统管理员: "admin",
     指导教师: "teacher",
     项目负责人: "leader",
     团队成员: "member",
@@ -42,22 +45,35 @@ export async function PATCH(
 
   const nextRole = body?.role ? roleMap[body.role] : target.role;
 
+  if (target.role === "admin" && nextRole !== "admin") {
+    return NextResponse.json({ message: "admin 账号角色不能被修改" }, { status: 403 });
+  }
+
   if (!canManageUser(user.role, target.role, nextRole)) {
     return NextResponse.json({ message: "无权限" }, { status: 403 });
+  }
+
+  let nextPassword: string | undefined;
+  if (body?.password?.trim()) {
+    const bcrypt = await import("bcryptjs");
+    nextPassword = await bcrypt.hash(body.password.trim(), 10);
   }
 
   const member = await prisma.user.update({
     where: { id },
     data: {
       name: body?.name?.trim() || undefined,
-      email: body?.account?.trim() || undefined,
-      role: nextRole,
+      username: body?.username?.trim() || undefined,
+      email: body?.email?.trim() || (body?.email === "" ? null : undefined),
+      role: target.role === "admin" ? undefined : nextRole,
       responsibility: body?.responsibility?.trim() || undefined,
       avatar: body?.name?.trim()?.slice(0, 1) || undefined,
+      password: nextPassword,
     },
     select: {
       id: true,
       name: true,
+      username: true,
       email: true,
       role: true,
       avatar: true,
@@ -90,6 +106,10 @@ export async function DELETE(
 
   if (!canManageUser(user.role, target.role)) {
     return NextResponse.json({ message: "无权限" }, { status: 403 });
+  }
+
+  if (target.role === "admin") {
+    return NextResponse.json({ message: "admin 账号不能被删除" }, { status: 403 });
   }
 
   if (target.id === user.id) {

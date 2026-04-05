@@ -14,6 +14,7 @@ import {
 const prisma = new PrismaClient();
 
 const roleMap = {
+  系统管理员: "admin",
   指导教师: "teacher",
   项目负责人: "leader",
   团队成员: "member",
@@ -59,8 +60,19 @@ async function main() {
 
   const users = [
     {
+      id: "admin-1",
+      name: "系统管理员",
+      username: "jiayingze",
+      email: null,
+      password: "jyz760309",
+      role: "admin" as const,
+      avatar: "管",
+      responsibility: "系统最高权限管理、账号与权限配置、全局运维",
+    },
+    {
       id: "teacher-1",
       name: "李老师",
+      username: "teacher",
       email: "teacher@competition.cn",
       password: "teacher123",
       role: "teacher" as const,
@@ -70,6 +82,7 @@ async function main() {
     {
       id: "leader-1",
       name: "陈思远",
+      username: "captain",
       email: "captain@competition.cn",
       password: "leader123",
       role: "leader" as const,
@@ -79,6 +92,7 @@ async function main() {
     {
       id: "member-1",
       name: "林沐晴",
+      username: "member",
       email: "member@competition.cn",
       password: "member123",
       role: "member" as const,
@@ -90,6 +104,7 @@ async function main() {
       .map((member) => ({
         id: member.id,
         name: member.name,
+        username: member.account.split("@")[0],
         email: member.account,
         password: "123456",
         role: roleMap[member.systemRole],

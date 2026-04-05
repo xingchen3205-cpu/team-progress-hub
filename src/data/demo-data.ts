@@ -1,6 +1,6 @@
-export type RoleKey = "teacher" | "leader" | "member";
+export type RoleKey = "admin" | "teacher" | "leader" | "member";
 
-export type TeamRoleLabel = "指导教师" | "项目负责人" | "团队成员";
+export type TeamRoleLabel = "系统管理员" | "指导教师" | "项目负责人" | "团队成员";
 
 export type TeamMember = {
   id: string;
@@ -91,6 +91,7 @@ export type ExpertItem = {
 };
 
 export const roleLabels: Record<RoleKey, TeamRoleLabel> = {
+  admin: "系统管理员",
   teacher: "指导教师",
   leader: "项目负责人",
   member: "团队成员",
