@@ -1,11 +1,9 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
 import type { DocumentCategory } from "@prisma/client";
 
 import { validateUploadMeta } from "@/lib/file-policy";
-
-const UPLOAD_ROOT = process.env.UPLOAD_ROOT || "/opt/team-progress-hub/uploads";
+import { GetObjectCommand, PutObjectCommand, R2_BUCKET, r2Client } from "@/lib/r2";
 
 const uploadFolderByCategory: Record<DocumentCategory, string> = {
   plan: "plans",
@@ -36,24 +34,41 @@ export async function saveUploadedFile({
     throw new Error(validationError);
   }
 
-  const folderName = uploadFolderByCategory[category];
-  const uploadDir = path.join(UPLOAD_ROOT, folderName);
-  await mkdir(uploadDir, { recursive: true });
-
   const safeFileName = `${Date.now()}_${sanitizeBaseName(file.name)}`;
-  const targetPath = path.join(uploadDir, safeFileName);
+  const objectKey = `${uploadFolderByCategory[category]}/${safeFileName}`;
   const fileBuffer = Buffer.from(await file.arrayBuffer());
 
-  await writeFile(targetPath, fileBuffer);
+  await r2Client.send(
+    new PutObjectCommand({
+      Bucket: R2_BUCKET,
+      Key: objectKey,
+      Body: fileBuffer,
+      ContentType: file.type || "application/octet-stream",
+    }),
+  );
 
   return {
     fileName: file.name,
-    filePath: targetPath,
+    filePath: objectKey,
     fileSize: file.size,
     mimeType: file.type || "application/octet-stream",
   };
 }
 
-export async function readStoredFile(filePath: string) {
-  return readFile(filePath);
+export async function readStoredFile(objectKey: string) {
+  const response = await r2Client.send(
+    new GetObjectCommand({
+      Bucket: R2_BUCKET,
+      Key: objectKey,
+    }),
+  );
+
+  if (!response.Body) {
+    throw new Error("文件不存在或已丢失");
+  }
+
+  return {
+    buffer: Buffer.from(await response.Body.transformToByteArray()),
+    contentType: response.ContentType || "application/octet-stream",
+  };
 }

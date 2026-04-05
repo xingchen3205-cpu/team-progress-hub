@@ -41,11 +41,11 @@ export async function GET(
   }
 
   try {
-    const fileBuffer = await readStoredFile(version.filePath);
+    const fileData = await readStoredFile(version.filePath);
 
-    return new NextResponse(fileBuffer, {
+    return new NextResponse(fileData.buffer, {
       headers: {
-        "Content-Type": version.mimeType || "application/octet-stream",
+        "Content-Type": fileData.contentType || version.mimeType || "application/octet-stream",
         "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(version.fileName)}`,
         "Content-Length": String(version.fileSize),
       },

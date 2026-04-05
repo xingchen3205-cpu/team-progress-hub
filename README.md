@@ -4,9 +4,10 @@
 
 - Next.js API Routes
 - Prisma Schema
-- SQLite 本地数据库
+- Turso 数据库
 - JWT + HttpOnly Cookie 登录态
-- 角色权限控制（指导教师 / 项目负责人 / 团队成员）
+- Cloudflare R2 文档存储
+- 角色权限控制（系统管理员 / 指导教师 / 项目负责人 / 团队成员）
 
 ## 本地启动
 
@@ -19,19 +20,30 @@ npm install
 2. 初始化环境变量
 
 ```bash
-cp .env.example .env
+cp .env.example .env.local
 ```
 
 开发环境至少需要配置：
 
-- `DATABASE_URL`
+- `DATABASE_URL`（保留为 Prisma CLI 的本地占位值，例如 `file:./prisma/dev.db`）
+- `TURSO_DATABASE_URL`
+- `TURSO_AUTH_TOKEN`
 - `JWT_SECRET`
-- `UPLOAD_ROOT`
+- `R2_ENDPOINT`
+- `R2_ACCESS_KEY_ID`
+- `R2_SECRET_ACCESS_KEY`
+- `R2_BUCKET_NAME`
 
-3. 初始化数据库并写入种子数据
+3. 初始化数据库结构并写入种子数据
 
 ```bash
 npm run db:setup
+```
+
+也可以在完成 `prisma db push` 后单独执行：
+
+```bash
+npx tsx prisma/seed.ts
 ```
 
 4. 启动开发环境
@@ -70,15 +82,13 @@ npm run dev
 
 ## 数据说明
 
-- 任务、公告、汇报、专家意见、文档、团队成员信息现在都会持久化到 `prisma/dev.db`
+- 任务、公告、汇报、专家意见、文档、团队成员信息现在都会持久化到 Turso
 - 登录态使用 JWT，并写入 HttpOnly Cookie，不再通过 URL 或 localStorage 传角色
 - 页面刷新后数据不会丢失
-- 文档上传默认保存到 `UPLOAD_ROOT`，未单独配置时默认使用 `/opt/team-progress-hub/uploads`
+- 文档文件会保存到 Cloudflare R2，对象 key 按分类目录组织
 - 仅支持上传 `.doc`、`.docx`、`.pdf`、`.xls`、`.xlsx`、`.txt`、`.jpg`、`.jpeg`、`.png`，单文件最大 20MB
 
 ## 生产环境注意
 
-- 当前数据库使用 SQLite，适合本地开发和原型阶段
-- 如果继续部署到 Vercel，`prisma/dev.db` 不能作为稳定的生产持久化方案
+- 当前默认使用 Turso + Cloudflare R2，部署前需要先在平台侧准备数据库和存储桶
 - 生产部署前必须显式设置 `JWT_SECRET`，不要使用占位值，也不要把真实密钥提交到仓库
-- 下一步建议迁移到 PostgreSQL / Neon / Supabase / Turso 这类外部数据库

@@ -1,3 +1,4 @@
+import { PrismaLibSQL } from "@prisma/adapter-libsql";
 import bcrypt from "bcryptjs";
 import { PrismaClient } from "@prisma/client";
 
@@ -11,7 +12,11 @@ import {
   teamMembers,
 } from "../src/data/demo-data";
 
-const prisma = new PrismaClient();
+const adapter = new PrismaLibSQL({
+  url: process.env.TURSO_DATABASE_URL!,
+  authToken: process.env.TURSO_AUTH_TOKEN!,
+});
+const prisma = new PrismaClient({ adapter });
 
 const roleMap = {
   系统管理员: "admin",
@@ -204,7 +209,7 @@ async function main() {
             fileName: version.fileName || `${document.name}-${version.version}.pdf`,
             filePath:
               version.filePath ||
-              `/opt/team-progress-hub/uploads/${
+              `${
                 uploadFolderByCategory[document.category as keyof typeof uploadFolderByCategory]
               }/${document.name}-${version.version}.pdf`,
             fileSize: version.fileSize || 1024,
