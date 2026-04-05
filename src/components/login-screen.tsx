@@ -3,7 +3,8 @@
 import { startTransition, useState } from "react";
 import { useRouter } from "next/navigation";
 
-import { loginAccounts, roleLabels } from "@/data/demo-data";
+import { loginAccounts } from "@/data/demo-data";
+import { DEMO_AUTH_STORAGE_KEY } from "@/lib/demo-auth";
 
 const initialValues = {
   username: "",
@@ -44,7 +45,7 @@ export function LoginScreen() {
     if (!matchedAccount) {
       setErrors((current) => ({
         ...current,
-        submit: "账号或密码不正确，请使用下方测试账号登录。",
+        submit: "账号或密码不正确，请核对 README 中的测试账号信息。",
       }));
       return;
     }
@@ -52,8 +53,15 @@ export function LoginScreen() {
     setIsSubmitting(true);
 
     window.setTimeout(() => {
+      window.localStorage.setItem(
+        DEMO_AUTH_STORAGE_KEY,
+        JSON.stringify({
+          role: matchedAccount.role,
+          accountId: matchedAccount.id,
+        }),
+      );
       startTransition(() => {
-        router.push(`/workspace?role=${matchedAccount.role}`);
+        router.push("/workspace");
       });
       setIsSubmitting(false);
     }, 900);
@@ -176,33 +184,9 @@ export function LoginScreen() {
                 </button>
               </form>
 
-              <section className="mt-6 rounded-[18px] bg-[#f8fafc] p-4">
-                <h3 className="text-base font-semibold text-[#111827]">测试账号</h3>
-                <div className="mt-4 space-y-3">
-                  {loginAccounts.map((account) => (
-                    <button
-                      key={account.id}
-                      className="w-full rounded-[14px] border border-[#e5e7eb] bg-white px-4 py-3 text-left transition hover:border-[#bfdbfe] hover:bg-[#f8fbff]"
-                      type="button"
-                      onClick={() => {
-                        setValues((current) => ({
-                          ...current,
-                          username: account.username,
-                          password: account.password,
-                        }));
-                        setErrors({});
-                      }}
-                    >
-                      <p className="text-sm font-medium text-[#111827]">
-                        {roleLabels[account.role]}：{account.profile.name}
-                      </p>
-                      <p className="mt-1 text-sm text-[#6b7280]">
-                        {account.username} / {account.password}
-                      </p>
-                    </button>
-                  ))}
-                </div>
-              </section>
+              <p className="mt-6 text-center text-sm leading-7 text-[#6b7280]">
+                测试账号信息已移至项目 README，仅用于本地演示与开发调试。
+              </p>
             </div>
           </div>
         </section>

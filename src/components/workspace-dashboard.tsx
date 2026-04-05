@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
@@ -50,6 +51,7 @@ import {
   teamMembers,
   todayTaskSummary,
 } from "@/data/demo-data";
+import { DEMO_AUTH_STORAGE_KEY, type DemoAuthState } from "@/lib/demo-auth";
 
 type BoardStatus = (typeof boardColumns)[number]["id"];
 
@@ -102,6 +104,12 @@ type TeamDraft = {
   account: string;
   role: TeamRoleLabel;
   responsibility: string;
+};
+
+type ReportDraft = {
+  summary: string;
+  nextPlan: string;
+  attachment: string;
 };
 
 const allTabs: TabItem[] = [
@@ -304,6 +312,12 @@ const defaultTeamDraft: TeamDraft = {
   responsibility: "",
 };
 
+const defaultReportDraft: ReportDraft = {
+  summary: "",
+  nextPlan: "",
+  attachment: "",
+};
+
 function SectionHeader({ title, description }: { title: string; description: string }) {
   return (
     <div className="space-y-2">
@@ -311,6 +325,10 @@ function SectionHeader({ title, description }: { title: string; description: str
       <p className="text-sm leading-7 text-[#6b7280]">{description}</p>
     </div>
   );
+}
+
+function DemoResetNote() {
+  return <p className="text-xs leading-6 text-[#94a3b8]">当前为演示模式，数据刷新后重置</p>;
 }
 
 function Modal({
@@ -374,14 +392,31 @@ function ActionButton({
 
 export function WorkspaceDashboard({
   activeTab = "overview",
-  role,
 }: {
   activeTab?: TabKey;
-  role: RoleKey;
 }) {
-  const currentUser = currentUserByRole[role];
-  const currentMemberId = currentMemberIdByRole[role];
-  const permissions = rolePermissions[role];
+  const router = useRouter();
+  const [role] = useState<RoleKey | null>(() => {
+    if (typeof window === "undefined") {
+      return null;
+    }
+
+    const rawValue = window.localStorage.getItem(DEMO_AUTH_STORAGE_KEY);
+    if (!rawValue) {
+      return null;
+    }
+
+    try {
+      const parsed = JSON.parse(rawValue) as DemoAuthState;
+      return parsed.role && parsed.role in currentUserByRole ? parsed.role : null;
+    } catch {
+      return null;
+    }
+  });
+  const currentRole = role ?? "leader";
+  const currentUser = currentUserByRole[currentRole];
+  const currentMemberId = currentMemberIdByRole[currentRole];
+  const permissions = rolePermissions[currentRole];
   const visibleTabs = allTabs.filter((item) => permissions.visibleTabs.includes(item.key));
   const safeActiveTab = permissions.visibleTabs.includes(activeTab) ? activeTab : visibleTabs[0].key;
   const [announcements, setAnnouncements] = useState<Announcement[]>(initialAnnouncements);
@@ -390,6 +425,7 @@ export function WorkspaceDashboard({
   const [experts, setExperts] = useState<ExpertItem[]>(initialExpertSessions);
   const [documents, setDocuments] = useState<DocumentItem[]>(initialDocuments);
   const [members, setMembers] = useState<TeamMember[]>(teamMembers);
+  const [reportEntriesByDay, setReportEntriesByDay] = useState(reportEntriesByDate);
   const [selectedDate, setSelectedDate] = useState(reportDates[0]);
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [expandedDocs, setExpandedDocs] = useState<string[]>([]);
@@ -412,9 +448,18 @@ export function WorkspaceDashboard({
 
   const [teamModalOpen, setTeamModalOpen] = useState(false);
   const [teamDraft, setTeamDraft] = useState<TeamDraft>(defaultTeamDraft);
+  const [reportModalOpen, setReportModalOpen] = useState(false);
+  const [reportDraft, setReportDraft] = useState<ReportDraft>(defaultReportDraft);
 
   const nearestUpcomingIndex = getNearestUpcomingIndex(events);
   const nearestEvent = events[nearestUpcomingIndex];
+
+  useEffect(() => {
+    if (!role) {
+      window.localStorage.removeItem(DEMO_AUTH_STORAGE_KEY);
+      router.replace("/login");
+    }
+  }, [role, router]);
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -429,7 +474,7 @@ export function WorkspaceDashboard({
     [members],
   );
 
-  const reportEntries = reportEntriesByDate[selectedDate] ?? [];
+  const reportEntries = reportEntriesByDay[selectedDate] ?? [];
   const reportEntryMap = new Map<string, ReportEntry>(reportEntries.map((item) => [item.memberId, item]));
   const firstAssignableMemberId =
     members.find((item) => item.systemRole !== "指导教师")?.id ?? currentMemberId;
@@ -448,17 +493,17 @@ export function WorkspaceDashboard({
     if (!permissions.canManageTeam) {
       return false;
     }
-    if (role === "teacher") {
+    if (currentRole === "teacher") {
       return true;
     }
-    if (role === "leader") {
+    if (currentRole === "leader") {
       return member.canBeManagedByLeader;
     }
     return false;
   };
 
   const canMoveTask = (task: BoardTask) =>
-    permissions.canMoveAnyTask || (role === "member" && task.assigneeId === currentMemberId);
+    permissions.canMoveAnyTask || (currentRole === "member" && task.assigneeId === currentMemberId);
 
   const openCreateTaskModal = () => {
     setEditingTaskId(null);
@@ -553,6 +598,33 @@ export function WorkspaceDashboard({
     ]);
     setAnnouncementDraft(defaultAnnouncementDraft);
     setAnnouncementModalOpen(false);
+  };
+
+  const saveReport = () => {
+    if (!reportDraft.summary.trim() || !reportDraft.nextPlan.trim()) {
+      return;
+    }
+
+    const nextEntry: ReportEntry = {
+      memberId: currentMemberId,
+      submittedAt: "刚刚提交",
+      summary: reportDraft.summary,
+      nextPlan: reportDraft.nextPlan,
+      attachment: reportDraft.attachment || "未上传附件",
+    };
+
+    setReportEntriesByDay((current) => {
+      const currentEntries = current[selectedDate] ?? [];
+      const filteredEntries = currentEntries.filter((item) => item.memberId !== currentMemberId);
+
+      return {
+        ...current,
+        [selectedDate]: [nextEntry, ...filteredEntries],
+      };
+    });
+
+    setReportDraft(defaultReportDraft);
+    setReportModalOpen(false);
   };
 
   const saveEvent = () => {
@@ -710,6 +782,7 @@ export function WorkspaceDashboard({
           ? {
               ...member,
               systemRole: roleLabel,
+              role: roleLabel,
               canBeManagedByLeader: roleLabel === "团队成员",
             }
           : member,
@@ -728,17 +801,20 @@ export function WorkspaceDashboard({
           description="聚焦最近关键节点、今日任务重点、最新公告和核心统计。"
           title="首页概览"
         />
-        <ActionButton
-          disabled={!permissions.canPublishAnnouncement}
-          onClick={() => setAnnouncementModalOpen(true)}
-          title="无权限"
-          variant="primary"
-        >
-          <span className="inline-flex items-center gap-2">
-            <BellPlus className="h-4 w-4" />
-            <span>发布公告</span>
-          </span>
-        </ActionButton>
+        <div className="flex flex-wrap items-center gap-3">
+          <DemoResetNote />
+          <ActionButton
+            disabled={!permissions.canPublishAnnouncement}
+            onClick={() => setAnnouncementModalOpen(true)}
+            title="无权限"
+            variant="primary"
+          >
+            <span className="inline-flex items-center gap-2">
+              <BellPlus className="h-4 w-4" />
+              <span>发布公告</span>
+            </span>
+          </ActionButton>
+        </div>
       </div>
 
       <section className="rounded-[28px] border border-[#d9e8f8] bg-white p-8 shadow-[0_16px_44px_rgba(15,23,42,0.06)]">
@@ -819,17 +895,20 @@ export function WorkspaceDashboard({
           description="用横向时间轴统一查看比赛节点推进情况，关键节点会被重点高亮。"
           title="时间进度"
         />
-        <ActionButton
-          disabled={!permissions.canEditTimeline}
-          onClick={() => openEventModal()}
-          title="无权限"
-          variant="primary"
-        >
-          <span className="inline-flex items-center gap-2">
-            <Plus className="h-4 w-4" />
-            <span>新增节点</span>
-          </span>
-        </ActionButton>
+        <div className="flex flex-wrap items-center gap-3">
+          <DemoResetNote />
+          <ActionButton
+            disabled={!permissions.canEditTimeline}
+            onClick={() => openEventModal()}
+            title="无权限"
+            variant="primary"
+          >
+            <span className="inline-flex items-center gap-2">
+              <Plus className="h-4 w-4" />
+              <span>新增节点</span>
+            </span>
+          </ActionButton>
+        </div>
       </div>
 
       <section className="overflow-x-auto rounded-[28px] border border-[#e5e7eb] bg-white p-6 shadow-[0_12px_32px_rgba(15,23,42,0.05)]">
@@ -895,17 +974,20 @@ export function WorkspaceDashboard({
           description="拖拽任务卡片切换状态，任务创建、编辑和删除会依据角色权限开放。"
           title="任务看板"
         />
-        <ActionButton
-          disabled={!permissions.canCreateTask}
-          onClick={openCreateTaskModal}
-          title="无权限"
-          variant="primary"
-        >
-          <span className="inline-flex items-center gap-2">
-            <Plus className="h-4 w-4" />
-            <span>新建任务</span>
-          </span>
-        </ActionButton>
+        <div className="flex flex-wrap items-center gap-3">
+          <DemoResetNote />
+          <ActionButton
+            disabled={!permissions.canCreateTask}
+            onClick={openCreateTaskModal}
+            title="无权限"
+            variant="primary"
+          >
+            <span className="inline-flex items-center gap-2">
+              <Plus className="h-4 w-4" />
+              <span>新建任务</span>
+            </span>
+          </ActionButton>
+        </div>
       </div>
 
       <section className="grid items-stretch gap-6 xl:grid-cols-3">
@@ -1001,6 +1083,7 @@ export function WorkspaceDashboard({
           title="日程汇报"
         />
         <div className="flex flex-wrap items-center gap-3">
+          <DemoResetNote />
           <label className="text-sm text-[#6b7280]">
             日期：
             <select
@@ -1017,6 +1100,7 @@ export function WorkspaceDashboard({
           </label>
           <ActionButton
             disabled={!permissions.canSubmitReport}
+            onClick={() => setReportModalOpen(true)}
             title="无权限"
             variant="primary"
           >
@@ -1075,17 +1159,20 @@ export function WorkspaceDashboard({
           description="按时间倒序沉淀每次专家辅导意见与后续落地动作。"
           title="专家意见"
         />
-        <ActionButton
-          disabled={!permissions.canUploadExpert}
-          onClick={() => setExpertModalOpen(true)}
-          title="无权限"
-          variant="primary"
-        >
-          <span className="inline-flex items-center gap-2">
-            <Upload className="h-4 w-4" />
-            <span>上传专家意见</span>
-          </span>
-        </ActionButton>
+        <div className="flex flex-wrap items-center gap-3">
+          <DemoResetNote />
+          <ActionButton
+            disabled={!permissions.canUploadExpert}
+            onClick={() => setExpertModalOpen(true)}
+            title="无权限"
+            variant="primary"
+          >
+            <span className="inline-flex items-center gap-2">
+              <Upload className="h-4 w-4" />
+              <span>上传专家意见</span>
+            </span>
+          </ActionButton>
+        </div>
       </div>
 
       <section className="space-y-6">
@@ -1124,10 +1211,13 @@ export function WorkspaceDashboard({
 
   const renderDocuments = () => (
     <div className="space-y-6">
-      <SectionHeader
-        description="点击分类卡片筛选文档，并可查看历史版本、上传新版本和执行审核。"
-        title="文档中心"
-      />
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <SectionHeader
+          description="点击分类卡片筛选文档，并可查看历史版本、上传新版本和执行审核。"
+          title="文档中心"
+        />
+        <DemoResetNote />
+      </div>
 
       <section className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
         {documentCategories.map((category) => {
@@ -1255,23 +1345,26 @@ export function WorkspaceDashboard({
           description="通过角色下拉框管理团队成员权限，并按当前角色限制操作范围。"
           title="团队管理"
         />
-        <ActionButton
-          disabled={!permissions.canManageTeam}
-          onClick={() => setTeamModalOpen(true)}
-          title="无权限"
-          variant="primary"
-        >
-          <span className="inline-flex items-center gap-2">
-            <Plus className="h-4 w-4" />
-            <span>新增成员</span>
-          </span>
-        </ActionButton>
+        <div className="flex flex-wrap items-center gap-3">
+          <DemoResetNote />
+          <ActionButton
+            disabled={!permissions.canManageTeam}
+            onClick={() => setTeamModalOpen(true)}
+            title="无权限"
+            variant="primary"
+          >
+            <span className="inline-flex items-center gap-2">
+              <Plus className="h-4 w-4" />
+              <span>新增成员</span>
+            </span>
+          </ActionButton>
+        </div>
       </div>
 
       <section className="grid gap-6 xl:grid-cols-2">
         {members.map((member) => {
           const editable = canManageMember(member);
-          const roleDisabled = role !== "teacher" || !editable;
+          const roleDisabled = currentRole !== "teacher" || !editable;
 
           return (
             <article
@@ -1307,8 +1400,8 @@ export function WorkspaceDashboard({
                           updateMemberRole(member.id, event.target.value as TeamRoleLabel)
                         }
                       >
-                        {role === "teacher" ? <option value="指导教师">指导教师</option> : null}
-                        {role === "teacher" ? <option value="项目负责人">项目负责人</option> : null}
+                        {currentRole === "teacher" ? <option value="指导教师">指导教师</option> : null}
+                        {currentRole === "teacher" ? <option value="项目负责人">项目负责人</option> : null}
                         <option value="团队成员">团队成员</option>
                       </select>
                     </label>
@@ -1352,6 +1445,14 @@ export function WorkspaceDashboard({
     }
   };
 
+  if (!role) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-[#f3f6fa]">
+        <p className="text-sm text-[#6b7280]">正在校验登录状态...</p>
+      </main>
+    );
+  }
+
   return (
     <>
       <main className="min-h-screen bg-[#f3f6fa] p-4 md:p-6">
@@ -1367,9 +1468,7 @@ export function WorkspaceDashboard({
                   const Icon = item.icon;
                   const isActive = item.key === safeActiveTab;
                   const href =
-                    item.key === "overview"
-                      ? `/workspace?role=${role}`
-                      : `/workspace?role=${role}&tab=${item.key}`;
+                    item.key === "overview" ? "/workspace" : `/workspace?tab=${item.key}`;
 
                   return (
                     <Link
@@ -1404,13 +1503,14 @@ export function WorkspaceDashboard({
                       <div className="flex items-center gap-2">
                         <p className="text-sm font-medium text-[#111827]">{currentUser.profile.name}</p>
                         <span className="rounded-full bg-[#eff6ff] px-3 py-1 text-xs text-[#2563eb]">
-                          {roleLabels[role]}
+                          {roleLabels[currentRole]}
                         </span>
                       </div>
                     </div>
                   </div>
                   <Link
                     className="inline-flex h-10 items-center justify-center gap-2 rounded-full border border-[#d1d9e6] px-4 text-sm text-[#4b5563] no-underline hover:bg-[#f8fafc]"
+                    onClick={() => window.localStorage.removeItem(DEMO_AUTH_STORAGE_KEY)}
                     href="/login"
                   >
                     <LogOut className="h-4 w-4" />
@@ -1489,6 +1589,53 @@ export function WorkspaceDashboard({
               <ActionButton onClick={() => setTaskModalOpen(false)}>取消</ActionButton>
               <ActionButton onClick={saveTask} variant="primary">
                 保存任务
+              </ActionButton>
+            </div>
+          </div>
+        </Modal>
+      ) : null}
+
+      {reportModalOpen ? (
+        <Modal title="提交日程汇报" onClose={() => setReportModalOpen(false)}>
+          <div className="space-y-4">
+            <p className="text-sm leading-7 text-[#6b7280]">
+              提交日期：{formatShortDate(selectedDate)} · 提交人：{currentUser.profile.name}
+            </p>
+            <label className="block text-sm text-[#6b7280]">
+              今日完成
+              <textarea
+                className="mt-2 min-h-28 w-full rounded-xl border border-[#d1d9e6] px-4 py-3 text-sm text-[#111827]"
+                value={reportDraft.summary}
+                onChange={(event) =>
+                  setReportDraft((current) => ({ ...current, summary: event.target.value }))
+                }
+              />
+            </label>
+            <label className="block text-sm text-[#6b7280]">
+              明日计划
+              <textarea
+                className="mt-2 min-h-28 w-full rounded-xl border border-[#d1d9e6] px-4 py-3 text-sm text-[#111827]"
+                value={reportDraft.nextPlan}
+                onChange={(event) =>
+                  setReportDraft((current) => ({ ...current, nextPlan: event.target.value }))
+                }
+              />
+            </label>
+            <label className="block text-sm text-[#6b7280]">
+              附件
+              <input
+                className="mt-2 w-full rounded-xl border border-[#d1d9e6] px-4 py-3 text-sm text-[#111827]"
+                placeholder="例如：日报截图.png / 无"
+                value={reportDraft.attachment}
+                onChange={(event) =>
+                  setReportDraft((current) => ({ ...current, attachment: event.target.value }))
+                }
+              />
+            </label>
+            <div className="flex justify-end gap-3">
+              <ActionButton onClick={() => setReportModalOpen(false)}>取消</ActionButton>
+              <ActionButton onClick={saveReport} variant="primary">
+                保存汇报
               </ActionButton>
             </div>
           </div>
@@ -1673,14 +1820,14 @@ export function WorkspaceDashboard({
               角色
               <select
                 className="mt-2 w-full rounded-xl border border-[#d1d9e6] px-4 py-3 text-sm text-[#111827]"
-                disabled={role !== "teacher"}
+                disabled={currentRole !== "teacher"}
                 value={teamDraft.role}
                 onChange={(event) =>
                   setTeamDraft((current) => ({ ...current, role: event.target.value as TeamRoleLabel }))
                 }
               >
-                {role === "teacher" ? <option value="指导教师">指导教师</option> : null}
-                {role === "teacher" ? <option value="项目负责人">项目负责人</option> : null}
+                {currentRole === "teacher" ? <option value="指导教师">指导教师</option> : null}
+                {currentRole === "teacher" ? <option value="项目负责人">项目负责人</option> : null}
                 <option value="团队成员">团队成员</option>
               </select>
             </label>

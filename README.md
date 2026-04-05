@@ -1,36 +1,26 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# 中国国际大学生创新大赛备赛管理系统
 
-## Getting Started
+基于 Next.js 的比赛备赛管理原型，包含登录页、角色权限工作台、时间进度、任务看板、日程汇报、专家意见、文档中心和团队管理。
 
-First, run the development server:
+## 本地运行
 
 ```bash
+npm install
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+打开 [http://localhost:3000](http://localhost:3000) 查看页面。
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 测试账号
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+仅用于本地演示和开发调试，不要用于生产环境。
 
-## Learn More
+- 指导教师：`teacher@competition.cn / teacher123`
+- 项目负责人：`captain@competition.cn / leader123`
+- 团队成员：`member@competition.cn / member123`
 
-To learn more about Next.js, take a look at the following resources:
+## 当前说明
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- 登录成功后会把演示角色信息保存到浏览器 `localStorage`，工作台会从本地读取登录态。
+- 所有任务、公告、汇报、文档与团队数据当前都是演示模式，刷新页面后会重置。
+- 项目已部署到 Vercel，可继续接入真实登录、数据库和文件存储。
