@@ -131,6 +131,10 @@ model DocumentVersion {
   uploadedAt DateTime @default(now())
   uploaderId String
   note       String
+  fileName   String
+  filePath   String
+  fileSize   Int
+  mimeType   String
   document   Document @relation(fields: [documentId], references: [id])
   uploader   User     @relation("DocumentVersionUploader", fields: [uploaderId], references: [id])
 }

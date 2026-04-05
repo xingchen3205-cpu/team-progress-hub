@@ -189,6 +189,10 @@ export const serializeDocumentVersion = (
   uploader: version.uploader.name,
   note: version.note,
   uploaderId: version.uploaderId,
+  fileName: version.fileName,
+  fileSize: version.fileSize,
+  mimeType: version.mimeType,
+  downloadUrl: `/api/documents/${version.documentId}/download?versionId=${version.id}`,
 });
 
 export const serializeDocument = (
@@ -200,15 +204,26 @@ export const serializeDocument = (
       }
     >;
   },
-) => ({
-  id: document.id,
-  name: document.name,
-  category: categoryLabels[document.category],
-  ownerId: document.ownerId,
-  ownerName: document.owner.name,
-  status: statusLabels[document.status],
-  comment: document.comment ?? "",
-  currentVersion: document.currentVersion,
-  createdAt: document.createdAt.toISOString(),
-  versions: document.versions.map(serializeDocumentVersion),
-});
+) => {
+  const serializedVersions = document.versions.map(serializeDocumentVersion);
+  const currentVersionEntry =
+    serializedVersions.find((item) => item.version === document.currentVersion) ??
+    serializedVersions[0];
+
+  return {
+    id: document.id,
+    name: document.name,
+    category: categoryLabels[document.category],
+    ownerId: document.ownerId,
+    ownerName: document.owner.name,
+    status: statusLabels[document.status],
+    comment: document.comment ?? "",
+    currentVersion: document.currentVersion,
+    currentFileName: currentVersionEntry?.fileName,
+    currentFileSize: currentVersionEntry?.fileSize,
+    currentMimeType: currentVersionEntry?.mimeType,
+    downloadUrl: currentVersionEntry?.downloadUrl ?? null,
+    createdAt: document.createdAt.toISOString(),
+    versions: serializedVersions,
+  };
+};

@@ -26,6 +26,7 @@ cp .env.example .env
 
 - `DATABASE_URL`
 - `JWT_SECRET`
+- `UPLOAD_ROOT`
 
 3. 初始化数据库并写入种子数据
 
@@ -72,6 +73,8 @@ npm run dev
 - 任务、公告、汇报、专家意见、文档、团队成员信息现在都会持久化到 `prisma/dev.db`
 - 登录态使用 JWT，并写入 HttpOnly Cookie，不再通过 URL 或 localStorage 传角色
 - 页面刷新后数据不会丢失
+- 文档上传默认保存到 `UPLOAD_ROOT`，未单独配置时默认使用 `/opt/team-progress-hub/uploads`
+- 仅支持上传 `.doc`、`.docx`、`.pdf`、`.xls`、`.xlsx`、`.txt`、`.jpg`、`.jpeg`、`.png`，单文件最大 20MB
 
 ## 生产环境注意
 

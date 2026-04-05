@@ -82,6 +82,10 @@ CREATE TABLE "DocumentVersion" (
     "uploadedAt" DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
     "uploaderId" TEXT NOT NULL,
     "note" TEXT NOT NULL,
+    "fileName" TEXT NOT NULL,
+    "filePath" TEXT NOT NULL,
+    "fileSize" INTEGER NOT NULL,
+    "mimeType" TEXT NOT NULL,
     CONSTRAINT "DocumentVersion_documentId_fkey" FOREIGN KEY ("documentId") REFERENCES "Document" ("id") ON DELETE RESTRICT ON UPDATE CASCADE,
     CONSTRAINT "DocumentVersion_uploaderId_fkey" FOREIGN KEY ("uploaderId") REFERENCES "User" ("id") ON DELETE RESTRICT ON UPDATE CASCADE
 );

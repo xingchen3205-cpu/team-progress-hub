@@ -40,6 +40,10 @@ import {
   roleLabels,
 } from "@/data/demo-data";
 import { toIsoDateKey } from "@/lib/date";
+import {
+  documentAcceptAttribute,
+  validateUploadMeta,
+} from "@/lib/file-policy";
 
 type BoardStatus = (typeof boardColumns)[number]["id"];
 
@@ -98,6 +102,13 @@ type ReportDraft = {
   summary: string;
   nextPlan: string;
   attachment: string;
+};
+
+type DocumentDraft = {
+  name: string;
+  category: (typeof documentCategories)[number];
+  note: string;
+  file: File | null;
 };
 
 type CurrentUser = {
@@ -313,6 +324,13 @@ const defaultReportDraft: ReportDraft = {
   attachment: "",
 };
 
+const defaultDocumentDraft: DocumentDraft = {
+  name: "",
+  category: "计划书",
+  note: "",
+  file: null,
+};
+
 const getDefaultDateKey = () => toIsoDateKey(new Date());
 
 async function requestJson<T>(input: string, init?: RequestInit) {
@@ -448,6 +466,12 @@ export function WorkspaceDashboard({
   const [teamDraft, setTeamDraft] = useState<TeamDraft>(defaultTeamDraft);
   const [reportModalOpen, setReportModalOpen] = useState(false);
   const [reportDraft, setReportDraft] = useState<ReportDraft>(defaultReportDraft);
+  const [documentModalOpen, setDocumentModalOpen] = useState(false);
+  const [documentDraft, setDocumentDraft] = useState<DocumentDraft>(defaultDocumentDraft);
+  const [versionModalOpen, setVersionModalOpen] = useState(false);
+  const [versionTargetDocId, setVersionTargetDocId] = useState<string | null>(null);
+  const [versionUploadNote, setVersionUploadNote] = useState("");
+  const [versionUploadFile, setVersionUploadFile] = useState<File | null>(null);
 
   const role = currentUser?.role ?? null;
   const currentRole = role ?? "member";
@@ -608,6 +632,26 @@ export function WorkspaceDashboard({
 
   const refreshWorkspace = () => {
     setReloadToken((current) => current + 1);
+  };
+
+  const validateClientFile = (file: File | null) => {
+    if (!file) {
+      return "请先选择文件";
+    }
+
+    return validateUploadMeta({
+      fileName: file.name,
+      fileSize: file.size,
+    });
+  };
+
+  const handleDownload = (downloadUrl?: string | null) => {
+    if (!downloadUrl) {
+      setLoadError("当前文件尚未生成下载链接");
+      return;
+    }
+
+    window.location.href = downloadUrl;
   };
 
   const handleLogout = async () => {
@@ -806,18 +850,90 @@ export function WorkspaceDashboard({
     );
   };
 
-  const uploadNewDocumentVersion = async (docId: string) => {
+  const openDocumentModal = () => {
+    setDocumentDraft(defaultDocumentDraft);
+    setDocumentModalOpen(true);
+  };
+
+  const saveDocument = async () => {
+    const validationError = validateClientFile(documentDraft.file);
+    if (validationError) {
+      setLoadError(validationError);
+      return;
+    }
+
+    if (!documentDraft.name.trim()) {
+      setLoadError("请填写文档名称");
+      return;
+    }
+
+    const formData = new FormData();
+    formData.set("name", documentDraft.name.trim());
+    formData.set("category", documentDraft.category);
+    formData.set("note", documentDraft.note.trim());
+    formData.set("file", documentDraft.file as File);
+
+    try {
+      const response = await fetch("/api/documents", {
+        method: "POST",
+        body: formData,
+      });
+
+      const payload = (await response.json().catch(() => null)) as { message?: string } | null;
+      if (!response.ok) {
+        throw new Error(payload?.message || "文件上传失败");
+      }
+
+      setDocumentDraft(defaultDocumentDraft);
+      setDocumentModalOpen(false);
+      refreshWorkspace();
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "文件上传失败");
+    }
+  };
+
+  const openVersionUploadModal = (docId: string) => {
+    setVersionTargetDocId(docId);
+    setVersionUploadFile(null);
+    setVersionUploadNote("");
+    setVersionModalOpen(true);
+  };
+
+  const uploadNewDocumentVersion = async () => {
     if (!permissions.canUploadDocument) {
       return;
     }
 
+    const validationError = validateClientFile(versionUploadFile);
+    if (validationError) {
+      setLoadError(validationError);
+      return;
+    }
+
+    if (!versionTargetDocId) {
+      setLoadError("未找到需要上传版本的文档");
+      return;
+    }
+
+    const formData = new FormData();
+    formData.set("note", versionUploadNote.trim());
+    formData.set("file", versionUploadFile as File);
+
     try {
-      await requestJson(`/api/documents/${docId}/version`, {
+      const response = await fetch(`/api/documents/${versionTargetDocId}/version`, {
         method: "POST",
-        body: JSON.stringify({
-          note: `${currentUser?.profile.name ?? "当前用户"} 上传的新版本`,
-        }),
+        body: formData,
       });
+
+      const payload = (await response.json().catch(() => null)) as { message?: string } | null;
+      if (!response.ok) {
+        throw new Error(payload?.message || "文档版本上传失败");
+      }
+
+      setVersionUploadFile(null);
+      setVersionUploadNote("");
+      setVersionTargetDocId(null);
+      setVersionModalOpen(false);
       refreshWorkspace();
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "文档版本上传失败");
@@ -1312,7 +1428,20 @@ export function WorkspaceDashboard({
           description="点击分类卡片筛选文档，并可查看历史版本、上传新版本和执行审核。"
           title="文档中心"
         />
-        <DemoResetNote />
+        <div className="flex flex-wrap items-center gap-3">
+          <DemoResetNote />
+          <ActionButton
+            disabled={!permissions.canUploadDocument}
+            onClick={openDocumentModal}
+            title="无权限"
+            variant="primary"
+          >
+            <span className="inline-flex items-center gap-2">
+              <Upload className="h-4 w-4" />
+              <span>上传文档</span>
+            </span>
+          </ActionButton>
+        </div>
       </div>
 
       <section className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
@@ -1357,13 +1486,17 @@ export function WorkspaceDashboard({
                 <span className={`rounded-full px-3 py-1 text-sm ${docStatusStyles[doc.status]}`}>
                   {doc.status}
                 </span>
-                <ActionButton onClick={() => uploadNewDocumentVersion(doc.id)} disabled={!permissions.canUploadDocument} title="无权限">
+                <ActionButton
+                  onClick={() => openVersionUploadModal(doc.id)}
+                  disabled={!permissions.canUploadDocument}
+                  title="无权限"
+                >
                   <span className="inline-flex items-center gap-2">
                     <Upload className="h-4 w-4" />
                     <span>上传新版本</span>
                   </span>
                 </ActionButton>
-                <ActionButton>
+                <ActionButton onClick={() => handleDownload(doc.downloadUrl)}>
                   <span className="inline-flex items-center gap-2">
                     <Download className="h-4 w-4" />
                     <span>下载</span>
@@ -1422,8 +1555,19 @@ export function WorkspaceDashboard({
                       <p className="mt-1 text-sm text-[#6b7280]">
                         {version.uploadedAt} · {version.uploader}
                       </p>
+                      <p className="mt-1 text-sm text-[#94a3b8]">
+                        {version.fileName || "未记录文件名"}
+                      </p>
                     </div>
-                    <p className="text-sm text-[#6b7280]">{version.note}</p>
+                    <div className="flex items-center gap-3">
+                      <p className="text-sm text-[#6b7280]">{version.note}</p>
+                      <ActionButton onClick={() => handleDownload(version.downloadUrl)}>
+                        <span className="inline-flex items-center gap-2">
+                          <Download className="h-4 w-4" />
+                          <span>下载版本</span>
+                        </span>
+                      </ActionButton>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -1900,6 +2044,127 @@ export function WorkspaceDashboard({
               <ActionButton onClick={() => setExpertModalOpen(false)}>取消</ActionButton>
               <ActionButton onClick={saveExpert} variant="primary">
                 保存意见
+              </ActionButton>
+            </div>
+          </div>
+        </Modal>
+      ) : null}
+
+      {documentModalOpen ? (
+        <Modal title="上传文档" onClose={() => setDocumentModalOpen(false)}>
+          <div className="space-y-4">
+            <p className="rounded-[18px] bg-[#f8fafc] px-4 py-3 text-sm leading-7 text-[#6b7280]">
+              仅支持 `.doc`、`.docx`、`.pdf`、`.xls`、`.xlsx`、`.txt`、`.jpg`、`.jpeg`、`.png`，
+              单文件最大 20MB；不支持视频、压缩包和 PPT 文件。
+            </p>
+            <div className="grid gap-4 md:grid-cols-2">
+              <label className="block text-sm text-[#6b7280]">
+                文档名称
+                <input
+                  className="mt-2 w-full rounded-xl border border-[#d1d9e6] px-4 py-3 text-sm text-[#111827]"
+                  value={documentDraft.name}
+                  onChange={(event) =>
+                    setDocumentDraft((current) => ({ ...current, name: event.target.value }))
+                  }
+                />
+              </label>
+              <label className="block text-sm text-[#6b7280]">
+                文档分类
+                <select
+                  className="mt-2 w-full rounded-xl border border-[#d1d9e6] px-4 py-3 text-sm text-[#111827]"
+                  value={documentDraft.category}
+                  onChange={(event) =>
+                    setDocumentDraft((current) => ({
+                      ...current,
+                      category: event.target.value as DocumentDraft["category"],
+                    }))
+                  }
+                >
+                  {documentCategories.map((category) => (
+                    <option key={category} value={category}>
+                      {category}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+            <label className="block text-sm text-[#6b7280]">
+              版本说明
+              <textarea
+                className="mt-2 min-h-24 w-full rounded-xl border border-[#d1d9e6] px-4 py-3 text-sm text-[#111827]"
+                value={documentDraft.note}
+                onChange={(event) =>
+                  setDocumentDraft((current) => ({ ...current, note: event.target.value }))
+                }
+              />
+            </label>
+            <label className="block text-sm text-[#6b7280]">
+              选择文件
+              <input
+                accept={documentAcceptAttribute}
+                className="mt-2 block w-full rounded-xl border border-[#d1d9e6] px-4 py-3 text-sm text-[#111827]"
+                type="file"
+                onChange={(event) => {
+                  const file = event.target.files?.[0] ?? null;
+                  const validationError = validateClientFile(file);
+                  if (validationError && file) {
+                    setLoadError(validationError);
+                    event.target.value = "";
+                    setDocumentDraft((current) => ({ ...current, file: null }));
+                    return;
+                  }
+                  setDocumentDraft((current) => ({ ...current, file }));
+                }}
+              />
+            </label>
+            <div className="flex justify-end gap-3">
+              <ActionButton onClick={() => setDocumentModalOpen(false)}>取消</ActionButton>
+              <ActionButton onClick={() => void saveDocument()} variant="primary">
+                上传文档
+              </ActionButton>
+            </div>
+          </div>
+        </Modal>
+      ) : null}
+
+      {versionModalOpen ? (
+        <Modal title="上传文档新版本" onClose={() => setVersionModalOpen(false)}>
+          <div className="space-y-4">
+            <p className="rounded-[18px] bg-[#f8fafc] px-4 py-3 text-sm leading-7 text-[#6b7280]">
+              仅支持 `.doc`、`.docx`、`.pdf`、`.xls`、`.xlsx`、`.txt`、`.jpg`、`.jpeg`、`.png`，
+              单文件最大 20MB；不支持视频、压缩包和 PPT 文件。
+            </p>
+            <label className="block text-sm text-[#6b7280]">
+              版本说明
+              <textarea
+                className="mt-2 min-h-24 w-full rounded-xl border border-[#d1d9e6] px-4 py-3 text-sm text-[#111827]"
+                value={versionUploadNote}
+                onChange={(event) => setVersionUploadNote(event.target.value)}
+              />
+            </label>
+            <label className="block text-sm text-[#6b7280]">
+              选择文件
+              <input
+                accept={documentAcceptAttribute}
+                className="mt-2 block w-full rounded-xl border border-[#d1d9e6] px-4 py-3 text-sm text-[#111827]"
+                type="file"
+                onChange={(event) => {
+                  const file = event.target.files?.[0] ?? null;
+                  const validationError = validateClientFile(file);
+                  if (validationError && file) {
+                    setLoadError(validationError);
+                    event.target.value = "";
+                    setVersionUploadFile(null);
+                    return;
+                  }
+                  setVersionUploadFile(file);
+                }}
+              />
+            </label>
+            <div className="flex justify-end gap-3">
+              <ActionButton onClick={() => setVersionModalOpen(false)}>取消</ActionButton>
+              <ActionButton onClick={() => void uploadNewDocumentVersion()} variant="primary">
+                上传新版本
               </ActionButton>
             </div>
           </div>

@@ -40,6 +40,13 @@ const documentStatusMap = {
   需修改: "revision",
 } as const;
 
+const uploadFolderByCategory = {
+  计划书: "plans",
+  PPT: "ppt",
+  答辩材料: "defense",
+  证明附件: "proof",
+} as const;
+
 async function main() {
   await prisma.documentVersion.deleteMany();
   await prisma.document.deleteMany();
@@ -179,6 +186,14 @@ async function main() {
             uploadedAt: new Date(version.uploadedAt.replace(" ", "T") + ":00+08:00"),
             uploaderId: nameToUserId.get(version.uploader) ?? document.ownerId,
             note: version.note,
+            fileName: version.fileName || `${document.name}-${version.version}.pdf`,
+            filePath:
+              version.filePath ||
+              `/opt/team-progress-hub/uploads/${
+                uploadFolderByCategory[document.category as keyof typeof uploadFolderByCategory]
+              }/${document.name}-${version.version}.pdf`,
+            fileSize: version.fileSize || 1024,
+            mimeType: version.mimeType || "application/pdf",
           })),
         },
       },

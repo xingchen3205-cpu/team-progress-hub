@@ -1,7 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // Next.js App Router route handlers do not support api.bodyParser in next.config.
+  // Upload size is enforced in src/lib/file-policy.ts and the document upload APIs.
 };
 
 export default nextConfig;

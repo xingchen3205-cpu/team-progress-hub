@@ -6,6 +6,9 @@ import {
   categoryValueToDb,
   serializeDocument,
 } from "@/lib/api-serializers";
+import { saveUploadedFile } from "@/lib/uploads";
+
+export const runtime = "nodejs";
 
 export async function GET(request: NextRequest) {
   const user = await getSessionUser(request);
@@ -39,52 +42,70 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: "未登录" }, { status: 401 });
   }
 
-  const body = (await request.json().catch(() => null)) as
-    | {
-        name?: string;
-        category?: "计划书" | "PPT" | "答辩材料" | "证明附件";
-        note?: string;
-      }
-    | null;
+  const formData = await request.formData().catch(() => null);
+  const name = `${formData?.get("name") ?? ""}`.trim();
+  const categoryLabel = `${formData?.get("category") ?? ""}`.trim() as
+    | "计划书"
+    | "PPT"
+    | "答辩材料"
+    | "证明附件";
+  const note = `${formData?.get("note") ?? ""}`.trim() || `${user.name} 上传初始版本`;
+  const file = formData?.get("file");
+  const category = categoryLabel ? categoryValueToDb[categoryLabel] : null;
 
-  const name = body?.name?.trim();
-  const category = body?.category ? categoryValueToDb[body.category] : null;
-  const note = body?.note?.trim() || `${user.name} 上传初始版本`;
-
-  if (!name || !category) {
+  if (!name || !category || !(file instanceof File)) {
     return NextResponse.json({ message: "文档信息不完整" }, { status: 400 });
   }
 
-  const document = await prisma.document.create({
-    data: {
-      name,
+  try {
+    const storedFile = await saveUploadedFile({
+      file,
       category,
-      ownerId: user.id,
-      status: "pending",
-      comment: "等待审核",
-      currentVersion: "v1.0",
-      versions: {
-        create: {
-          version: "v1.0",
-          uploaderId: user.id,
-          note,
-        },
-      },
-    },
-    include: {
-      owner: {
-        select: { id: true, name: true },
-      },
-      versions: {
-        orderBy: { uploadedAt: "desc" },
-        include: {
-          uploader: {
-            select: { name: true },
+    });
+
+    const document = await prisma.document.create({
+      data: {
+        name,
+        category,
+        ownerId: user.id,
+        status: "pending",
+        comment: "等待审核",
+        currentVersion: "v1.0",
+        versions: {
+          create: {
+            version: "v1.0",
+            uploaderId: user.id,
+            note,
+            fileName: storedFile.fileName,
+            filePath: storedFile.filePath,
+            fileSize: storedFile.fileSize,
+            mimeType: storedFile.mimeType,
           },
         },
       },
-    },
-  });
+      include: {
+        owner: {
+          select: { id: true, name: true },
+        },
+        versions: {
+          orderBy: { uploadedAt: "desc" },
+          include: {
+            uploader: {
+              select: { name: true },
+            },
+          },
+        },
+      },
+    });
 
-  return NextResponse.json({ document: serializeDocument(document) }, { status: 201 });
+    return NextResponse.json({ document: serializeDocument(document) }, { status: 201 });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "文件上传失败";
+    const isValidationMessage =
+      message === "不支持该文件格式" || message === "文件大小不能超过 20MB";
+    return NextResponse.json(
+      { message: isValidationMessage ? message : "文件上传失败" },
+      { status: isValidationMessage ? 400 : 500 },
+    );
+  }
 }

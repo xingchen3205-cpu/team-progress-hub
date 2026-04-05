@@ -37,10 +37,16 @@ export type ReportEntry = {
 };
 
 export type DocumentVersion = {
+  id?: string;
   version: string;
   uploadedAt: string;
   uploader: string;
   note: string;
+  fileName?: string;
+  filePath?: string;
+  fileSize?: number;
+  mimeType?: string;
+  downloadUrl?: string;
 };
 
 export type DocumentItem = {
@@ -51,6 +57,11 @@ export type DocumentItem = {
   status: "待审核" | "已审核" | "需修改";
   comment: string;
   currentVersion: string;
+  currentFileName?: string;
+  currentFilePath?: string;
+  currentFileSize?: number;
+  currentMimeType?: string;
+  downloadUrl?: string;
   versions: DocumentVersion[];
 };
 
