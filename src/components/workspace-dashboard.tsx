@@ -361,6 +361,7 @@ const getDefaultDateKey = () => toIsoDateKey(new Date());
 async function requestJson<T>(input: string, init?: RequestInit) {
   const response = await fetch(input, {
     ...init,
+    credentials: "same-origin",
     headers: {
       "Content-Type": "application/json",
       ...(init?.headers ?? {}),

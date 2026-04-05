@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { NextRequest, NextResponse } from "next/server";
 
@@ -113,27 +114,35 @@ export async function POST(request: NextRequest) {
 
   const passwordHash = await bcrypt.hash(body?.password?.trim() || defaultPassword, 10);
 
-  const member = await prisma.user.create({
-    data: {
-      name,
-      username,
-      email,
-      role,
-      password: passwordHash,
-      avatar: name.slice(0, 1),
-      responsibility: body?.responsibility?.trim() || "待分配职责",
-    },
-    select: {
-      id: true,
-      name: true,
-      username: true,
-      email: true,
-      role: true,
-      avatar: true,
-      responsibility: true,
-      createdAt: true,
-    },
-  });
+  try {
+    const member = await prisma.user.create({
+      data: {
+        name,
+        username,
+        email,
+        role,
+        password: passwordHash,
+        avatar: name.slice(0, 1),
+        responsibility: body?.responsibility?.trim() || "待分配职责",
+      },
+      select: {
+        id: true,
+        name: true,
+        username: true,
+        email: true,
+        role: true,
+        avatar: true,
+        responsibility: true,
+        createdAt: true,
+      },
+    });
 
-  return NextResponse.json({ member: serializeUser(member) }, { status: 201 });
+    return NextResponse.json({ member: serializeUser(member) }, { status: 201 });
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      return NextResponse.json({ message: "用户名或邮箱已存在，请更换后再试" }, { status: 409 });
+    }
+
+    return NextResponse.json({ message: "创建账号失败，请稍后重试" }, { status: 500 });
+  }
 }
