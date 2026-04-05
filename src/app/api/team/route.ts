@@ -139,7 +139,11 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ member: serializeUser(member) }, { status: 201 });
   } catch (error) {
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+    if (
+      (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") ||
+      (error instanceof Error &&
+        /UNIQUE constraint failed: User\.(email|username)/i.test(error.message))
+    ) {
       return NextResponse.json({ message: "用户名或邮箱已存在，请更换后再试" }, { status: 409 });
     }
 
