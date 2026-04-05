@@ -83,7 +83,7 @@ export function LoginScreen() {
       if (!response.ok) {
         setErrors((current) => ({
           ...current,
-          submit: payload?.message || "账号或密码不正确，请核对 README 中的测试账号信息。",
+          submit: payload?.message || "账号或密码不正确，请联系管理员获取测试账号信息。",
         }));
         return;
       }
@@ -145,7 +145,7 @@ export function LoginScreen() {
                     className={`h-11 w-full rounded border bg-white pr-3 pl-[37px] text-base leading-7 text-[#13161b] outline-none placeholder:text-[#8d949f] focus:border-[#3091f2] ${
                       errors.username ? "border-[#f93b3b]" : "border-[#d5d7db]"
                     }`}
-                    placeholder="账号"
+                    placeholder="用户名/邮箱"
                     type="text"
                     value={values.username}
                     onChange={(event) => {
@@ -227,7 +227,7 @@ export function LoginScreen() {
               </form>
 
               <p className="mt-6 text-center text-sm leading-7 text-[#6b7280]">
-                测试账号信息已移至项目 README，仅用于本地演示与开发调试。
+                测试账号信息请联系管理员获取
               </p>
             </div>
           </div>
