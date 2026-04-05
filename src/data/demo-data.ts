@@ -18,18 +18,6 @@ export type TeamMember = {
   blockers: string;
 };
 
-export type LoginAccount = {
-  id: string;
-  username: string;
-  password: string;
-  role: RoleKey;
-  profile: {
-    name: string;
-    avatar: string;
-    roleLabel: TeamRoleLabel;
-  };
-};
-
 export type BoardTask = {
   id: string;
   title: string;
@@ -41,6 +29,7 @@ export type BoardTask = {
 
 export type ReportEntry = {
   memberId: string;
+  date?: string;
   submittedAt: string;
   summary: string;
   nextPlan: string;
@@ -95,42 +84,6 @@ export const roleLabels: Record<RoleKey, TeamRoleLabel> = {
   leader: "项目负责人",
   member: "团队成员",
 };
-
-export const loginAccounts: LoginAccount[] = [
-  {
-    id: "teacher-account",
-    username: "teacher@competition.cn",
-    password: "teacher123",
-    role: "teacher",
-    profile: {
-      name: "李老师",
-      avatar: "李",
-      roleLabel: "指导教师",
-    },
-  },
-  {
-    id: "leader-account",
-    username: "captain@competition.cn",
-    password: "leader123",
-    role: "leader",
-    profile: {
-      name: "陈思远",
-      avatar: "陈",
-      roleLabel: "项目负责人",
-    },
-  },
-  {
-    id: "member-account",
-    username: "member@competition.cn",
-    password: "member123",
-    role: "member",
-    profile: {
-      name: "林沐晴",
-      avatar: "林",
-      roleLabel: "团队成员",
-    },
-  },
-];
 
 export const dashboardHighlights = [
   {

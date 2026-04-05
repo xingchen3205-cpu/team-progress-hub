@@ -29,7 +29,6 @@ import type {
   DocumentItem,
   EventItem,
   ExpertItem,
-  LoginAccount,
   ReportEntry,
   RoleKey,
   TeamMember,
@@ -37,21 +36,10 @@ import type {
 } from "@/data/demo-data";
 import {
   boardColumns,
-  dashboardHighlights,
   documentCategories,
-  initialAnnouncements,
-  initialBoardTasks,
-  initialDocuments,
-  initialEvents,
-  initialExpertSessions,
-  loginAccounts,
-  reportDates,
-  reportEntriesByDate,
   roleLabels,
-  teamMembers,
-  todayTaskSummary,
 } from "@/data/demo-data";
-import { DEMO_AUTH_STORAGE_KEY, type DemoAuthState } from "@/lib/demo-auth";
+import { toIsoDateKey } from "@/lib/date";
 
 type BoardStatus = (typeof boardColumns)[number]["id"];
 
@@ -110,6 +98,25 @@ type ReportDraft = {
   summary: string;
   nextPlan: string;
   attachment: string;
+};
+
+type CurrentUser = {
+  id: string;
+  name: string;
+  email: string;
+  role: RoleKey;
+  avatar: string;
+  responsibility: string;
+  roleLabel: TeamRoleLabel;
+  profile: {
+    name: string;
+    avatar: string;
+    roleLabel: TeamRoleLabel;
+  };
+};
+
+type ReportEntryWithDate = ReportEntry & {
+  date: string;
 };
 
 const allTabs: TabItem[] = [
@@ -179,18 +186,6 @@ const taskPriorityStyles: Record<TaskDraft["priority"], string> = {
   高优先级: "bg-[#fee2e2] text-[#b91c1c]",
   中优先级: "bg-[#fef3c7] text-[#9a6700]",
   低优先级: "bg-[#e5e7eb] text-[#4b5563]",
-};
-
-const currentUserByRole: Record<RoleKey, LoginAccount> = {
-  teacher: loginAccounts.find((item) => item.role === "teacher")!,
-  leader: loginAccounts.find((item) => item.role === "leader")!,
-  member: loginAccounts.find((item) => item.role === "member")!,
-};
-
-const currentMemberIdByRole: Record<RoleKey, string> = {
-  teacher: "teacher-1",
-  leader: "leader-1",
-  member: "member-1",
 };
 
 const rolePermissions = {
@@ -318,6 +313,27 @@ const defaultReportDraft: ReportDraft = {
   attachment: "",
 };
 
+const getDefaultDateKey = () => toIsoDateKey(new Date());
+
+async function requestJson<T>(input: string, init?: RequestInit) {
+  const response = await fetch(input, {
+    ...init,
+    headers: {
+      "Content-Type": "application/json",
+      ...(init?.headers ?? {}),
+    },
+    cache: "no-store",
+  });
+
+  const payload = (await response.json().catch(() => null)) as (T & { message?: string }) | null;
+
+  if (!response.ok) {
+    throw new Error(payload?.message || "请求失败");
+  }
+
+  return payload as T;
+}
+
 function SectionHeader({ title, description }: { title: string; description: string }) {
   return (
     <div className="space-y-2">
@@ -328,7 +344,7 @@ function SectionHeader({ title, description }: { title: string; description: str
 }
 
 function DemoResetNote() {
-  return <p className="text-xs leading-6 text-[#94a3b8]">当前为演示模式，数据刷新后重置</p>;
+  return <p className="text-xs leading-6 text-[#94a3b8]">当前数据已保存到本地 SQLite 数据库</p>;
 }
 
 function Modal({
@@ -396,41 +412,23 @@ export function WorkspaceDashboard({
   activeTab?: TabKey;
 }) {
   const router = useRouter();
-  const [role] = useState<RoleKey | null>(() => {
-    if (typeof window === "undefined") {
-      return null;
-    }
-
-    const rawValue = window.localStorage.getItem(DEMO_AUTH_STORAGE_KEY);
-    if (!rawValue) {
-      return null;
-    }
-
-    try {
-      const parsed = JSON.parse(rawValue) as DemoAuthState;
-      return parsed.role && parsed.role in currentUserByRole ? parsed.role : null;
-    } catch {
-      return null;
-    }
-  });
-  const currentRole = role ?? "leader";
-  const currentUser = currentUserByRole[currentRole];
-  const currentMemberId = currentMemberIdByRole[currentRole];
-  const permissions = rolePermissions[currentRole];
-  const visibleTabs = allTabs.filter((item) => permissions.visibleTabs.includes(item.key));
-  const safeActiveTab = permissions.visibleTabs.includes(activeTab) ? activeTab : visibleTabs[0].key;
-  const [announcements, setAnnouncements] = useState<Announcement[]>(initialAnnouncements);
-  const [events, setEvents] = useState<EventItem[]>(initialEvents);
-  const [tasks, setTasks] = useState<BoardTask[]>(initialBoardTasks);
-  const [experts, setExperts] = useState<ExpertItem[]>(initialExpertSessions);
-  const [documents, setDocuments] = useState<DocumentItem[]>(initialDocuments);
-  const [members, setMembers] = useState<TeamMember[]>(teamMembers);
-  const [reportEntriesByDay, setReportEntriesByDay] = useState(reportEntriesByDate);
-  const [selectedDate, setSelectedDate] = useState(reportDates[0]);
+  const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
+  const [isBooting, setIsBooting] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [reloadToken, setReloadToken] = useState(0);
+  const [announcements, setAnnouncements] = useState<Announcement[]>([]);
+  const [events, setEvents] = useState<EventItem[]>([]);
+  const [tasks, setTasks] = useState<BoardTask[]>([]);
+  const [experts, setExperts] = useState<ExpertItem[]>([]);
+  const [documents, setDocuments] = useState<DocumentItem[]>([]);
+  const [members, setMembers] = useState<TeamMember[]>([]);
+  const [reportEntriesByDay, setReportEntriesByDay] = useState<Record<string, ReportEntryWithDate[]>>({});
+  const [reportDates, setReportDates] = useState<string[]>([getDefaultDateKey()]);
+  const [selectedDate, setSelectedDate] = useState(getDefaultDateKey());
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [expandedDocs, setExpandedDocs] = useState<string[]>([]);
   const [draggingTaskId, setDraggingTaskId] = useState<string | null>(null);
-  const [countdown, setCountdown] = useState(getCountdown(events[getNearestUpcomingIndex(events)].dateTime));
+  const [countdown, setCountdown] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
 
   const [taskModalOpen, setTaskModalOpen] = useState(false);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
@@ -451,23 +449,98 @@ export function WorkspaceDashboard({
   const [reportModalOpen, setReportModalOpen] = useState(false);
   const [reportDraft, setReportDraft] = useState<ReportDraft>(defaultReportDraft);
 
-  const nearestUpcomingIndex = getNearestUpcomingIndex(events);
+  const role = currentUser?.role ?? null;
+  const currentRole = role ?? "member";
+  const currentMemberId = currentUser?.id ?? "";
+  const permissions = rolePermissions[currentRole];
+  const visibleTabs = allTabs.filter((item) => permissions.visibleTabs.includes(item.key));
+  const safeActiveTab =
+    visibleTabs.length > 0 && permissions.visibleTabs.includes(activeTab) ? activeTab : visibleTabs[0]?.key ?? "overview";
+  const nearestUpcomingIndex = events.length > 0 ? getNearestUpcomingIndex(events) : 0;
   const nearestEvent = events[nearestUpcomingIndex];
 
   useEffect(() => {
-    if (!role) {
-      window.localStorage.removeItem(DEMO_AUTH_STORAGE_KEY);
-      router.replace("/login");
-    }
-  }, [role, router]);
+    let isMounted = true;
+
+    const loadWorkspaceData = async () => {
+      setLoadError(null);
+
+      try {
+        const [mePayload, announcementsPayload, eventsPayload, tasksPayload, reportsPayload, expertsPayload, documentsPayload, teamPayload] =
+          await Promise.all([
+            requestJson<{ user: CurrentUser }>("/api/auth/me"),
+            requestJson<{ announcements: Announcement[] }>("/api/announcements"),
+            requestJson<{ events: EventItem[] }>("/api/events"),
+            requestJson<{ tasks: BoardTask[] }>("/api/tasks"),
+            requestJson<{ dates: string[]; reports: ReportEntryWithDate[] }>("/api/reports"),
+            requestJson<{ experts: ExpertItem[] }>("/api/experts"),
+            requestJson<{ documents: DocumentItem[] }>("/api/documents"),
+            requestJson<{ members: TeamMember[] }>("/api/team"),
+          ]);
+
+        if (!isMounted) {
+          return;
+        }
+
+        const groupedReports = reportsPayload.reports.reduce<Record<string, ReportEntryWithDate[]>>(
+          (accumulator, item) => {
+            const list = accumulator[item.date] ?? [];
+            accumulator[item.date] = [...list, item];
+            return accumulator;
+          },
+          {},
+        );
+
+        const nextDates = reportsPayload.dates.length > 0 ? reportsPayload.dates : [getDefaultDateKey()];
+
+        setCurrentUser(mePayload.user);
+        setAnnouncements(announcementsPayload.announcements);
+        setEvents(eventsPayload.events);
+        setTasks(tasksPayload.tasks);
+        setExperts(expertsPayload.experts);
+        setDocuments(documentsPayload.documents);
+        setMembers(teamPayload.members);
+        setReportEntriesByDay(groupedReports);
+        setReportDates(nextDates);
+        setSelectedDate((current) => (nextDates.includes(current) ? current : nextDates[0]));
+      } catch (error) {
+        if (!isMounted) {
+          return;
+        }
+
+        const message = error instanceof Error ? error.message : "数据加载失败";
+        if (message === "未登录") {
+          router.replace("/login");
+          return;
+        }
+
+        setLoadError(message);
+      } finally {
+        if (isMounted) {
+          setIsBooting(false);
+        }
+      }
+    };
+
+    void loadWorkspaceData();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [reloadToken, router]);
 
   useEffect(() => {
+    if (!nearestEvent) {
+      setCountdown({ days: 0, hours: 0, minutes: 0, seconds: 0 });
+      return undefined;
+    }
+
     const timer = window.setInterval(() => {
       setCountdown(getCountdown(events[getNearestUpcomingIndex(events)].dateTime));
     }, 1000);
 
     return () => window.clearInterval(timer);
-  }, [events]);
+  }, [events, nearestEvent]);
 
   const membersMap = useMemo(
     () => Object.fromEntries(members.map((item) => [item.id, item])),
@@ -489,6 +562,34 @@ export function WorkspaceDashboard({
 
   const getMemberName = (memberId: string) => membersMap[memberId]?.name ?? memberId;
 
+  const dashboardHighlights = [
+    {
+      label: "团队成员",
+      value: `${members.length} 人`,
+      description: "覆盖教师、队长及核心团队成员。",
+    },
+    {
+      label: "今日待处理",
+      value: `${tasks.filter((item) => item.status !== "done").length} 项`,
+      description: "根据当前真实任务状态动态汇总。",
+    },
+    {
+      label: "本日汇报",
+      value: `${(reportEntriesByDay[reportDates[0]] ?? []).length} / ${members.filter((item) => item.systemRole !== "指导教师").length}`,
+      description: "按当前日期统计已提交的成员汇报数。",
+    },
+    {
+      label: "文档版本",
+      value: `${documents.reduce((sum, item) => sum + item.versions.length, 0)} 份`,
+      description: "计划书、PPT、答辩材料与证明附件持续迭代中。",
+    },
+  ];
+
+  const todayTaskSummary = tasks
+    .filter((item) => item.status !== "done")
+    .slice(0, 3)
+    .map((item) => `${item.title} · ${getMemberName(item.assigneeId)}`);
+
   const canManageMember = (member: TeamMember) => {
     if (!permissions.canManageTeam) {
       return false;
@@ -504,6 +605,18 @@ export function WorkspaceDashboard({
 
   const canMoveTask = (task: BoardTask) =>
     permissions.canMoveAnyTask || (currentRole === "member" && task.assigneeId === currentMemberId);
+
+  const refreshWorkspace = () => {
+    setReloadToken((current) => current + 1);
+  };
+
+  const handleLogout = async () => {
+    await fetch("/api/auth/logout", {
+      method: "POST",
+    });
+    router.push("/login");
+    router.refresh();
+  };
 
   const openCreateTaskModal = () => {
     setEditingTaskId(null);
@@ -523,136 +636,131 @@ export function WorkspaceDashboard({
     setTaskModalOpen(true);
   };
 
-  const saveTask = () => {
+  const saveTask = async () => {
     if (!taskDraft.title.trim()) {
       return;
     }
 
-    if (editingTaskId) {
-      setTasks((current) =>
-        current.map((task) =>
-          task.id === editingTaskId
-            ? {
-                ...task,
-                title: taskDraft.title,
-                assigneeId: taskDraft.assigneeId,
-                dueDate: taskDraft.dueDate,
-                priority: task.status === "done" ? "已完成" : task.status === "doing" ? "进行中" : taskDraft.priority,
-              }
-            : task,
-        ),
-      );
-    } else {
-      setTasks((current) => [
-        {
-          id: `task-${current.length + 1}`,
-          title: taskDraft.title,
-          assigneeId: taskDraft.assigneeId,
-          dueDate: taskDraft.dueDate,
-          priority: taskDraft.priority,
-          status: "todo",
-        },
-        ...current,
-      ]);
+    try {
+      if (editingTaskId) {
+        await requestJson(`/api/tasks/${editingTaskId}`, {
+          method: "PATCH",
+          body: JSON.stringify(taskDraft),
+        });
+      } else {
+        await requestJson("/api/tasks", {
+          method: "POST",
+          body: JSON.stringify(taskDraft),
+        });
+      }
+
+      setTaskDraft(defaultTaskDraft(firstAssignableMemberId));
+      setTaskModalOpen(false);
+      refreshWorkspace();
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "任务保存失败");
     }
-
-    setTaskModalOpen(false);
   };
 
-  const deleteTask = (taskId: string) => {
-    setTasks((current) => current.filter((item) => item.id !== taskId));
+  const deleteTask = async (taskId: string) => {
+    try {
+      await requestJson(`/api/tasks/${taskId}`, {
+        method: "DELETE",
+      });
+      refreshWorkspace();
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "任务删除失败");
+    }
   };
 
-  const handleDrop = (status: BoardStatus) => {
+  const handleDrop = async (status: BoardStatus) => {
     if (!draggingTaskId) {
       return;
     }
 
-    setTasks((current) =>
-      current.map((task) =>
-        task.id === draggingTaskId && canMoveTask(task)
-          ? {
-              ...task,
-              status,
-              priority:
-                status === "todo" ? task.priority : status === "doing" ? "进行中" : "已完成",
-            }
-          : task,
-      ),
-    );
-    setDraggingTaskId(null);
+    const task = tasks.find((item) => item.id === draggingTaskId);
+    if (!task || !canMoveTask(task)) {
+      setDraggingTaskId(null);
+      return;
+    }
+
+    try {
+      await requestJson(`/api/tasks/${draggingTaskId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status }),
+      });
+      refreshWorkspace();
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "任务状态更新失败");
+    } finally {
+      setDraggingTaskId(null);
+    }
   };
 
-  const publishAnnouncement = () => {
+  const publishAnnouncement = async () => {
     if (!announcementDraft.title.trim() || !announcementDraft.detail.trim()) {
       return;
     }
 
-    setAnnouncements((current) => [
-      {
-        id: `notice-${current.length + 1}`,
-        title: announcementDraft.title,
-        detail: announcementDraft.detail,
-      },
-      ...current,
-    ]);
-    setAnnouncementDraft(defaultAnnouncementDraft);
-    setAnnouncementModalOpen(false);
+    try {
+      await requestJson("/api/announcements", {
+        method: "POST",
+        body: JSON.stringify(announcementDraft),
+      });
+      setAnnouncementDraft(defaultAnnouncementDraft);
+      setAnnouncementModalOpen(false);
+      refreshWorkspace();
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "公告发布失败");
+    }
   };
 
-  const saveReport = () => {
+  const saveReport = async () => {
     if (!reportDraft.summary.trim() || !reportDraft.nextPlan.trim()) {
       return;
     }
 
-    const nextEntry: ReportEntry = {
-      memberId: currentMemberId,
-      submittedAt: "刚刚提交",
-      summary: reportDraft.summary,
-      nextPlan: reportDraft.nextPlan,
-      attachment: reportDraft.attachment || "未上传附件",
-    };
-
-    setReportEntriesByDay((current) => {
-      const currentEntries = current[selectedDate] ?? [];
-      const filteredEntries = currentEntries.filter((item) => item.memberId !== currentMemberId);
-
-      return {
-        ...current,
-        [selectedDate]: [nextEntry, ...filteredEntries],
-      };
-    });
-
-    setReportDraft(defaultReportDraft);
-    setReportModalOpen(false);
+    try {
+      await requestJson("/api/reports", {
+        method: "POST",
+        body: JSON.stringify({
+          date: selectedDate,
+          ...reportDraft,
+        }),
+      });
+      setReportDraft(defaultReportDraft);
+      setReportModalOpen(false);
+      refreshWorkspace();
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "汇报保存失败");
+    }
   };
 
-  const saveEvent = () => {
+  const saveEvent = async () => {
     if (!eventDraft.title.trim() || !eventDraft.description.trim()) {
       return;
     }
 
-    if (editingEventId) {
-      setEvents((current) =>
-        current.map((item) =>
-          item.id === editingEventId
-            ? {
-                ...item,
-                ...eventDraft,
-              }
-            : item,
-        ),
-      );
-    } else {
-      setEvents((current) =>
-        [...current, { id: `event-${current.length + 1}`, ...eventDraft }].sort(
-          (a, b) => new Date(a.dateTime).getTime() - new Date(b.dateTime).getTime(),
-        ),
-      );
+    try {
+      if (editingEventId) {
+        await requestJson(`/api/events/${editingEventId}`, {
+          method: "PATCH",
+          body: JSON.stringify(eventDraft),
+        });
+      } else {
+        await requestJson("/api/events", {
+          method: "POST",
+          body: JSON.stringify(eventDraft),
+        });
+      }
+
+      setEventDraft(defaultEventDraft);
+      setEditingEventId(null);
+      setEventModalOpen(false);
+      refreshWorkspace();
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "节点保存失败");
     }
-    setEventDraft(defaultEventDraft);
-    setEditingEventId(null);
-    setEventModalOpen(false);
   };
 
   const openEventModal = (event?: EventItem) => {
@@ -671,21 +779,25 @@ export function WorkspaceDashboard({
     setEventModalOpen(true);
   };
 
-  const saveExpert = () => {
+  const saveExpert = async () => {
     if (!expertDraft.expert.trim() || !expertDraft.topic.trim()) {
       return;
     }
 
-    setExperts((current) => [
-      {
-        id: `expert-${current.length + 1}`,
-        ...expertDraft,
-        attachments: ["纪要附件.pdf"],
-      },
-      ...current,
-    ]);
-    setExpertDraft(defaultExpertDraft);
-    setExpertModalOpen(false);
+    try {
+      await requestJson("/api/experts", {
+        method: "POST",
+        body: JSON.stringify({
+          ...expertDraft,
+          attachments: ["纪要附件.pdf"],
+        }),
+      });
+      setExpertDraft(defaultExpertDraft);
+      setExpertModalOpen(false);
+      refreshWorkspace();
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "专家意见保存失败");
+    }
   };
 
   const toggleDocExpand = (docId: string) => {
@@ -694,104 +806,79 @@ export function WorkspaceDashboard({
     );
   };
 
-  const uploadNewDocumentVersion = (docId: string) => {
+  const uploadNewDocumentVersion = async (docId: string) => {
     if (!permissions.canUploadDocument) {
       return;
     }
 
-    setDocuments((current) =>
-      current.map((doc) => {
-        if (doc.id !== docId) {
-          return doc;
-        }
-
-        const latestMajor = doc.versions[0]?.version.replace("v", "") ?? "1.0";
-        const [major, minor] = latestMajor.split(".").map((item) => Number(item));
-        const nextVersion = `v${major}.${(minor ?? 0) + 1}`;
-
-        return {
-          ...doc,
-          currentVersion: nextVersion,
-          status: "待审核",
-          versions: [
-            {
-              version: nextVersion,
-              uploadedAt: "2026-04-05 18:30",
-              uploader: currentUser.profile.name,
-              note: `${currentUser.profile.name} 上传的新版本`,
-            },
-            ...doc.versions,
-          ],
-        };
-      }),
-    );
+    try {
+      await requestJson(`/api/documents/${docId}/version`, {
+        method: "POST",
+        body: JSON.stringify({
+          note: `${currentUser?.profile.name ?? "当前用户"} 上传的新版本`,
+        }),
+      });
+      refreshWorkspace();
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "文档版本上传失败");
+    }
   };
 
-  const reviewDocument = (docId: string, status: DocumentItem["status"]) => {
+  const reviewDocument = async (docId: string, status: DocumentItem["status"]) => {
     if (!permissions.canReviewDocument) {
       return;
     }
 
-    setDocuments((current) =>
-      current.map((doc) =>
-        doc.id === docId
-          ? {
-              ...doc,
-              status,
-              comment:
-                status === "已审核"
-                  ? "指导教师已审核通过，可进入最终提交阶段。"
-                  : "指导教师要求修改，请根据批注重新上传版本。",
-            }
-          : doc,
-      ),
-    );
+    try {
+      await requestJson(`/api/documents/${docId}/review`, {
+        method: "PATCH",
+        body: JSON.stringify({ status }),
+      });
+      refreshWorkspace();
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "文档审核失败");
+    }
   };
 
-  const saveTeamMember = () => {
+  const saveTeamMember = async () => {
     if (!teamDraft.name.trim() || !teamDraft.account.trim()) {
       return;
     }
 
-    setMembers((current) => [
-      ...current,
-      {
-        id: `member-${current.length + 1}`,
-        slug: `member-${current.length + 1}`,
-        name: teamDraft.name,
-        account: teamDraft.account,
-        avatar: teamDraft.name.slice(0, 1),
-        systemRole: teamDraft.role,
-        role: teamDraft.role,
-        responsibility: teamDraft.responsibility || "待分配职责",
-        progress: "0%",
-        canBeManagedByLeader: teamDraft.role === "团队成员",
-        todayFocus: "待补充",
-        completed: "待补充",
-        blockers: "暂无",
-      },
-    ]);
-    setTeamDraft(defaultTeamDraft);
-    setTeamModalOpen(false);
+    try {
+      await requestJson("/api/team", {
+        method: "POST",
+        body: JSON.stringify(teamDraft),
+      });
+      setTeamDraft(defaultTeamDraft);
+      setTeamModalOpen(false);
+      refreshWorkspace();
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "成员创建失败");
+    }
   };
 
-  const updateMemberRole = (memberId: string, roleLabel: TeamRoleLabel) => {
-    setMembers((current) =>
-      current.map((member) =>
-        member.id === memberId
-          ? {
-              ...member,
-              systemRole: roleLabel,
-              role: roleLabel,
-              canBeManagedByLeader: roleLabel === "团队成员",
-            }
-          : member,
-      ),
-    );
+  const updateMemberRole = async (memberId: string, roleLabel: TeamRoleLabel) => {
+    try {
+      await requestJson(`/api/team/${memberId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ role: roleLabel }),
+      });
+      refreshWorkspace();
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "角色更新失败");
+    }
   };
 
-  const removeMember = (memberId: string) => {
-    setMembers((current) => current.filter((item) => item.id !== memberId));
+  const removeMember = async (memberId: string) => {
+    try {
+      await requestJson(`/api/team/${memberId}`, {
+        method: "DELETE",
+      });
+      refreshWorkspace();
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "成员删除失败");
+    }
   };
 
   const renderOverview = () => (
@@ -820,10 +907,12 @@ export function WorkspaceDashboard({
       <section className="rounded-[28px] border border-[#d9e8f8] bg-white p-8 shadow-[0_16px_44px_rgba(15,23,42,0.06)]">
         <p className="text-center text-sm font-medium tracking-[0.18em] text-[#2563eb]">最近关键节点</p>
         <h3 className="mt-3 text-center text-[30px] font-bold tracking-[-0.03em] text-[#111827]">
-          {nearestEvent.title}
+          {nearestEvent?.title ?? "暂未设置关键节点"}
         </h3>
         <p className="mt-3 text-center text-sm text-[#6b7280]">
-          {formatDateTime(nearestEvent.dateTime)} · {nearestEvent.description}
+          {nearestEvent
+            ? `${formatDateTime(nearestEvent.dateTime)} · ${nearestEvent.description}`
+            : "请先在时间进度中创建比赛关键节点。"}
         </p>
         <div className="mt-8 flex flex-wrap justify-center gap-4">
           {[
@@ -849,14 +938,18 @@ export function WorkspaceDashboard({
         <section className="rounded-[24px] border border-[#e5e7eb] bg-white p-6 shadow-[0_12px_32px_rgba(15,23,42,0.05)]">
           <h3 className="text-base font-semibold text-[#111827]">今日任务摘要</h3>
           <div className="mt-4 space-y-4">
-            {todayTaskSummary.slice(0, 3).map((item, index) => (
-              <div key={item} className="flex items-start gap-3">
-                <span className="mt-0.5 flex h-6 w-6 items-center justify-center rounded-full bg-[#2563eb] text-xs font-semibold text-white">
-                  {index + 1}
-                </span>
-                <p className="text-sm leading-7 text-[#4b5563]">{item}</p>
-              </div>
-            ))}
+            {todayTaskSummary.length > 0 ? (
+              todayTaskSummary.slice(0, 3).map((item, index) => (
+                <div key={item} className="flex items-start gap-3">
+                  <span className="mt-0.5 flex h-6 w-6 items-center justify-center rounded-full bg-[#2563eb] text-xs font-semibold text-white">
+                    {index + 1}
+                  </span>
+                  <p className="text-sm leading-7 text-[#4b5563]">{item}</p>
+                </div>
+              ))
+            ) : (
+              <p className="text-sm leading-7 text-[#6b7280]">当前暂无待处理任务。</p>
+            )}
           </div>
         </section>
 
@@ -912,6 +1005,9 @@ export function WorkspaceDashboard({
       </div>
 
       <section className="overflow-x-auto rounded-[28px] border border-[#e5e7eb] bg-white p-6 shadow-[0_12px_32px_rgba(15,23,42,0.05)]">
+        {events.length === 0 ? (
+          <p className="text-sm leading-7 text-[#6b7280]">当前还没有时间节点，请先新增比赛关键节点。</p>
+        ) : null}
         <div className="min-w-[860px]">
           <div className="relative px-6 pt-8">
             <div className="absolute top-[44px] left-6 right-6 h-[2px] bg-[#d7dee7]" />
@@ -1445,10 +1541,18 @@ export function WorkspaceDashboard({
     }
   };
 
-  if (!role) {
+  if (isBooting) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-[#f3f6fa]">
-        <p className="text-sm text-[#6b7280]">正在校验登录状态...</p>
+        <p className="text-sm text-[#6b7280]">正在加载工作台数据...</p>
+      </main>
+    );
+  }
+
+  if (!currentUser) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-[#f3f6fa]">
+        <p className="text-sm text-[#6b7280]">登录状态已失效，正在返回登录页...</p>
       </main>
     );
   }
@@ -1508,19 +1612,26 @@ export function WorkspaceDashboard({
                       </div>
                     </div>
                   </div>
-                  <Link
+                  <button
                     className="inline-flex h-10 items-center justify-center gap-2 rounded-full border border-[#d1d9e6] px-4 text-sm text-[#4b5563] no-underline hover:bg-[#f8fafc]"
-                    onClick={() => window.localStorage.removeItem(DEMO_AUTH_STORAGE_KEY)}
-                    href="/login"
+                    onClick={() => void handleLogout()}
+                    type="button"
                   >
                     <LogOut className="h-4 w-4" />
                     <span>退出登录</span>
-                  </Link>
+                  </button>
                 </div>
               </div>
             </header>
 
-            <div className="mx-auto mt-6 flex max-w-[1200px] flex-col gap-6">{renderContent()}</div>
+            <div className="mx-auto mt-6 flex max-w-[1200px] flex-col gap-6">
+              {loadError ? (
+                <div className="rounded-[20px] border border-[#fecaca] bg-[#fff1f2] px-5 py-4 text-sm text-[#b91c1c]">
+                  {loadError}
+                </div>
+              ) : null}
+              {renderContent()}
+            </div>
           </section>
         </div>
       </main>

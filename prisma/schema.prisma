@@ -1,0 +1,136 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  teacher
+  leader
+  member
+}
+
+enum TaskStatus {
+  todo
+  doing
+  done
+}
+
+enum TaskPriority {
+  high
+  medium
+  low
+}
+
+enum DocumentStatus {
+  pending
+  approved
+  revision
+}
+
+enum DocumentCategory {
+  plan
+  ppt
+  defense
+  proof
+}
+
+model User {
+  id             String            @id @default(cuid())
+  name           String
+  email          String            @unique
+  password       String
+  role           Role
+  avatar         String
+  responsibility String?
+  createdAt      DateTime          @default(now())
+  tasksAssigned  Task[]            @relation("TaskAssignee")
+  tasksCreated   Task[]            @relation("TaskCreator")
+  reports        Report[]
+  announcements  Announcement[]
+  documents      Document[]        @relation("DocumentOwner")
+  documentEdits  DocumentVersion[] @relation("DocumentVersionUploader")
+}
+
+model Task {
+  id         String       @id @default(cuid())
+  title      String
+  status     TaskStatus
+  priority   TaskPriority
+  assigneeId String
+  creatorId  String
+  dueDate    DateTime
+  createdAt  DateTime     @default(now())
+  assignee   User         @relation("TaskAssignee", fields: [assigneeId], references: [id])
+  creator    User         @relation("TaskCreator", fields: [creatorId], references: [id])
+}
+
+model Report {
+  id          String   @id @default(cuid())
+  userId      String
+  date        String
+  summary     String
+  nextPlan    String
+  attachment  String?
+  submittedAt DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id])
+
+  @@unique([userId, date])
+}
+
+model Announcement {
+  id        String   @id @default(cuid())
+  title     String
+  detail    String
+  authorId  String
+  createdAt DateTime @default(now())
+  author    User     @relation(fields: [authorId], references: [id])
+}
+
+model Event {
+  id          String   @id @default(cuid())
+  title       String
+  dateTime    DateTime
+  type        String
+  description String
+  createdAt   DateTime @default(now())
+}
+
+model ExpertFeedback {
+  id          String   @id @default(cuid())
+  date        String
+  expert      String
+  topic       String
+  format      String
+  summary     String
+  nextAction  String
+  attachments String
+  createdAt   DateTime @default(now())
+}
+
+model Document {
+  id             String            @id @default(cuid())
+  name           String
+  category       DocumentCategory
+  ownerId        String
+  status         DocumentStatus
+  comment        String?
+  currentVersion String
+  createdAt      DateTime          @default(now())
+  owner          User              @relation("DocumentOwner", fields: [ownerId], references: [id])
+  versions       DocumentVersion[]
+}
+
+model DocumentVersion {
+  id         String   @id @default(cuid())
+  documentId String
+  version    String
+  uploadedAt DateTime @default(now())
+  uploaderId String
+  note       String
+  document   Document @relation(fields: [documentId], references: [id])
+  uploader   User     @relation("DocumentVersionUploader", fields: [uploaderId], references: [id])
+}

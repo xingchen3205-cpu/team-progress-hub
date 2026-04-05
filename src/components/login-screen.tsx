@@ -1,10 +1,7 @@
 "use client";
 
-import { startTransition, useState } from "react";
+import { startTransition, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-
-import { loginAccounts } from "@/data/demo-data";
-import { DEMO_AUTH_STORAGE_KEY } from "@/lib/demo-auth";
 
 const initialValues = {
   username: "",
@@ -15,6 +12,7 @@ const initialValues = {
 export function LoginScreen() {
   const router = useRouter();
   const [values, setValues] = useState(initialValues);
+  const [isCheckingSession, setIsCheckingSession] = useState(true);
   const [errors, setErrors] = useState<{
     username?: string;
     password?: string;
@@ -22,7 +20,36 @@ export function LoginScreen() {
   }>({});
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleSubmit = (event: React.FormEvent<HTMLFormElement>) => {
+  useEffect(() => {
+    let isMounted = true;
+
+    const checkSession = async () => {
+      try {
+        const response = await fetch("/api/auth/me", {
+          cache: "no-store",
+        });
+
+        if (response.ok && isMounted) {
+          router.replace("/workspace");
+          return;
+        }
+      } catch {
+        // Ignore bootstrap check failures and keep user on login page.
+      } finally {
+        if (isMounted) {
+          setIsCheckingSession(false);
+        }
+      }
+    };
+
+    void checkSession();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [router]);
+
+  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     const nextErrors = {
@@ -37,35 +64,49 @@ export function LoginScreen() {
       return;
     }
 
-    const matchedAccount = loginAccounts.find(
-      (item) =>
-        item.username === values.username.trim() && item.password === values.password.trim(),
-    );
-
-    if (!matchedAccount) {
-      setErrors((current) => ({
-        ...current,
-        submit: "账号或密码不正确，请核对 README 中的测试账号信息。",
-      }));
-      return;
-    }
-
     setIsSubmitting(true);
-
-    window.setTimeout(() => {
-      window.localStorage.setItem(
-        DEMO_AUTH_STORAGE_KEY,
-        JSON.stringify({
-          role: matchedAccount.role,
-          accountId: matchedAccount.id,
+    try {
+      const response = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email: values.username.trim(),
+          password: values.password.trim(),
         }),
-      );
+      });
+
+      const payload = (await response.json().catch(() => null)) as { message?: string } | null;
+
+      if (!response.ok) {
+        setErrors((current) => ({
+          ...current,
+          submit: payload?.message || "账号或密码不正确，请核对 README 中的测试账号信息。",
+        }));
+        return;
+      }
+
       startTransition(() => {
         router.push("/workspace");
       });
+    } catch {
+      setErrors((current) => ({
+        ...current,
+        submit: "登录请求失败，请稍后重试。",
+      }));
+    } finally {
       setIsSubmitting(false);
-    }, 900);
+    }
   };
+
+  if (isCheckingSession) {
+    return (
+      <main className="flex min-h-screen items-center justify-center bg-[#f1f8ff]">
+        <p className="text-sm text-[#6b7280]">正在检查登录状态...</p>
+      </main>
+    );
+  }
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-[#f1f8ff] px-4 py-10 sm:px-6 lg:px-8">
