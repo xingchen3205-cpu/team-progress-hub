@@ -3,7 +3,13 @@ import path from "node:path";
 import { PrismaLibSQL } from "@prisma/adapter-libsql";
 import bcrypt from "bcryptjs";
 import { config as loadEnv } from "dotenv";
-import { PrismaClient } from "@prisma/client";
+import {
+  PrismaClient,
+  type DocumentCategory,
+  type DocumentStatus,
+  type Role,
+  type TaskPriority,
+} from "@prisma/client";
 
 import {
   initialAnnouncements,
@@ -29,7 +35,7 @@ const roleMap = {
   指导教师: "teacher",
   项目负责人: "leader",
   团队成员: "member",
-} as const;
+} as const satisfies Record<string, Role>;
 
 const taskPriorityMap = {
   高优先级: "high",
@@ -37,20 +43,20 @@ const taskPriorityMap = {
   低优先级: "low",
   进行中: "high",
   已完成: "high",
-} as const;
+} as const satisfies Record<string, TaskPriority>;
 
 const documentCategoryMap = {
   计划书: "plan",
   PPT: "ppt",
   答辩材料: "defense",
   证明附件: "proof",
-} as const;
+} as const satisfies Record<string, DocumentCategory>;
 
 const documentStatusMap = {
   待审核: "pending",
   已审核: "approved",
   需修改: "revision",
-} as const;
+} as const satisfies Record<string, DocumentStatus>;
 
 const uploadFolderByCategory = {
   计划书: "plans",
@@ -76,7 +82,7 @@ async function main() {
       username: "jiayingze",
       email: null,
       password: "jyz760309",
-      role: "admin" as const,
+      role: "admin" as Role,
       avatar: "管",
       responsibility: "系统最高权限管理、账号与权限配置、全局运维",
     },
@@ -86,7 +92,7 @@ async function main() {
       username: "teacher",
       email: "teacher@competition.cn",
       password: "teacher123",
-      role: "teacher" as const,
+      role: "teacher" as Role,
       avatar: "李",
       responsibility: "把关方向、审核文档、发布公告和校内资源协调",
     },
@@ -96,7 +102,7 @@ async function main() {
       username: "captain",
       email: "captain@competition.cn",
       password: "leader123",
-      role: "leader" as const,
+      role: "leader" as Role,
       avatar: "陈",
       responsibility: "整体统筹、路演主线、答辩分工、任务推进",
     },
@@ -106,7 +112,7 @@ async function main() {
       username: "member",
       email: "member@competition.cn",
       password: "member123",
-      role: "member" as const,
+      role: "member" as Role,
       avatar: "林",
       responsibility: "市场规模、用户访谈、竞品分析",
     },
