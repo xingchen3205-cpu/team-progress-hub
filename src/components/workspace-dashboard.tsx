@@ -4877,13 +4877,13 @@ export function WorkspaceDashboard({
               <PdfPreview url={previewAsset.url} />
             ) : isImageAsset(previewAsset) ? (
               <div className="overflow-auto rounded-lg border border-slate-200 bg-slate-100 p-3">
-                <object
-                  className="h-[78vh] w-full rounded-md border border-slate-200 bg-white shadow-sm"
-                  data={previewAsset.url}
-                  type={previewAsset.mimeType || undefined}
-                >
-                  <iframe className="h-[78vh] w-full rounded-md border-0 bg-white" src={previewAsset.url} />
-                </object>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  alt={previewAsset.fileName || previewAsset.title}
+                  className="block h-auto max-w-none rounded-md border border-slate-200 bg-white shadow-sm"
+                  loading="eager"
+                  src={previewAsset.url}
+                />
               </div>
             ) : (
               <iframe
@@ -4899,7 +4899,9 @@ export function WorkspaceDashboard({
                 ? "视频材料支持在当前页面直接播放。"
                 : isPdfAsset(previewAsset)
                   ? "PDF 在电脑端优先使用浏览器原生预览，手机端使用站内渲染，兼顾字体显示与移动端兼容性。"
-                  : "已切换为站内在线预览模式。"}
+                  : isImageAsset(previewAsset)
+                    ? "图片按原始清晰度显示，可在窗口内滚动查看细节。"
+                    : "已切换为站内在线预览模式。"}
             </p>
             <ModalActions>
               {previewAsset.mode === "download-fallback" ? (
