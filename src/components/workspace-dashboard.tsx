@@ -214,7 +214,7 @@ type DocumentActionButton = {
 };
 
 const documentStepLabels = ["成员提交", "负责人审批", "教师终审"] as const;
-type DocumentStepState = "complete" | "current" | "pending" | "rejected";
+type DocumentStepState = "complete" | "current" | "pending";
 
 const getDocumentWorkflowState = (statusKey: DocumentStatusKey) => {
   switch (statusKey) {
@@ -225,9 +225,9 @@ const getDocumentWorkflowState = (statusKey: DocumentStatusKey) => {
     case "approved":
       return ["complete", "complete", "complete"] as const;
     case "leader_revision":
-      return ["complete", "rejected", "pending"] as const;
+      return ["current", "pending", "pending"] as const;
     case "revision":
-      return ["complete", "complete", "rejected"] as const;
+      return ["complete", "current", "pending"] as const;
     default:
       return ["complete", "pending", "pending"] as const;
   }
@@ -239,8 +239,6 @@ const getDocumentStepCaption = (stepState: DocumentStepState) => {
       return "已完成";
     case "current":
       return "处理中";
-    case "rejected":
-      return "已打回";
     case "pending":
     default:
       return "等待中";
@@ -256,9 +254,9 @@ const getDocumentStatusHint = (statusKey: DocumentStatusKey) => {
     case "approved":
       return "文档已完成终审，可用于正式提交。";
     case "leader_revision":
-      return "负责人已打回，请先修改后再提交。";
+      return "负责人已打回，等待成员修改后重新提交负责人审批。";
     case "revision":
-      return "教师已打回，请根据终审意见修改。";
+      return "教师已打回，等待负责人修改后重新提交教师终审。";
     default:
       return "当前审批状态已更新。";
   }
@@ -1776,9 +1774,7 @@ export function WorkspaceDashboard({
                       ? "border-blue-600 bg-blue-600"
                       : stepState === "current"
                         ? "border-blue-600 bg-blue-600 ring-4 ring-blue-100"
-                        : stepState === "rejected"
-                          ? "border-red-500 bg-red-500"
-                          : "border-slate-300 bg-white";
+                        : "border-slate-300 bg-white";
                   const lineClassName =
                     index < documentStepLabels.length - 1 &&
                     stepState === "complete" &&
@@ -1786,12 +1782,10 @@ export function WorkspaceDashboard({
                       ? "bg-blue-600"
                       : "bg-slate-300";
                   const textClassName =
-                    stepState === "rejected"
-                      ? "text-red-600"
-                      : stepState === "current"
+                    stepState === "current"
                         ? "text-blue-600"
                         : stepState === "pending"
-                        ? "text-slate-400"
+                          ? "text-slate-400"
                         : "text-slate-700";
 
                   return (

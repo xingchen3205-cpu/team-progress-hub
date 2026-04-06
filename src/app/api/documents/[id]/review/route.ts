@@ -94,6 +94,20 @@ export async function PATCH(
       targetTab: "documents",
       relatedId: document.id,
     });
+  } else if (action === "teacherRevision") {
+    const recipientIds = await getUserIdsByRoles({
+      roles: ["leader", "admin"],
+      excludeUserIds: [user.id],
+    });
+
+    await createNotifications({
+      userIds: [...new Set([...recipientIds, document.ownerId])],
+      title: transition.notificationTitle,
+      detail: `《${document.name}》已被教师打回，等待负责人修改后重新提交。`,
+      type: "document_review_result",
+      targetTab: "documents",
+      relatedId: document.id,
+    });
   } else {
     await createNotifications({
       userIds: [document.ownerId],
@@ -101,7 +115,7 @@ export async function PATCH(
       detail:
         action === "teacherApprove"
           ? `《${document.name}》已通过终审。`
-          : `《${document.name}》已被退回，请查看最新批注并重新提交。`,
+          : `《${document.name}》已被负责人打回，请修改后重新提交。`,
       type: "document_review_result",
       targetTab: "documents",
       relatedId: document.id,

@@ -69,7 +69,7 @@ export const getDocumentReviewTransition = ({
         }
       : {
           nextStatus: "leader_revision" as DocumentStatus,
-          defaultComment: "项目负责人打回修改，请根据意见更新材料。",
+          defaultComment: "项目负责人已打回，等待成员修改后重新提交。",
           notificationTargetRoles: [] as Role[],
           notificationTitle: "文档被负责人打回",
         };
@@ -88,7 +88,7 @@ export const getDocumentReviewTransition = ({
       }
     : {
         nextStatus: "revision" as DocumentStatus,
-        defaultComment: "指导教师打回修改，请根据批注重新提交。",
+        defaultComment: "指导教师已打回，等待负责人修改后重新提交。",
         notificationTargetRoles: [] as Role[],
         notificationTitle: "文档被教师打回",
       };
