@@ -492,6 +492,73 @@ const formatShortDate = (value: string) => {
   return `${year}/${month}/${day}`;
 };
 
+const padDatePart = (value: number) => `${value}`.padStart(2, "0");
+
+const parseDateLikeValue = (value: string) => {
+  const trimmed = value.trim();
+  if (!trimmed) {
+    return null;
+  }
+
+  const dateTimeMatch = trimmed.match(
+    /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?$/,
+  );
+  if (dateTimeMatch) {
+    const [, year, month, day, hours, minutes, seconds] = dateTimeMatch;
+    return new Date(
+      Number(year),
+      Number(month) - 1,
+      Number(day),
+      Number(hours),
+      Number(minutes),
+      Number(seconds ?? "0"),
+    );
+  }
+
+  const dateOnlyMatch = trimmed.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (dateOnlyMatch) {
+    const [, year, month, day] = dateOnlyMatch;
+    return new Date(Number(year), Number(month) - 1, Number(day));
+  }
+
+  const parsed = new Date(trimmed);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
+const toDateInputValue = (value: string) => {
+  if (!value) {
+    return "";
+  }
+
+  if (/^\d{4}-\d{2}-\d{2}$/.test(value)) {
+    return value;
+  }
+
+  const parsed = parseDateLikeValue(value);
+  if (!parsed) {
+    return "";
+  }
+
+  return `${parsed.getFullYear()}-${padDatePart(parsed.getMonth() + 1)}-${padDatePart(parsed.getDate())}`;
+};
+
+const toDateTimeInputValue = (value: string) => {
+  if (!value) {
+    return "";
+  }
+
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(value)) {
+    return value;
+  }
+
+  const parsed = parseDateLikeValue(value);
+  if (!parsed) {
+    return "";
+  }
+
+  return `${parsed.getFullYear()}-${padDatePart(parsed.getMonth() + 1)}-${padDatePart(parsed.getDate())}T${padDatePart(parsed.getHours())}:${padDatePart(parsed.getMinutes())}`;
+};
+
 const formatFriendlyDate = (value: Date) =>
   new Intl.DateTimeFormat("zh-CN", {
     month: "long",
@@ -557,7 +624,7 @@ const getNearestUpcomingIndex = (events: EventItem[]) => {
 const defaultTaskDraft = (assigneeId: string): TaskDraft => ({
   title: "",
   assigneeId,
-  dueDate: "2026-04-08 18:00",
+  dueDate: "2026-04-08T18:00",
   priority: "高优先级",
 });
 
@@ -568,13 +635,13 @@ const defaultAnnouncementDraft: AnnouncementDraft = {
 
 const defaultEventDraft: EventDraft = {
   title: "",
-  dateTime: "2026-04-15T18:00:00+08:00",
+  dateTime: "2026-04-15T18:00",
   type: "节点",
   description: "",
 };
 
 const defaultExpertDraft: ExpertDraft = {
-  date: "2026-04-05",
+  date: toDateInputValue("2026-04-05"),
   expert: "",
   topic: "",
   format: "线上点评",
@@ -1559,7 +1626,7 @@ export function WorkspaceDashboard({
     setTaskDraft({
       title: task.title,
       assigneeId: task.assigneeId,
-      dueDate: task.dueDate,
+      dueDate: toDateTimeInputValue(task.dueDate),
       priority:
         task.priority === "进行中" || task.priority === "已完成" ? "高优先级" : task.priority,
     });
@@ -1764,7 +1831,7 @@ export function WorkspaceDashboard({
       setEditingEventId(event.id);
       setEventDraft({
         title: event.title,
-        dateTime: event.dateTime,
+        dateTime: toDateTimeInputValue(event.dateTime),
         type: event.type,
         description: event.description,
       });
@@ -4211,6 +4278,7 @@ export function WorkspaceDashboard({
                 截止时间
                 <input
                   className={fieldClassName}
+                  type="datetime-local"
                   value={taskDraft.dueDate}
                   onChange={(event) =>
                     setTaskDraft((current) => ({ ...current, dueDate: event.target.value }))
@@ -4341,6 +4409,7 @@ export function WorkspaceDashboard({
                 时间
                 <input
                   className={fieldClassName}
+                  type="datetime-local"
                   value={eventDraft.dateTime}
                   onChange={(event) =>
                     setEventDraft((current) => ({ ...current, dateTime: event.target.value }))
@@ -4391,6 +4460,7 @@ export function WorkspaceDashboard({
                 日期
                 <input
                   className={fieldClassName}
+                  type="date"
                   value={expertDraft.date}
                   onChange={(event) => setExpertDraft((current) => ({ ...current, date: event.target.value }))}
                 />
