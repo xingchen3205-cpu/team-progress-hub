@@ -5,6 +5,7 @@ import type {
   DocumentStatus,
   DocumentVersion,
   Event,
+  ExpertAttachment,
   ExpertFeedback,
   Notification,
   Report,
@@ -183,7 +184,11 @@ export const serializeEvent = (event: Event) => ({
   createdAt: event.createdAt.toISOString(),
 });
 
-export const serializeExpertFeedback = (feedback: ExpertFeedback) => ({
+export const serializeExpertFeedback = (
+  feedback: ExpertFeedback & {
+    attachmentFiles?: ExpertAttachment[];
+  },
+) => ({
   id: feedback.id,
   date: feedback.date,
   expert: feedback.expert,
@@ -191,13 +196,28 @@ export const serializeExpertFeedback = (feedback: ExpertFeedback) => ({
   format: feedback.format,
   summary: feedback.summary,
   nextAction: feedback.nextAction,
-  attachments: (() => {
-    try {
-      return JSON.parse(feedback.attachments) as string[];
-    } catch {
-      return [];
-    }
-  })(),
+  attachments:
+    feedback.attachmentFiles && feedback.attachmentFiles.length > 0
+      ? feedback.attachmentFiles.map((attachment) => ({
+          id: attachment.id,
+          fileName: attachment.fileName,
+          fileSize: attachment.fileSize,
+          mimeType: attachment.mimeType,
+          downloadUrl: `/api/experts/${feedback.id}/download?attachmentId=${attachment.id}`,
+        }))
+      : (() => {
+          try {
+            return (JSON.parse(feedback.attachments) as string[]).map((item, index) => ({
+              id: `${feedback.id}-legacy-${index}`,
+              fileName: item,
+              fileSize: 0,
+              mimeType: "",
+              downloadUrl: null,
+            }));
+          } catch {
+            return [];
+          }
+        })(),
   createdAt: feedback.createdAt.toISOString(),
 });
 

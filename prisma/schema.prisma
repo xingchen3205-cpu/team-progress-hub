@@ -105,15 +105,27 @@ model Event {
 }
 
 model ExpertFeedback {
-  id          String   @id @default(cuid())
-  date        String
-  expert      String
-  topic       String
-  format      String
-  summary     String
-  nextAction  String
-  attachments String
-  createdAt   DateTime @default(now())
+  id              String            @id @default(cuid())
+  date            String
+  expert          String
+  topic           String
+  format          String
+  summary         String
+  nextAction      String
+  attachments     String
+  createdAt       DateTime          @default(now())
+  attachmentFiles ExpertAttachment[]
+}
+
+model ExpertAttachment {
+  id         String         @id @default(cuid())
+  feedbackId String
+  fileName   String
+  filePath   String
+  fileSize   Int
+  mimeType   String
+  uploadedAt DateTime       @default(now())
+  feedback   ExpertFeedback @relation(fields: [feedbackId], references: [id], onDelete: Cascade)
 }
 
 model Document {

@@ -27,9 +27,11 @@ const sanitizeBaseName = (fileName: string) =>
 export async function saveUploadedFile({
   file,
   category,
+  folder,
 }: {
   file: File;
-  category: DocumentCategory;
+  category?: DocumentCategory;
+  folder?: string;
 }) {
   const validationError = validateUploadMeta({
     fileName: file.name,
@@ -40,8 +42,13 @@ export async function saveUploadedFile({
     throw new Error(validationError);
   }
 
+  const targetFolder = folder || (category ? uploadFolderByCategory[category] : null);
+  if (!targetFolder) {
+    throw new Error("上传目录缺失");
+  }
+
   const safeFileName = `${Date.now()}_${sanitizeBaseName(file.name)}`;
-  const objectKey = `${uploadFolderByCategory[category]}/${safeFileName}`;
+  const objectKey = `${targetFolder}/${safeFileName}`;
   const fileBuffer = Buffer.from(await file.arrayBuffer());
 
   await r2Client.send(

@@ -106,7 +106,13 @@ export type ExpertItem = {
   format: string;
   summary: string;
   nextAction: string;
-  attachments: string[];
+  attachments: Array<{
+    id: string;
+    fileName: string;
+    fileSize?: number;
+    mimeType?: string;
+    downloadUrl?: string | null;
+  }>;
 };
 
 export const roleLabels: Record<RoleKey, TeamRoleLabel> = {
@@ -449,7 +455,10 @@ export const initialExpertSessions: ExpertItem[] = [
     format: "线下辅导",
     summary: "建议不要平铺讲功能，要更突出单点场景切入和不可替代性。",
     nextAction: "重写第 3 页价值主张和第 6 页商业闭环示意图。",
-    attachments: ["批注版PPT.pdf", "会议照片.jpg"],
+    attachments: [
+      { id: "expert-1-attachment-1", fileName: "批注版PPT.pdf" },
+      { id: "expert-1-attachment-2", fileName: "会议照片.jpg" },
+    ],
   },
   {
     id: "expert-2",
@@ -459,7 +468,7 @@ export const initialExpertSessions: ExpertItem[] = [
     format: "腾讯会议",
     summary: "收入预测需要和获客方式一一对应，避免跳跃式增长。",
     nextAction: "补充渠道转化率假设说明，并准备更保守的备用版本。",
-    attachments: ["财务建议清单.docx"],
+    attachments: [{ id: "expert-2-attachment-1", fileName: "财务建议清单.docx" }],
   },
   {
     id: "expert-3",
@@ -469,7 +478,10 @@ export const initialExpertSessions: ExpertItem[] = [
     format: "线上点评",
     summary: "技术亮点需要提前，让评委在 90 秒内理解核心创新点。",
     nextAction: "压缩团队介绍篇幅，将技术优势提前到开篇部分。",
-    attachments: ["答辩问题库.xlsx", "录屏回放链接"],
+    attachments: [
+      { id: "expert-3-attachment-1", fileName: "答辩问题库.xlsx" },
+      { id: "expert-3-attachment-2", fileName: "录屏回放链接" },
+    ],
   },
 ];
 

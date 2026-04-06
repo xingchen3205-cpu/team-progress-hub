@@ -678,6 +678,7 @@ export function WorkspaceDashboard({
 
   const [expertModalOpen, setExpertModalOpen] = useState(false);
   const [expertDraft, setExpertDraft] = useState<ExpertDraft>(defaultExpertDraft);
+  const [expertFiles, setExpertFiles] = useState<File[]>([]);
 
   const [teamModalOpen, setTeamModalOpen] = useState(false);
   const [teamDraft, setTeamDraft] = useState<TeamDraft>(defaultTeamDraft);
@@ -685,6 +686,7 @@ export function WorkspaceDashboard({
   const [passwordTargetMember, setPasswordTargetMember] = useState<TeamMember | null>(null);
   const [passwordDraft, setPasswordDraft] = useState("");
   const [reportModalOpen, setReportModalOpen] = useState(false);
+  const [editingReportDate, setEditingReportDate] = useState<string | null>(null);
   const [reportDraft, setReportDraft] = useState<ReportDraft>(defaultReportDraft);
   const [documentModalOpen, setDocumentModalOpen] = useState(false);
   const [documentDraft, setDocumentDraft] = useState<DocumentDraft>(defaultDocumentDraft);
@@ -840,7 +842,9 @@ export function WorkspaceDashboard({
   );
 
   const reportEntries = reportEntriesByDay[selectedDate] ?? [];
-  const reportEntryMap = new Map<string, ReportEntry>(reportEntries.map((item) => [item.memberId, item]));
+  const reportEntryMap = new Map<string, ReportEntryWithDate>(
+    reportEntries.map((item) => [item.memberId, item]),
+  );
   const firstAssignableMemberId =
     members.find((item) => !["指导教师", "系统管理员"].includes(item.systemRole))?.id ?? currentMemberId;
 
@@ -1174,6 +1178,28 @@ export function WorkspaceDashboard({
     }
   };
 
+  const openCreateReportModal = () => {
+    setEditingReportDate(null);
+    setReportDraft(defaultReportDraft);
+    setReportModalOpen(true);
+  };
+
+  const openEditReportModal = (report: ReportEntryWithDate) => {
+    setEditingReportDate(report.date);
+    setReportDraft({
+      summary: report.summary,
+      nextPlan: report.nextPlan,
+      attachment: report.attachment === "未上传附件" ? "" : report.attachment,
+    });
+    setReportModalOpen(true);
+  };
+
+  const closeReportModal = () => {
+    setReportModalOpen(false);
+    setEditingReportDate(null);
+    setReportDraft(defaultReportDraft);
+  };
+
   const saveReport = async () => {
     if (!reportDraft.summary.trim() || !reportDraft.nextPlan.trim()) {
       return;
@@ -1184,18 +1210,34 @@ export function WorkspaceDashboard({
       await requestJson("/api/reports", {
         method: "POST",
         body: JSON.stringify({
-          date: selectedDate,
+          date: editingReportDate || selectedDate,
           ...reportDraft,
         }),
       });
-      setReportDraft(defaultReportDraft);
-      setReportModalOpen(false);
+      closeReportModal();
       refreshWorkspace();
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "汇报保存失败");
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const removeReportRequest = async (date: string) => {
+    await requestJson(`/api/reports?date=${encodeURIComponent(date)}`, {
+      method: "DELETE",
+    });
+    refreshWorkspace();
+  };
+
+  const removeReport = (date: string) => {
+    setConfirmDialog({
+      open: true,
+      title: "撤回汇报",
+      message: `确认撤回 ${formatShortDate(date)} 的工作汇报？`,
+      confirmLabel: "确认撤回",
+      onConfirm: () => removeReportRequest(date),
+    });
   };
 
   const saveEvent = async () => {
@@ -1245,20 +1287,49 @@ export function WorkspaceDashboard({
   };
 
   const saveExpert = async () => {
-    if (!expertDraft.expert.trim() || !expertDraft.topic.trim()) {
+    if (
+      !expertDraft.expert.trim() ||
+      !expertDraft.topic.trim() ||
+      !expertDraft.summary.trim() ||
+      !expertDraft.nextAction.trim()
+    ) {
       return;
     }
 
+    for (const file of expertFiles) {
+      const validationError = validateClientFile(file);
+      if (validationError) {
+        setLoadError(validationError);
+        return;
+      }
+    }
+
+    const formData = new FormData();
+    formData.set("date", expertDraft.date);
+    formData.set("format", expertDraft.format);
+    formData.set("expert", expertDraft.expert.trim());
+    formData.set("topic", expertDraft.topic.trim());
+    formData.set("summary", expertDraft.summary.trim());
+    formData.set("nextAction", expertDraft.nextAction.trim());
+    expertFiles.forEach((file) => {
+      formData.append("files", file);
+    });
+
     setIsSaving(true);
     try {
-      await requestJson("/api/experts", {
+      const response = await fetch("/api/experts", {
         method: "POST",
-        body: JSON.stringify({
-          ...expertDraft,
-          attachments: ["纪要附件.pdf"],
-        }),
+        body: formData,
+        credentials: "same-origin",
       });
+
+      const payload = (await response.json().catch(() => null)) as { message?: string } | null;
+      if (!response.ok) {
+        throw new Error(payload?.message || "专家意见保存失败");
+      }
+
       setExpertDraft(defaultExpertDraft);
+      setExpertFiles([]);
       setExpertModalOpen(false);
       refreshWorkspace();
     } catch (error) {
@@ -1869,7 +1940,7 @@ export function WorkspaceDashboard({
           </label>
           <ActionButton
             disabled={!permissions.canSubmitReport}
-            onClick={() => setReportModalOpen(true)}
+            onClick={openCreateReportModal}
             title="无权限"
             variant="primary"
           >
@@ -1909,6 +1980,14 @@ export function WorkspaceDashboard({
                     <p className="mt-4 text-sm leading-7 text-slate-600">今日完成：{report.summary}</p>
                     <p className="mt-2 text-sm leading-7 text-slate-600">明日计划：{report.nextPlan}</p>
                     <p className="mt-4 text-sm text-slate-400">附件：{report.attachment}</p>
+                    {member.id === currentMemberId && permissions.canSubmitReport ? (
+                      <div className="mt-4 flex flex-wrap gap-3">
+                        <ActionButton onClick={() => openEditReportModal(report)}>修改汇报</ActionButton>
+                        <ActionButton onClick={() => removeReport(report.date)} variant="danger">
+                          撤回汇报
+                        </ActionButton>
+                      </div>
+                    ) : null}
                   </>
                 ) : (
                   <p className="mt-4 text-sm leading-7 text-slate-500">
@@ -1942,7 +2021,11 @@ export function WorkspaceDashboard({
           <DemoResetNote />
           <ActionButton
             disabled={!permissions.canUploadExpert}
-            onClick={() => setExpertModalOpen(true)}
+            onClick={() => {
+              setExpertDraft(defaultExpertDraft);
+              setExpertFiles([]);
+              setExpertModalOpen(true);
+            }}
             title="无权限"
             variant="primary"
           >
@@ -1970,14 +2053,25 @@ export function WorkspaceDashboard({
                     {session.expert} · {session.topic}
                   </h3>
                 </div>
-                <div className="flex flex-wrap gap-2">
+                <div className="mt-3 flex flex-wrap gap-2 md:mt-0">
                   {session.attachments.map((attachment) => (
-                    <span
-                      key={attachment}
-                      className="rounded-md bg-slate-100 px-3 py-1 text-sm text-slate-500"
+                    <button
+                      key={attachment.id}
+                      className={`rounded-md px-3 py-1 text-sm ${
+                        attachment.downloadUrl
+                          ? "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                          : "bg-slate-100 text-slate-400"
+                      }`}
+                      disabled={!attachment.downloadUrl}
+                      onClick={() => {
+                        if (attachment.downloadUrl) {
+                          handleDownload(attachment.downloadUrl);
+                        }
+                      }}
+                      type="button"
                     >
-                      {attachment}
-                    </span>
+                      {attachment.fileName}
+                    </button>
                   ))}
                 </div>
               </div>
@@ -2692,10 +2786,10 @@ export function WorkspaceDashboard({
       ) : null}
 
       {reportModalOpen ? (
-        <Modal title="提交日程汇报" onClose={() => setReportModalOpen(false)}>
+        <Modal title={editingReportDate ? "修改日程汇报" : "提交日程汇报"} onClose={closeReportModal}>
           <div className="space-y-4">
             <p className="text-sm leading-7 text-slate-500">
-              提交日期：{formatShortDate(selectedDate)} · 提交人：{currentUser.profile.name}
+              提交日期：{formatShortDate(editingReportDate || selectedDate)} · 提交人：{currentUser.profile.name}
             </p>
             <label className="block text-sm text-slate-500">
               今日完成
@@ -2729,9 +2823,9 @@ export function WorkspaceDashboard({
               />
             </label>
             <ModalActions>
-              <ActionButton disabled={isSaving} onClick={() => setReportModalOpen(false)}>取消</ActionButton>
+              <ActionButton disabled={isSaving} onClick={closeReportModal}>取消</ActionButton>
               <ActionButton loading={isSaving} loadingLabel="提交中..." onClick={saveReport} variant="primary">
-                保存汇报
+                {editingReportDate ? "保存修改" : "保存汇报"}
               </ActionButton>
             </ModalActions>
           </div>
@@ -2823,7 +2917,14 @@ export function WorkspaceDashboard({
       ) : null}
 
       {expertModalOpen ? (
-        <Modal title="上传专家意见" onClose={() => setExpertModalOpen(false)}>
+        <Modal
+          title="上传专家意见"
+          onClose={() => {
+            setExpertModalOpen(false);
+            setExpertDraft(defaultExpertDraft);
+            setExpertFiles([]);
+          }}
+        >
           <div className="space-y-4">
             <div className="grid gap-4 md:grid-cols-2">
               <label className="block text-sm text-slate-500">
@@ -2881,8 +2982,49 @@ export function WorkspaceDashboard({
                 }
               />
             </label>
+            <label className="block text-sm text-slate-500">
+              上传附件
+              <input
+                accept={documentAcceptAttribute}
+                className={`${fieldClassName} block min-h-11`}
+                multiple
+                type="file"
+                onChange={(event) => {
+                  const nextFiles = Array.from(event.target.files ?? []);
+                  for (const file of nextFiles) {
+                    const validationError = validateClientFile(file);
+                    if (validationError) {
+                      setLoadError(validationError);
+                      event.target.value = "";
+                      setExpertFiles([]);
+                      return;
+                    }
+                  }
+                  setExpertFiles(nextFiles);
+                }}
+              />
+            </label>
+            {expertFiles.length > 0 ? (
+              <div className={`${subtleCardClassName} space-y-2`}>
+                <p className="text-sm text-slate-500">已选附件</p>
+                {expertFiles.map((file) => (
+                  <p key={`${file.name}-${file.size}`} className="text-sm text-slate-600">
+                    {file.name}
+                  </p>
+                ))}
+              </div>
+            ) : null}
             <ModalActions>
-              <ActionButton disabled={isSaving} onClick={() => setExpertModalOpen(false)}>取消</ActionButton>
+              <ActionButton
+                disabled={isSaving}
+                onClick={() => {
+                  setExpertModalOpen(false);
+                  setExpertDraft(defaultExpertDraft);
+                  setExpertFiles([]);
+                }}
+              >
+                取消
+              </ActionButton>
               <ActionButton loading={isSaving} loadingLabel="保存中..." onClick={saveExpert} variant="primary">
                 保存意见
               </ActionButton>
