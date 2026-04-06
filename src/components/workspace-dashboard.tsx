@@ -8,6 +8,7 @@ import {
   Bell,
   BellPlus,
   CalendarDays,
+  CheckCircle2,
   ChevronDown,
   ChevronUp,
   Download,
@@ -287,7 +288,14 @@ type ConfirmDialogState = {
   title: string;
   message: string;
   confirmLabel: string;
+  successTitle?: string;
+  successDetail?: string;
   onConfirm: () => Promise<void> | void;
+} | null;
+
+type SuccessToastState = {
+  title: string;
+  detail?: string;
 } | null;
 
 const reviewActionTitles: Record<DocumentReviewActionKey, string> = {
@@ -830,6 +838,29 @@ function EmptyState({
   );
 }
 
+function SuccessToast({ toast }: { toast: SuccessToastState }) {
+  if (!toast) {
+    return null;
+  }
+
+  return (
+    <div className="pointer-events-none fixed top-5 right-5 z-[80] w-[min(360px,calc(100vw-2rem))]">
+      <div className="rounded-2xl border border-emerald-200 bg-white/95 px-4 py-3 shadow-lg shadow-emerald-100/60 backdrop-blur">
+        <div className="flex items-start gap-3">
+          <div className="relative mt-0.5 flex h-10 w-10 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
+            <span className="absolute inset-0 rounded-full bg-emerald-400/20 animate-ping" />
+            <CheckCircle2 className="relative h-5 w-5" />
+          </div>
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-slate-900">{toast.title}</p>
+            {toast.detail ? <p className="mt-1 text-sm leading-6 text-slate-500">{toast.detail}</p> : null}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ActionButton({
   children,
   onClick,
@@ -856,10 +887,10 @@ function ActionButton({
 
   return (
     <button
-      className={`inline-flex h-10 items-center justify-center rounded-lg px-4 text-sm shadow-sm transition ${className} ${
+      className={`inline-flex h-10 items-center justify-center rounded-lg px-4 text-sm shadow-sm transition duration-200 focus-visible:ring-2 focus-visible:ring-blue-200 focus-visible:outline-none ${className} ${
         disabled || loading
           ? "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400 hover:bg-slate-100"
-          : ""
+          : "hover:-translate-y-px active:translate-y-0 active:scale-[0.98]"
       }`}
       disabled={disabled || loading}
       onClick={onClick}
@@ -910,6 +941,7 @@ export function WorkspaceDashboard({
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState>(null);
+  const [successToast, setSuccessToast] = useState<SuccessToastState>(null);
   const [isSaving, setIsSaving] = useState(false);
   const [previewAsset, setPreviewAsset] = useState<PreviewAsset | null>(null);
 
@@ -977,6 +1009,23 @@ export function WorkspaceDashboard({
   const nearestUpcomingIndex = events.length > 0 ? getNearestUpcomingIndex(events) : 0;
   const nearestEvent = events[nearestUpcomingIndex];
   const greetingCopy = getGreetingCopy(currentUser?.profile.name ?? "你好", currentDateTime);
+
+  useEffect(() => {
+    if (!successToast) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setSuccessToast(null);
+    }, 2400);
+
+    return () => window.clearTimeout(timer);
+  }, [successToast]);
+
+  const showSuccessToast = (title: string, detail?: string) => {
+    setLoadError(null);
+    setSuccessToast({ title, detail });
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -1519,6 +1568,7 @@ export function WorkspaceDashboard({
 
     setIsSaving(true);
     try {
+      const isEditing = Boolean(editingTaskId);
       if (editingTaskId) {
         await requestJson(`/api/tasks/${editingTaskId}`, {
           method: "PATCH",
@@ -1533,6 +1583,7 @@ export function WorkspaceDashboard({
 
       setTaskDraft(defaultTaskDraft(firstAssignableMemberId));
       setTaskModalOpen(false);
+      showSuccessToast(isEditing ? "任务已更新" : "任务已创建", "新的安排已经同步到工作台。");
       refreshWorkspace();
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "任务保存失败");
@@ -1554,6 +1605,8 @@ export function WorkspaceDashboard({
       title: "删除任务",
       message: `确认删除任务「${taskTitle}」？`,
       confirmLabel: "确认删除",
+      successTitle: "任务已删除",
+      successDetail: "该任务已经从当前看板移除。",
       onConfirm: () => deleteTaskRequest(taskId),
     });
   };
@@ -1595,6 +1648,7 @@ export function WorkspaceDashboard({
       });
       setAnnouncementDraft(defaultAnnouncementDraft);
       setAnnouncementModalOpen(false);
+      showSuccessToast("公告已发布", "成员将会在首页和通知里看到这条公告。");
       refreshWorkspace();
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "公告发布失败");
@@ -1640,6 +1694,7 @@ export function WorkspaceDashboard({
         }),
       });
       closeReportModal();
+      showSuccessToast(editingReportDate ? "汇报已更新" : "汇报已提交", "当前日期的工作汇报已保存。");
       refreshWorkspace();
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "汇报保存失败");
@@ -1661,6 +1716,8 @@ export function WorkspaceDashboard({
       title: "撤回汇报",
       message: `确认撤回 ${formatShortDate(date)} 的工作汇报？`,
       confirmLabel: "确认撤回",
+      successTitle: "汇报已撤回",
+      successDetail: "你可以重新编辑并再次提交这一天的汇报。",
       onConfirm: () => removeReportRequest(date),
     });
   };
@@ -1672,6 +1729,7 @@ export function WorkspaceDashboard({
 
     setIsSaving(true);
     try {
+      const isEditing = Boolean(editingEventId);
       if (editingEventId) {
         await requestJson(`/api/events/${editingEventId}`, {
           method: "PATCH",
@@ -1687,6 +1745,7 @@ export function WorkspaceDashboard({
       setEventDraft(defaultEventDraft);
       setEditingEventId(null);
       setEventModalOpen(false);
+      showSuccessToast(isEditing ? "节点已更新" : "节点已创建", "时间进度已经刷新到最新安排。");
       refreshWorkspace();
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "节点保存失败");
@@ -1756,6 +1815,7 @@ export function WorkspaceDashboard({
       setExpertDraft(defaultExpertDraft);
       setExpertFiles([]);
       setExpertModalOpen(false);
+      showSuccessToast("专家意见已保存", "新的专家反馈已经写入专家意见板块。");
       refreshWorkspace();
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "专家意见保存失败");
@@ -1808,6 +1868,7 @@ export function WorkspaceDashboard({
 
       setDocumentDraft(defaultDocumentDraft);
       setDocumentModalOpen(false);
+      showSuccessToast("文档已上传", "文档中心已经记录了新的材料版本。");
       refreshWorkspace();
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "文件上传失败");
@@ -1867,6 +1928,7 @@ export function WorkspaceDashboard({
       setVersionUploadNote("");
       setVersionTargetDocId(null);
       setVersionModalOpen(false);
+      showSuccessToast("新版本已上传", "历史版本列表已经同步更新。");
       refreshWorkspace();
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "文档版本上传失败");
@@ -1894,6 +1956,7 @@ export function WorkspaceDashboard({
       setReviewTargetDocId(null);
       setReviewAction(null);
       setReviewComment("");
+      showSuccessToast("审批已提交", "文档审批状态和批注已经更新。");
       refreshWorkspace();
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "文档审核失败");
@@ -1930,6 +1993,7 @@ export function WorkspaceDashboard({
 
       setReviewAssignmentModalOpen(false);
       setReviewAssignmentDraft(defaultExpertReviewAssignmentDraft(expertMembers[0]?.id ?? ""));
+      showSuccessToast("评审包已创建", "可以继续上传计划书、路演材料和视频。");
       refreshWorkspace();
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "评审任务创建失败");
@@ -2015,6 +2079,7 @@ export function WorkspaceDashboard({
       setReviewMaterialDraft(defaultExpertReviewMaterialDraft());
       setReviewMaterialSavingLabel("上传中...");
       setReviewMaterialUploadProgress(null);
+      showSuccessToast("评审材料已上传", "专家端现在可以在线查看这份材料。");
       refreshWorkspace();
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "评审材料上传失败");
@@ -2047,6 +2112,8 @@ export function WorkspaceDashboard({
       title: "删除评审材料",
       message: `确认删除${expertReviewMaterialLabels[kind]}？删除后专家将无法继续查看该材料。`,
       confirmLabel: "确认删除",
+      successTitle: "评审材料已删除",
+      successDetail: "该材料已经从当前评审包移除。",
       onConfirm: () => deleteReviewMaterialRequest(assignmentId, kind),
     });
   };
@@ -2064,6 +2131,8 @@ export function WorkspaceDashboard({
       title: "删除专家评审包",
       message: `确认删除专家评审包「${targetName}」？相关指派、评分与临时材料都会一起清除。`,
       confirmLabel: "确认删除",
+      successTitle: "评审包已删除",
+      successDetail: "相关指派、评分和材料已经一并清理。",
       onConfirm: () => deleteReviewAssignmentRequest(assignmentId),
     });
   };
@@ -2113,6 +2182,7 @@ export function WorkspaceDashboard({
           commentTotal: draft.commentTotal.trim(),
         }),
       });
+      showSuccessToast("评分已提交", "本次专家评分已经保存。");
       refreshWorkspace();
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "专家评分提交失败");
@@ -2135,6 +2205,8 @@ export function WorkspaceDashboard({
       title: "删除文档",
       message: `确认删除文档「${docName}」？删除后不可恢复。`,
       confirmLabel: "确认删除",
+      successTitle: "文档已删除",
+      successDetail: "文档及其相关版本已经移除。",
       onConfirm: () => removeDocumentRequest(docId),
     });
   };
@@ -2156,6 +2228,8 @@ export function WorkspaceDashboard({
       title: "删除历史版本",
       message: "确认删除该历史版本？",
       confirmLabel: "确认删除",
+      successTitle: "历史版本已删除",
+      successDetail: "文档版本记录已经更新。",
       onConfirm: () => removeDocumentVersionRequest(docId, versionId),
     });
   };
@@ -2180,6 +2254,7 @@ export function WorkspaceDashboard({
       });
       setTeamDraft(defaultTeamDraft);
       setTeamModalOpen(false);
+      showSuccessToast("账号已创建", "新的下级账号已经可以进入系统。");
       refreshWorkspace();
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "成员创建失败");
@@ -2240,6 +2315,7 @@ export function WorkspaceDashboard({
       );
       setProfileDraft({ ...defaultProfileDraft(payload.user), password: "" });
       setProfileMessage("个人信息已保存");
+      showSuccessToast("个人信息已保存", "你的资料已经更新完成。");
       setLoadError(null);
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "个人信息保存失败");
@@ -2255,6 +2331,7 @@ export function WorkspaceDashboard({
         method: "PATCH",
         body: JSON.stringify({ action: "approve" }),
       });
+      showSuccessToast("审核已通过", "该账号现在可以正常登录系统。");
       refreshWorkspace();
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "账号审核失败");
@@ -2298,6 +2375,7 @@ export function WorkspaceDashboard({
       setPasswordDraft("");
       setPasswordTargetMember(null);
       setPasswordModalOpen(false);
+      showSuccessToast("密码已重置", "新密码已经生效。");
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "密码重置失败");
     } finally {
@@ -2318,6 +2396,8 @@ export function WorkspaceDashboard({
       title: "删除账号",
       message: `确认删除账号「${memberName}」？`,
       confirmLabel: "确认删除",
+      successTitle: "账号已删除",
+      successDetail: "该账号和相关关联数据已经清理。",
       onConfirm: () => removeMemberRequest(memberId),
     });
   };
@@ -2329,8 +2409,13 @@ export function WorkspaceDashboard({
 
     setIsSaving(true);
     try {
+      const successTitle = confirmDialog.successTitle;
+      const successDetail = confirmDialog.successDetail;
       await confirmDialog.onConfirm();
       setConfirmDialog(null);
+      if (successTitle) {
+        showSuccessToast(successTitle, successDetail);
+      }
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "操作失败");
     } finally {
@@ -3747,8 +3832,41 @@ export function WorkspaceDashboard({
 
   if (isBooting) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-slate-100">
-        <p className="text-sm text-slate-500">正在加载工作台数据...</p>
+      <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-slate-100 px-4">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(37,99,235,0.08),_transparent_45%)]" />
+        <div className="relative w-full max-w-xl rounded-2xl border border-slate-200 bg-white/95 px-6 py-7 shadow-sm backdrop-blur sm:px-8 sm:py-8">
+          <div className="inline-flex items-center rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-xs font-medium tracking-[0.08em] text-blue-600">
+            中国国际大学生创新大赛管理系统
+          </div>
+          <div className="mt-5 flex items-start gap-4">
+            <div className="relative flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
+              <span className="absolute inset-0 rounded-2xl border border-blue-100 animate-pulse" />
+              <Loader2 className="relative h-6 w-6 animate-spin" />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xl font-semibold tracking-[-0.02em] text-slate-900">正在进入管理中心</p>
+              <p className="mt-2 text-sm leading-7 text-slate-500">
+                正在同步角色权限、任务概览和最近通知，马上就好。
+              </p>
+            </div>
+          </div>
+          <div className="mt-6 grid grid-cols-3 gap-3">
+            {[0, 1, 2].map((item) => (
+              <div
+                className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4"
+                key={item}
+              >
+                <div className="h-2.5 w-16 rounded-full bg-slate-200 animate-pulse" />
+                <div className="mt-3 h-3 rounded-full bg-slate-200/80 animate-pulse" />
+                <div className="mt-2 h-3 w-2/3 rounded-full bg-slate-200/70 animate-pulse" />
+              </div>
+            ))}
+          </div>
+          <div className="mt-6 inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1.5 text-xs text-slate-500">
+            <span className="h-2 w-2 rounded-full bg-blue-600 animate-pulse" />
+            <span>正在加载工作台数据...</span>
+          </div>
+        </div>
       </main>
     );
   }
@@ -4020,6 +4138,8 @@ export function WorkspaceDashboard({
           </section>
         </div>
       </main>
+
+      <SuccessToast toast={successToast} />
 
       {taskModalOpen ? (
         <Modal title={editingTaskId ? "编辑任务" : "新建任务"} onClose={() => setTaskModalOpen(false)}>

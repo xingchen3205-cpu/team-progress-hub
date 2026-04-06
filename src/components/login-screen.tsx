@@ -2,6 +2,7 @@
 
 import { startTransition, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { CheckCircle2, Loader2 } from "lucide-react";
 
 type FormMode = "login" | "register";
 
@@ -196,8 +197,14 @@ export function LoginScreen() {
 
   if (isCheckingSession) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-[#f1f8ff]">
-        <p className="text-sm text-[#6b7280]">正在检查登录状态...</p>
+      <main className="flex min-h-screen items-center justify-center bg-[#f1f8ff] px-4">
+        <div className="w-full max-w-md rounded-2xl border border-[#dbeafe] bg-white/95 px-6 py-7 text-center shadow-[0_12px_36px_rgba(48,145,242,0.10)] backdrop-blur">
+          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-[#e9f3ff] text-[#3091f2]">
+            <Loader2 className="h-6 w-6 animate-spin" />
+          </div>
+          <p className="mt-4 text-base font-semibold text-[#13161b]">正在进入系统</p>
+          <p className="mt-2 text-sm leading-6 text-[#6b7280]">正在检查登录状态，请稍候片刻。</p>
+        </div>
       </main>
     );
   }
@@ -220,23 +227,25 @@ export function LoginScreen() {
 
           <div className="flex flex-1 items-center justify-center bg-[#f5f6f8] px-5 py-8 sm:px-8 sm:py-10 lg:px-10 lg:py-12">
             <div className="w-full max-w-[420px] rounded-xl border border-[#eef1f4] bg-white px-6 py-7 shadow-[0_8px_24px_rgba(19,22,27,0.06)] sm:px-8 sm:py-8">
-              <div className="mb-8 flex items-center justify-between gap-4">
-                <h2 className="text-center text-[28px] leading-9 font-bold text-[#13161b]">
+              <div className="mb-8">
+                <h2 className="text-[28px] leading-9 font-bold text-[#13161b]">
                   {mode === "login" ? "用户登录" : "注册账号"}
                 </h2>
-                <button
-                  className="text-sm text-[#60656e] transition hover:text-[#326ca6] hover:underline"
-                  onClick={() => switchMode(mode === "login" ? "register" : "login")}
-                  type="button"
-                >
-                  {mode === "login" ? "注册账号" : "返回登录"}
-                </button>
+                <p className="mt-2 text-sm leading-6 text-[#6b7280]">
+                  {mode === "login"
+                    ? "请输入账号密码登录管理系统。"
+                    : "完成注册后将进入待审核状态，通过后即可登录。"}
+                </p>
               </div>
 
               {successMessage ? (
-                <p className="mb-4 rounded-lg bg-[#ecfdf5] px-4 py-3 text-sm leading-6 text-[#047857]">
-                  {successMessage}
-                </p>
+                <div className="mb-4 flex items-start gap-3 rounded-xl border border-[#bbf7d0] bg-[#ecfdf5] px-4 py-3 text-sm leading-6 text-[#047857]">
+                  <div className="relative mt-0.5 flex h-6 w-6 items-center justify-center rounded-full bg-[#d1fae5] text-[#059669]">
+                    <span className="absolute inset-0 rounded-full bg-[#6ee7b7]/40 animate-ping" />
+                    <CheckCircle2 className="relative h-4 w-4" />
+                  </div>
+                  <p>{successMessage}</p>
+                </div>
               ) : null}
 
               {mode === "login" ? (
@@ -311,7 +320,7 @@ export function LoginScreen() {
                     <div className="mb-6" />
                   )}
 
-                  <div className="mb-6 flex items-center justify-between text-sm leading-[22px] text-[#60656e]">
+                  <div className="mb-6 flex items-center text-sm leading-[22px] text-[#60656e]">
                     <label className="flex items-center gap-2">
                       <input
                         checked={loginValues.remember}
@@ -325,13 +334,6 @@ export function LoginScreen() {
                       />
                       <span>记住密码</span>
                     </label>
-                    <button
-                      className="text-[#60656e] no-underline transition hover:text-[#326ca6] hover:underline"
-                      onClick={() => switchMode("register")}
-                      type="button"
-                    >
-                      注册账号
-                    </button>
                   </div>
 
                   {loginErrors.submit ? (
@@ -341,11 +343,18 @@ export function LoginScreen() {
                   ) : null}
 
                   <button
-                    className="flex h-11 w-full items-center justify-center rounded border border-[#3091f2] bg-[#3091f2] text-base leading-[42px] text-white transition hover:border-[#419df9] hover:bg-[#419df9] disabled:cursor-not-allowed disabled:border-[#86c0f7] disabled:bg-[#86c0f7]"
+                    className="flex h-11 w-full items-center justify-center gap-2 rounded border border-[#3091f2] bg-[#3091f2] text-base leading-[42px] text-white transition duration-200 hover:-translate-y-px hover:border-[#419df9] hover:bg-[#419df9] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3091f2]/20 active:translate-y-0 active:scale-[0.99] disabled:cursor-not-allowed disabled:border-[#86c0f7] disabled:bg-[#86c0f7] disabled:hover:translate-y-0 disabled:active:scale-100"
                     disabled={isSubmitting}
                     type="submit"
                   >
-                    {isSubmitting ? "登录中..." : "登录"}
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <span>登录中...</span>
+                      </>
+                    ) : (
+                      "登录"
+                    )}
                   </button>
                 </form>
               ) : (
@@ -457,20 +466,36 @@ export function LoginScreen() {
                   ) : null}
 
                   <button
-                    className="flex h-11 w-full items-center justify-center rounded border border-[#3091f2] bg-[#3091f2] text-base leading-[42px] text-white transition hover:border-[#419df9] hover:bg-[#419df9] disabled:cursor-not-allowed disabled:border-[#86c0f7] disabled:bg-[#86c0f7]"
+                    className="flex h-11 w-full items-center justify-center gap-2 rounded border border-[#3091f2] bg-[#3091f2] text-base leading-[42px] text-white transition duration-200 hover:-translate-y-px hover:border-[#419df9] hover:bg-[#419df9] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3091f2]/20 active:translate-y-0 active:scale-[0.99] disabled:cursor-not-allowed disabled:border-[#86c0f7] disabled:bg-[#86c0f7] disabled:hover:translate-y-0 disabled:active:scale-100"
                     disabled={isSubmitting}
                     type="submit"
                   >
-                    {isSubmitting ? "提交中..." : "提交注册"}
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <span>提交中...</span>
+                      </>
+                    ) : (
+                      "提交注册"
+                    )}
                   </button>
                 </form>
               )}
 
-              <p className="mt-6 text-center text-sm leading-7 text-[#6b7280]">
-                {mode === "login"
-                  ? "没有账号可先注册，审核通过后即可登录系统。"
-                  : "提交注册后请等待上一级账号审核通过。"}
-              </p>
+              <div className="mt-6 space-y-2 text-center">
+                <p className="text-sm leading-7 text-[#6b7280]">
+                  {mode === "login"
+                    ? "没有账号可先注册，审核通过后即可登录系统。"
+                    : "提交注册后请等待上一级账号审核通过。"}
+                </p>
+                <button
+                  className="text-sm font-medium text-[#326ca6] transition hover:text-[#255686] hover:underline"
+                  onClick={() => switchMode(mode === "login" ? "register" : "login")}
+                  type="button"
+                >
+                  {mode === "login" ? "注册账号" : "返回登录"}
+                </button>
+              </div>
             </div>
           </div>
         </section>
