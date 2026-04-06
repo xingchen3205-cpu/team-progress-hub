@@ -1049,6 +1049,7 @@ export function WorkspaceDashboard({
   const [countdown, setCountdown] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [todoAutoOpened, setTodoAutoOpened] = useState(false);
+  const [dismissedTodoIds, setDismissedTodoIds] = useState<string[]>([]);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState>(null);
   const [successToast, setSuccessToast] = useState<SuccessToastState>(null);
@@ -1631,7 +1632,8 @@ export function WorkspaceDashboard({
     [permissions.visibleTabs, unreadTodoNotifications],
   );
 
-  const todoItemCount = roleTodoItems.length + todoNotifications.length;
+  const visibleRoleTodoItems = roleTodoItems.filter((item) => !dismissedTodoIds.includes(item.id));
+  const todoItemCount = visibleRoleTodoItems.length + todoNotifications.length;
 
   useEffect(() => {
     if (isBooting || todoAutoOpened || todoItemCount <= 0) {
@@ -1641,6 +1643,10 @@ export function WorkspaceDashboard({
     setNotificationsOpen(true);
     setTodoAutoOpened(true);
   }, [isBooting, todoAutoOpened, todoItemCount]);
+
+  const dismissTodoItem = (itemId: string) => {
+    setDismissedTodoIds((current) => (current.includes(itemId) ? current : [...current, itemId]));
+  };
 
   const canMoveTask = (task: BoardTask) =>
     permissions.canMoveAnyTask || (currentRole === "member" && task.assigneeId === currentMemberId);
@@ -5000,7 +5006,7 @@ export function WorkspaceDashboard({
                   {currentUser.profile.name}，今天先把最关键的几件事推进掉。
                 </p>
                 <p className="mt-1 text-sm leading-6 text-slate-500">
-                  角色代办会持续保留到你处理完成；未读提醒点开后就不会重复弹出。
+                  你可以把当前代办先标记为已读，未读提醒点开后也不会重复弹出。
                 </p>
               </div>
               <div className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-xs text-slate-500 shadow-sm">
@@ -5009,14 +5015,14 @@ export function WorkspaceDashboard({
               </div>
             </div>
 
-            {roleTodoItems.length > 0 ? (
+            {visibleRoleTodoItems.length > 0 ? (
               <section className="space-y-3">
                 <div>
                   <p className="text-base font-semibold text-slate-900">角色代办</p>
-                  <p className="mt-1 text-sm text-slate-400">这些事项会一直保留，直到你真正处理完成。</p>
+                  <p className="mt-1 text-sm text-slate-400">先点已读收起也可以，需要时再从代办入口打开。</p>
                 </div>
                 <div className="space-y-3">
-                  {roleTodoItems.map((item) => (
+                  {visibleRoleTodoItems.map((item) => (
                     <div
                       className={`rounded-xl border px-4 py-4 shadow-sm ${
                         item.priority === "danger"
@@ -5043,7 +5049,10 @@ export function WorkspaceDashboard({
                           </div>
                           <p className="mt-2 text-sm leading-6 text-slate-500">{item.detail}</p>
                         </div>
-                        <div className="flex items-center md:justify-end">
+                        <div className="flex flex-wrap items-center gap-2 md:justify-end">
+                          <ActionButton onClick={() => dismissTodoItem(item.id)}>
+                            已读
+                          </ActionButton>
                           <ActionButton onClick={() => void openTodoItem(item)} variant="primary">
                             {item.actionLabel}
                           </ActionButton>
