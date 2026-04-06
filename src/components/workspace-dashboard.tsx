@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
-  Bell,
   BellPlus,
   CalendarDays,
   CheckCircle2,
@@ -204,6 +203,18 @@ type PreviewAsset = {
   mode?: "preview" | "download-fallback";
   downloadUrl?: string | null;
   fallbackMessage?: string;
+};
+
+type TodoCenterItem = {
+  id: string;
+  title: string;
+  detail: string;
+  actionLabel: string;
+  targetTab?: TabKey;
+  priority?: "normal" | "warning" | "danger";
+  type?: "action" | "notification";
+  notificationId?: string;
+  documentId?: string | null;
 };
 
 const imagePreviewExtensions = [".png", ".jpg", ".jpeg", ".gif", ".webp"] as const;
@@ -1037,6 +1048,7 @@ export function WorkspaceDashboard({
   const [draggingTaskId, setDraggingTaskId] = useState<string | null>(null);
   const [countdown, setCountdown] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [todoAutoOpened, setTodoAutoOpened] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState>(null);
   const [successToast, setSuccessToast] = useState<SuccessToastState>(null);
@@ -1339,6 +1351,15 @@ export function WorkspaceDashboard({
   const reportEntryMap = new Map<string, ReportEntryWithDate>(
     reportEntries.map((item) => [item.memberId, item]),
   );
+  const todayDateKey = getDefaultDateKey();
+  const todayReportEntries = useMemo(
+    () => reportEntriesByDay[todayDateKey] ?? [],
+    [reportEntriesByDay, todayDateKey],
+  );
+  const todayReportEntryMap = useMemo(
+    () => new Map<string, ReportEntryWithDate>(todayReportEntries.map((item) => [item.memberId, item])),
+    [todayReportEntries],
+  );
   const firstAssignableMemberId =
     members.find((item) => !["指导教师", "系统管理员", "评审专家"].includes(item.systemRole))?.id ??
     currentMemberId;
@@ -1350,8 +1371,10 @@ export function WorkspaceDashboard({
   const filteredDocuments = selectedCategory
     ? documents.filter((item) => item.category === selectedCategory)
     : documents;
-  const unreadNotificationCount = notifications.filter((item) => !item.isRead).length;
   const expertMembers = members.filter((member) => member.systemRole === "评审专家");
+  const myOpenTasks = tasks.filter((task) => task.assigneeId === currentMemberId && task.status !== "done");
+  const pendingLeaderReviewCount = documents.filter((doc) => doc.statusKey === "pending").length;
+  const pendingTeacherReviewCount = documents.filter((doc) => doc.statusKey === "leader_approved").length;
 
   const getMemberName = (memberId: string) => membersMap[memberId]?.name ?? memberId;
 
@@ -1466,6 +1489,158 @@ export function WorkspaceDashboard({
   });
 
   const pendingApprovalMembers = pendingTeamMembers.filter((member) => canApprovePendingMember(member));
+  const unreadTodoNotifications = notifications.filter((item) => !item.isRead);
+
+  const roleTodoItems = useMemo<TodoCenterItem[]>(() => {
+    if (!currentUser) {
+      return [];
+    }
+
+    const items: TodoCenterItem[] = [];
+    const nearestCountdown = nearestEvent ? getCountdown(nearestEvent.dateTime) : null;
+    const daysUntilNearest = nearestCountdown?.days ?? null;
+
+    if (nearestEvent && daysUntilNearest !== null && daysUntilNearest <= 14) {
+      items.push({
+        id: `event-${nearestEvent.id}`,
+        title: `关键节点临近：${nearestEvent.title}`,
+        detail:
+          daysUntilNearest <= 0
+            ? `${nearestEvent.type} 已经进入当天，请尽快确认材料、人员和现场安排。`
+            : `距离该节点还有 ${daysUntilNearest} 天 ${nearestCountdown?.hours ?? 0} 小时，建议尽快检查准备情况。`,
+        actionLabel: "查看时间进度",
+        targetTab: "timeline",
+        priority: daysUntilNearest <= 3 ? "danger" : "warning",
+      });
+    }
+
+    if ((currentRole === "member" || currentRole === "leader") && !todayReportEntryMap.has(currentMemberId)) {
+      items.push({
+        id: `report-${currentMemberId}-${todayDateKey}`,
+        title: "今日汇报待提交",
+        detail: `今天还没有提交 ${todayDateKey} 的日程汇报，建议先补齐今日完成和明日计划。`,
+        actionLabel: "填写日程汇报",
+        targetTab: "reports",
+        priority: "warning",
+      });
+    }
+
+    if (currentRole === "member" && myOpenTasks.length > 0) {
+      items.push({
+        id: `task-${currentMemberId}`,
+        title: "我的任务待推进",
+        detail: `你当前还有 ${myOpenTasks.length} 项未完成任务，建议先同步状态并推进。`,
+        actionLabel: "查看任务看板",
+        targetTab: "board",
+      });
+    }
+
+    if (["leader", "teacher", "admin"].includes(currentRole)) {
+      const openTaskCount = tasks.filter((task) => task.status !== "done").length;
+      items.push({
+        id: `board-${currentRole}`,
+        title: "任务看板待同步",
+        detail:
+          openTaskCount > 0
+            ? `当前还有 ${openTaskCount} 项任务未完成，建议及时分派、跟进并调整优先级。`
+            : "今天的任务安排可以再确认一遍，确保没有遗漏新的推进事项。",
+        actionLabel: "进入任务看板",
+        targetTab: "board",
+      });
+    }
+
+    if ((currentRole === "leader" || currentRole === "admin") && pendingLeaderReviewCount > 0) {
+      items.push({
+        id: `leader-review-${pendingLeaderReviewCount}`,
+        title: "文档待负责人审批",
+        detail: `当前有 ${pendingLeaderReviewCount} 份文档在等待负责人审批。`,
+        actionLabel: "前往文档中心",
+        targetTab: "documents",
+        priority: "warning",
+      });
+    }
+
+    if ((currentRole === "teacher" || currentRole === "admin") && pendingTeacherReviewCount > 0) {
+      items.push({
+        id: `teacher-review-${pendingTeacherReviewCount}`,
+        title: "文档待教师终审",
+        detail: `当前有 ${pendingTeacherReviewCount} 份文档已经通过负责人审批，等待教师终审。`,
+        actionLabel: "查看待审文档",
+        targetTab: "documents",
+        priority: "warning",
+      });
+    }
+
+    if (pendingApprovalMembers.length > 0) {
+      items.push({
+        id: `approval-${pendingApprovalMembers.length}`,
+        title: "账号待审核",
+        detail: `当前有 ${pendingApprovalMembers.length} 个账号等待你审核，通过后他们才能登录系统。`,
+        actionLabel: "前往团队管理",
+        targetTab: "team",
+        priority: "warning",
+      });
+    }
+
+    if (currentRole === "expert") {
+      const pendingAssignments = reviewAssignments.filter((assignment) => assignment.statusKey === "pending");
+      if (pendingAssignments.length > 0) {
+        items.push({
+          id: `expert-review-${pendingAssignments.length}`,
+          title: "专家评审待完成",
+          detail: `你当前还有 ${pendingAssignments.length} 个评审包待提交评分，请按材料逐项完成。`,
+          actionLabel: "前往专家评审",
+          targetTab: "review",
+          priority: "warning",
+        });
+      }
+    }
+
+    return items;
+  }, [
+    currentMemberId,
+    currentRole,
+    currentUser,
+    myOpenTasks.length,
+    nearestEvent,
+    pendingApprovalMembers.length,
+    pendingLeaderReviewCount,
+    pendingTeacherReviewCount,
+    reviewAssignments,
+    tasks,
+    todayDateKey,
+    todayReportEntryMap,
+  ]);
+
+  const todoNotifications = useMemo<TodoCenterItem[]>(
+    () =>
+      unreadTodoNotifications.map((notification) => ({
+        id: `notification-${notification.id}`,
+        title: notification.title,
+        detail: notification.detail,
+        actionLabel: "去处理",
+        targetTab:
+          notification.targetTab && permissions.visibleTabs.includes(notification.targetTab as TabKey)
+            ? (notification.targetTab as TabKey)
+            : undefined,
+        priority: "normal",
+        type: "notification",
+        notificationId: notification.id,
+        documentId: notification.documentId ?? null,
+      })),
+    [permissions.visibleTabs, unreadTodoNotifications],
+  );
+
+  const todoItemCount = roleTodoItems.length + todoNotifications.length;
+
+  useEffect(() => {
+    if (isBooting || todoAutoOpened || todoItemCount <= 0) {
+      return;
+    }
+
+    setNotificationsOpen(true);
+    setTodoAutoOpened(true);
+  }, [isBooting, todoAutoOpened, todoItemCount]);
 
   const canMoveTask = (task: BoardTask) =>
     permissions.canMoveAnyTask || (currentRole === "member" && task.assigneeId === currentMemberId);
@@ -1660,6 +1835,32 @@ export function WorkspaceDashboard({
 
     if (notification.targetTab && permissions.visibleTabs.includes(notification.targetTab as TabKey)) {
       router.push(notification.targetTab === "overview" ? "/workspace" : `/workspace?tab=${notification.targetTab}`);
+    }
+  };
+
+  const openTodoItem = async (item: TodoCenterItem) => {
+    if (item.type === "notification" && item.notificationId) {
+      const targetNotification = notifications.find((notification) => notification.id === item.notificationId);
+      if (targetNotification) {
+        await openNotification(targetNotification);
+        return;
+      }
+    }
+
+    setNotificationsOpen(false);
+
+    if (item.documentId) {
+      setExpandedDocs((current) => (current.includes(item.documentId as string) ? current : [...current, item.documentId as string]));
+      setHighlightedDocId(item.documentId);
+      window.setTimeout(() => {
+        document.getElementById(`doc-${item.documentId}`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 300);
+      router.push(`/workspace?tab=documents&doc=${item.documentId}`, { scroll: false });
+      return;
+    }
+
+    if (item.targetTab && permissions.visibleTabs.includes(item.targetTab)) {
+      router.push(item.targetTab === "overview" ? "/workspace" : `/workspace?tab=${item.targetTab}`);
     }
   };
 
@@ -4180,80 +4381,19 @@ export function WorkspaceDashboard({
                 </div>
 
                 <div className="flex flex-wrap items-center gap-3">
-                  {currentRole !== "expert" ? (
-                    <div className="relative">
-                      <button
-                        className="relative inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-sm hover:bg-slate-50"
-                        onClick={() => setNotificationsOpen((current) => !current)}
-                        type="button"
-                      >
-                        <Bell className="h-4 w-4" />
-                        {unreadNotificationCount > 0 ? (
-                          <span className="absolute right-1 top-1 inline-flex min-w-5 items-center justify-center rounded-full bg-[#ef4444] px-1.5 text-[10px] font-semibold text-white">
-                            {unreadNotificationCount}
-                          </span>
-                        ) : null}
-                      </button>
-
-                      {notificationsOpen ? (
-                        <div className="absolute right-0 top-12 z-20 w-[360px] rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-                          <div className="flex items-center justify-between">
-                            <div>
-                              <p className="text-base font-semibold text-slate-900">站内消息</p>
-                              <p className="mt-1 text-xs text-slate-400">文档审批进度会实时同步到这里。</p>
-                            </div>
-                            <button
-                              className="text-sm text-blue-600"
-                              onClick={() => void markAllNotificationsAsRead()}
-                              type="button"
-                            >
-                              全部已读
-                            </button>
-                          </div>
-
-                          <div className="mt-4 space-y-3">
-                            {notifications.length > 0 ? (
-                              notifications.map((notification) => (
-                                <button
-                                  className={`w-full rounded-lg border px-4 py-3 text-left transition ${
-                                    notification.isRead
-                                      ? "border-slate-200 bg-white"
-                                      : "border-blue-100 bg-blue-50/40"
-                                  }`}
-                                  key={notification.id}
-                                  onClick={() => void openNotification(notification)}
-                                  type="button"
-                                >
-                                  <div className="flex items-start justify-between gap-3">
-                                    <div>
-                                      <p className="text-sm font-semibold text-slate-900">
-                                        {notification.title}
-                                      </p>
-                                      <p className="mt-2 text-sm leading-6 text-slate-500">
-                                        {notification.detail}
-                                      </p>
-                                    </div>
-                                    {!notification.isRead ? (
-                                      <span className="mt-1 h-2.5 w-2.5 rounded-full bg-blue-600" />
-                                    ) : null}
-                                  </div>
-                                  <p className="mt-2 text-xs text-slate-400">{notification.createdAt}</p>
-                                </button>
-                              ))
-                            ) : (
-                              <div className="rounded-lg border border-dashed border-slate-200">
-                                <EmptyState
-                                  description="文档审批、上传和状态变更的提醒会显示在这里。"
-                                  icon={Bell}
-                                  title="暂无站内消息"
-                                />
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      ) : null}
-                    </div>
-                  ) : null}
+                  <button
+                    className="relative inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-slate-600 shadow-sm hover:bg-slate-50"
+                    onClick={() => setNotificationsOpen(true)}
+                    type="button"
+                  >
+                    <BellPlus className="h-4 w-4" />
+                    <span className="text-sm font-medium">代办</span>
+                    {todoItemCount > 0 ? (
+                      <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-[#ef4444] px-1.5 text-[10px] font-semibold text-white">
+                        {todoItemCount}
+                      </span>
+                    ) : null}
+                  </button>
                   <button
                     className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2 text-left shadow-sm transition hover:bg-slate-50"
                     onClick={openProfilePage}
@@ -4842,6 +4982,115 @@ export function WorkspaceDashboard({
               >
                 保存材料
               </ActionButton>
+            </ModalActions>
+          </div>
+        </Modal>
+      ) : null}
+
+      {notificationsOpen ? (
+        <Modal
+          onClose={() => setNotificationsOpen(false)}
+          panelClassName="max-w-[min(92vw,860px)]"
+          title="今日代办"
+        >
+          <div className="space-y-5">
+            <div className={`${subtleCardClassName} flex flex-col gap-3 md:flex-row md:items-center md:justify-between`}>
+              <div>
+                <p className="text-sm font-medium text-slate-900">
+                  {currentUser.profile.name}，今天先把最关键的几件事推进掉。
+                </p>
+                <p className="mt-1 text-sm leading-6 text-slate-500">
+                  角色代办会持续保留到你处理完成；未读提醒点开后就不会重复弹出。
+                </p>
+              </div>
+              <div className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-xs text-slate-500 shadow-sm">
+                <BellPlus className="h-3.5 w-3.5 text-blue-600" />
+                <span>当前共 {todoItemCount} 项待处理</span>
+              </div>
+            </div>
+
+            {roleTodoItems.length > 0 ? (
+              <section className="space-y-3">
+                <div>
+                  <p className="text-base font-semibold text-slate-900">角色代办</p>
+                  <p className="mt-1 text-sm text-slate-400">这些事项会一直保留，直到你真正处理完成。</p>
+                </div>
+                <div className="space-y-3">
+                  {roleTodoItems.map((item) => (
+                    <div
+                      className={`rounded-xl border px-4 py-4 ${
+                        item.priority === "danger"
+                          ? "border-red-200 bg-red-50/70"
+                          : item.priority === "warning"
+                            ? "border-amber-200 bg-amber-50/70"
+                            : "border-slate-200 bg-white"
+                      }`}
+                      key={item.id}
+                    >
+                      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-slate-900">{item.title}</p>
+                          <p className="mt-2 text-sm leading-6 text-slate-500">{item.detail}</p>
+                        </div>
+                        <ActionButton onClick={() => void openTodoItem(item)} variant="primary">
+                          {item.actionLabel}
+                        </ActionButton>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </section>
+            ) : null}
+
+            {todoNotifications.length > 0 ? (
+              <section className="space-y-3">
+                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                  <div>
+                    <p className="text-base font-semibold text-slate-900">未读提醒</p>
+                    <p className="mt-1 text-sm text-slate-400">这些提醒处理后会自动标记，不会反复打扰。</p>
+                  </div>
+                  <button
+                    className="text-sm font-medium text-blue-600"
+                    onClick={() => void markAllNotificationsAsRead()}
+                    type="button"
+                  >
+                    全部已读
+                  </button>
+                </div>
+                <div className="space-y-3">
+                  {todoNotifications.map((item) => (
+                    <button
+                      className="w-full rounded-xl border border-blue-100 bg-blue-50/40 px-4 py-4 text-left transition hover:bg-blue-50"
+                      key={item.id}
+                      onClick={() => void openTodoItem(item)}
+                      type="button"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="text-sm font-semibold text-slate-900">{item.title}</p>
+                          <p className="mt-2 text-sm leading-6 text-slate-500">{item.detail}</p>
+                        </div>
+                        <span className="mt-1 h-2.5 w-2.5 rounded-full bg-blue-600" />
+                      </div>
+                      <p className="mt-3 text-sm font-medium text-blue-600">{item.actionLabel}</p>
+                    </button>
+                  ))}
+                </div>
+              </section>
+            ) : null}
+
+            {todoItemCount === 0 ? (
+              <div className="rounded-lg border border-dashed border-slate-200">
+                <EmptyState
+                  description="当前没有需要你立刻处理的事项，今天的节奏已经很不错了。"
+                  icon={BellPlus}
+                  title="暂时没有新的代办"
+                />
+              </div>
+            ) : null}
+
+            <ModalActions>
+              <ActionButton onClick={() => setNotificationsOpen(false)}>稍后处理</ActionButton>
             </ModalActions>
           </div>
         </Modal>
