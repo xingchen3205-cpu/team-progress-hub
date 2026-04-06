@@ -250,6 +250,14 @@ export async function DELETE(
   }
 
   await prisma.$transaction([
+    prisma.user.updateMany({
+      where: {
+        approvedById: target.id,
+      },
+      data: {
+        approvedById: null,
+      },
+    }),
     prisma.task.updateMany({
       where: {
         assigneeId: target.id,
@@ -274,6 +282,11 @@ export async function DELETE(
         authorId: fallbackOwner.id,
       },
     }),
+    prisma.notification.deleteMany({
+      where: {
+        userId: target.id,
+      },
+    }),
     prisma.document.updateMany({
       where: {
         ownerId: target.id,
@@ -288,6 +301,24 @@ export async function DELETE(
       },
       data: {
         uploaderId: fallbackOwner.id,
+      },
+    }),
+    prisma.expertReviewPackage.updateMany({
+      where: {
+        createdById: target.id,
+      },
+      data: {
+        createdById: fallbackOwner.id,
+      },
+    }),
+    prisma.expertReviewScore.deleteMany({
+      where: {
+        reviewerId: target.id,
+      },
+    }),
+    prisma.expertReviewAssignment.deleteMany({
+      where: {
+        expertUserId: target.id,
       },
     }),
     prisma.report.deleteMany({
