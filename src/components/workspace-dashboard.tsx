@@ -16,13 +16,16 @@ import {
   GripVertical,
   Home,
   KanbanSquare,
+  Loader2,
   LogOut,
+  Menu,
   MessageSquareText,
   Plus,
   Timer,
   Trash2,
   Upload,
   Users,
+  X,
 } from "lucide-react";
 
 import type {
@@ -212,6 +215,14 @@ type DocumentActionButton = {
   label: string;
   variant: "secondary" | "danger";
 };
+
+type ConfirmDialogState = {
+  open: boolean;
+  title: string;
+  message: string;
+  confirmLabel: string;
+  onConfirm: () => Promise<void> | void;
+} | null;
 
 const reviewActionTitles: Record<DocumentReviewActionKey, string> = {
   leaderApprove: "负责人审批通过",
@@ -506,16 +517,82 @@ function ModalActions({ children }: { children: React.ReactNode }) {
   return <div className="mt-5 flex justify-end gap-3 border-t border-slate-200 pt-4">{children}</div>;
 }
 
+function ConfirmDialog({
+  open,
+  title,
+  message,
+  confirmLabel,
+  onConfirm,
+  onCancel,
+  isLoading = false,
+}: {
+  open: boolean;
+  title: string;
+  message: string;
+  confirmLabel: string;
+  onConfirm: () => void;
+  onCancel: () => void;
+  isLoading?: boolean;
+}) {
+  if (!open) {
+    return null;
+  }
+
+  return (
+    <Modal title={title} onClose={onCancel}>
+      <div className="space-y-4">
+        <p className="text-sm leading-7 text-slate-500">{message}</p>
+        <ModalActions>
+          <ActionButton disabled={isLoading} onClick={onCancel}>
+            取消
+          </ActionButton>
+          <ActionButton
+            disabled={isLoading}
+            loading={isLoading}
+            loadingLabel="提交中..."
+            onClick={onConfirm}
+            variant="danger"
+          >
+            {confirmLabel}
+          </ActionButton>
+        </ModalActions>
+      </div>
+    </Modal>
+  );
+}
+
+function EmptyState({
+  icon: Icon,
+  title,
+  description,
+}: {
+  icon: LucideIcon;
+  title: string;
+  description: string;
+}) {
+  return (
+    <div className="flex flex-col items-center justify-center py-16 text-center">
+      <Icon className="h-12 w-12 text-slate-300" />
+      <h3 className="mt-4 text-base font-medium text-slate-500">{title}</h3>
+      <p className="mt-2 max-w-md text-sm leading-6 text-slate-400">{description}</p>
+    </div>
+  );
+}
+
 function ActionButton({
   children,
   onClick,
   disabled,
+  loading,
+  loadingLabel,
   title,
   variant = "secondary",
 }: {
   children: React.ReactNode;
   onClick?: () => void;
   disabled?: boolean;
+  loading?: boolean;
+  loadingLabel?: string;
   title?: string;
   variant?: "primary" | "secondary" | "danger";
 }) {
@@ -529,14 +606,23 @@ function ActionButton({
   return (
     <button
       className={`inline-flex h-10 items-center justify-center rounded-lg px-4 text-sm shadow-sm transition ${className} ${
-        disabled ? "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400 hover:bg-slate-100" : ""
+        disabled || loading
+          ? "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400 hover:bg-slate-100"
+          : ""
       }`}
-      disabled={disabled}
+      disabled={disabled || loading}
       onClick={onClick}
-      title={disabled ? title ?? "无权限" : undefined}
+      title={disabled && !loading ? title ?? "无权限" : undefined}
       type="button"
     >
-      {children}
+      {loading ? (
+        <span className="inline-flex items-center gap-2">
+          <Loader2 className="h-4 w-4 animate-spin" />
+          <span>{loadingLabel ?? "提交中..."}</span>
+        </span>
+      ) : (
+        children
+      )}
     </button>
   );
 }
@@ -568,6 +654,9 @@ export function WorkspaceDashboard({
   const [draggingTaskId, setDraggingTaskId] = useState<string | null>(null);
   const [countdown, setCountdown] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   const [taskModalOpen, setTaskModalOpen] = useState(false);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
@@ -734,6 +823,10 @@ export function WorkspaceDashboard({
     };
   }, [documents, safeActiveTab, targetDocumentId]);
 
+  useEffect(() => {
+    setMobileSidebarOpen(false);
+  }, [safeActiveTab]);
+
   const membersMap = useMemo(
     () => Object.fromEntries(members.map((item) => [item.id, item])),
     [members],
@@ -892,6 +985,7 @@ export function WorkspaceDashboard({
     await fetch("/api/auth/logout", {
       method: "POST",
     });
+    setMobileSidebarOpen(false);
     router.push("/login");
     router.refresh();
   };
@@ -971,6 +1065,7 @@ export function WorkspaceDashboard({
       return;
     }
 
+    setIsSaving(true);
     try {
       if (editingTaskId) {
         await requestJson(`/api/tasks/${editingTaskId}`, {
@@ -989,18 +1084,26 @@ export function WorkspaceDashboard({
       refreshWorkspace();
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "任务保存失败");
+    } finally {
+      setIsSaving(false);
     }
   };
 
-  const deleteTask = async (taskId: string) => {
-    try {
-      await requestJson(`/api/tasks/${taskId}`, {
-        method: "DELETE",
-      });
-      refreshWorkspace();
-    } catch (error) {
-      setLoadError(error instanceof Error ? error.message : "任务删除失败");
-    }
+  const deleteTaskRequest = async (taskId: string) => {
+    await requestJson(`/api/tasks/${taskId}`, {
+      method: "DELETE",
+    });
+    refreshWorkspace();
+  };
+
+  const deleteTask = (taskId: string, taskTitle: string) => {
+    setConfirmDialog({
+      open: true,
+      title: "删除任务",
+      message: `确认删除任务「${taskTitle}」？`,
+      confirmLabel: "确认删除",
+      onConfirm: () => deleteTaskRequest(taskId),
+    });
   };
 
   const handleDrop = async (status: BoardStatus) => {
@@ -1032,6 +1135,7 @@ export function WorkspaceDashboard({
       return;
     }
 
+    setIsSaving(true);
     try {
       await requestJson("/api/announcements", {
         method: "POST",
@@ -1042,6 +1146,8 @@ export function WorkspaceDashboard({
       refreshWorkspace();
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "公告发布失败");
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -1050,6 +1156,7 @@ export function WorkspaceDashboard({
       return;
     }
 
+    setIsSaving(true);
     try {
       await requestJson("/api/reports", {
         method: "POST",
@@ -1063,6 +1170,8 @@ export function WorkspaceDashboard({
       refreshWorkspace();
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "汇报保存失败");
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -1071,6 +1180,7 @@ export function WorkspaceDashboard({
       return;
     }
 
+    setIsSaving(true);
     try {
       if (editingEventId) {
         await requestJson(`/api/events/${editingEventId}`, {
@@ -1090,6 +1200,8 @@ export function WorkspaceDashboard({
       refreshWorkspace();
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "节点保存失败");
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -1114,6 +1226,7 @@ export function WorkspaceDashboard({
       return;
     }
 
+    setIsSaving(true);
     try {
       await requestJson("/api/experts", {
         method: "POST",
@@ -1127,6 +1240,8 @@ export function WorkspaceDashboard({
       refreshWorkspace();
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "专家意见保存失败");
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -1159,6 +1274,7 @@ export function WorkspaceDashboard({
     formData.set("note", documentDraft.note.trim());
     formData.set("file", documentDraft.file as File);
 
+    setIsSaving(true);
     try {
       const response = await fetch("/api/documents", {
         method: "POST",
@@ -1176,6 +1292,8 @@ export function WorkspaceDashboard({
       refreshWorkspace();
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "文件上传失败");
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -1213,6 +1331,7 @@ export function WorkspaceDashboard({
     formData.set("note", versionUploadNote.trim());
     formData.set("file", versionUploadFile as File);
 
+    setIsSaving(true);
     try {
       const response = await fetch(`/api/documents/${versionTargetDocId}/version`, {
         method: "POST",
@@ -1232,6 +1351,8 @@ export function WorkspaceDashboard({
       refreshWorkspace();
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "文档版本上传失败");
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -1241,6 +1362,7 @@ export function WorkspaceDashboard({
       return;
     }
 
+    setIsSaving(true);
     try {
       await requestJson(`/api/documents/${reviewTargetDocId}/review`, {
         method: "PATCH",
@@ -1256,35 +1378,48 @@ export function WorkspaceDashboard({
       refreshWorkspace();
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "文档审核失败");
+    } finally {
+      setIsSaving(false);
     }
   };
 
-  const removeDocument = async (docId: string) => {
-    try {
-      await requestJson(`/api/documents/${docId}`, {
-        method: "DELETE",
-      });
-      setExpandedDocs((current) => current.filter((item) => item !== docId));
-      refreshWorkspace();
-    } catch (error) {
-      setLoadError(error instanceof Error ? error.message : "文档删除失败");
-    }
+  const removeDocumentRequest = async (docId: string) => {
+    await requestJson(`/api/documents/${docId}`, {
+      method: "DELETE",
+    });
+    setExpandedDocs((current) => current.filter((item) => item !== docId));
+    refreshWorkspace();
   };
 
-  const removeDocumentVersion = async (docId: string, versionId?: string) => {
+  const removeDocument = (docId: string, docName: string) => {
+    setConfirmDialog({
+      open: true,
+      title: "删除文档",
+      message: `确认删除文档「${docName}」？删除后不可恢复。`,
+      confirmLabel: "确认删除",
+      onConfirm: () => removeDocumentRequest(docId),
+    });
+  };
+
+  const removeDocumentVersionRequest = async (docId: string, versionId?: string) => {
     if (!versionId) {
-      setLoadError("版本编号缺失，暂时无法删除");
-      return;
+      throw new Error("版本编号缺失，暂时无法删除");
     }
 
-    try {
-      await requestJson(`/api/documents/${docId}/version?versionId=${versionId}`, {
-        method: "DELETE",
-      });
-      refreshWorkspace();
-    } catch (error) {
-      setLoadError(error instanceof Error ? error.message : "版本删除失败");
-    }
+    await requestJson(`/api/documents/${docId}/version?versionId=${versionId}`, {
+      method: "DELETE",
+    });
+    refreshWorkspace();
+  };
+
+  const removeDocumentVersion = (docId: string, versionId: string | undefined) => {
+    setConfirmDialog({
+      open: true,
+      title: "删除历史版本",
+      message: "确认删除该历史版本？",
+      confirmLabel: "确认删除",
+      onConfirm: () => removeDocumentVersionRequest(docId, versionId),
+    });
   };
 
   const saveTeamMember = async () => {
@@ -1292,6 +1427,7 @@ export function WorkspaceDashboard({
       return;
     }
 
+    setIsSaving(true);
     try {
       await requestJson("/api/team", {
         method: "POST",
@@ -1309,6 +1445,8 @@ export function WorkspaceDashboard({
       refreshWorkspace();
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "成员创建失败");
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -1336,6 +1474,7 @@ export function WorkspaceDashboard({
       return;
     }
 
+    setIsSaving(true);
     try {
       await requestJson(`/api/team/${passwordTargetMember.id}`, {
         method: "PATCH",
@@ -1348,17 +1487,41 @@ export function WorkspaceDashboard({
       setPasswordModalOpen(false);
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "密码重置失败");
+    } finally {
+      setIsSaving(false);
     }
   };
 
-  const removeMember = async (memberId: string) => {
+  const removeMemberRequest = async (memberId: string) => {
+    await requestJson(`/api/team/${memberId}`, {
+      method: "DELETE",
+    });
+    refreshWorkspace();
+  };
+
+  const removeMember = (memberId: string, memberName: string) => {
+    setConfirmDialog({
+      open: true,
+      title: "删除账号",
+      message: `确认删除账号「${memberName}」？`,
+      confirmLabel: "确认删除",
+      onConfirm: () => removeMemberRequest(memberId),
+    });
+  };
+
+  const handleConfirmDialog = async () => {
+    if (!confirmDialog?.onConfirm) {
+      return;
+    }
+
+    setIsSaving(true);
     try {
-      await requestJson(`/api/team/${memberId}`, {
-        method: "DELETE",
-      });
-      refreshWorkspace();
+      await confirmDialog.onConfirm();
+      setConfirmDialog(null);
     } catch (error) {
-      setLoadError(error instanceof Error ? error.message : "成员删除失败");
+      setLoadError(error instanceof Error ? error.message : "操作失败");
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -1579,9 +1742,10 @@ export function WorkspaceDashboard({
             </div>
 
             <div className="mt-4 flex-1 space-y-4">
-              {tasks
-                .filter((task) => task.status === column.id)
-                .map((task) => {
+              {tasks.filter((task) => task.status === column.id).length > 0 ? (
+                tasks
+                  .filter((task) => task.status === column.id)
+                  .map((task) => {
                   const assignee = membersMap[task.assigneeId];
                   const canMove = canMoveTask(task);
 
@@ -1626,7 +1790,7 @@ export function WorkspaceDashboard({
                           </ActionButton>
                           <ActionButton
                             disabled={!permissions.canDeleteTask}
-                            onClick={() => deleteTask(task.id)}
+                            onClick={() => deleteTask(task.id, task.title)}
                             title="无权限"
                             variant="danger"
                           >
@@ -1636,7 +1800,16 @@ export function WorkspaceDashboard({
                       </div>
                     </article>
                   );
-                })}
+                  })
+              ) : (
+                <div className="flex h-full min-h-[360px] items-center justify-center">
+                  <EmptyState
+                    description="当前列还没有任务，创建任务后会显示在这里。"
+                    icon={KanbanSquare}
+                    title="暂无任务"
+                  />
+                </div>
+              )}
             </div>
           </div>
         ))}
@@ -1683,44 +1856,54 @@ export function WorkspaceDashboard({
       </div>
 
       <section className="grid gap-4 xl:grid-cols-2">
-        {visibleReportMembers.map((member) => {
-          const report = reportEntryMap.get(member.id);
+        {visibleReportMembers.length > 0 ? (
+          visibleReportMembers.map((member) => {
+            const report = reportEntryMap.get(member.id);
 
-          return (
-            <article
-              key={member.id}
-              className={surfaceCardClassName}
-            >
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <h3 className="text-base font-semibold text-slate-900">{member.name}</h3>
-                  <p className="mt-2 text-sm text-slate-500">{member.systemRole}</p>
+            return (
+              <article
+                key={member.id}
+                className={surfaceCardClassName}
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <div>
+                    <h3 className="text-base font-semibold text-slate-900">{member.name}</h3>
+                    <p className="mt-2 text-sm text-slate-500">{member.systemRole}</p>
+                  </div>
+                  {report ? (
+                    <span className="rounded-md bg-blue-50 px-3 py-1 text-sm text-blue-600">
+                      已提交 {report.submittedAt}
+                    </span>
+                  ) : (
+                    <span className="rounded-md bg-red-50 px-3 py-1 text-sm text-red-700">
+                      未提交
+                    </span>
+                  )}
                 </div>
-                {report ? (
-                  <span className="rounded-md bg-blue-50 px-3 py-1 text-sm text-blue-600">
-                    已提交 {report.submittedAt}
-                  </span>
-                ) : (
-                  <span className="rounded-md bg-red-50 px-3 py-1 text-sm text-red-700">
-                    未提交
-                  </span>
-                )}
-              </div>
 
-              {report ? (
-                <>
-                  <p className="mt-4 text-sm leading-7 text-slate-600">今日完成：{report.summary}</p>
-                  <p className="mt-2 text-sm leading-7 text-slate-600">明日计划：{report.nextPlan}</p>
-                  <p className="mt-4 text-sm text-slate-400">附件：{report.attachment}</p>
-                </>
-              ) : (
-                <p className="mt-4 text-sm leading-7 text-slate-500">
-                  该成员在 {formatShortDate(selectedDate)} 尚未提交当日汇报，请及时提醒。
-                </p>
-              )}
-            </article>
-          );
-        })}
+                {report ? (
+                  <>
+                    <p className="mt-4 text-sm leading-7 text-slate-600">今日完成：{report.summary}</p>
+                    <p className="mt-2 text-sm leading-7 text-slate-600">明日计划：{report.nextPlan}</p>
+                    <p className="mt-4 text-sm text-slate-400">附件：{report.attachment}</p>
+                  </>
+                ) : (
+                  <p className="mt-4 text-sm leading-7 text-slate-500">
+                    该成员在 {formatShortDate(selectedDate)} 尚未提交当日汇报，请及时提醒。
+                  </p>
+                )}
+              </article>
+            );
+          })
+        ) : (
+          <div className="xl:col-span-2">
+            <EmptyState
+              description="当前日期下还没有可展示的汇报记录，提交后会集中显示在这里。"
+              icon={CalendarDays}
+              title="暂无汇报记录"
+            />
+          </div>
+        )}
       </section>
     </div>
   );
@@ -1749,35 +1932,43 @@ export function WorkspaceDashboard({
       </div>
 
       <section className="space-y-4">
-        {experts.map((session) => (
-          <article
-            key={session.id}
-            className={surfaceCardClassName}
-          >
-            <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-              <div>
-                <p className="text-sm font-medium text-blue-600">
-                  {session.date} · {session.format}
-                </p>
-                <h3 className="mt-3 text-base font-semibold text-slate-900">
-                  {session.expert} · {session.topic}
-                </h3>
+        {experts.length > 0 ? (
+          experts.map((session) => (
+            <article
+              key={session.id}
+              className={surfaceCardClassName}
+            >
+              <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                <div>
+                  <p className="text-sm font-medium text-blue-600">
+                    {session.date} · {session.format}
+                  </p>
+                  <h3 className="mt-3 text-base font-semibold text-slate-900">
+                    {session.expert} · {session.topic}
+                  </h3>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {session.attachments.map((attachment) => (
+                    <span
+                      key={attachment}
+                      className="rounded-md bg-slate-100 px-3 py-1 text-sm text-slate-500"
+                    >
+                      {attachment}
+                    </span>
+                  ))}
+                </div>
               </div>
-              <div className="flex flex-wrap gap-2">
-                {session.attachments.map((attachment) => (
-                  <span
-                    key={attachment}
-                    className="rounded-md bg-slate-100 px-3 py-1 text-sm text-slate-500"
-                  >
-                    {attachment}
-                  </span>
-                ))}
-              </div>
-            </div>
-            <p className="mt-4 text-sm leading-7 text-slate-600">反馈摘要：{session.summary}</p>
-            <p className="mt-2 text-sm leading-7 text-slate-600">落实动作：{session.nextAction}</p>
-          </article>
-        ))}
+              <p className="mt-4 text-sm leading-7 text-slate-600">反馈摘要：{session.summary}</p>
+              <p className="mt-2 text-sm leading-7 text-slate-600">落实动作：{session.nextAction}</p>
+            </article>
+          ))
+        ) : (
+          <EmptyState
+            description="专家意见上传后会按时间倒序展示，便于团队持续跟进。"
+            icon={MessageSquareText}
+            title="暂无专家意见"
+          />
+        )}
       </section>
     </div>
   );
@@ -1830,14 +2021,15 @@ export function WorkspaceDashboard({
       </section>
 
       <section className="space-y-4">
-        {filteredDocuments.map((doc) => (
-          <article
-            id={`doc-${doc.id}`}
-            key={doc.id}
-            className={`${surfaceCardClassName} transition ${
-              highlightedDocId === doc.id ? "ring-2 ring-blue-500 ring-offset-2" : ""
-            }`}
-          >
+        {filteredDocuments.length > 0 ? (
+          filteredDocuments.map((doc) => (
+            <article
+              id={`doc-${doc.id}`}
+              key={doc.id}
+              className={`${surfaceCardClassName} transition ${
+                highlightedDocId === doc.id ? "ring-2 ring-blue-500 ring-offset-2" : ""
+              }`}
+            >
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
               <div className="grid gap-4 md:grid-cols-3">
                 {documentStepLabels.map((label, index) => {
@@ -1913,7 +2105,7 @@ export function WorkspaceDashboard({
                 </ActionButton>
                 <ActionButton
                   disabled={!canDeleteDocument(doc)}
-                  onClick={() => void removeDocument(doc.id)}
+                  onClick={() => removeDocument(doc.id, doc.name)}
                   title="无权限"
                   variant="danger"
                 >
@@ -1983,7 +2175,7 @@ export function WorkspaceDashboard({
                       </ActionButton>
                       <ActionButton
                         disabled={!canDeleteDocumentVersion(doc, version) || doc.versions.length <= 1}
-                        onClick={() => void removeDocumentVersion(doc.id, version.id)}
+                        onClick={() => removeDocumentVersion(doc.id, version.id)}
                         title={doc.versions.length <= 1 ? "至少保留一个版本" : "无权限"}
                         variant="danger"
                       >
@@ -1997,8 +2189,19 @@ export function WorkspaceDashboard({
                 ))}
               </div>
             ) : null}
-          </article>
-        ))}
+            </article>
+          ))
+        ) : (
+          <EmptyState
+            description={
+              selectedCategory
+                ? `当前分类“${selectedCategory}”下还没有文档，可以切换分类或上传新文档。`
+                : "当前还没有上传文档，上传后会按分类展示在这里。"
+            }
+            icon={FolderOpen}
+            title="暂无文档"
+          />
+        )}
       </section>
     </div>
   );
@@ -2088,7 +2291,7 @@ export function WorkspaceDashboard({
                       ) : null}
                       <ActionButton
                         disabled={!editable || member.systemRole === "系统管理员"}
-                        onClick={() => removeMember(member.id)}
+                        onClick={() => removeMember(member.id, member.name)}
                         title="无权限"
                         variant="danger"
                       >
@@ -2146,8 +2349,15 @@ export function WorkspaceDashboard({
     <>
       <main className="min-h-screen bg-[#f1f5f9] p-4 md:p-6">
         <div className="mx-auto flex max-w-[1500px] flex-col gap-4 xl:flex-row">
-          <aside className="xl:w-[280px] xl:flex-none">
-            <div className="rounded-xl bg-slate-900 px-5 py-6 text-white shadow-sm xl:sticky xl:top-4 xl:h-[calc(100vh-2rem)]">
+          {mobileSidebarOpen ? (
+            <div
+              className="fixed inset-0 z-40 bg-slate-950/40 xl:hidden"
+              onClick={() => setMobileSidebarOpen(false)}
+            />
+          ) : null}
+
+          <aside className="hidden xl:block xl:w-[280px] xl:flex-none">
+            <div className="rounded-xl bg-slate-900 px-5 py-6 text-white shadow-sm xl:sticky xl:top-4 xl:flex xl:h-[calc(100vh-2rem)] xl:flex-col">
               <div className="border-b border-white/10 pb-4">
                 <h1 className="text-[18px] font-semibold tracking-[0.02em] text-white">备赛管理中心</h1>
               </div>
@@ -2176,13 +2386,107 @@ export function WorkspaceDashboard({
                   );
                 })}
               </nav>
+
+              <div className="mt-auto border-t border-white/10 pt-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-600 text-sm font-semibold text-white">
+                    {currentUser.profile.avatar}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm text-white">{currentUser.profile.name}</p>
+                    <p className="mt-1 text-xs text-white/60">{roleLabels[currentRole]}</p>
+                  </div>
+                </div>
+                <button
+                  className="mt-4 inline-flex items-center gap-2 text-sm text-white/50 transition hover:text-white"
+                  onClick={() => void handleLogout()}
+                  type="button"
+                >
+                  <LogOut className="h-4 w-4" />
+                  <span>退出</span>
+                </button>
+              </div>
+            </div>
+          </aside>
+
+          <aside
+            className={`fixed inset-y-0 left-0 z-50 w-[280px] bg-slate-900 px-5 py-6 text-white shadow-xl transition-transform duration-200 xl:hidden ${
+              mobileSidebarOpen ? "translate-x-0" : "-translate-x-full"
+            }`}
+          >
+            <div className="flex h-full flex-col">
+              <div className="flex items-center justify-between border-b border-white/10 pb-4">
+                <h1 className="text-[18px] font-semibold tracking-[0.02em] text-white">备赛管理中心</h1>
+                <button
+                  className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 text-white/80"
+                  onClick={() => setMobileSidebarOpen(false)}
+                  type="button"
+                >
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              <nav className="mt-5 space-y-1.5">
+                {visibleTabs.map((item) => {
+                  const Icon = item.icon;
+                  const isActive = item.key === safeActiveTab;
+                  const href =
+                    item.key === "overview" ? "/workspace" : `/workspace?tab=${item.key}`;
+
+                  return (
+                    <Link
+                      key={`mobile-${item.key}`}
+                      className={`relative flex items-center gap-3 rounded-lg px-4 py-3 text-sm no-underline transition ${
+                        isActive
+                          ? "bg-white/8 text-white"
+                          : "text-white/70 hover:bg-white/6 hover:text-white"
+                      }`}
+                      href={href}
+                      onClick={() => setMobileSidebarOpen(false)}
+                    >
+                      {isActive ? <span className="absolute inset-y-2 left-0 w-[3px] rounded-full bg-white" /> : null}
+                      <Icon className="h-[18px] w-[18px]" strokeWidth={2.1} />
+                      <span>{item.label}</span>
+                    </Link>
+                  );
+                })}
+              </nav>
+
+              <div className="mt-auto border-t border-white/10 pt-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-600 text-sm font-semibold text-white">
+                    {currentUser.profile.avatar}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="truncate text-sm text-white">{currentUser.profile.name}</p>
+                    <p className="mt-1 text-xs text-white/60">{roleLabels[currentRole]}</p>
+                  </div>
+                </div>
+                <button
+                  className="mt-4 inline-flex items-center gap-2 text-sm text-white/50 transition hover:text-white"
+                  onClick={() => void handleLogout()}
+                  type="button"
+                >
+                  <LogOut className="h-4 w-4" />
+                  <span>退出</span>
+                </button>
+              </div>
             </div>
           </aside>
 
           <section className="min-w-0 flex-1">
             <header className="bg-white px-5 py-4 shadow-sm">
               <div className="mx-auto flex max-w-[1200px] flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                <p className="text-lg font-semibold text-slate-900">{activeTabItem.label}</p>
+                <div className="flex items-center gap-3">
+                  <button
+                    className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-sm xl:hidden"
+                    onClick={() => setMobileSidebarOpen(true)}
+                    type="button"
+                  >
+                    <Menu className="h-5 w-5" />
+                  </button>
+                  <p className="text-lg font-semibold text-slate-900">{activeTabItem.label}</p>
+                </div>
 
                 <div className="flex flex-wrap items-center gap-3">
                   <div className="relative">
@@ -2245,8 +2549,12 @@ export function WorkspaceDashboard({
                               </button>
                             ))
                           ) : (
-                            <div className="rounded-lg border border-dashed border-slate-200 px-4 py-6 text-center text-sm text-slate-400">
-                              暂无新的站内消息
+                            <div className="rounded-lg border border-dashed border-slate-200">
+                              <EmptyState
+                                description="文档审批、上传和状态变更的提醒会显示在这里。"
+                                icon={Bell}
+                                title="暂无站内消息"
+                              />
                             </div>
                           )}
                         </div>
@@ -2351,8 +2659,8 @@ export function WorkspaceDashboard({
               </label>
             </div>
             <ModalActions>
-              <ActionButton onClick={() => setTaskModalOpen(false)}>取消</ActionButton>
-              <ActionButton onClick={saveTask} variant="primary">
+              <ActionButton disabled={isSaving} onClick={() => setTaskModalOpen(false)}>取消</ActionButton>
+              <ActionButton loading={isSaving} loadingLabel="保存中..." onClick={saveTask} variant="primary">
                 保存任务
               </ActionButton>
             </ModalActions>
@@ -2398,8 +2706,8 @@ export function WorkspaceDashboard({
               />
             </label>
             <ModalActions>
-              <ActionButton onClick={() => setReportModalOpen(false)}>取消</ActionButton>
-              <ActionButton onClick={saveReport} variant="primary">
+              <ActionButton disabled={isSaving} onClick={() => setReportModalOpen(false)}>取消</ActionButton>
+              <ActionButton loading={isSaving} loadingLabel="提交中..." onClick={saveReport} variant="primary">
                 保存汇报
               </ActionButton>
             </ModalActions>
@@ -2431,8 +2739,8 @@ export function WorkspaceDashboard({
               />
             </label>
             <ModalActions>
-              <ActionButton onClick={() => setAnnouncementModalOpen(false)}>取消</ActionButton>
-              <ActionButton onClick={publishAnnouncement} variant="primary">
+              <ActionButton disabled={isSaving} onClick={() => setAnnouncementModalOpen(false)}>取消</ActionButton>
+              <ActionButton loading={isSaving} loadingLabel="发布中..." onClick={publishAnnouncement} variant="primary">
                 发布公告
               </ActionButton>
             </ModalActions>
@@ -2482,8 +2790,8 @@ export function WorkspaceDashboard({
               />
             </label>
             <ModalActions>
-              <ActionButton onClick={() => setEventModalOpen(false)}>取消</ActionButton>
-              <ActionButton onClick={saveEvent} variant="primary">
+              <ActionButton disabled={isSaving} onClick={() => setEventModalOpen(false)}>取消</ActionButton>
+              <ActionButton loading={isSaving} loadingLabel="保存中..." onClick={saveEvent} variant="primary">
                 保存节点
               </ActionButton>
             </ModalActions>
@@ -2551,8 +2859,8 @@ export function WorkspaceDashboard({
               />
             </label>
             <ModalActions>
-              <ActionButton onClick={() => setExpertModalOpen(false)}>取消</ActionButton>
-              <ActionButton onClick={saveExpert} variant="primary">
+              <ActionButton disabled={isSaving} onClick={() => setExpertModalOpen(false)}>取消</ActionButton>
+              <ActionButton loading={isSaving} loadingLabel="保存中..." onClick={saveExpert} variant="primary">
                 保存意见
               </ActionButton>
             </ModalActions>
@@ -2628,8 +2936,13 @@ export function WorkspaceDashboard({
               />
             </label>
             <ModalActions>
-              <ActionButton onClick={() => setDocumentModalOpen(false)}>取消</ActionButton>
-              <ActionButton onClick={() => void saveDocument()} variant="primary">
+              <ActionButton disabled={isSaving} onClick={() => setDocumentModalOpen(false)}>取消</ActionButton>
+              <ActionButton
+                loading={isSaving}
+                loadingLabel="上传中..."
+                onClick={() => void saveDocument()}
+                variant="primary"
+              >
                 上传文档
               </ActionButton>
             </ModalActions>
@@ -2672,8 +2985,13 @@ export function WorkspaceDashboard({
               />
             </label>
             <ModalActions>
-              <ActionButton onClick={() => setVersionModalOpen(false)}>取消</ActionButton>
-              <ActionButton onClick={() => void uploadNewDocumentVersion()} variant="primary">
+              <ActionButton disabled={isSaving} onClick={() => setVersionModalOpen(false)}>取消</ActionButton>
+              <ActionButton
+                loading={isSaving}
+                loadingLabel="上传中..."
+                onClick={() => void uploadNewDocumentVersion()}
+                variant="primary"
+              >
                 上传新版本
               </ActionButton>
             </ModalActions>
@@ -2703,6 +3021,7 @@ export function WorkspaceDashboard({
             </label>
             <ModalActions>
               <ActionButton
+                disabled={isSaving}
                 onClick={() => {
                   setReviewModalOpen(false);
                   setReviewTargetDocId(null);
@@ -2713,6 +3032,8 @@ export function WorkspaceDashboard({
                 取消
               </ActionButton>
               <ActionButton
+                loading={isSaving}
+                loadingLabel="提交中..."
                 onClick={() => void reviewDocument()}
                 variant={reviewAction === "leaderRevision" || reviewAction === "teacherRevision" ? "danger" : "primary"}
               >
@@ -2789,8 +3110,8 @@ export function WorkspaceDashboard({
               />
             </label>
             <ModalActions>
-              <ActionButton onClick={() => setTeamModalOpen(false)}>取消</ActionButton>
-              <ActionButton onClick={saveTeamMember} variant="primary">
+              <ActionButton disabled={isSaving} onClick={() => setTeamModalOpen(false)}>取消</ActionButton>
+              <ActionButton loading={isSaving} loadingLabel="保存中..." onClick={saveTeamMember} variant="primary">
                 保存成员
               </ActionButton>
             </ModalActions>
@@ -2814,14 +3135,24 @@ export function WorkspaceDashboard({
               />
             </label>
             <ModalActions>
-              <ActionButton onClick={() => setPasswordModalOpen(false)}>取消</ActionButton>
-              <ActionButton onClick={resetMemberPassword} variant="primary">
+              <ActionButton disabled={isSaving} onClick={() => setPasswordModalOpen(false)}>取消</ActionButton>
+              <ActionButton loading={isSaving} loadingLabel="提交中..." onClick={resetMemberPassword} variant="primary">
                 确认重置
               </ActionButton>
             </ModalActions>
           </div>
         </Modal>
       ) : null}
+
+      <ConfirmDialog
+        confirmLabel={confirmDialog?.confirmLabel ?? "确认"}
+        isLoading={isSaving}
+        message={confirmDialog?.message ?? ""}
+        onCancel={() => setConfirmDialog(null)}
+        onConfirm={() => void handleConfirmDialog()}
+        open={Boolean(confirmDialog?.open)}
+        title={confirmDialog?.title ?? "确认操作"}
+      />
     </>
   );
 }
