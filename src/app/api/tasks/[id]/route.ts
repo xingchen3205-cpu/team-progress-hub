@@ -82,7 +82,7 @@ export async function DELETE(
     return NextResponse.json({ message: "未登录" }, { status: 401 });
   }
 
-  if (user.role !== "teacher") {
+  if (user.role !== "teacher" && user.role !== "admin") {
     return NextResponse.json({ message: "无权限" }, { status: 403 });
   }
 

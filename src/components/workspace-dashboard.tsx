@@ -371,6 +371,13 @@ const rolePermissions = {
   },
 } as const;
 
+const teamRoleRank: Record<TeamRoleLabel, number> = {
+  系统管理员: 4,
+  指导教师: 3,
+  项目负责人: 2,
+  团队成员: 1,
+};
+
 const formatDateTime = (value: string) => {
   const date = new Date(value);
   const month = `${date.getMonth() + 1}`.padStart(2, "0");
@@ -910,6 +917,22 @@ export function WorkspaceDashboard({
       : currentRole === "teacher"
         ? ["项目负责人", "团队成员"]
         : ["团队成员"];
+
+  const visibleTeamMembers = members.filter((member) => {
+    if (currentRole === "admin") {
+      return true;
+    }
+
+    if (currentRole === "teacher") {
+      return teamRoleRank[member.systemRole] < teamRoleRank["指导教师"];
+    }
+
+    if (currentRole === "leader") {
+      return teamRoleRank[member.systemRole] < teamRoleRank["项目负责人"];
+    }
+
+    return member.id === currentMemberId;
+  });
 
   const canMoveTask = (task: BoardTask) =>
     permissions.canMoveAnyTask || (currentRole === "member" && task.assigneeId === currentMemberId);
@@ -2230,7 +2253,7 @@ export function WorkspaceDashboard({
       </div>
 
       <section className="grid gap-4 xl:grid-cols-2">
-        {members.map((member) => {
+        {visibleTeamMembers.map((member) => {
           const editable = canManageMember(member);
           const roleDisabled = !editable || member.systemRole === "系统管理员";
 
