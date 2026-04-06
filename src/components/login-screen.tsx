@@ -459,10 +459,6 @@ export function LoginScreen() {
                     ) : null}
                   </label>
 
-                  <div className="rounded-lg bg-[#f8fafc] px-4 py-3 text-sm leading-6 text-[#64748b]">
-                    注册后需由可审核的上级账号通过后才能登录：团队成员可由项目负责人 / 指导教师 / 系统管理员审核，项目负责人和评审专家可由指导教师 / 系统管理员审核，指导教师仅可由系统管理员审核。账号名请使用英文字母和数字，不支持中文。
-                  </div>
-
                   {registerErrors.submit ? (
                     <p className="rounded-lg bg-[#fff1f2] px-4 py-3 text-sm leading-6 text-[#e11d48]">
                       {registerErrors.submit}
