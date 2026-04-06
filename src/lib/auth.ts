@@ -69,6 +69,7 @@ export const getSessionUser = async (request: NextRequest) => {
         approvalStatus: true,
         approvedAt: true,
         avatar: true,
+        avatarImagePath: true,
         responsibility: true,
         createdAt: true,
       },

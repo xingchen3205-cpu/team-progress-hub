@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { validateUsername } from "@/lib/account-policy";
 import { getSessionUser } from "@/lib/auth";
 import {
   assertMainWorkspaceRole,
@@ -8,6 +9,7 @@ import {
 } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { serializeUser } from "@/lib/api-serializers";
+import { deleteStoredFile } from "@/lib/uploads";
 
 export async function PATCH(
   request: NextRequest,
@@ -76,6 +78,7 @@ export async function PATCH(
         email: true,
         role: true,
         avatar: true,
+        avatarImagePath: true,
         responsibility: true,
         approvalStatus: true,
         approvedAt: true,
@@ -103,6 +106,13 @@ export async function PATCH(
     body?.email === ""
       ? null
       : body?.email?.trim() || undefined;
+
+  if (nextUsername && nextUsername !== target.username) {
+    const usernameError = validateUsername(nextUsername);
+    if (usernameError) {
+      return NextResponse.json({ message: usernameError }, { status: 400 });
+    }
+  }
 
   const conflictChecks = [
     ...(nextUsername ? [{ username: nextUsername }, { email: nextUsername }] : []),
@@ -149,6 +159,7 @@ export async function PATCH(
       email: true,
       role: true,
       avatar: true,
+      avatarImagePath: true,
       responsibility: true,
       approvalStatus: true,
       approvedAt: true,
@@ -194,6 +205,10 @@ export async function DELETE(
         id: target.id,
       },
     });
+
+    if (target.avatarImagePath) {
+      await deleteStoredFile(target.avatarImagePath).catch(() => {});
+    }
 
     return NextResponse.json({ success: true });
   }
@@ -340,6 +355,10 @@ export async function DELETE(
       },
     }),
   ]);
+
+  if (target.avatarImagePath) {
+    await deleteStoredFile(target.avatarImagePath).catch(() => {});
+  }
 
   return NextResponse.json({ success: true });
 }

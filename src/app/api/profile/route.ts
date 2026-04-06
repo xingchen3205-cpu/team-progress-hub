@@ -81,6 +81,7 @@ export async function PATCH(request: NextRequest) {
       email: true,
       role: true,
       avatar: true,
+      avatarImagePath: true,
       responsibility: true,
       approvalStatus: true,
       approvedAt: true,

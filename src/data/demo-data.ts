@@ -10,6 +10,7 @@ export type TeamMember = {
   name: string;
   account: string;
   avatar: string;
+  avatarUrl?: string | null;
   systemRole: TeamRoleLabel;
   role: string;
   responsibility: string;
@@ -92,12 +93,14 @@ export type NotificationItem = {
     id: string;
     name: string;
     avatar: string;
+    avatarUrl?: string | null;
     roleLabel: TeamRoleLabel;
   } | null;
   sender?: {
     id: string;
     name: string;
     avatar: string;
+    avatarUrl?: string | null;
     roleLabel: TeamRoleLabel;
   } | null;
 };
@@ -147,6 +150,7 @@ export type ExpertReviewAssignmentItem = {
     id: string;
     name: string;
     avatar: string;
+    avatarUrl?: string | null;
     roleLabel: TeamRoleLabel;
   };
   materials: {

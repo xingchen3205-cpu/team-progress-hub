@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
   BellPlus,
@@ -56,6 +56,7 @@ import {
   getBeijingHour,
   toIsoDateKey,
 } from "@/lib/date";
+import { USERNAME_RULE_HINT, validateUsername } from "@/lib/account-policy";
 import {
   documentAcceptAttribute,
   validateUploadMeta,
@@ -201,6 +202,7 @@ type CurrentUser = {
   email: string;
   role: RoleKey;
   avatar: string;
+  avatarUrl?: string | null;
   responsibility: string;
   roleLabel: TeamRoleLabel;
   approvalStatus?: "pending" | "approved";
@@ -208,6 +210,7 @@ type CurrentUser = {
   profile: {
     name: string;
     avatar: string;
+    avatarUrl?: string | null;
     roleLabel: TeamRoleLabel;
   };
 };
@@ -1047,6 +1050,38 @@ function ActionButton({
   );
 }
 
+function UserAvatar({
+  name,
+  avatar,
+  avatarUrl,
+  className,
+  textClassName,
+}: {
+  name: string;
+  avatar: string;
+  avatarUrl?: string | null;
+  className: string;
+  textClassName?: string;
+}) {
+  const [imageFailed, setImageFailed] = useState(false);
+
+  return (
+    <div className={className}>
+      {avatarUrl && !imageFailed ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          alt={`${name} 的头像`}
+          className="h-full w-full rounded-full object-cover"
+          onError={() => setImageFailed(true)}
+          src={avatarUrl}
+        />
+      ) : (
+        <span className={textClassName}>{avatar}</span>
+      )}
+    </div>
+  );
+}
+
 export function WorkspaceDashboard({
   activeTab = "overview",
   targetDocumentId = null,
@@ -1129,6 +1164,8 @@ export function WorkspaceDashboard({
   const [teamDraft, setTeamDraft] = useState<TeamDraft>(defaultTeamDraft);
   const [profileDraft, setProfileDraft] = useState<ProfileDraft>(defaultProfileDraft());
   const [profileMessage, setProfileMessage] = useState<string | null>(null);
+  const [isAvatarUploading, setIsAvatarUploading] = useState(false);
+  const avatarInputRef = useRef<HTMLInputElement | null>(null);
   const [passwordModalOpen, setPasswordModalOpen] = useState(false);
   const [passwordTargetMember, setPasswordTargetMember] = useState<TeamMember | null>(null);
   const [passwordDraft, setPasswordDraft] = useState("");
@@ -1159,6 +1196,8 @@ export function WorkspaceDashboard({
   const nearestUpcomingIndex = events.length > 0 ? getNearestUpcomingIndex(events) : 0;
   const nearestEvent = events[nearestUpcomingIndex];
   const greetingCopy = getGreetingCopy(currentUser?.profile.name ?? "你好", currentDateTime);
+  const canReviewDocuments =
+    currentRole === "admin" || permissions.canLeaderReviewDocument || permissions.canTeacherReviewDocument;
 
   useEffect(() => {
     if (!successToast) {
@@ -2812,6 +2851,12 @@ export function WorkspaceDashboard({
       return;
     }
 
+    const usernameError = validateUsername(teamDraft.username);
+    if (usernameError) {
+      setLoadError(usernameError);
+      return;
+    }
+
     setIsSaving(true);
     try {
       await requestJson("/api/team", {
@@ -2841,6 +2886,38 @@ export function WorkspaceDashboard({
     router.push("/workspace?tab=profile");
   };
 
+  const applyUpdatedCurrentUser = (user: CurrentUser) => {
+    setCurrentUser(user);
+    setMembers((current) =>
+      current.map((member) =>
+        member.id === user.id
+          ? {
+              ...member,
+              name: user.name,
+              account: user.email || user.username,
+              responsibility: user.responsibility,
+              avatar: user.avatar,
+              avatarUrl: user.avatarUrl ?? null,
+            }
+          : member,
+      ),
+    );
+    setPendingTeamMembers((current) =>
+      current.map((member) =>
+        member.id === user.id
+          ? {
+              ...member,
+              name: user.name,
+              account: user.email || user.username,
+              responsibility: user.responsibility,
+              avatar: user.avatar,
+              avatarUrl: user.avatarUrl ?? null,
+            }
+          : member,
+      ),
+    );
+  };
+
   const saveProfile = async () => {
     if (!profileDraft.name.trim()) {
       setLoadError("请输入姓名");
@@ -2859,33 +2936,7 @@ export function WorkspaceDashboard({
         }),
       });
 
-      setCurrentUser(payload.user);
-      setMembers((current) =>
-        current.map((member) =>
-          member.id === payload.user.id
-            ? {
-                ...member,
-                name: payload.user.name,
-                account: payload.user.email || payload.user.username,
-                responsibility: payload.user.responsibility,
-                avatar: payload.user.avatar,
-              }
-            : member,
-        ),
-      );
-      setPendingTeamMembers((current) =>
-        current.map((member) =>
-          member.id === payload.user.id
-            ? {
-                ...member,
-                name: payload.user.name,
-                account: payload.user.email || payload.user.username,
-                responsibility: payload.user.responsibility,
-                avatar: payload.user.avatar,
-              }
-            : member,
-        ),
-      );
+      applyUpdatedCurrentUser(payload.user);
       setProfileDraft({ ...defaultProfileDraft(payload.user), password: "" });
       setProfileMessage("个人信息已保存");
       showSuccessToast("个人信息已保存", "你的资料已经更新完成。");
@@ -2894,6 +2945,51 @@ export function WorkspaceDashboard({
       setLoadError(error instanceof Error ? error.message : "个人信息保存失败");
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const uploadProfileAvatar = async (file: File | null) => {
+    if (!file) {
+      return;
+    }
+
+    setIsAvatarUploading(true);
+    setLoadError(null);
+    setProfileMessage(null);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const response = await fetch("/api/profile/avatar", {
+        method: "POST",
+        body: formData,
+        credentials: "same-origin",
+      });
+
+      const payload = (await response.json().catch(() => null)) as
+        | { user?: CurrentUser; message?: string }
+        | null;
+
+      if (!response.ok || !payload?.user) {
+        throw new Error(payload?.message || "头像上传失败");
+      }
+
+      applyUpdatedCurrentUser(payload.user);
+      setProfileDraft((current) => ({
+        ...current,
+        name: payload.user?.name ?? current.name,
+        email: payload.user?.email ?? current.email,
+      }));
+      showSuccessToast("头像已更新", "新的个人头像已经在系统内生效。");
+      setProfileMessage("头像已更新");
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "头像上传失败");
+    } finally {
+      if (avatarInputRef.current) {
+        avatarInputRef.current.value = "";
+      }
+      setIsAvatarUploading(false);
     }
   };
 
@@ -2998,68 +3094,217 @@ export function WorkspaceDashboard({
 
   const renderOverview = () => (
     <div className="space-y-4">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <SectionHeader
-          description="聚焦最近关键节点、今日任务重点、最新公告和核心统计。"
-          title="首页概览"
-        />
-        <div className="flex flex-wrap items-center gap-3">
-          <DemoResetNote />
-          <ActionButton
-            disabled={!permissions.canPublishAnnouncement}
-            onClick={() => setAnnouncementModalOpen(true)}
-            title="无权限"
-            variant="primary"
-          >
-            <span className="inline-flex items-center gap-2">
-              <BellPlus className="h-4 w-4" />
-              <span>发布公告</span>
-            </span>
-          </ActionButton>
-        </div>
-      </div>
+      {(() => {
+        const overviewMetrics = [
+          {
+            label: "当前身份",
+            value: currentUser?.roleLabel ?? roleLabels[currentRole],
+            hint: "当前登录角色",
+          },
+          {
+            label: "代办事项",
+            value: `${todoItemCount} 项`,
+            hint: todoItemCount > 0 ? "建议优先处理代办中心事项" : "当前没有新的待办堆积",
+          },
+          {
+            label: "未读提醒",
+            value: `${unreadTodoNotifications.length} 条`,
+            hint: unreadTodoNotifications.length > 0 ? "含站内提醒与审批提醒" : "消息已基本处理完成",
+          },
+          permissions.canManageTeam
+            ? {
+                label: "待审核账号",
+                value: `${pendingApprovalMembers.length} 个`,
+                hint: pendingApprovalMembers.length > 0 ? "涉及新注册与待通过账号" : "当前没有待审核账号",
+              }
+            : {
+                label: "我的任务",
+                value: `${myOpenTasks.length} 项`,
+                hint: myOpenTasks.length > 0 ? "优先处理未完成任务与汇报" : "当前没有未完成任务",
+              },
+        ];
 
-      <section className={surfaceCardClassName}>
-        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-          <div>
-            <p className="text-2xl font-bold tracking-[-0.02em] text-slate-900">{greetingCopy.title}</p>
-            <p className="mt-2 text-sm leading-7 text-slate-500">{greetingCopy.description}</p>
-          </div>
-          <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
-            {formatFriendlyDate(currentDateTime)}
-          </div>
-        </div>
-      </section>
+        const attentionCards = [
+          {
+            label: "今日工作提示",
+            value: `${todayTaskSummary.length} 项重点`,
+            detail:
+              todayTaskSummary[0] ?? "今天的任务重点已经基本清空，可以继续补齐材料细节。",
+          },
+          {
+            label: canReviewDocuments ? "待审材料" : "我的任务进度",
+            value: canReviewDocuments
+              ? `${pendingLeaderReviewCount + pendingTeacherReviewCount} 份`
+              : `${myOpenTasks.length} 项`,
+            detail: canReviewDocuments
+              ? pendingLeaderReviewCount + pendingTeacherReviewCount > 0
+                ? "文档中心仍有待审批材料，建议尽快处理。"
+                : "当前没有新的材料审批堆积。"
+              : myOpenTasks.length > 0
+                ? "任务看板里还有未完成事项，适合今天继续推进。"
+                : "任务看板里当前没有你的待办阻塞。",
+          },
+          {
+            label: "最近关键节点",
+            value: nearestEvent ? nearestEvent.title : "暂未设置",
+            detail: nearestEvent
+              ? `${formatDateTime(nearestEvent.dateTime)} · 建议提前检查材料、彩排和人员分工。`
+              : "可在时间进度里补充关键节点，首页会自动同步提醒。",
+          },
+        ];
 
-      <section className={`${surfaceCardClassName} p-6`}>
-        <p className="text-center text-sm font-medium tracking-[0.16em] text-blue-600">最近关键节点</p>
-        <h3 className="mt-3 text-center text-[30px] font-bold tracking-[-0.03em] text-slate-900">
-          {nearestEvent?.title ?? "暂未设置关键节点"}
-        </h3>
-        <p className="mt-3 text-center text-sm text-slate-500">
-          {nearestEvent
-            ? `${formatDateTime(nearestEvent.dateTime)} · ${nearestEvent.description}`
-            : "请先在时间进度中创建比赛关键节点。"}
-        </p>
-        <div className="mt-8 flex flex-wrap justify-center gap-4">
-          {[
-            { label: "天", value: countdown.days },
-            { label: "时", value: countdown.hours },
-            { label: "分", value: countdown.minutes },
-            { label: "秒", value: countdown.seconds },
-          ].map((item) => (
-            <article
-              key={item.label}
-              className="min-w-[104px] rounded-xl border border-blue-100 bg-blue-50 px-5 py-5 text-center shadow-sm"
-            >
-              <p className="text-[32px] font-bold text-blue-600 tabular-nums">
-                {`${item.value}`.padStart(2, "0")}
-              </p>
-              <p className="mt-2 text-sm text-slate-500">{item.label}</p>
-            </article>
-          ))}
-        </div>
-      </section>
+        return (
+          <>
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+              <SectionHeader
+                description="聚焦最近关键节点、今日任务重点、最新公告和核心统计。"
+                title="首页概览"
+              />
+              <div className="flex flex-wrap items-center gap-3">
+                <DemoResetNote />
+                <ActionButton
+                  disabled={!permissions.canPublishAnnouncement}
+                  onClick={() => setAnnouncementModalOpen(true)}
+                  title="无权限"
+                  variant="primary"
+                >
+                  <span className="inline-flex items-center gap-2">
+                    <BellPlus className="h-4 w-4" />
+                    <span>发布公告</span>
+                  </span>
+                </ActionButton>
+              </div>
+            </div>
+
+            <section className="grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_340px]">
+              <article className={surfaceCardClassName}>
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                  <div>
+                    <p className="text-2xl font-bold tracking-[-0.02em] text-slate-900">{greetingCopy.title}</p>
+                    <p className="mt-2 max-w-3xl text-sm leading-7 text-slate-500">{greetingCopy.description}</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-500">
+                      {formatFriendlyDate(currentDateTime)}
+                    </span>
+                    <span className="rounded-full bg-blue-50 px-3 py-1 text-xs text-blue-600">
+                      {currentUser?.roleLabel ?? roleLabels[currentRole]}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                  {overviewMetrics.map((item) => (
+                    <article key={item.label} className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4">
+                      <p className="text-xs tracking-[0.08em] text-slate-400">{item.label}</p>
+                      <p className="mt-2 text-2xl font-bold tracking-[-0.02em] text-slate-900">{item.value}</p>
+                      <p className="mt-2 text-sm leading-6 text-slate-500">{item.hint}</p>
+                    </article>
+                  ))}
+                </div>
+              </article>
+
+              <article className={`${surfaceCardClassName} bg-[linear-gradient(180deg,#ffffff_0%,#f8fbff_100%)]`}>
+                <p className="text-sm font-semibold text-slate-900">今日工作提示</p>
+                <div className="mt-4 space-y-3">
+                  {attentionCards.map((item) => (
+                    <div key={item.label} className="rounded-xl border border-slate-200 bg-white px-4 py-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-sm font-medium text-slate-900">{item.label}</p>
+                        <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs text-blue-600">{item.value}</span>
+                      </div>
+                      <p className="mt-2 text-sm leading-6 text-slate-500">{item.detail}</p>
+                    </div>
+                  ))}
+                </div>
+              </article>
+            </section>
+
+            <section className="grid gap-4 xl:grid-cols-[minmax(0,1.5fr)_320px]">
+              <article className={`${surfaceCardClassName} p-6`}>
+                <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+                  <div>
+                    <p className="text-sm font-medium tracking-[0.16em] text-blue-600">最近关键节点</p>
+                    <h3 className="mt-3 text-[30px] font-bold tracking-[-0.03em] text-slate-900">
+                      {nearestEvent?.title ?? "暂未设置关键节点"}
+                    </h3>
+                    <p className="mt-3 text-sm leading-7 text-slate-500">
+                      {nearestEvent
+                        ? `${formatDateTime(nearestEvent.dateTime)} · ${nearestEvent.description}`
+                        : "请先在时间进度中创建比赛关键节点。"}
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
+                    倒计时会按北京时间实时刷新
+                  </div>
+                </div>
+
+                <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                  {[
+                    { label: "天", value: countdown.days },
+                    { label: "时", value: countdown.hours },
+                    { label: "分", value: countdown.minutes },
+                    { label: "秒", value: countdown.seconds },
+                  ].map((item) => (
+                    <article
+                      key={item.label}
+                      className="rounded-xl border border-blue-100 bg-blue-50 px-5 py-5 text-center shadow-sm"
+                    >
+                      <p className="text-[32px] font-bold text-blue-600 tabular-nums">
+                        {`${item.value}`.padStart(2, "0")}
+                      </p>
+                      <p className="mt-2 text-sm text-slate-500">{item.label}</p>
+                    </article>
+                  ))}
+                </div>
+              </article>
+
+              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
+                <article className={surfaceCardClassName}>
+                  <p className="text-sm font-semibold text-slate-900">今日推进节奏</p>
+                  <div className="mt-4 space-y-3">
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                      <p className="text-xs text-slate-400">待完成任务</p>
+                      <p className="mt-1 text-xl font-bold text-slate-900">
+                        {tasks.filter((item) => item.status !== "done").length} 项
+                      </p>
+                    </div>
+                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                      <p className="text-xs text-slate-400">本日汇报进度</p>
+                      <p className="mt-1 text-xl font-bold text-slate-900">
+                        {(reportEntriesByDay[reportDates[0]] ?? []).length} /
+                        {" "}
+                        {members.filter((item) => !["指导教师", "系统管理员", "评审专家"].includes(item.systemRole)).length}
+                      </p>
+                    </div>
+                  </div>
+                </article>
+
+                <article className={surfaceCardClassName}>
+                  <p className="text-sm font-semibold text-slate-900">优先关注</p>
+                  <div className="mt-4 space-y-3 text-sm leading-6 text-slate-500">
+                    <p>
+                      {pendingApprovalMembers.length > 0
+                        ? `当前有 ${pendingApprovalMembers.length} 个账号等待审核。`
+                        : "当前没有新的账号审核积压。"}
+                    </p>
+                    <p>
+                      {pendingLeaderReviewCount + pendingTeacherReviewCount > 0
+                        ? `文档中心共有 ${pendingLeaderReviewCount + pendingTeacherReviewCount} 份材料待审批。`
+                        : "文档中心当前没有待审批材料。"}
+                    </p>
+                    <p>
+                      {unreadTodoNotifications.length > 0
+                        ? `仍有 ${unreadTodoNotifications.length} 条未读提醒，处理后可在代办中心标记已读。`
+                        : "站内提醒已基本处理完成。"}
+                    </p>
+                  </div>
+                </article>
+              </div>
+            </section>
+          </>
+        );
+      })()}
 
       <div className="grid gap-4 xl:grid-cols-2">
         <section className={surfaceCardClassName}>
@@ -4178,9 +4423,13 @@ export function WorkspaceDashboard({
             {pendingApprovalMembers.map((member) => (
               <article key={`pending-${member.id}`} className={surfaceCardClassName}>
                 <div className="flex items-start gap-4">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-amber-500 text-base font-semibold text-white">
-                    {member.avatar}
-                  </div>
+                  <UserAvatar
+                    avatar={member.avatar}
+                    avatarUrl={member.avatarUrl}
+                    className="flex h-12 w-12 items-center justify-center rounded-full bg-amber-500 text-base font-semibold text-white"
+                    name={member.name}
+                    textClassName="text-base font-semibold text-white"
+                  />
                   <div className="min-w-0 flex-1">
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div>
@@ -4296,9 +4545,13 @@ export function WorkspaceDashboard({
               >
                 <div className="grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_180px_140px_minmax(280px,1fr)] lg:items-center">
                   <div className="flex min-w-0 items-center gap-3">
-                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-600 text-sm font-semibold text-white">
-                      {member.avatar}
-                    </div>
+                    <UserAvatar
+                      avatar={member.avatar}
+                      avatarUrl={member.avatarUrl}
+                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-600 text-sm font-semibold text-white"
+                      name={member.name}
+                      textClassName="text-sm font-semibold text-white"
+                    />
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
                         <h3 className="truncate text-sm font-semibold text-slate-900">{member.name}</h3>
@@ -4396,7 +4649,7 @@ export function WorkspaceDashboard({
       <div className="space-y-4">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <SectionHeader
-          description="这里仅显示你自己的账号资料，可按需维护姓名、联系邮箱和个人职责说明。"
+          description="这里仅显示你自己的账号资料，可按需维护头像、姓名、联系邮箱和登录密码。"
           title="个人信息"
         />
       </div>
@@ -4404,9 +4657,13 @@ export function WorkspaceDashboard({
       <section className="grid gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
         <article className={surfaceCardClassName}>
           <div className="flex flex-col items-center text-center">
-            <div className="flex h-20 w-20 items-center justify-center rounded-full bg-blue-600 text-2xl font-semibold text-white">
-              {currentUser.profile.avatar}
-            </div>
+            <UserAvatar
+              avatar={currentUser.profile.avatar}
+              avatarUrl={currentUser.profile.avatarUrl}
+              className="flex h-20 w-20 items-center justify-center rounded-full bg-blue-600 text-2xl font-semibold text-white"
+              name={currentUser.profile.name}
+              textClassName="text-2xl font-semibold text-white"
+            />
             <h3 className="mt-4 text-xl font-semibold text-slate-900">{currentUser.profile.name}</h3>
             <p className="mt-2 rounded-md bg-blue-50 px-3 py-1 text-sm text-blue-600">
               {roleLabels[currentRole]}
@@ -4414,6 +4671,33 @@ export function WorkspaceDashboard({
           </div>
 
           <div className="mt-6 space-y-4">
+            <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-4">
+              <p className="text-xs text-slate-400">个人头像</p>
+              <p className="mt-1 text-sm leading-6 text-slate-500">
+                支持 JPG、PNG、WEBP，单张图片不超过 2MB。上传后会同步显示在顶部栏和团队管理中。
+              </p>
+              <input
+                accept=".jpg,.jpeg,.png,.webp"
+                className="hidden"
+                onChange={(event) => void uploadProfileAvatar(event.target.files?.[0] ?? null)}
+                ref={avatarInputRef}
+                type="file"
+              />
+              <div className="mt-4">
+                <ActionButton
+                  disabled={isAvatarUploading}
+                  loading={isAvatarUploading}
+                  loadingLabel="上传中..."
+                  onClick={() => avatarInputRef.current?.click()}
+                  variant="primary"
+                >
+                  <span className="inline-flex items-center gap-2">
+                    <Upload className="h-4 w-4" />
+                    <span>上传头像</span>
+                  </span>
+                </ActionButton>
+              </div>
+            </div>
             <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
               <p className="text-xs text-slate-400">账号名</p>
               <p className="mt-1 text-sm font-medium text-slate-700">{currentUser.username}</p>
@@ -4616,9 +4900,13 @@ export function WorkspaceDashboard({
 
               <div className="mt-auto border-t border-white/10 pt-4">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-600 text-sm font-semibold text-white">
-                    {currentUser.profile.avatar}
-                  </div>
+                <UserAvatar
+                  avatar={currentUser.profile.avatar}
+                  avatarUrl={currentUser.profile.avatarUrl}
+                  className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-600 text-sm font-semibold text-white"
+                  name={currentUser.profile.name}
+                  textClassName="text-sm font-semibold text-white"
+                />
                   <div className="min-w-0">
                     <p className="truncate text-sm text-white">{currentUser.profile.name}</p>
                     <p className="mt-1 text-xs text-white/60">{roleLabels[currentRole]}</p>
@@ -4681,9 +4969,13 @@ export function WorkspaceDashboard({
 
               <div className="mt-auto border-t border-white/10 pt-4">
                 <div className="flex items-center gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-600 text-sm font-semibold text-white">
-                    {currentUser.profile.avatar}
-                  </div>
+                <UserAvatar
+                  avatar={currentUser.profile.avatar}
+                  avatarUrl={currentUser.profile.avatarUrl}
+                  className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-600 text-sm font-semibold text-white"
+                  name={currentUser.profile.name}
+                  textClassName="text-sm font-semibold text-white"
+                />
                   <div className="min-w-0">
                     <p className="truncate text-sm text-white">{currentUser.profile.name}</p>
                     <p className="mt-1 text-xs text-white/60">{roleLabels[currentRole]}</p>
@@ -4734,9 +5026,13 @@ export function WorkspaceDashboard({
                     onClick={openProfilePage}
                     type="button"
                   >
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#2563eb] text-sm font-semibold text-white">
-                      {currentUser.profile.avatar}
-                    </div>
+                    <UserAvatar
+                      avatar={currentUser.profile.avatar}
+                      avatarUrl={currentUser.profile.avatarUrl}
+                      className="flex h-10 w-10 items-center justify-center rounded-full bg-[#2563eb] text-sm font-semibold text-white"
+                      name={currentUser.profile.name}
+                      textClassName="text-sm font-semibold text-white"
+                    />
                     <div>
                       <div className="flex items-center gap-2">
                         <p className="text-sm font-medium text-slate-900">{currentUser.profile.name}</p>
@@ -5877,6 +6173,7 @@ export function WorkspaceDashboard({
                   value={teamDraft.username}
                   onChange={(event) => setTeamDraft((current) => ({ ...current, username: event.target.value }))}
                 />
+                <span className="mt-1 block text-xs leading-6 text-slate-400">{USERNAME_RULE_HINT}</span>
               </label>
             </div>
             <div className="grid gap-4 md:grid-cols-2">

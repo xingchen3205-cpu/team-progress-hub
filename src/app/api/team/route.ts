@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { NextRequest, NextResponse } from "next/server";
 
+import { validateUsername } from "@/lib/account-policy";
 import { getSessionUser } from "@/lib/auth";
 import {
   assertMainWorkspaceRole,
@@ -24,6 +25,7 @@ const buildTeamMemberPayload = (
     email: string | null;
     role: "admin" | "teacher" | "leader" | "member" | "expert";
     avatar: string;
+    avatarImagePath?: string | null;
     responsibility: string | null;
     approvalStatus: "pending" | "approved";
     approvedAt: Date | null;
@@ -71,6 +73,7 @@ export async function GET(request: NextRequest) {
       email: true,
       role: true,
       avatar: true,
+      avatarImagePath: true,
       responsibility: true,
       approvalStatus: true,
       approvedAt: true,
@@ -156,6 +159,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: "成员信息不完整" }, { status: 400 });
   }
 
+  const usernameError = validateUsername(username);
+  if (usernameError) {
+    return NextResponse.json({ message: usernameError }, { status: 400 });
+  }
+
   if (body?.role === "系统管理员") {
     return NextResponse.json({ message: "系统管理员账号为唯一保留账号，不支持新增" }, { status: 403 });
   }
@@ -189,6 +197,7 @@ export async function POST(request: NextRequest) {
         approvedAt: new Date(),
         approvedById: user.id,
         avatar: name.slice(0, 1),
+        avatarImagePath: null,
         responsibility: body?.responsibility?.trim() || "待分配职责",
       },
       select: {
@@ -198,6 +207,7 @@ export async function POST(request: NextRequest) {
         email: true,
         role: true,
         avatar: true,
+        avatarImagePath: true,
         responsibility: true,
         approvalStatus: true,
         approvedAt: true,

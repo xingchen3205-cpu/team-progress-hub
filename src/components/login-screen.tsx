@@ -4,6 +4,8 @@ import { startTransition, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, Loader2 } from "lucide-react";
 
+import { USERNAME_RULE_HINT, validateUsername } from "@/lib/account-policy";
+
 type FormMode = "login" | "register";
 
 const registerRoleOptions = ["指导教师", "项目负责人", "团队成员", "评审专家"] as const;
@@ -136,7 +138,7 @@ export function LoginScreen() {
     const nextErrors = {
       role: registerValues.role ? undefined : "请选择身份",
       name: registerValues.name.trim() ? undefined : "请输入姓名",
-      username: registerValues.username.trim() ? undefined : "请输入账号名",
+      username: validateUsername(registerValues.username.trim()) ?? undefined,
       password: registerValues.password.trim()
         ? registerValues.password.trim().length >= 6
           ? undefined
@@ -176,7 +178,7 @@ export function LoginScreen() {
         return;
       }
 
-      setSuccessMessage(payload?.message || "注册申请已提交，请等待审核通过后登录。");
+      setSuccessMessage(payload?.message || "注册申请已提交，请等待上一级审核通过后再登录系统。");
       setLoginValues((current) => ({
         ...current,
         username: registerValues.username.trim(),
@@ -234,7 +236,7 @@ export function LoginScreen() {
                 <p className="mt-2 text-sm leading-6 text-[#6b7280]">
                   {mode === "login"
                     ? "请输入账号密码登录管理系统。"
-                    : "完成注册后将进入待审核状态，通过后即可登录。"}
+                    : "请先填写基础信息，提交后将进入待审核状态，通过后即可登录。"}
                 </p>
               </div>
 
@@ -429,7 +431,9 @@ export function LoginScreen() {
                     />
                     {registerErrors.username ? (
                       <span className="mt-1 block text-sm text-[#f93b3b]">{registerErrors.username}</span>
-                    ) : null}
+                    ) : (
+                      <span className="mt-1 block text-xs leading-6 text-[#94a3b8]">{USERNAME_RULE_HINT}</span>
+                    )}
                   </label>
 
                   <label className="block text-sm leading-6 text-[#60656e]">
@@ -456,7 +460,7 @@ export function LoginScreen() {
                   </label>
 
                   <div className="rounded-lg bg-[#f8fafc] px-4 py-3 text-sm leading-6 text-[#64748b]">
-                    注册后需由可审核的上级账号通过后才能登录：团队成员可由项目负责人 / 指导教师 / 系统管理员审核，项目负责人和评审专家可由指导教师 / 系统管理员审核，指导教师仅可由系统管理员审核。
+                    注册后需由可审核的上级账号通过后才能登录：团队成员可由项目负责人 / 指导教师 / 系统管理员审核，项目负责人和评审专家可由指导教师 / 系统管理员审核，指导教师仅可由系统管理员审核。账号名请使用英文字母和数字，不支持中文。
                   </div>
 
                   {registerErrors.submit ? (

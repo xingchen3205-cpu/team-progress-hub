@@ -70,6 +70,7 @@ model User {
   approvedAt           DateTime?
   approvedById         String?
   avatar               String
+  avatarImagePath      String?
   responsibility       String?
   createdAt            DateTime                 @default(now())
   approvedBy           User?                    @relation("UserApprovals", fields: [approvedById], references: [id])

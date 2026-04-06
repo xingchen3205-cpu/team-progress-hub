@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { NextResponse } from "next/server";
 
+import { validateUsername } from "@/lib/account-policy";
 import { prisma } from "@/lib/prisma";
 import { getRegistrationApproverRoles, roleLabels } from "@/lib/permissions";
 
@@ -36,6 +37,11 @@ export async function POST(request: Request) {
 
   if (!name || !username || !password || !role) {
     return NextResponse.json({ message: "请完整填写姓名、账号名、密码和身份" }, { status: 400 });
+  }
+
+  const usernameError = validateUsername(username);
+  if (usernameError) {
+    return NextResponse.json({ message: usernameError }, { status: 400 });
   }
 
   if (password.length < 6) {
