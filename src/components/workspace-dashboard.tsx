@@ -255,6 +255,12 @@ const taskPriorityStyles: Record<TaskDraft["priority"], string> = {
   低优先级: "bg-[#e5e7eb] text-[#4b5563]",
 };
 
+const surfaceCardClassName = "rounded-xl border border-slate-200 bg-white p-5 shadow-sm";
+const subtleCardClassName = "rounded-xl border border-slate-200 bg-slate-50 p-4";
+const fieldClassName =
+  "mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20";
+const textareaClassName = `${fieldClassName} min-h-28`;
+
 const rolePermissions = {
   admin: {
     visibleTabs: ["overview", "timeline", "board", "reports", "experts", "documents", "team"] as TabKey[],
@@ -442,14 +448,14 @@ async function requestJson<T>(input: string, init?: RequestInit) {
 function SectionHeader({ title, description }: { title: string; description: string }) {
   return (
     <div className="space-y-2">
-      <h2 className="text-2xl font-bold text-[#111827]">{title}</h2>
-      <p className="text-sm leading-7 text-[#6b7280]">{description}</p>
+      <h2 className="text-2xl font-bold text-slate-900">{title}</h2>
+      <p className="text-sm leading-6 text-slate-500">{description}</p>
     </div>
   );
 }
 
 function DemoResetNote() {
-  return <p className="text-xs leading-6 text-[#94a3b8]">当前数据已保存到云端数据库，可跨设备同步</p>;
+  return <p className="text-xs leading-6 text-slate-400">当前数据已保存到云端数据库，可跨设备同步</p>;
 }
 
 function Modal({
@@ -462,18 +468,22 @@ function Modal({
   onClose: () => void;
 }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[rgba(15,23,42,0.35)] p-4">
-      <div className="w-full max-w-lg rounded-[28px] bg-white p-6 shadow-[0_20px_60px_rgba(15,23,42,0.18)]">
-        <div className="flex items-center justify-between">
-          <h3 className="text-xl font-bold text-[#111827]">{title}</h3>
-          <button className="text-sm text-[#6b7280]" onClick={onClose} type="button">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
+      <div className="w-full max-w-lg rounded-xl bg-white shadow-xl">
+        <div className="flex items-center justify-between border-b border-slate-200 px-6 pb-4 pt-6">
+          <h3 className="text-lg font-semibold text-slate-900">{title}</h3>
+          <button className="text-sm text-slate-500" onClick={onClose} type="button">
             关闭
           </button>
         </div>
-        <div className="mt-6">{children}</div>
+        <div className="px-6 py-5">{children}</div>
       </div>
     </div>
   );
+}
+
+function ModalActions({ children }: { children: React.ReactNode }) {
+  return <div className="mt-5 flex justify-end gap-3 border-t border-slate-200 pt-4">{children}</div>;
 }
 
 function ActionButton({
@@ -491,15 +501,15 @@ function ActionButton({
 }) {
   const className =
     variant === "primary"
-      ? "bg-[#2563eb] text-white hover:bg-[#1d4ed8]"
+      ? "border border-blue-600 bg-blue-600 text-white hover:bg-blue-700"
       : variant === "danger"
-        ? "bg-[#fee2e2] text-[#b91c1c] hover:bg-[#fecaca]"
-        : "bg-[#f8fafc] text-[#4b5563] hover:bg-[#eef2f7]";
+        ? "border border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
+        : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50";
 
   return (
     <button
-      className={`inline-flex h-10 items-center justify-center rounded-full px-4 text-sm transition ${className} ${
-        disabled ? "cursor-not-allowed bg-[#e5e7eb] text-[#9ca3af] hover:bg-[#e5e7eb]" : ""
+      className={`inline-flex h-10 items-center justify-center rounded-lg px-4 text-sm shadow-sm transition ${className} ${
+        disabled ? "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400 hover:bg-slate-100" : ""
       }`}
       disabled={disabled}
       onClick={onClick}
@@ -572,6 +582,7 @@ export function WorkspaceDashboard({
   const visibleTabs = allTabs.filter((item) => permissions.visibleTabs.includes(item.key));
   const safeActiveTab =
     visibleTabs.length > 0 && permissions.visibleTabs.includes(activeTab) ? activeTab : visibleTabs[0]?.key ?? "overview";
+  const activeTabItem = allTabs.find((item) => item.key === safeActiveTab) ?? allTabs[0];
   const nearestUpcomingIndex = events.length > 0 ? getNearestUpcomingIndex(events) : 0;
   const nearestEvent = events[nearestUpcomingIndex];
 
@@ -1268,7 +1279,7 @@ export function WorkspaceDashboard({
   };
 
   const renderOverview = () => (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <SectionHeader
           description="聚焦最近关键节点、今日任务重点、最新公告和核心统计。"
@@ -1290,12 +1301,12 @@ export function WorkspaceDashboard({
         </div>
       </div>
 
-      <section className="rounded-[28px] border border-[#d9e8f8] bg-white p-8 shadow-[0_16px_44px_rgba(15,23,42,0.06)]">
-        <p className="text-center text-sm font-medium tracking-[0.18em] text-[#2563eb]">最近关键节点</p>
-        <h3 className="mt-3 text-center text-[30px] font-bold tracking-[-0.03em] text-[#111827]">
+      <section className={`${surfaceCardClassName} p-6`}>
+        <p className="text-center text-sm font-medium tracking-[0.16em] text-blue-600">最近关键节点</p>
+        <h3 className="mt-3 text-center text-[30px] font-bold tracking-[-0.03em] text-slate-900">
           {nearestEvent?.title ?? "暂未设置关键节点"}
         </h3>
-        <p className="mt-3 text-center text-sm text-[#6b7280]">
+        <p className="mt-3 text-center text-sm text-slate-500">
           {nearestEvent
             ? `${formatDateTime(nearestEvent.dateTime)} · ${nearestEvent.description}`
             : "请先在时间进度中创建比赛关键节点。"}
@@ -1309,58 +1320,54 @@ export function WorkspaceDashboard({
           ].map((item) => (
             <article
               key={item.label}
-              className="min-w-[104px] rounded-[24px] border border-[#dbeafe] bg-[#eff6ff] px-5 py-5 text-center"
+              className="min-w-[104px] rounded-xl border border-blue-100 bg-blue-50 px-5 py-5 text-center shadow-sm"
             >
-              <p className="text-[32px] font-bold text-[#2563eb] tabular-nums">
+              <p className="text-[32px] font-bold text-blue-600 tabular-nums">
                 {`${item.value}`.padStart(2, "0")}
               </p>
-              <p className="mt-2 text-sm text-[#5f6b7b]">{item.label}</p>
+              <p className="mt-2 text-sm text-slate-500">{item.label}</p>
             </article>
           ))}
         </div>
       </section>
 
-      <div className="grid gap-6 xl:grid-cols-2">
-        <section className="rounded-[24px] border border-[#e5e7eb] bg-white p-6 shadow-[0_12px_32px_rgba(15,23,42,0.05)]">
-          <h3 className="text-base font-semibold text-[#111827]">今日任务摘要</h3>
+      <div className="grid gap-4 xl:grid-cols-2">
+        <section className={surfaceCardClassName}>
+          <h3 className="text-base font-semibold text-slate-900">今日任务摘要</h3>
           <div className="mt-4 space-y-4">
             {todayTaskSummary.length > 0 ? (
               todayTaskSummary.slice(0, 3).map((item, index) => (
                 <div key={item} className="flex items-start gap-3">
-                  <span className="mt-0.5 flex h-6 w-6 items-center justify-center rounded-full bg-[#2563eb] text-xs font-semibold text-white">
+                  <span className="mt-0.5 flex h-6 w-6 items-center justify-center rounded-md bg-blue-600 text-xs font-semibold text-white">
                     {index + 1}
                   </span>
-                  <p className="text-sm leading-7 text-[#4b5563]">{item}</p>
+                  <p className="text-sm leading-7 text-slate-600">{item}</p>
                 </div>
               ))
             ) : (
-              <p className="text-sm leading-7 text-[#6b7280]">当前暂无待处理任务。</p>
+              <p className="text-sm leading-7 text-slate-500">当前暂无待处理任务。</p>
             )}
           </div>
         </section>
 
-        <section className="rounded-[24px] border border-[#e5e7eb] bg-white p-6 shadow-[0_12px_32px_rgba(15,23,42,0.05)]">
-          <h3 className="text-base font-semibold text-[#111827]">最新公告</h3>
+        <section className={surfaceCardClassName}>
+          <h3 className="text-base font-semibold text-slate-900">最新公告</h3>
           <div className="mt-4 space-y-4">
             {announcements.slice(0, 2).map((item) => (
-              <article key={item.id} className="rounded-[18px] bg-[#f8fafc] p-4">
-                <p className="text-sm font-medium text-[#111827]">{item.title}</p>
-                <p className="mt-2 text-sm leading-7 text-[#6b7280]">{item.detail}</p>
+              <article key={item.id} className={subtleCardClassName}>
+                <p className="text-sm font-medium text-slate-900">{item.title}</p>
+                <p className="mt-2 text-sm leading-7 text-slate-500">{item.detail}</p>
               </article>
             ))}
           </div>
         </section>
       </div>
 
-      <section className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {dashboardHighlights.map((item) => (
-          <article
-            key={item.label}
-            className="rounded-[24px] border border-[#e5e7eb] bg-white p-6 shadow-[0_12px_32px_rgba(15,23,42,0.05)]"
-          >
-            <h3 className="text-base font-semibold text-[#111827]">{item.label}</h3>
-            <p className="mt-4 text-[30px] font-bold tracking-[-0.03em] text-[#111827]">{item.value}</p>
-            <p className="mt-3 text-sm leading-7 text-[#6b7280]">{item.description}</p>
+          <article key={item.label} className={surfaceCardClassName}>
+            <p className="text-sm text-slate-500">{item.label}</p>
+            <p className="mt-2 text-2xl font-bold tracking-[-0.02em] text-slate-900">{item.value}</p>
           </article>
         ))}
       </section>
@@ -1368,7 +1375,7 @@ export function WorkspaceDashboard({
   );
 
   const renderTimeline = () => (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <SectionHeader
           description="用横向时间轴统一查看比赛节点推进情况，关键节点会被重点高亮。"
@@ -1390,22 +1397,22 @@ export function WorkspaceDashboard({
         </div>
       </div>
 
-      <section className="overflow-x-auto rounded-[28px] border border-[#e5e7eb] bg-white p-6 shadow-[0_12px_32px_rgba(15,23,42,0.05)]">
+      <section className={`overflow-x-auto ${surfaceCardClassName}`}>
         {events.length === 0 ? (
-          <p className="text-sm leading-7 text-[#6b7280]">当前还没有时间节点，请先新增比赛关键节点。</p>
+          <p className="text-sm leading-7 text-slate-500">当前还没有时间节点，请先新增比赛关键节点。</p>
         ) : null}
         <div className="min-w-[860px]">
           <div className="relative px-6 pt-8">
-            <div className="absolute top-[44px] left-6 right-6 h-[2px] bg-[#d7dee7]" />
-            <div className="relative grid grid-cols-4 gap-6">
+            <div className="absolute left-6 right-6 top-[44px] h-[2px] bg-slate-300" />
+            <div className="relative grid grid-cols-4 gap-4">
               {events.map((item, index) => {
                 const isPast = index < nearestUpcomingIndex;
                 const isCurrent = index === nearestUpcomingIndex;
                 const dotClass = isPast
-                  ? "bg-[#94a3b8] border-[#94a3b8]"
-                  : isCurrent
-                    ? "border-[#2563eb] bg-[#2563eb] shadow-[0_0_0_8px_rgba(37,99,235,0.16)]"
-                    : "border-[#94a3b8] bg-white";
+                    ? "border-slate-400 bg-slate-400"
+                    : isCurrent
+                      ? "border-blue-600 bg-blue-600 ring-4 ring-blue-100"
+                      : "border-slate-400 bg-white";
 
                 return (
                   <div key={item.id} className="relative">
@@ -1415,8 +1422,8 @@ export function WorkspaceDashboard({
                           <span className="block h-full w-full animate-ping rounded-full bg-[#2563eb]/40" />
                         ) : null}
                       </div>
-                      <p className="mt-4 text-center text-sm font-medium text-[#111827]">{item.title}</p>
-                      <p className="mt-2 text-center text-sm text-[#6b7280]">{formatDateTime(item.dateTime)}</p>
+                      <p className="mt-4 text-center text-sm font-medium text-slate-900">{item.title}</p>
+                      <p className="mt-2 text-center text-sm text-slate-500">{formatDateTime(item.dateTime)}</p>
                     </div>
                   </div>
                 );
@@ -1424,11 +1431,11 @@ export function WorkspaceDashboard({
             </div>
           </div>
 
-          <div className="mt-8 grid grid-cols-4 gap-6">
+          <div className="mt-8 grid grid-cols-4 gap-4">
             {events.map((item) => (
-              <article key={item.id} className="rounded-[24px] bg-[#f8fafc] p-5">
+              <article key={item.id} className={subtleCardClassName}>
                 <div className="flex items-start justify-between gap-4">
-                  <span className="rounded-full bg-[#eff6ff] px-3 py-1 text-sm text-[#2563eb]">
+                  <span className="rounded-md bg-blue-50 px-3 py-1 text-sm text-blue-600">
                     {item.type}
                   </span>
                   <ActionButton
@@ -1439,8 +1446,8 @@ export function WorkspaceDashboard({
                     编辑
                   </ActionButton>
                 </div>
-                <h3 className="mt-4 text-base font-semibold text-[#111827]">{item.title}</h3>
-                <p className="mt-3 text-sm leading-7 text-[#6b7280]">{item.description}</p>
+                <h3 className="mt-4 text-base font-semibold text-slate-900">{item.title}</h3>
+                <p className="mt-3 text-sm leading-7 text-slate-500">{item.description}</p>
               </article>
             ))}
           </div>
@@ -1450,7 +1457,7 @@ export function WorkspaceDashboard({
   );
 
   const renderBoard = () => (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <SectionHeader
           description="拖拽任务卡片切换状态，任务创建、编辑和删除会依据角色权限开放。"
@@ -1472,17 +1479,17 @@ export function WorkspaceDashboard({
         </div>
       </div>
 
-      <section className="grid items-stretch gap-6 xl:grid-cols-3">
+      <section className="grid items-stretch gap-4 xl:grid-cols-3">
         {boardColumns.map((column) => (
           <div
             key={column.id}
-            className={`flex min-h-[560px] flex-col rounded-[24px] border p-5 ${boardColumnStyles[column.id]}`}
+            className={`flex min-h-[560px] flex-col rounded-xl border border-slate-200 p-5 shadow-sm ${boardColumnStyles[column.id]}`}
             onDragOver={(event) => event.preventDefault()}
             onDrop={() => handleDrop(column.id)}
           >
             <div className="flex items-center justify-between">
-              <h3 className="text-base font-semibold text-[#111827]">{column.title}</h3>
-              <span className="rounded-full bg-white px-3 py-1 text-sm text-[#6b7280]">
+              <h3 className="text-base font-semibold text-slate-900">{column.title}</h3>
+              <span className="rounded-md bg-white px-3 py-1 text-sm text-slate-500">
                 {tasks.filter((task) => task.status === column.id).length}
               </span>
             </div>
@@ -1498,8 +1505,8 @@ export function WorkspaceDashboard({
                     <article
                       key={task.id}
                       draggable={canMove}
-                      className={`rounded-[20px] border border-[#eef2f7] bg-white p-4 shadow-[0_10px_24px_rgba(15,23,42,0.04)] ${
-                        canMove ? "cursor-grab hover:shadow-[0_14px_28px_rgba(15,23,42,0.08)]" : ""
+                      className={`rounded-xl border border-slate-200 bg-white p-4 shadow-sm ${
+                        canMove ? "cursor-grab hover:border-slate-300" : ""
                       }`}
                       onDragStart={() => setDraggingTaskId(canMove ? task.id : null)}
                       onDragEnd={() => setDraggingTaskId(null)}
@@ -1508,13 +1515,13 @@ export function WorkspaceDashboard({
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
-                            <GripVertical className="h-4 w-4 text-[#94a3b8]" />
-                            <h4 className="text-base font-semibold leading-6 text-[#111827]">{task.title}</h4>
+                            <GripVertical className="h-4 w-4 text-slate-400" />
+                            <h4 className="text-base font-semibold leading-6 text-slate-900">{task.title}</h4>
                           </div>
-                          <p className="mt-2 text-sm text-[#6b7280]">负责人：{assignee?.name}</p>
+                          <p className="mt-2 text-sm text-slate-500">负责人：{assignee?.name}</p>
                         </div>
                         <span
-                          className={`rounded-full px-2.5 py-1 text-xs ${
+                          className={`rounded-md px-2.5 py-1 text-xs ${
                             task.priority in taskPriorityStyles
                               ? taskPriorityStyles[task.priority as TaskDraft["priority"]]
                               : boardBadgeStyles[task.status]
@@ -1523,7 +1530,7 @@ export function WorkspaceDashboard({
                           {task.priority}
                         </span>
                       </div>
-                      <div className="mt-4 flex items-center justify-between text-sm text-[#6b7280]">
+                      <div className="mt-4 flex items-center justify-between text-sm text-slate-500">
                         <span>{task.dueDate}</span>
                         <div className="flex items-center gap-2">
                           <ActionButton
@@ -1554,7 +1561,7 @@ export function WorkspaceDashboard({
   );
 
   const renderReports = () => (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <SectionHeader
           description={
@@ -1566,10 +1573,10 @@ export function WorkspaceDashboard({
         />
         <div className="flex flex-wrap items-center gap-3">
           <DemoResetNote />
-          <label className="text-sm text-[#6b7280]">
+          <label className="text-sm text-slate-500">
             日期：
             <select
-              className="ml-2 rounded-full border border-[#d1d9e6] bg-white px-4 py-2 text-sm text-[#111827]"
+              className="ml-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
               value={selectedDate}
               onChange={(event) => setSelectedDate(event.target.value)}
             >
@@ -1591,26 +1598,26 @@ export function WorkspaceDashboard({
         </div>
       </div>
 
-      <section className="grid gap-6 xl:grid-cols-2">
+      <section className="grid gap-4 xl:grid-cols-2">
         {visibleReportMembers.map((member) => {
           const report = reportEntryMap.get(member.id);
 
           return (
             <article
               key={member.id}
-              className="rounded-[24px] border border-[#e5e7eb] bg-white p-6 shadow-[0_12px_32px_rgba(15,23,42,0.05)]"
+              className={surfaceCardClassName}
             >
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <h3 className="text-base font-semibold text-[#111827]">{member.name}</h3>
-                  <p className="mt-2 text-sm text-[#6b7280]">{member.systemRole}</p>
+                  <h3 className="text-base font-semibold text-slate-900">{member.name}</h3>
+                  <p className="mt-2 text-sm text-slate-500">{member.systemRole}</p>
                 </div>
                 {report ? (
-                  <span className="rounded-full bg-[#eff6ff] px-3 py-1 text-sm text-[#2563eb]">
+                  <span className="rounded-md bg-blue-50 px-3 py-1 text-sm text-blue-600">
                     已提交 {report.submittedAt}
                   </span>
                 ) : (
-                  <span className="rounded-full bg-[#fee2e2] px-3 py-1 text-sm text-[#b91c1c]">
+                  <span className="rounded-md bg-red-50 px-3 py-1 text-sm text-red-700">
                     未提交
                   </span>
                 )}
@@ -1618,12 +1625,12 @@ export function WorkspaceDashboard({
 
               {report ? (
                 <>
-                  <p className="mt-4 text-sm leading-7 text-[#4b5563]">今日完成：{report.summary}</p>
-                  <p className="mt-2 text-sm leading-7 text-[#4b5563]">明日计划：{report.nextPlan}</p>
-                  <p className="mt-4 text-sm text-[#94a3b8]">附件：{report.attachment}</p>
+                  <p className="mt-4 text-sm leading-7 text-slate-600">今日完成：{report.summary}</p>
+                  <p className="mt-2 text-sm leading-7 text-slate-600">明日计划：{report.nextPlan}</p>
+                  <p className="mt-4 text-sm text-slate-400">附件：{report.attachment}</p>
                 </>
               ) : (
-                <p className="mt-4 text-sm leading-7 text-[#6b7280]">
+                <p className="mt-4 text-sm leading-7 text-slate-500">
                   该成员在 {formatShortDate(selectedDate)} 尚未提交当日汇报，请及时提醒。
                 </p>
               )}
@@ -1635,7 +1642,7 @@ export function WorkspaceDashboard({
   );
 
   const renderExperts = () => (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <SectionHeader
           description="按时间倒序沉淀每次专家辅导意见与后续落地动作。"
@@ -1657,18 +1664,18 @@ export function WorkspaceDashboard({
         </div>
       </div>
 
-      <section className="space-y-6">
+      <section className="space-y-4">
         {experts.map((session) => (
           <article
             key={session.id}
-            className="rounded-[24px] border border-[#e5e7eb] bg-white p-6 shadow-[0_12px_32px_rgba(15,23,42,0.05)]"
+            className={surfaceCardClassName}
           >
             <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
               <div>
-                <p className="text-sm font-medium text-[#2563eb]">
+                <p className="text-sm font-medium text-blue-600">
                   {session.date} · {session.format}
                 </p>
-                <h3 className="mt-3 text-base font-semibold text-[#111827]">
+                <h3 className="mt-3 text-base font-semibold text-slate-900">
                   {session.expert} · {session.topic}
                 </h3>
               </div>
@@ -1676,15 +1683,15 @@ export function WorkspaceDashboard({
                 {session.attachments.map((attachment) => (
                   <span
                     key={attachment}
-                    className="rounded-full bg-[#f8fafc] px-3 py-1 text-sm text-[#6b7280]"
+                    className="rounded-md bg-slate-100 px-3 py-1 text-sm text-slate-500"
                   >
                     {attachment}
                   </span>
                 ))}
               </div>
             </div>
-            <p className="mt-4 text-sm leading-7 text-[#4b5563]">反馈摘要：{session.summary}</p>
-            <p className="mt-2 text-sm leading-7 text-[#4b5563]">落实动作：{session.nextAction}</p>
+            <p className="mt-4 text-sm leading-7 text-slate-600">反馈摘要：{session.summary}</p>
+            <p className="mt-2 text-sm leading-7 text-slate-600">落实动作：{session.nextAction}</p>
           </article>
         ))}
       </section>
@@ -1692,7 +1699,7 @@ export function WorkspaceDashboard({
   );
 
   const renderDocuments = () => (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <SectionHeader
           description="点击分类卡片筛选文档，并可查看历史版本、上传新版本和执行审核。"
@@ -1714,7 +1721,7 @@ export function WorkspaceDashboard({
         </div>
       </div>
 
-      <section className="grid gap-6 md:grid-cols-2 xl:grid-cols-4">
+      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {documentCategories.map((category) => {
           const count = documents.filter((item) => item.category === category).length;
           const isActive = selectedCategory === category;
@@ -1722,17 +1729,17 @@ export function WorkspaceDashboard({
           return (
             <button
               key={category}
-              className={`rounded-[24px] border p-6 text-left shadow-[0_12px_32px_rgba(15,23,42,0.05)] transition ${
+              className={`rounded-xl border border-slate-200 p-5 text-left shadow-sm transition ${
                 isActive
-                  ? "border-[#bfdbfe] bg-[#eff6ff]"
-                  : "border-[#e5e7eb] bg-white hover:border-[#dbeafe]"
+                  ? "bg-blue-50"
+                  : "bg-white hover:border-blue-200"
               }`}
               onClick={() => setSelectedCategory((current) => (current === category ? null : category))}
               type="button"
             >
-              <h3 className="text-base font-semibold text-[#111827]">{category}</h3>
-              <p className="mt-4 text-[28px] font-bold text-[#111827]">{count}</p>
-              <p className="mt-3 text-sm leading-7 text-[#6b7280]">点击筛选该分类文档</p>
+              <h3 className="text-base font-semibold text-slate-900">{category}</h3>
+              <p className="mt-3 text-2xl font-bold text-slate-900">{count}</p>
+              <p className="mt-2 text-sm text-slate-500">点击筛选该分类文档</p>
             </button>
           );
         })}
@@ -1742,25 +1749,36 @@ export function WorkspaceDashboard({
         {filteredDocuments.map((doc) => (
           <article
             key={doc.id}
-            className="rounded-[24px] border border-[#e5e7eb] bg-white p-5 shadow-[0_12px_32px_rgba(15,23,42,0.05)]"
+            className={surfaceCardClassName}
           >
-            <div className="rounded-[20px] border border-[#eef2f7] bg-[#fbfdff] p-4">
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
               <div className="grid gap-4 md:grid-cols-3">
                 {documentStepLabels.map((label, index) => {
-                  const stepState = getDocumentWorkflowState(doc.statusKey ?? "pending")[index];
+                  const states = getDocumentWorkflowState(doc.statusKey ?? "pending");
+                  const stepState = states[index];
                   const dotClassName =
                     stepState === "complete"
-                      ? "border-[#2563eb] bg-[#2563eb]"
+                      ? "border-blue-600 bg-blue-600"
                       : stepState === "current"
-                        ? "border-[#2563eb] bg-[#2563eb] ring-4 ring-[#dbeafe]"
+                        ? "border-blue-600 bg-blue-600 ring-4 ring-blue-100"
                         : stepState === "rejected"
-                          ? "border-[#ef4444] bg-[#ef4444]"
-                          : "border-[#cbd5e1] bg-white";
+                          ? "border-red-500 bg-red-500"
+                          : "border-slate-300 bg-white";
+                  const lineClassName =
+                    index < documentStepLabels.length - 1 && states[index + 1] !== "pending"
+                      ? "bg-blue-600"
+                      : "bg-slate-300";
+                  const textClassName =
+                    stepState === "rejected"
+                      ? "text-red-600"
+                      : stepState === "pending"
+                        ? "text-slate-400"
+                        : "text-slate-700";
 
                   return (
                     <div className="relative flex items-center gap-3" key={`${doc.id}-${label}`}>
                       {index < documentStepLabels.length - 1 ? (
-                        <div className="absolute left-4 right-0 top-4 hidden h-[2px] bg-[#dbe3ef] md:block" />
+                        <div className={`absolute left-4 right-0 top-4 hidden h-[2px] md:block ${lineClassName}`} />
                       ) : null}
                       <span
                         className={`relative z-10 h-8 w-8 rounded-full border-2 ${dotClassName} ${
@@ -1768,8 +1786,8 @@ export function WorkspaceDashboard({
                         }`}
                       />
                       <div className="relative z-10">
-                        <p className="text-sm font-medium text-[#111827]">{label}</p>
-                        <p className="mt-1 text-xs text-[#94a3b8]">
+                        <p className={`text-xs font-medium ${textClassName}`}>{label}</p>
+                        <p className="mt-1 text-xs text-slate-400">
                           {index === 0 ? "上传完成" : index === 1 ? "处理中" : "等待完成"}
                         </p>
                       </div>
@@ -1777,19 +1795,19 @@ export function WorkspaceDashboard({
                   );
                 })}
               </div>
-              <p className="mt-4 text-sm text-[#6b7280]">{getDocumentStatusHint(doc.statusKey ?? "pending")}</p>
+              <p className="mt-4 text-sm text-slate-500">{getDocumentStatusHint(doc.statusKey ?? "pending")}</p>
             </div>
 
-            <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+            <div className="mt-4 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
               <div>
-                <h3 className="text-base font-semibold text-[#111827]">{doc.name}</h3>
-                <p className="mt-2 text-sm text-[#6b7280]">
+                <h3 className="text-base font-semibold text-slate-900">{doc.name}</h3>
+                <p className="mt-2 text-sm text-slate-500">
                   {doc.category} · 当前版本 {doc.currentVersion} · 上传人 {getMemberName(doc.ownerId)}
                 </p>
-                <p className="mt-2 text-sm leading-7 text-[#6b7280]">批注：{doc.comment}</p>
+                <p className="mt-2 text-sm leading-7 text-slate-500">批注：{doc.comment}</p>
               </div>
               <div className="flex flex-wrap items-center gap-3">
-                  <span className={`rounded-full px-3 py-1 text-sm ${docStatusStyles[doc.status]}`}>
+                  <span className={`rounded-md px-3 py-1 text-sm ${docStatusStyles[doc.status]}`}>
                     {doc.status}
                   </span>
                 <ActionButton
@@ -1836,7 +1854,7 @@ export function WorkspaceDashboard({
                 </ActionButton>
               ))}
               <button
-                className="inline-flex items-center gap-2 text-sm text-[#2563eb]"
+                className="inline-flex items-center gap-2 text-sm text-blue-600"
                 onClick={() => toggleDocExpand(doc.id)}
                 type="button"
               >
@@ -1855,23 +1873,23 @@ export function WorkspaceDashboard({
             </div>
 
             {expandedDocs.includes(doc.id) ? (
-              <div className="mt-4 space-y-3 rounded-[20px] bg-[#f8fafc] p-4">
+              <div className="mt-4 space-y-3 rounded-xl bg-slate-50 p-4">
                 {doc.versions.map((version) => (
                   <div
                     key={`${doc.id}-${version.version}`}
-                    className="flex flex-col gap-2 rounded-[18px] border border-[#e5e7eb] bg-white px-4 py-3 md:flex-row md:items-center md:justify-between"
+                    className="flex flex-col gap-2 rounded-lg border border-slate-200 bg-white px-4 py-3 shadow-sm md:flex-row md:items-center md:justify-between"
                   >
                     <div>
-                      <p className="text-sm font-medium text-[#111827]">{version.version}</p>
-                      <p className="mt-1 text-sm text-[#6b7280]">
+                      <p className="text-sm font-medium text-slate-900">{version.version}</p>
+                      <p className="mt-1 text-sm text-slate-500">
                         {version.uploadedAt} · {version.uploader}
                       </p>
-                      <p className="mt-1 text-sm text-[#94a3b8]">
+                      <p className="mt-1 text-sm text-slate-400">
                         {version.fileName || "未记录文件名"}
                       </p>
                     </div>
                     <div className="flex items-center gap-3">
-                      <p className="text-sm text-[#6b7280]">{version.note}</p>
+                      <p className="text-sm text-slate-500">{version.note}</p>
                       <ActionButton onClick={() => handleDownload(version.downloadUrl)}>
                         <span className="inline-flex items-center gap-2">
                           <Download className="h-4 w-4" />
@@ -1901,7 +1919,7 @@ export function WorkspaceDashboard({
   );
 
   const renderTeam = () => (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <SectionHeader
           description="通过角色下拉框管理团队成员权限，并按当前角色限制操作范围。"
@@ -1923,7 +1941,7 @@ export function WorkspaceDashboard({
         </div>
       </div>
 
-      <section className="grid gap-6 xl:grid-cols-2">
+      <section className="grid gap-4 xl:grid-cols-2">
         {members.map((member) => {
           const editable = canManageMember(member);
           const roleDisabled = !editable || member.systemRole === "系统管理员";
@@ -1931,7 +1949,7 @@ export function WorkspaceDashboard({
           return (
             <article
               key={member.id}
-              className="rounded-[24px] border border-[#e5e7eb] bg-white p-6 shadow-[0_12px_32px_rgba(15,23,42,0.05)]"
+              className={surfaceCardClassName}
             >
               <div className="flex items-start gap-4">
                 <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#2563eb] text-base font-semibold text-white">
@@ -1940,24 +1958,24 @@ export function WorkspaceDashboard({
                 <div className="min-w-0 flex-1">
                   <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
                     <div>
-                      <h3 className="text-base font-semibold text-[#111827]">{member.name}</h3>
-                      <p className="mt-2 text-sm text-[#6b7280]">账号：{member.account}</p>
+                      <h3 className="text-base font-semibold text-slate-900">{member.name}</h3>
+                      <p className="mt-2 text-sm text-slate-500">账号：{member.account}</p>
                       {member.systemRole === "系统管理员" ? (
-                        <p className="mt-2 text-sm text-[#2563eb]">系统最高权限账号</p>
+                        <p className="mt-2 text-sm text-blue-600">系统最高权限账号</p>
                       ) : null}
                     </div>
-                    <span className="rounded-full bg-[#eff6ff] px-3 py-1 text-sm text-[#2563eb]">
+                    <span className="rounded-md bg-blue-50 px-3 py-1 text-sm text-blue-600">
                       当前进度 {member.progress}
                     </span>
                   </div>
 
-                  <p className="mt-4 text-sm leading-7 text-[#4b5563]">负责内容：{member.responsibility}</p>
+                  <p className="mt-4 text-sm leading-7 text-slate-600">负责内容：{member.responsibility}</p>
 
                   <div className="mt-4 grid gap-4 md:grid-cols-[1fr_auto] md:items-center">
-                    <label className="text-sm text-[#6b7280]">
+                    <label className="text-sm text-slate-500">
                       角色
                       <select
-                        className="mt-2 block w-full rounded-xl border border-[#d1d9e6] bg-white px-4 py-2 text-sm text-[#111827] disabled:cursor-not-allowed disabled:bg-[#f3f4f6] disabled:text-[#9ca3af]"
+                        className={`${fieldClassName} disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400`}
                         disabled={roleDisabled}
                         title={roleDisabled ? "无权限" : undefined}
                         value={member.systemRole}
@@ -2025,31 +2043,31 @@ export function WorkspaceDashboard({
 
   if (isBooting) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-[#f3f6fa]">
-        <p className="text-sm text-[#6b7280]">正在加载工作台数据...</p>
+      <main className="flex min-h-screen items-center justify-center bg-slate-100">
+        <p className="text-sm text-slate-500">正在加载工作台数据...</p>
       </main>
     );
   }
 
   if (!currentUser) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-[#f3f6fa]">
-        <p className="text-sm text-[#6b7280]">登录状态已失效，正在返回登录页...</p>
+      <main className="flex min-h-screen items-center justify-center bg-slate-100">
+        <p className="text-sm text-slate-500">登录状态已失效，正在返回登录页...</p>
       </main>
     );
   }
 
   return (
     <>
-      <main className="min-h-screen bg-[#f3f6fa] p-4 md:p-6">
-        <div className="mx-auto flex max-w-[1500px] flex-col gap-6 xl:flex-row">
+      <main className="min-h-screen bg-[#f1f5f9] p-4 md:p-6">
+        <div className="mx-auto flex max-w-[1500px] flex-col gap-4 xl:flex-row">
           <aside className="xl:w-[280px] xl:flex-none">
-            <div className="rounded-[28px] border border-[#d9e2ec] bg-white p-5 shadow-[0_14px_36px_rgba(15,23,42,0.05)]">
-              <div className="pb-2">
-                <h1 className="text-[24px] font-bold text-[#111827]">备赛管理中心</h1>
+            <div className="rounded-xl bg-slate-900 px-5 py-6 text-white shadow-sm xl:sticky xl:top-4 xl:h-[calc(100vh-2rem)]">
+              <div className="border-b border-white/10 pb-4">
+                <h1 className="text-[18px] font-semibold tracking-[0.02em] text-white">备赛管理中心</h1>
               </div>
 
-              <nav className="mt-5 space-y-2">
+              <nav className="mt-5 space-y-1.5">
                 {visibleTabs.map((item) => {
                   const Icon = item.icon;
                   const isActive = item.key === safeActiveTab;
@@ -2059,13 +2077,14 @@ export function WorkspaceDashboard({
                   return (
                     <Link
                       key={item.key}
-                      className={`flex items-center gap-3 rounded-2xl px-4 py-3 text-sm no-underline transition ${
+                      className={`relative flex items-center gap-3 rounded-lg px-4 py-3 text-sm no-underline transition ${
                         isActive
-                          ? "bg-[#2563eb] text-white shadow-[0_10px_20px_rgba(37,99,235,0.22)]"
-                          : "text-[#4b5563] hover:bg-[#f8fafc]"
+                          ? "bg-white/8 text-white"
+                          : "text-white/70 hover:bg-white/6 hover:text-white"
                       }`}
                       href={href}
                     >
+                      {isActive ? <span className="absolute inset-y-2 left-0 w-[3px] rounded-full bg-white" /> : null}
                       <Icon className="h-[18px] w-[18px]" strokeWidth={2.1} />
                       <span>{item.label}</span>
                     </Link>
@@ -2076,14 +2095,14 @@ export function WorkspaceDashboard({
           </aside>
 
           <section className="min-w-0 flex-1">
-            <header className="border-b border-[#e5e7eb] bg-white px-5 py-4">
+            <header className="bg-white px-5 py-4 shadow-sm">
               <div className="mx-auto flex max-w-[1200px] flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                <p className="text-lg font-semibold text-[#111827]">中国国际大学生创新大赛备赛管理系统</p>
+                <p className="text-lg font-semibold text-slate-900">{activeTabItem.label}</p>
 
                 <div className="flex flex-wrap items-center gap-3">
                   <div className="relative">
                     <button
-                      className="relative inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#d1d9e6] text-[#4b5563] hover:bg-[#f8fafc]"
+                      className="relative inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-sm hover:bg-slate-50"
                       onClick={() => setNotificationsOpen((current) => !current)}
                       type="button"
                     >
@@ -2096,14 +2115,14 @@ export function WorkspaceDashboard({
                     </button>
 
                     {notificationsOpen ? (
-                      <div className="absolute right-0 top-12 z-20 w-[360px] rounded-[24px] border border-[#e5e7eb] bg-white p-4 shadow-[0_18px_40px_rgba(15,23,42,0.12)]">
+                      <div className="absolute right-0 top-12 z-20 w-[360px] rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
                         <div className="flex items-center justify-between">
                           <div>
-                            <p className="text-base font-semibold text-[#111827]">站内消息</p>
-                            <p className="mt-1 text-xs text-[#94a3b8]">文档审批进度会实时同步到这里。</p>
+                            <p className="text-base font-semibold text-slate-900">站内消息</p>
+                            <p className="mt-1 text-xs text-slate-400">文档审批进度会实时同步到这里。</p>
                           </div>
                           <button
-                            className="text-sm text-[#2563eb]"
+                            className="text-sm text-blue-600"
                             onClick={() => void markAllNotificationsAsRead()}
                             type="button"
                           >
@@ -2115,10 +2134,10 @@ export function WorkspaceDashboard({
                           {notifications.length > 0 ? (
                             notifications.map((notification) => (
                               <button
-                                className={`w-full rounded-[18px] border px-4 py-3 text-left transition ${
+                                className={`w-full rounded-lg border px-4 py-3 text-left transition ${
                                   notification.isRead
-                                    ? "border-[#e5e7eb] bg-white"
-                                    : "border-[#dbeafe] bg-[#f8fbff]"
+                                    ? "border-slate-200 bg-white"
+                                    : "border-blue-100 bg-blue-50/40"
                                 }`}
                                 key={notification.id}
                                 onClick={() => void openNotification(notification)}
@@ -2126,22 +2145,22 @@ export function WorkspaceDashboard({
                               >
                                 <div className="flex items-start justify-between gap-3">
                                   <div>
-                                    <p className="text-sm font-semibold text-[#111827]">
+                                    <p className="text-sm font-semibold text-slate-900">
                                       {notification.title}
                                     </p>
-                                    <p className="mt-2 text-sm leading-6 text-[#6b7280]">
+                                    <p className="mt-2 text-sm leading-6 text-slate-500">
                                       {notification.detail}
                                     </p>
                                   </div>
                                   {!notification.isRead ? (
-                                    <span className="mt-1 h-2.5 w-2.5 rounded-full bg-[#2563eb]" />
+                                    <span className="mt-1 h-2.5 w-2.5 rounded-full bg-blue-600" />
                                   ) : null}
                                 </div>
-                                <p className="mt-2 text-xs text-[#94a3b8]">{notification.createdAt}</p>
+                                <p className="mt-2 text-xs text-slate-400">{notification.createdAt}</p>
                               </button>
                             ))
                           ) : (
-                            <div className="rounded-[18px] border border-dashed border-[#d1d9e6] px-4 py-6 text-center text-sm text-[#94a3b8]">
+                            <div className="rounded-lg border border-dashed border-slate-200 px-4 py-6 text-center text-sm text-slate-400">
                               暂无新的站内消息
                             </div>
                           )}
@@ -2149,21 +2168,21 @@ export function WorkspaceDashboard({
                       </div>
                     ) : null}
                   </div>
-                  <div className="flex items-center gap-3 rounded-full bg-[#f8fafc] px-3 py-2">
+                  <div className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-sm">
                     <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#2563eb] text-sm font-semibold text-white">
                       {currentUser.profile.avatar}
                     </div>
                     <div>
                       <div className="flex items-center gap-2">
-                        <p className="text-sm font-medium text-[#111827]">{currentUser.profile.name}</p>
-                        <span className="rounded-full bg-[#eff6ff] px-3 py-1 text-xs text-[#2563eb]">
+                        <p className="text-sm font-medium text-slate-900">{currentUser.profile.name}</p>
+                        <span className="rounded-md bg-blue-50 px-2.5 py-1 text-xs text-blue-600">
                           {roleLabels[currentRole]}
                         </span>
                       </div>
                     </div>
                   </div>
                   <button
-                    className="inline-flex h-10 items-center justify-center gap-2 rounded-full border border-[#d1d9e6] px-4 text-sm text-[#4b5563] no-underline hover:bg-[#f8fafc]"
+                    className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm text-slate-700 no-underline shadow-sm hover:bg-slate-50"
                     onClick={() => void handleLogout()}
                     type="button"
                   >
@@ -2174,9 +2193,9 @@ export function WorkspaceDashboard({
               </div>
             </header>
 
-            <div className="mx-auto mt-6 flex max-w-[1200px] flex-col gap-6">
+            <div className="mx-auto mt-4 flex max-w-[1200px] flex-col gap-4">
               {loadError ? (
-                <div className="rounded-[20px] border border-[#fecaca] bg-[#fff1f2] px-5 py-4 text-sm text-[#b91c1c]">
+                <div className="rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700">
                   {loadError}
                 </div>
               ) : null}
@@ -2189,20 +2208,20 @@ export function WorkspaceDashboard({
       {taskModalOpen ? (
         <Modal title={editingTaskId ? "编辑任务" : "新建任务"} onClose={() => setTaskModalOpen(false)}>
           <div className="space-y-4">
-            <label className="block text-sm text-[#6b7280]">
+            <label className="block text-sm text-slate-500">
               任务名称
               <input
-                className="mt-2 w-full rounded-xl border border-[#d1d9e6] px-4 py-3 text-sm text-[#111827]"
+                className={fieldClassName}
                 value={taskDraft.title}
                 onChange={(event) =>
                   setTaskDraft((current) => ({ ...current, title: event.target.value }))
                 }
               />
             </label>
-            <label className="block text-sm text-[#6b7280]">
+            <label className="block text-sm text-slate-500">
               负责人
               <select
-                className="mt-2 w-full rounded-xl border border-[#d1d9e6] px-4 py-3 text-sm text-[#111827]"
+                className={fieldClassName}
                 value={taskDraft.assigneeId}
                 onChange={(event) =>
                   setTaskDraft((current) => ({ ...current, assigneeId: event.target.value }))
@@ -2218,20 +2237,20 @@ export function WorkspaceDashboard({
               </select>
             </label>
             <div className="grid gap-4 md:grid-cols-2">
-              <label className="block text-sm text-[#6b7280]">
+              <label className="block text-sm text-slate-500">
                 截止时间
                 <input
-                  className="mt-2 w-full rounded-xl border border-[#d1d9e6] px-4 py-3 text-sm text-[#111827]"
+                  className={fieldClassName}
                   value={taskDraft.dueDate}
                   onChange={(event) =>
                     setTaskDraft((current) => ({ ...current, dueDate: event.target.value }))
                   }
                 />
               </label>
-              <label className="block text-sm text-[#6b7280]">
+              <label className="block text-sm text-slate-500">
                 优先级
                 <select
-                  className="mt-2 w-full rounded-xl border border-[#d1d9e6] px-4 py-3 text-sm text-[#111827]"
+                  className={fieldClassName}
                   value={taskDraft.priority}
                   onChange={(event) =>
                     setTaskDraft((current) => ({
@@ -2246,12 +2265,12 @@ export function WorkspaceDashboard({
                 </select>
               </label>
             </div>
-            <div className="flex justify-end gap-3">
+            <ModalActions>
               <ActionButton onClick={() => setTaskModalOpen(false)}>取消</ActionButton>
               <ActionButton onClick={saveTask} variant="primary">
                 保存任务
               </ActionButton>
-            </div>
+            </ModalActions>
           </div>
         </Modal>
       ) : null}
@@ -2259,33 +2278,33 @@ export function WorkspaceDashboard({
       {reportModalOpen ? (
         <Modal title="提交日程汇报" onClose={() => setReportModalOpen(false)}>
           <div className="space-y-4">
-            <p className="text-sm leading-7 text-[#6b7280]">
+            <p className="text-sm leading-7 text-slate-500">
               提交日期：{formatShortDate(selectedDate)} · 提交人：{currentUser.profile.name}
             </p>
-            <label className="block text-sm text-[#6b7280]">
+            <label className="block text-sm text-slate-500">
               今日完成
               <textarea
-                className="mt-2 min-h-28 w-full rounded-xl border border-[#d1d9e6] px-4 py-3 text-sm text-[#111827]"
+                className={textareaClassName}
                 value={reportDraft.summary}
                 onChange={(event) =>
                   setReportDraft((current) => ({ ...current, summary: event.target.value }))
                 }
               />
             </label>
-            <label className="block text-sm text-[#6b7280]">
+            <label className="block text-sm text-slate-500">
               明日计划
               <textarea
-                className="mt-2 min-h-28 w-full rounded-xl border border-[#d1d9e6] px-4 py-3 text-sm text-[#111827]"
+                className={textareaClassName}
                 value={reportDraft.nextPlan}
                 onChange={(event) =>
                   setReportDraft((current) => ({ ...current, nextPlan: event.target.value }))
                 }
               />
             </label>
-            <label className="block text-sm text-[#6b7280]">
+            <label className="block text-sm text-slate-500">
               附件
               <input
-                className="mt-2 w-full rounded-xl border border-[#d1d9e6] px-4 py-3 text-sm text-[#111827]"
+                className={fieldClassName}
                 placeholder="例如：日报截图.png / 无"
                 value={reportDraft.attachment}
                 onChange={(event) =>
@@ -2293,12 +2312,12 @@ export function WorkspaceDashboard({
                 }
               />
             </label>
-            <div className="flex justify-end gap-3">
+            <ModalActions>
               <ActionButton onClick={() => setReportModalOpen(false)}>取消</ActionButton>
               <ActionButton onClick={saveReport} variant="primary">
                 保存汇报
               </ActionButton>
-            </div>
+            </ModalActions>
           </div>
         </Modal>
       ) : null}
@@ -2306,32 +2325,32 @@ export function WorkspaceDashboard({
       {announcementModalOpen ? (
         <Modal title="发布公告" onClose={() => setAnnouncementModalOpen(false)}>
           <div className="space-y-4">
-            <label className="block text-sm text-[#6b7280]">
+            <label className="block text-sm text-slate-500">
               公告标题
               <input
-                className="mt-2 w-full rounded-xl border border-[#d1d9e6] px-4 py-3 text-sm text-[#111827]"
+                className={fieldClassName}
                 value={announcementDraft.title}
                 onChange={(event) =>
                   setAnnouncementDraft((current) => ({ ...current, title: event.target.value }))
                 }
               />
             </label>
-            <label className="block text-sm text-[#6b7280]">
+            <label className="block text-sm text-slate-500">
               公告内容
               <textarea
-                className="mt-2 min-h-32 w-full rounded-xl border border-[#d1d9e6] px-4 py-3 text-sm text-[#111827]"
+                className={`${textareaClassName} min-h-32`}
                 value={announcementDraft.detail}
                 onChange={(event) =>
                   setAnnouncementDraft((current) => ({ ...current, detail: event.target.value }))
                 }
               />
             </label>
-            <div className="flex justify-end gap-3">
+            <ModalActions>
               <ActionButton onClick={() => setAnnouncementModalOpen(false)}>取消</ActionButton>
               <ActionButton onClick={publishAnnouncement} variant="primary">
                 发布公告
               </ActionButton>
-            </div>
+            </ModalActions>
           </div>
         </Modal>
       ) : null}
@@ -2339,50 +2358,50 @@ export function WorkspaceDashboard({
       {eventModalOpen ? (
         <Modal title={editingEventId ? "编辑时间节点" : "新增时间节点"} onClose={() => setEventModalOpen(false)}>
           <div className="space-y-4">
-            <label className="block text-sm text-[#6b7280]">
+            <label className="block text-sm text-slate-500">
               节点标题
               <input
-                className="mt-2 w-full rounded-xl border border-[#d1d9e6] px-4 py-3 text-sm text-[#111827]"
+                className={fieldClassName}
                 value={eventDraft.title}
                 onChange={(event) => setEventDraft((current) => ({ ...current, title: event.target.value }))}
               />
             </label>
             <div className="grid gap-4 md:grid-cols-2">
-              <label className="block text-sm text-[#6b7280]">
+              <label className="block text-sm text-slate-500">
                 时间
                 <input
-                  className="mt-2 w-full rounded-xl border border-[#d1d9e6] px-4 py-3 text-sm text-[#111827]"
+                  className={fieldClassName}
                   value={eventDraft.dateTime}
                   onChange={(event) =>
                     setEventDraft((current) => ({ ...current, dateTime: event.target.value }))
                   }
                 />
               </label>
-              <label className="block text-sm text-[#6b7280]">
+              <label className="block text-sm text-slate-500">
                 节点类型
                 <input
-                  className="mt-2 w-full rounded-xl border border-[#d1d9e6] px-4 py-3 text-sm text-[#111827]"
+                  className={fieldClassName}
                   value={eventDraft.type}
                   onChange={(event) => setEventDraft((current) => ({ ...current, type: event.target.value }))}
                 />
               </label>
             </div>
-            <label className="block text-sm text-[#6b7280]">
+            <label className="block text-sm text-slate-500">
               节点说明
               <textarea
-                className="mt-2 min-h-28 w-full rounded-xl border border-[#d1d9e6] px-4 py-3 text-sm text-[#111827]"
+                className={textareaClassName}
                 value={eventDraft.description}
                 onChange={(event) =>
                   setEventDraft((current) => ({ ...current, description: event.target.value }))
                 }
               />
             </label>
-            <div className="flex justify-end gap-3">
+            <ModalActions>
               <ActionButton onClick={() => setEventModalOpen(false)}>取消</ActionButton>
               <ActionButton onClick={saveEvent} variant="primary">
                 保存节点
               </ActionButton>
-            </div>
+            </ModalActions>
           </div>
         </Modal>
       ) : null}
@@ -2391,67 +2410,67 @@ export function WorkspaceDashboard({
         <Modal title="上传专家意见" onClose={() => setExpertModalOpen(false)}>
           <div className="space-y-4">
             <div className="grid gap-4 md:grid-cols-2">
-              <label className="block text-sm text-[#6b7280]">
+              <label className="block text-sm text-slate-500">
                 日期
                 <input
-                  className="mt-2 w-full rounded-xl border border-[#d1d9e6] px-4 py-3 text-sm text-[#111827]"
+                  className={fieldClassName}
                   value={expertDraft.date}
                   onChange={(event) => setExpertDraft((current) => ({ ...current, date: event.target.value }))}
                 />
               </label>
-              <label className="block text-sm text-[#6b7280]">
+              <label className="block text-sm text-slate-500">
                 形式
                 <input
-                  className="mt-2 w-full rounded-xl border border-[#d1d9e6] px-4 py-3 text-sm text-[#111827]"
+                  className={fieldClassName}
                   value={expertDraft.format}
                   onChange={(event) => setExpertDraft((current) => ({ ...current, format: event.target.value }))}
                 />
               </label>
             </div>
             <div className="grid gap-4 md:grid-cols-2">
-              <label className="block text-sm text-[#6b7280]">
+              <label className="block text-sm text-slate-500">
                 专家姓名
                 <input
-                  className="mt-2 w-full rounded-xl border border-[#d1d9e6] px-4 py-3 text-sm text-[#111827]"
+                  className={fieldClassName}
                   value={expertDraft.expert}
                   onChange={(event) => setExpertDraft((current) => ({ ...current, expert: event.target.value }))}
                 />
               </label>
-              <label className="block text-sm text-[#6b7280]">
+              <label className="block text-sm text-slate-500">
                 主题
                 <input
-                  className="mt-2 w-full rounded-xl border border-[#d1d9e6] px-4 py-3 text-sm text-[#111827]"
+                  className={fieldClassName}
                   value={expertDraft.topic}
                   onChange={(event) => setExpertDraft((current) => ({ ...current, topic: event.target.value }))}
                 />
               </label>
             </div>
-            <label className="block text-sm text-[#6b7280]">
+            <label className="block text-sm text-slate-500">
               反馈摘要
               <textarea
-                className="mt-2 min-h-28 w-full rounded-xl border border-[#d1d9e6] px-4 py-3 text-sm text-[#111827]"
+                className={textareaClassName}
                 value={expertDraft.summary}
                 onChange={(event) =>
                   setExpertDraft((current) => ({ ...current, summary: event.target.value }))
                 }
               />
             </label>
-            <label className="block text-sm text-[#6b7280]">
+            <label className="block text-sm text-slate-500">
               后续动作
               <textarea
-                className="mt-2 min-h-28 w-full rounded-xl border border-[#d1d9e6] px-4 py-3 text-sm text-[#111827]"
+                className={textareaClassName}
                 value={expertDraft.nextAction}
                 onChange={(event) =>
                   setExpertDraft((current) => ({ ...current, nextAction: event.target.value }))
                 }
               />
             </label>
-            <div className="flex justify-end gap-3">
+            <ModalActions>
               <ActionButton onClick={() => setExpertModalOpen(false)}>取消</ActionButton>
               <ActionButton onClick={saveExpert} variant="primary">
                 保存意见
               </ActionButton>
-            </div>
+            </ModalActions>
           </div>
         </Modal>
       ) : null}
@@ -2459,25 +2478,25 @@ export function WorkspaceDashboard({
       {documentModalOpen ? (
         <Modal title="上传文档" onClose={() => setDocumentModalOpen(false)}>
           <div className="space-y-4">
-            <p className="rounded-[18px] bg-[#f8fafc] px-4 py-3 text-sm leading-7 text-[#6b7280]">
+            <p className={`${subtleCardClassName} text-sm leading-7 text-slate-500`}>
               仅支持 `.doc`、`.docx`、`.pdf`、`.xls`、`.xlsx`、`.txt`、`.jpg`、`.jpeg`、`.png`，
               单文件最大 20MB；不支持视频、压缩包和 PPT 文件。
             </p>
             <div className="grid gap-4 md:grid-cols-2">
-              <label className="block text-sm text-[#6b7280]">
+              <label className="block text-sm text-slate-500">
                 文档名称
                 <input
-                  className="mt-2 w-full rounded-xl border border-[#d1d9e6] px-4 py-3 text-sm text-[#111827]"
+                  className={fieldClassName}
                   value={documentDraft.name}
                   onChange={(event) =>
                     setDocumentDraft((current) => ({ ...current, name: event.target.value }))
                   }
                 />
               </label>
-              <label className="block text-sm text-[#6b7280]">
+              <label className="block text-sm text-slate-500">
                 文档分类
                 <select
-                  className="mt-2 w-full rounded-xl border border-[#d1d9e6] px-4 py-3 text-sm text-[#111827]"
+                  className={fieldClassName}
                   value={documentDraft.category}
                   onChange={(event) =>
                     setDocumentDraft((current) => ({
@@ -2494,21 +2513,21 @@ export function WorkspaceDashboard({
                 </select>
               </label>
             </div>
-            <label className="block text-sm text-[#6b7280]">
+            <label className="block text-sm text-slate-500">
               版本说明
               <textarea
-                className="mt-2 min-h-24 w-full rounded-xl border border-[#d1d9e6] px-4 py-3 text-sm text-[#111827]"
+                className={`${textareaClassName} min-h-24`}
                 value={documentDraft.note}
                 onChange={(event) =>
                   setDocumentDraft((current) => ({ ...current, note: event.target.value }))
                 }
               />
             </label>
-            <label className="block text-sm text-[#6b7280]">
+            <label className="block text-sm text-slate-500">
               选择文件
               <input
                 accept={documentAcceptAttribute}
-                className="mt-2 block w-full rounded-xl border border-[#d1d9e6] px-4 py-3 text-sm text-[#111827]"
+                className={`${fieldClassName} block`}
                 type="file"
                 onChange={(event) => {
                   const file = event.target.files?.[0] ?? null;
@@ -2523,12 +2542,12 @@ export function WorkspaceDashboard({
                 }}
               />
             </label>
-            <div className="flex justify-end gap-3">
+            <ModalActions>
               <ActionButton onClick={() => setDocumentModalOpen(false)}>取消</ActionButton>
               <ActionButton onClick={() => void saveDocument()} variant="primary">
                 上传文档
               </ActionButton>
-            </div>
+            </ModalActions>
           </div>
         </Modal>
       ) : null}
@@ -2536,23 +2555,23 @@ export function WorkspaceDashboard({
       {versionModalOpen ? (
         <Modal title="上传文档新版本" onClose={() => setVersionModalOpen(false)}>
           <div className="space-y-4">
-            <p className="rounded-[18px] bg-[#f8fafc] px-4 py-3 text-sm leading-7 text-[#6b7280]">
+            <p className={`${subtleCardClassName} text-sm leading-7 text-slate-500`}>
               仅支持 `.doc`、`.docx`、`.pdf`、`.xls`、`.xlsx`、`.txt`、`.jpg`、`.jpeg`、`.png`，
               单文件最大 20MB；不支持视频、压缩包和 PPT 文件。
             </p>
-            <label className="block text-sm text-[#6b7280]">
+            <label className="block text-sm text-slate-500">
               版本说明
               <textarea
-                className="mt-2 min-h-24 w-full rounded-xl border border-[#d1d9e6] px-4 py-3 text-sm text-[#111827]"
+                className={`${textareaClassName} min-h-24`}
                 value={versionUploadNote}
                 onChange={(event) => setVersionUploadNote(event.target.value)}
               />
             </label>
-            <label className="block text-sm text-[#6b7280]">
+            <label className="block text-sm text-slate-500">
               选择文件
               <input
                 accept={documentAcceptAttribute}
-                className="mt-2 block w-full rounded-xl border border-[#d1d9e6] px-4 py-3 text-sm text-[#111827]"
+                className={`${fieldClassName} block`}
                 type="file"
                 onChange={(event) => {
                   const file = event.target.files?.[0] ?? null;
@@ -2567,12 +2586,12 @@ export function WorkspaceDashboard({
                 }}
               />
             </label>
-            <div className="flex justify-end gap-3">
+            <ModalActions>
               <ActionButton onClick={() => setVersionModalOpen(false)}>取消</ActionButton>
               <ActionButton onClick={() => void uploadNewDocumentVersion()} variant="primary">
                 上传新版本
               </ActionButton>
-            </div>
+            </ModalActions>
           </div>
         </Modal>
       ) : null}
@@ -2581,45 +2600,45 @@ export function WorkspaceDashboard({
         <Modal title="创建账号" onClose={() => setTeamModalOpen(false)}>
           <div className="space-y-4">
             <div className="grid gap-4 md:grid-cols-2">
-              <label className="block text-sm text-[#6b7280]">
+              <label className="block text-sm text-slate-500">
                 姓名 / 显示名
                 <input
-                  className="mt-2 w-full rounded-xl border border-[#d1d9e6] px-4 py-3 text-sm text-[#111827]"
+                  className={fieldClassName}
                   value={teamDraft.name}
                   onChange={(event) => setTeamDraft((current) => ({ ...current, name: event.target.value }))}
                 />
               </label>
-              <label className="block text-sm text-[#6b7280]">
+              <label className="block text-sm text-slate-500">
                 用户名
                 <input
-                  className="mt-2 w-full rounded-xl border border-[#d1d9e6] px-4 py-3 text-sm text-[#111827]"
+                  className={fieldClassName}
                   value={teamDraft.username}
                   onChange={(event) => setTeamDraft((current) => ({ ...current, username: event.target.value }))}
                 />
               </label>
             </div>
             <div className="grid gap-4 md:grid-cols-2">
-              <label className="block text-sm text-[#6b7280]">
+              <label className="block text-sm text-slate-500">
                 邮箱
                 <input
-                  className="mt-2 w-full rounded-xl border border-[#d1d9e6] px-4 py-3 text-sm text-[#111827]"
+                  className={fieldClassName}
                   value={teamDraft.email}
                   onChange={(event) => setTeamDraft((current) => ({ ...current, email: event.target.value }))}
                 />
               </label>
-              <label className="block text-sm text-[#6b7280]">
+              <label className="block text-sm text-slate-500">
                 初始密码
                 <input
-                  className="mt-2 w-full rounded-xl border border-[#d1d9e6] px-4 py-3 text-sm text-[#111827]"
+                  className={fieldClassName}
                   value={teamDraft.password}
                   onChange={(event) => setTeamDraft((current) => ({ ...current, password: event.target.value }))}
                 />
               </label>
             </div>
-            <label className="block text-sm text-[#6b7280]">
+            <label className="block text-sm text-slate-500">
               角色
               <select
-                className="mt-2 w-full rounded-xl border border-[#d1d9e6] px-4 py-3 text-sm text-[#111827]"
+                className={fieldClassName}
                 value={teamDraft.role}
                 onChange={(event) =>
                   setTeamDraft((current) => ({ ...current, role: event.target.value as TeamRoleLabel }))
@@ -2632,22 +2651,22 @@ export function WorkspaceDashboard({
                 ))}
               </select>
             </label>
-            <label className="block text-sm text-[#6b7280]">
+            <label className="block text-sm text-slate-500">
               负责内容
               <textarea
-                className="mt-2 min-h-24 w-full rounded-xl border border-[#d1d9e6] px-4 py-3 text-sm text-[#111827]"
+                className={`${textareaClassName} min-h-24`}
                 value={teamDraft.responsibility}
                 onChange={(event) =>
                   setTeamDraft((current) => ({ ...current, responsibility: event.target.value }))
                 }
               />
             </label>
-            <div className="flex justify-end gap-3">
+            <ModalActions>
               <ActionButton onClick={() => setTeamModalOpen(false)}>取消</ActionButton>
               <ActionButton onClick={saveTeamMember} variant="primary">
                 保存成员
               </ActionButton>
-            </div>
+            </ModalActions>
           </div>
         </Modal>
       ) : null}
@@ -2655,24 +2674,24 @@ export function WorkspaceDashboard({
       {passwordModalOpen ? (
         <Modal title="重置密码" onClose={() => setPasswordModalOpen(false)}>
           <div className="space-y-4">
-            <p className="text-sm leading-7 text-[#6b7280]">
+            <p className="text-sm leading-7 text-slate-500">
               正在为 {passwordTargetMember?.name ?? "该成员"} 设置新密码。
             </p>
-            <label className="block text-sm text-[#6b7280]">
+            <label className="block text-sm text-slate-500">
               新密码
               <input
-                className="mt-2 w-full rounded-xl border border-[#d1d9e6] px-4 py-3 text-sm text-[#111827]"
+                className={fieldClassName}
                 type="password"
                 value={passwordDraft}
                 onChange={(event) => setPasswordDraft(event.target.value)}
               />
             </label>
-            <div className="flex justify-end gap-3">
+            <ModalActions>
               <ActionButton onClick={() => setPasswordModalOpen(false)}>取消</ActionButton>
               <ActionButton onClick={resetMemberPassword} variant="primary">
                 确认重置
               </ActionButton>
-            </div>
+            </ModalActions>
           </div>
         </Modal>
       ) : null}
