@@ -18,3 +18,6 @@ const toAsciiFallbackName = (fileName: string) => {
 
 export const buildAttachmentDisposition = (fileName: string) =>
   `attachment; filename="${toAsciiFallbackName(fileName)}"; filename*=UTF-8''${encodeURIComponent(fileName)}`;
+
+export const buildInlineDisposition = (fileName: string) =>
+  `inline; filename="${toAsciiFallbackName(fileName)}"; filename*=UTF-8''${encodeURIComponent(fileName)}`;

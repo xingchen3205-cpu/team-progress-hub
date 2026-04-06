@@ -9,6 +9,7 @@ import {
   isPrivilegedReviewer,
 } from "@/lib/document-workflow";
 import { createNotifications, getUserIdsByRoles } from "@/lib/notifications";
+import { assertMainWorkspaceRole } from "@/lib/permissions";
 import { deleteStoredFile, saveUploadedFile } from "@/lib/uploads";
 
 export const runtime = "nodejs";
@@ -26,6 +27,12 @@ export async function POST(
   const user = await getSessionUser(request);
   if (!user) {
     return NextResponse.json({ message: "未登录" }, { status: 401 });
+  }
+
+  try {
+    assertMainWorkspaceRole(user.role);
+  } catch {
+    return NextResponse.json({ message: "无权限" }, { status: 403 });
   }
 
   const { id } = await params;
@@ -121,6 +128,12 @@ export async function DELETE(
   const user = await getSessionUser(request);
   if (!user) {
     return NextResponse.json({ message: "未登录" }, { status: 401 });
+  }
+
+  try {
+    assertMainWorkspaceRole(user.role);
+  } catch {
+    return NextResponse.json({ message: "无权限" }, { status: 403 });
   }
 
   const { id } = await params;

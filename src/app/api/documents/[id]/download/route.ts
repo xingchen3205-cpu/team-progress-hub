@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { getSessionUser } from "@/lib/auth";
-import { buildAttachmentDisposition } from "@/lib/downloads";
+import { buildAttachmentDisposition, buildInlineDisposition } from "@/lib/downloads";
+import { assertMainWorkspaceRole } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { readStoredFile } from "@/lib/uploads";
 
@@ -16,8 +17,15 @@ export async function GET(
     return NextResponse.json({ message: "未登录" }, { status: 401 });
   }
 
+  try {
+    assertMainWorkspaceRole(user.role);
+  } catch {
+    return NextResponse.json({ message: "无权限" }, { status: 403 });
+  }
+
   const { id } = await params;
   const versionId = request.nextUrl.searchParams.get("versionId");
+  const inline = request.nextUrl.searchParams.get("inline") === "1";
 
   const document = await prisma.document.findUnique({
     where: { id },
@@ -47,7 +55,9 @@ export async function GET(
     return new NextResponse(fileData.buffer, {
       headers: {
         "Content-Type": fileData.contentType || version.mimeType || "application/octet-stream",
-        "Content-Disposition": buildAttachmentDisposition(version.fileName),
+        "Content-Disposition": inline
+          ? buildInlineDisposition(version.fileName)
+          : buildAttachmentDisposition(version.fileName),
         "Content-Length": String(version.fileSize),
       },
     });

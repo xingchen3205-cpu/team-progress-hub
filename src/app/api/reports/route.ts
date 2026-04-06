@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { getSessionUser } from "@/lib/auth";
 import { toIsoDateKey } from "@/lib/date";
+import { assertMainWorkspaceRole } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { serializeReport } from "@/lib/api-serializers";
 import { createNotifications, getUserIdsByRoles } from "@/lib/notifications";
@@ -10,6 +11,12 @@ export async function GET(request: NextRequest) {
   const user = await getSessionUser(request);
   if (!user) {
     return NextResponse.json({ message: "未登录" }, { status: 401 });
+  }
+
+  try {
+    assertMainWorkspaceRole(user.role);
+  } catch {
+    return NextResponse.json({ message: "无权限" }, { status: 403 });
   }
 
   const reports = await prisma.report.findMany({
@@ -36,6 +43,12 @@ export async function POST(request: NextRequest) {
   const user = await getSessionUser(request);
   if (!user) {
     return NextResponse.json({ message: "未登录" }, { status: 401 });
+  }
+
+  try {
+    assertMainWorkspaceRole(user.role);
+  } catch {
+    return NextResponse.json({ message: "无权限" }, { status: 403 });
   }
 
   if (user.role !== "leader" && user.role !== "member") {
@@ -128,6 +141,12 @@ export async function DELETE(request: NextRequest) {
   const user = await getSessionUser(request);
   if (!user) {
     return NextResponse.json({ message: "未登录" }, { status: 401 });
+  }
+
+  try {
+    assertMainWorkspaceRole(user.role);
+  } catch {
+    return NextResponse.json({ message: "无权限" }, { status: 403 });
   }
 
   if (user.role !== "leader" && user.role !== "member") {

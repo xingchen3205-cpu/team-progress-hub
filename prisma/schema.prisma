@@ -12,6 +12,24 @@ enum Role {
   teacher
   leader
   member
+  expert
+}
+
+enum UserApprovalStatus {
+  pending
+  approved
+}
+
+enum ExpertReviewAssignmentStatus {
+  pending
+  completed
+  locked
+}
+
+enum ExpertReviewMaterialKind {
+  plan
+  ppt
+  video
 }
 
 enum TaskStatus {
@@ -42,22 +60,30 @@ enum DocumentCategory {
 }
 
 model User {
-  id             String            @id @default(cuid())
-  name           String
-  username       String            @unique
-  email          String?           @unique
-  password       String
-  role           Role
-  avatar         String
-  responsibility String?
-  createdAt      DateTime          @default(now())
-  tasksAssigned  Task[]            @relation("TaskAssignee")
-  tasksCreated   Task[]            @relation("TaskCreator")
-  reports        Report[]
-  announcements  Announcement[]
-  documents      Document[]        @relation("DocumentOwner")
-  documentEdits  DocumentVersion[] @relation("DocumentVersionUploader")
-  notifications  Notification[]
+  id                   String                   @id @default(cuid())
+  name                 String
+  username             String                   @unique
+  email                String?                  @unique
+  password             String
+  role                 Role
+  approvalStatus       UserApprovalStatus       @default(approved)
+  approvedAt           DateTime?
+  approvedById         String?
+  avatar               String
+  responsibility       String?
+  createdAt            DateTime                 @default(now())
+  approvedBy           User?                    @relation("UserApprovals", fields: [approvedById], references: [id])
+  approvedUsers        User[]                   @relation("UserApprovals")
+  tasksAssigned        Task[]                   @relation("TaskAssignee")
+  tasksCreated         Task[]                   @relation("TaskCreator")
+  reports              Report[]
+  announcements        Announcement[]
+  documents            Document[]               @relation("DocumentOwner")
+  documentEdits        DocumentVersion[]        @relation("DocumentVersionUploader")
+  notifications        Notification[]
+  expertReviewPackages ExpertReviewPackage[]    @relation("ExpertReviewPackageCreator")
+  expertAssignments    ExpertReviewAssignment[] @relation("ExpertAssignmentUser")
+  expertScores         ExpertReviewScore[]      @relation("ExpertScoreReviewer")
 }
 
 model Task {
@@ -105,7 +131,7 @@ model Event {
 }
 
 model ExpertFeedback {
-  id              String            @id @default(cuid())
+  id              String             @id @default(cuid())
   date            String
   expert          String
   topic           String
@@ -113,7 +139,7 @@ model ExpertFeedback {
   summary         String
   nextAction      String
   attachments     String
-  createdAt       DateTime          @default(now())
+  createdAt       DateTime           @default(now())
   attachmentFiles ExpertAttachment[]
 }
 
@@ -157,17 +183,79 @@ model DocumentVersion {
 }
 
 model Notification {
-  id        String   @id @default(cuid())
-  userId    String
+  id         String   @id @default(cuid())
+  userId     String
   documentId String?
-  title     String
-  detail    String
-  type      String
-  targetTab String?
-  relatedId String?
-  isRead    Boolean  @default(false)
-  createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id])
+  title      String
+  detail     String
+  type       String
+  targetTab  String?
+  relatedId  String?
+  isRead     Boolean  @default(false)
+  createdAt  DateTime @default(now())
+  user       User     @relation(fields: [userId], references: [id])
 
   @@index([userId, isRead, createdAt])
+}
+
+model ExpertReviewPackage {
+  id          String                   @id @default(cuid())
+  targetName  String
+  roundLabel  String?
+  overview    String?
+  deadline    DateTime?
+  createdById String
+  createdAt   DateTime                 @default(now())
+  creator     User                     @relation("ExpertReviewPackageCreator", fields: [createdById], references: [id])
+  materials   ExpertReviewMaterial[]
+  assignments ExpertReviewAssignment[]
+
+  @@index([createdAt])
+}
+
+model ExpertReviewAssignment {
+  id            String                       @id @default(cuid())
+  packageId     String
+  expertUserId  String
+  status        ExpertReviewAssignmentStatus @default(pending)
+  createdAt     DateTime                     @default(now())
+  reviewPackage ExpertReviewPackage          @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  expertUser    User                         @relation("ExpertAssignmentUser", fields: [expertUserId], references: [id])
+  score         ExpertReviewScore?
+
+  @@unique([packageId, expertUserId])
+  @@index([expertUserId, status, createdAt])
+}
+
+model ExpertReviewMaterial {
+  id            String                   @id @default(cuid())
+  packageId     String
+  kind          ExpertReviewMaterialKind
+  name          String
+  fileName      String
+  filePath      String
+  fileSize      Int
+  mimeType      String
+  uploadedAt    DateTime                 @default(now())
+  reviewPackage ExpertReviewPackage      @relation(fields: [packageId], references: [id], onDelete: Cascade)
+
+  @@unique([packageId, kind])
+  @@index([packageId, kind])
+}
+
+model ExpertReviewScore {
+  id                  String                 @id @default(cuid())
+  assignmentId        String                 @unique
+  reviewerId          String
+  scorePersonalGrowth Int
+  scoreInnovation     Int
+  scoreIndustry       Int
+  scoreTeamwork       Int
+  totalScore          Int
+  commentTotal        String
+  submittedAt         DateTime               @default(now())
+  updatedAt           DateTime               @updatedAt
+  lockedAt            DateTime?
+  assignment          ExpertReviewAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  reviewer            User                   @relation("ExpertScoreReviewer", fields: [reviewerId], references: [id])
 }

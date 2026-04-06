@@ -3,16 +3,63 @@ import bcrypt from "bcryptjs";
 import { NextRequest, NextResponse } from "next/server";
 
 import { getSessionUser } from "@/lib/auth";
-import { canManageUser } from "@/lib/permissions";
+import {
+  assertMainWorkspaceRole,
+  canApproveRegistration,
+  canManageUser,
+  canViewTeamMember,
+  getRegistrationApproverRoles,
+  roleLabels,
+} from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { serializeUser } from "@/lib/api-serializers";
 
 const defaultPassword = "123456";
 
+const buildTeamMemberPayload = (
+  member: {
+    id: string;
+    name: string;
+    username: string;
+    email: string | null;
+    role: "admin" | "teacher" | "leader" | "member" | "expert";
+    avatar: string;
+    responsibility: string | null;
+    approvalStatus: "pending" | "approved";
+    approvedAt: Date | null;
+  },
+  tasks: Array<{ assigneeId: string; status: "todo" | "doing" | "done" }>,
+  latestReportByUser: Map<string, { summary: string; nextPlan: string }>,
+) => {
+  const userTasks = tasks.filter((task) => task.assigneeId === member.id);
+  const doneCount = userTasks.filter((task) => task.status === "done").length;
+  const progress = userTasks.length ? `${Math.round((doneCount / userTasks.length) * 100)}%` : "0%";
+  const latestReport = latestReportByUser.get(member.id);
+  const approverRoles = getRegistrationApproverRoles(member.role);
+
+  return {
+    ...serializeUser(member),
+    account: member.email || member.username,
+    systemRole: serializeUser(member).roleLabel,
+    progress,
+    canBeManagedByLeader: member.role === "member",
+    todayFocus: latestReport?.nextPlan || "待补充",
+    completed: latestReport?.summary || "待补充",
+    blockers: "暂无",
+    pendingApproverLabel: approverRoles ? approverRoles.map((item) => roleLabels[item]).join(" / ") : null,
+  };
+};
+
 export async function GET(request: NextRequest) {
   const user = await getSessionUser(request);
   if (!user) {
     return NextResponse.json({ message: "未登录" }, { status: 401 });
+  }
+
+  try {
+    assertMainWorkspaceRole(user.role);
+  } catch {
+    return NextResponse.json({ message: "无权限" }, { status: 403 });
   }
 
   const members = await prisma.user.findMany({
@@ -25,6 +72,8 @@ export async function GET(request: NextRequest) {
       role: true,
       avatar: true,
       responsibility: true,
+      approvalStatus: true,
+      approvedAt: true,
       createdAt: true,
     },
   });
@@ -48,26 +97,24 @@ export async function GET(request: NextRequest) {
     }
   }
 
-  return NextResponse.json({
-    members: members.map((member) => {
-      const userTasks = tasks.filter((task) => task.assigneeId === member.id);
-      const doneCount = userTasks.filter((task) => task.status === "done").length;
-      const progress = userTasks.length
-        ? `${Math.round((doneCount / userTasks.length) * 100)}%`
-        : "0%";
-      const latestReport = latestReportByUser.get(member.id);
+  const approvedMembers = members
+    .filter(
+      (member) =>
+        member.approvalStatus === "approved" &&
+        canViewTeamMember(user.role, user.id, member.role, member.id),
+    )
+    .map((member) => buildTeamMemberPayload(member, tasks, latestReportByUser));
 
-      return {
-        ...serializeUser(member),
-        account: member.email || member.username,
-        systemRole: serializeUser(member).roleLabel,
-        progress,
-        canBeManagedByLeader: member.role === "member",
-        todayFocus: latestReport?.nextPlan || "待补充",
-        completed: latestReport?.summary || "待补充",
-        blockers: "暂无",
-      };
-    }),
+  const pendingMembers = members
+    .filter(
+      (member) =>
+        member.approvalStatus === "pending" && canApproveRegistration(user.role, member.role),
+    )
+    .map((member) => buildTeamMemberPayload(member, tasks, latestReportByUser));
+
+  return NextResponse.json({
+    members: approvedMembers,
+    pendingMembers,
   });
 }
 
@@ -77,7 +124,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: "未登录" }, { status: 401 });
   }
 
-  if (user.role === "member") {
+  if (user.role === "member" || user.role === "expert") {
     return NextResponse.json({ message: "无权限" }, { status: 403 });
   }
 
@@ -86,7 +133,7 @@ export async function POST(request: NextRequest) {
         name?: string;
         username?: string;
         email?: string;
-        role?: "系统管理员" | "指导教师" | "项目负责人" | "团队成员";
+        role?: "系统管理员" | "指导教师" | "项目负责人" | "团队成员" | "评审专家";
         responsibility?: string;
         password?: string;
       }
@@ -97,6 +144,7 @@ export async function POST(request: NextRequest) {
     指导教师: "teacher",
     项目负责人: "leader",
     团队成员: "member",
+    评审专家: "expert",
   } as const;
 
   const name = body?.name?.trim();
@@ -108,8 +156,23 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: "成员信息不完整" }, { status: 400 });
   }
 
+  if (body?.role === "系统管理员") {
+    return NextResponse.json({ message: "系统管理员账号为唯一保留账号，不支持新增" }, { status: 403 });
+  }
+
   if (!canManageUser(user.role, role, role)) {
     return NextResponse.json({ message: "无权限创建该角色账号" }, { status: 403 });
+  }
+
+  const existingAccount = await prisma.user.findFirst({
+    where: {
+      OR: [{ username }, { email: username }, ...(email ? [{ email }, { username: email }] : [])],
+    },
+    select: { id: true },
+  });
+
+  if (existingAccount) {
+    return NextResponse.json({ message: "用户名或邮箱已存在，请更换后再试" }, { status: 409 });
   }
 
   const passwordHash = await bcrypt.hash(body?.password?.trim() || defaultPassword, 10);
@@ -122,6 +185,9 @@ export async function POST(request: NextRequest) {
         email,
         role,
         password: passwordHash,
+        approvalStatus: "approved",
+        approvedAt: new Date(),
+        approvedById: user.id,
         avatar: name.slice(0, 1),
         responsibility: body?.responsibility?.trim() || "待分配职责",
       },
@@ -133,6 +199,8 @@ export async function POST(request: NextRequest) {
         role: true,
         avatar: true,
         responsibility: true,
+        approvalStatus: true,
+        approvedAt: true,
         createdAt: true,
       },
     });

@@ -1,6 +1,8 @@
-export type RoleKey = "admin" | "teacher" | "leader" | "member";
+export type RoleKey = "admin" | "teacher" | "leader" | "member" | "expert";
 
-export type TeamRoleLabel = "系统管理员" | "指导教师" | "项目负责人" | "团队成员";
+export type ApprovalStatusKey = "pending" | "approved";
+
+export type TeamRoleLabel = "系统管理员" | "指导教师" | "项目负责人" | "团队成员" | "评审专家";
 
 export type TeamMember = {
   id: string;
@@ -12,6 +14,9 @@ export type TeamMember = {
   role: string;
   responsibility: string;
   progress: string;
+  approvalStatus?: ApprovalStatusKey;
+  approvalStatusLabel?: "待审核" | "已通过";
+  pendingApproverLabel?: string | null;
   canBeManagedByLeader: boolean;
   todayFocus: string;
   completed: string;
@@ -115,11 +120,68 @@ export type ExpertItem = {
   }>;
 };
 
+export type ExpertReviewAssignmentItem = {
+  id: string;
+  packageId: string;
+  targetName: string;
+  roundLabel: string;
+  overview: string;
+  deadline: string | null;
+  status: "待评审" | "已提交" | "已锁定";
+  statusKey: "pending" | "completed" | "locked";
+  canEdit: boolean;
+  expert: {
+    id: string;
+    name: string;
+    avatar: string;
+    roleLabel: TeamRoleLabel;
+  };
+  materials: {
+    plan: {
+      id: string;
+      name: string;
+      fileName: string;
+      fileSize: number;
+      mimeType: string;
+      previewUrl: string;
+    } | null;
+    ppt: {
+      id: string;
+      name: string;
+      fileName: string;
+      fileSize: number;
+      mimeType: string;
+      previewUrl: string;
+    } | null;
+    video: {
+      id: string;
+      name: string;
+      fileName: string;
+      fileSize: number;
+      mimeType: string;
+      previewUrl: string;
+    } | null;
+  };
+  score: {
+    id: string;
+    scorePersonalGrowth: number;
+    scoreInnovation: number;
+    scoreIndustry: number;
+    scoreTeamwork: number;
+    totalScore: number;
+    commentTotal: string;
+    submittedAt: string;
+    updatedAt: string;
+    lockedAt: string | null;
+  } | null;
+};
+
 export const roleLabels: Record<RoleKey, TeamRoleLabel> = {
   admin: "系统管理员",
   teacher: "指导教师",
   leader: "项目负责人",
   member: "团队成员",
+  expert: "评审专家",
 };
 
 export const dashboardHighlights = [

@@ -11,6 +11,7 @@ import {
   ChevronDown,
   ChevronUp,
   Download,
+  Eye,
   FileCheck,
   FolderOpen,
   GripVertical,
@@ -24,6 +25,7 @@ import {
   Timer,
   Trash2,
   Upload,
+  User,
   Users,
   X,
 } from "lucide-react";
@@ -34,6 +36,7 @@ import type {
   DocumentItem,
   EventItem,
   ExpertItem,
+  ExpertReviewAssignmentItem,
   NotificationItem,
   ReportEntry,
   RoleKey,
@@ -45,11 +48,19 @@ import {
   documentCategories,
   roleLabels,
 } from "@/data/demo-data";
+import { PdfPreview } from "@/components/pdf-preview";
 import { toIsoDateKey } from "@/lib/date";
 import {
   documentAcceptAttribute,
   validateUploadMeta,
 } from "@/lib/file-policy";
+import {
+  expertReviewAcceptAttributes,
+  expertReviewCategoryCaps,
+  expertReviewFieldHints,
+  expertReviewFieldLabels,
+  expertReviewMaterialLabels,
+} from "@/lib/expert-review";
 
 type BoardStatus = (typeof boardColumns)[number]["id"];
 
@@ -59,8 +70,10 @@ type TabKey =
   | "board"
   | "reports"
   | "experts"
+  | "review"
   | "documents"
-  | "team";
+  | "team"
+  | "profile";
 
 type TabItem = {
   key: TabKey;
@@ -106,10 +119,40 @@ type TeamDraft = {
   responsibility: string;
 };
 
+type ProfileDraft = {
+  name: string;
+  username: string;
+  email: string;
+  responsibility: string;
+  password: string;
+};
+
 type ReportDraft = {
   summary: string;
   nextPlan: string;
   attachment: string;
+};
+
+type ExpertReviewAssignmentDraft = {
+  expertUserId: string;
+  targetName: string;
+  roundLabel: string;
+  overview: string;
+  deadline: string;
+};
+
+type ExpertReviewMaterialDraft = {
+  kind: "plan" | "ppt" | "video";
+  name: string;
+  file: File | null;
+};
+
+type ExpertReviewScoreDraft = {
+  scorePersonalGrowth: string;
+  scoreInnovation: string;
+  scoreIndustry: string;
+  scoreTeamwork: string;
+  commentTotal: string;
 };
 
 type DocumentDraft = {
@@ -128,6 +171,8 @@ type CurrentUser = {
   avatar: string;
   responsibility: string;
   roleLabel: TeamRoleLabel;
+  approvalStatus?: "pending" | "approved";
+  approvalStatusLabel?: "待审核" | "已通过";
   profile: {
     name: string;
     avatar: string;
@@ -138,6 +183,15 @@ type CurrentUser = {
 type ReportEntryWithDate = ReportEntry & {
   date: string;
 };
+
+type PreviewAsset = {
+  title: string;
+  url: string;
+  mimeType?: string | null;
+  fileName?: string | null;
+};
+
+const imagePreviewExtensions = [".png", ".jpg", ".jpeg", ".gif", ".webp"] as const;
 
 const allTabs: TabItem[] = [
   {
@@ -171,6 +225,12 @@ const allTabs: TabItem[] = [
     icon: MessageSquareText,
   },
   {
+    key: "review",
+    label: "专家评审",
+    description: "按职教赛道创业组量表查看评审任务、打分和专家汇总。",
+    icon: FileCheck,
+  },
+  {
     key: "documents",
     label: "文档中心",
     description: "分类管理计划书、PPT、答辩材料和证明附件。",
@@ -181,6 +241,12 @@ const allTabs: TabItem[] = [
     label: "团队管理",
     description: "查看成员分工、账号信息和角色配置。",
     icon: Users,
+  },
+  {
+    key: "profile",
+    label: "个人信息",
+    description: "查看并维护当前登录账号的个人资料。",
+    icon: User,
   },
 ];
 
@@ -294,7 +360,7 @@ const textareaClassName = `${fieldClassName} min-h-28`;
 
 const rolePermissions = {
   admin: {
-    visibleTabs: ["overview", "timeline", "board", "reports", "experts", "documents", "team"] as TabKey[],
+    visibleTabs: ["overview", "timeline", "board", "reports", "experts", "review", "documents", "team", "profile"] as TabKey[],
     canPublishAnnouncement: true,
     canCreateTask: true,
     canEditTask: true,
@@ -313,7 +379,7 @@ const rolePermissions = {
     canResetPassword: true,
   },
   teacher: {
-    visibleTabs: ["overview", "timeline", "board", "reports", "experts", "documents", "team"] as TabKey[],
+    visibleTabs: ["overview", "timeline", "board", "reports", "experts", "review", "documents", "team", "profile"] as TabKey[],
     canPublishAnnouncement: true,
     canCreateTask: true,
     canEditTask: true,
@@ -332,7 +398,7 @@ const rolePermissions = {
     canResetPassword: true,
   },
   leader: {
-    visibleTabs: ["overview", "timeline", "board", "reports", "experts", "documents", "team"] as TabKey[],
+    visibleTabs: ["overview", "timeline", "board", "reports", "experts", "review", "documents", "team", "profile"] as TabKey[],
     canPublishAnnouncement: true,
     canCreateTask: true,
     canEditTask: true,
@@ -351,7 +417,7 @@ const rolePermissions = {
     canResetPassword: false,
   },
   member: {
-    visibleTabs: ["overview", "timeline", "board", "reports", "experts", "documents"] as TabKey[],
+    visibleTabs: ["overview", "timeline", "board", "reports", "experts", "documents", "profile"] as TabKey[],
     canPublishAnnouncement: false,
     canCreateTask: false,
     canEditTask: false,
@@ -369,6 +435,25 @@ const rolePermissions = {
     canEditTimeline: false,
     canResetPassword: false,
   },
+  expert: {
+    visibleTabs: ["review", "profile"] as TabKey[],
+    canPublishAnnouncement: false,
+    canCreateTask: false,
+    canEditTask: false,
+    canDeleteTask: false,
+    canMoveAnyTask: false,
+    canSubmitReport: false,
+    canViewAllReports: false,
+    canUploadExpert: false,
+    canUploadDocument: false,
+    canLeaderReviewDocument: false,
+    canTeacherReviewDocument: false,
+    canDeleteAnyDocument: false,
+    canManageTeam: false,
+    canManageTeacherAccount: false,
+    canEditTimeline: false,
+    canResetPassword: false,
+  },
 } as const;
 
 const teamRoleRank: Record<TeamRoleLabel, number> = {
@@ -376,6 +461,7 @@ const teamRoleRank: Record<TeamRoleLabel, number> = {
   指导教师: 3,
   项目负责人: 2,
   团队成员: 1,
+  评审专家: 0,
 };
 
 const formatDateTime = (value: string) => {
@@ -391,6 +477,50 @@ const formatDateTime = (value: string) => {
 const formatShortDate = (value: string) => {
   const [year, month, day] = value.split("-");
   return `${year}/${month}/${day}`;
+};
+
+const formatFriendlyDate = (value: Date) =>
+  new Intl.DateTimeFormat("zh-CN", {
+    month: "long",
+    day: "numeric",
+    weekday: "long",
+  }).format(value);
+
+const getGreetingCopy = (name: string, date: Date) => {
+  const hour = date.getHours();
+
+  if (hour >= 5 && hour < 11) {
+    return {
+      title: `${name}，早上好`,
+      description: "新的一天开始了，先看关键节点和今日重点，我们稳稳推进。",
+    };
+  }
+
+  if (hour >= 11 && hour < 14) {
+    return {
+      title: `${name}，中午好`,
+      description: "午间也别太赶，先把优先级最高的事项再确认一遍。",
+    };
+  }
+
+  if (hour >= 14 && hour < 18) {
+    return {
+      title: `${name}，下午好`,
+      description: "下午适合把任务和材料同步顺一遍，节奏继续往前推。",
+    };
+  }
+
+  if (hour >= 18 && hour < 23) {
+    return {
+      title: `${name}，晚上好，辛苦了`,
+      description: "今天的成果已经很扎实了，再把关键收尾工作补齐就很好。",
+    };
+  }
+
+  return {
+    title: `${name}，夜深了`,
+    description: "如果还在处理材料，记得适当收尾休息，我们明天继续推进。",
+  };
 };
 
 const getCountdown = (target: string) => {
@@ -448,11 +578,45 @@ const defaultTeamDraft: TeamDraft = {
   responsibility: "",
 };
 
+const defaultProfileDraft = (user?: CurrentUser | null): ProfileDraft => ({
+  name: user?.name ?? "",
+  username: user?.username ?? "",
+  email: user?.email ?? "",
+  responsibility: user?.responsibility ?? "",
+  password: "",
+});
+
 const defaultReportDraft: ReportDraft = {
   summary: "",
   nextPlan: "",
   attachment: "",
 };
+
+const defaultExpertReviewAssignmentDraft = (
+  expertUserId = "",
+): ExpertReviewAssignmentDraft => ({
+  expertUserId,
+  targetName: "",
+  roundLabel: "校内专家预审",
+  overview: "",
+  deadline: "2026-04-10T18:00",
+});
+
+const defaultExpertReviewMaterialDraft = (): ExpertReviewMaterialDraft => ({
+  kind: "plan",
+  name: "",
+  file: null,
+});
+
+const createExpertReviewScoreDraft = (
+  assignment?: ExpertReviewAssignmentItem | null,
+): ExpertReviewScoreDraft => ({
+  scorePersonalGrowth: assignment?.score?.scorePersonalGrowth?.toString() ?? "",
+  scoreInnovation: assignment?.score?.scoreInnovation?.toString() ?? "",
+  scoreIndustry: assignment?.score?.scoreIndustry?.toString() ?? "",
+  scoreTeamwork: assignment?.score?.scoreTeamwork?.toString() ?? "",
+  commentTotal: assignment?.score?.commentTotal ?? "",
+});
 
 const defaultDocumentDraft: DocumentDraft = {
   name: "",
@@ -462,6 +626,77 @@ const defaultDocumentDraft: DocumentDraft = {
 };
 
 const getDefaultDateKey = () => toIsoDateKey(new Date());
+
+const getAssetExtension = (value?: string | null) => {
+  if (!value) {
+    return "";
+  }
+
+  const normalized = value.split("?")[0].toLowerCase();
+  const dotIndex = normalized.lastIndexOf(".");
+  return dotIndex >= 0 ? normalized.slice(dotIndex) : "";
+};
+
+const isPdfAsset = (asset: PreviewAsset) =>
+  asset.mimeType === "application/pdf" ||
+  getAssetExtension(asset.fileName) === ".pdf" ||
+  getAssetExtension(asset.url) === ".pdf";
+
+const isImageAsset = (asset: PreviewAsset) =>
+  asset.mimeType?.startsWith("image/") ||
+  imagePreviewExtensions.includes(getAssetExtension(asset.fileName) as (typeof imagePreviewExtensions)[number]) ||
+  imagePreviewExtensions.includes(getAssetExtension(asset.url) as (typeof imagePreviewExtensions)[number]);
+
+const hasPdfSignature = async (file: File) => {
+  const header = new Uint8Array(await file.slice(0, 5).arrayBuffer());
+  return (
+    header.length >= 5 &&
+    header[0] === 0x25 &&
+    header[1] === 0x50 &&
+    header[2] === 0x44 &&
+    header[3] === 0x46 &&
+    header[4] === 0x2d
+  );
+};
+
+const uploadFileDirectly = ({
+  url,
+  file,
+  contentType,
+  onProgress,
+}: {
+  url: string;
+  file: File;
+  contentType: string;
+  onProgress: (percent: number) => void;
+}) =>
+  new Promise<void>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("PUT", url, true);
+    xhr.timeout = 5 * 60 * 1000;
+    xhr.setRequestHeader("Content-Type", contentType);
+
+    xhr.upload.onprogress = (event) => {
+      if (!event.lengthComputable || event.total <= 0) {
+        return;
+      }
+      onProgress(Math.min(100, Math.round((event.loaded / event.total) * 100)));
+    };
+
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        onProgress(100);
+        resolve();
+        return;
+      }
+      reject(new Error("文件直传失败，请稍后重试"));
+    };
+
+    xhr.onerror = () => reject(new Error("文件直传失败，请检查网络后重试"));
+    xhr.ontimeout = () => reject(new Error("文件上传超时，请稍后重试"));
+
+    xhr.send(file);
+  });
 
 async function requestJson<T>(input: string, init?: RequestInit) {
   const response = await fetch(input, {
@@ -500,21 +735,30 @@ function Modal({
   title,
   children,
   onClose,
+  size = "default",
+  panelClassName,
+  bodyClassName,
 }: {
   title: string;
   children: React.ReactNode;
   onClose: () => void;
+  size?: "default" | "preview";
+  panelClassName?: string;
+  bodyClassName?: string;
 }) {
+  const sizeClassName =
+    size === "preview" ? "max-w-[min(96vw,1600px)] md:max-h-[92vh]" : "max-w-lg";
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
-      <div className="w-full max-w-lg rounded-xl bg-white shadow-xl">
+      <div className={`w-full rounded-xl bg-white shadow-xl ${sizeClassName} ${panelClassName ?? ""}`.trim()}>
         <div className="flex items-center justify-between border-b border-slate-200 px-6 pb-4 pt-6">
           <h3 className="text-lg font-semibold text-slate-900">{title}</h3>
           <button className="text-sm text-slate-500" onClick={onClose} type="button">
             关闭
           </button>
         </div>
-        <div className="px-6 py-5">{children}</div>
+        <div className={`px-6 py-5 ${bodyClassName ?? ""}`.trim()}>{children}</div>
       </div>
     </div>
   );
@@ -643,6 +887,7 @@ export function WorkspaceDashboard({
 }) {
   const router = useRouter();
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
+  const [currentDateTime, setCurrentDateTime] = useState(() => new Date());
   const [isBooting, setIsBooting] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
@@ -650,9 +895,11 @@ export function WorkspaceDashboard({
   const [events, setEvents] = useState<EventItem[]>([]);
   const [tasks, setTasks] = useState<BoardTask[]>([]);
   const [experts, setExperts] = useState<ExpertItem[]>([]);
+  const [reviewAssignments, setReviewAssignments] = useState<ExpertReviewAssignmentItem[]>([]);
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [members, setMembers] = useState<TeamMember[]>([]);
+  const [pendingTeamMembers, setPendingTeamMembers] = useState<TeamMember[]>([]);
   const [reportEntriesByDay, setReportEntriesByDay] = useState<Record<string, ReportEntryWithDate[]>>({});
   const [reportDates, setReportDates] = useState<string[]>([getDefaultDateKey()]);
   const [selectedDate, setSelectedDate] = useState(getDefaultDateKey());
@@ -664,6 +911,7 @@ export function WorkspaceDashboard({
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [previewAsset, setPreviewAsset] = useState<PreviewAsset | null>(null);
 
   const [taskModalOpen, setTaskModalOpen] = useState(false);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
@@ -679,9 +927,26 @@ export function WorkspaceDashboard({
   const [expertModalOpen, setExpertModalOpen] = useState(false);
   const [expertDraft, setExpertDraft] = useState<ExpertDraft>(defaultExpertDraft);
   const [expertFiles, setExpertFiles] = useState<File[]>([]);
+  const [reviewAssignmentModalOpen, setReviewAssignmentModalOpen] = useState(false);
+  const [reviewAssignmentDraft, setReviewAssignmentDraft] = useState<ExpertReviewAssignmentDraft>(
+    defaultExpertReviewAssignmentDraft(),
+  );
+  const [reviewMaterialModalOpen, setReviewMaterialModalOpen] = useState(false);
+  const [reviewMaterialTargetId, setReviewMaterialTargetId] = useState<string | null>(null);
+  const [reviewMaterialDraft, setReviewMaterialDraft] = useState<ExpertReviewMaterialDraft>(
+    defaultExpertReviewMaterialDraft(),
+  );
+  const [reviewMaterialSavingLabel, setReviewMaterialSavingLabel] = useState("上传中...");
+  const [reviewMaterialUploadProgress, setReviewMaterialUploadProgress] = useState<number | null>(null);
+  const [reviewScoreDrafts, setReviewScoreDrafts] = useState<
+    Record<string, ExpertReviewScoreDraft>
+  >({});
+  const [activeReviewAssignmentId, setActiveReviewAssignmentId] = useState<string | null>(null);
 
   const [teamModalOpen, setTeamModalOpen] = useState(false);
   const [teamDraft, setTeamDraft] = useState<TeamDraft>(defaultTeamDraft);
+  const [profileDraft, setProfileDraft] = useState<ProfileDraft>(defaultProfileDraft());
+  const [profileMessage, setProfileMessage] = useState<string | null>(null);
   const [passwordModalOpen, setPasswordModalOpen] = useState(false);
   const [passwordTargetMember, setPasswordTargetMember] = useState<TeamMember | null>(null);
   const [passwordDraft, setPasswordDraft] = useState("");
@@ -705,21 +970,86 @@ export function WorkspaceDashboard({
   const currentMemberId = currentUser?.id ?? "";
   const permissions = rolePermissions[currentRole];
   const visibleTabs = allTabs.filter((item) => permissions.visibleTabs.includes(item.key));
+  const sidebarTabs = visibleTabs.filter((item) => item.key !== "profile");
   const safeActiveTab =
     visibleTabs.length > 0 && permissions.visibleTabs.includes(activeTab) ? activeTab : visibleTabs[0]?.key ?? "overview";
   const activeTabItem = allTabs.find((item) => item.key === safeActiveTab) ?? allTabs[0];
   const nearestUpcomingIndex = events.length > 0 ? getNearestUpcomingIndex(events) : 0;
   const nearestEvent = events[nearestUpcomingIndex];
+  const greetingCopy = getGreetingCopy(currentUser?.profile.name ?? "你好", currentDateTime);
 
   useEffect(() => {
     let isMounted = true;
+
+    const applyReviewAssignments = (assignments: ExpertReviewAssignmentItem[]) => {
+      setReviewAssignments(assignments);
+      setReviewScoreDrafts(
+        Object.fromEntries(
+          assignments.map((assignment) => [assignment.id, createExpertReviewScoreDraft(assignment)]),
+        ),
+      );
+    };
 
     const loadWorkspaceData = async () => {
       setLoadError(null);
 
       try {
+        const mePayload = await requestJson<{ user: CurrentUser }>("/api/auth/me");
+
+        if (!isMounted) {
+          return;
+        }
+
+        setCurrentUser(mePayload.user);
+
+        if (mePayload.user.role === "expert") {
+          const reviewPayload = await requestJson<{
+            assignments: ExpertReviewAssignmentItem[];
+          }>("/api/expert-reviews/assignments");
+
+          if (!isMounted) {
+            return;
+          }
+
+          setAnnouncements([]);
+          setEvents([]);
+          setTasks([]);
+          setExperts([]);
+          setDocuments([]);
+          setNotifications([]);
+          setMembers([]);
+          setPendingTeamMembers([]);
+          setReportEntriesByDay({});
+          setReportDates([getDefaultDateKey()]);
+          setSelectedDate(getDefaultDateKey());
+          applyReviewAssignments(reviewPayload.assignments);
+          return;
+        }
+
+        const requests: Array<Promise<unknown>> = [
+          requestJson<{ announcements: Announcement[] }>("/api/announcements"),
+          requestJson<{ events: EventItem[] }>("/api/events"),
+          requestJson<{ tasks: BoardTask[] }>("/api/tasks"),
+          requestJson<{ dates: string[]; reports: ReportEntryWithDate[] }>("/api/reports"),
+          requestJson<{ experts: ExpertItem[] }>("/api/experts"),
+          requestJson<{ documents: DocumentItem[] }>("/api/documents"),
+          requestJson<{ notifications: NotificationItem[] }>("/api/notifications"),
+          requestJson<{ members: TeamMember[]; pendingMembers: TeamMember[] }>("/api/team"),
+        ];
+
+        if (
+          mePayload.user.role === "admin" ||
+          mePayload.user.role === "teacher" ||
+          mePayload.user.role === "leader"
+        ) {
+          requests.push(
+            requestJson<{ assignments: ExpertReviewAssignmentItem[] }>(
+              "/api/expert-reviews/assignments",
+            ),
+          );
+        }
+
         const [
-          mePayload,
           announcementsPayload,
           eventsPayload,
           tasksPayload,
@@ -728,22 +1058,18 @@ export function WorkspaceDashboard({
           documentsPayload,
           notificationsPayload,
           teamPayload,
-        ] =
-          await Promise.all([
-            requestJson<{ user: CurrentUser }>("/api/auth/me"),
-            requestJson<{ announcements: Announcement[] }>("/api/announcements"),
-            requestJson<{ events: EventItem[] }>("/api/events"),
-            requestJson<{ tasks: BoardTask[] }>("/api/tasks"),
-            requestJson<{ dates: string[]; reports: ReportEntryWithDate[] }>("/api/reports"),
-            requestJson<{ experts: ExpertItem[] }>("/api/experts"),
-            requestJson<{ documents: DocumentItem[] }>("/api/documents"),
-            requestJson<{ notifications: NotificationItem[] }>("/api/notifications"),
-            requestJson<{ members: TeamMember[] }>("/api/team"),
-          ]);
-
-        if (!isMounted) {
-          return;
-        }
+          reviewPayload,
+        ] = (await Promise.all(requests)) as [
+          { announcements: Announcement[] },
+          { events: EventItem[] },
+          { tasks: BoardTask[] },
+          { dates: string[]; reports: ReportEntryWithDate[] },
+          { experts: ExpertItem[] },
+          { documents: DocumentItem[] },
+          { notifications: NotificationItem[] },
+          { members: TeamMember[]; pendingMembers: TeamMember[] },
+          { assignments: ExpertReviewAssignmentItem[] } | undefined,
+        ];
 
         const groupedReports = reportsPayload.reports.reduce<Record<string, ReportEntryWithDate[]>>(
           (accumulator, item) => {
@@ -756,7 +1082,6 @@ export function WorkspaceDashboard({
 
         const nextDates = reportsPayload.dates.length > 0 ? reportsPayload.dates : [getDefaultDateKey()];
 
-        setCurrentUser(mePayload.user);
         setAnnouncements(announcementsPayload.announcements);
         setEvents(eventsPayload.events);
         setTasks(tasksPayload.tasks);
@@ -764,9 +1089,18 @@ export function WorkspaceDashboard({
         setDocuments(documentsPayload.documents);
         setNotifications(notificationsPayload.notifications);
         setMembers(teamPayload.members);
+        setPendingTeamMembers(teamPayload.pendingMembers);
         setReportEntriesByDay(groupedReports);
         setReportDates(nextDates);
         setSelectedDate((current) => (nextDates.includes(current) ? current : nextDates[0]));
+        applyReviewAssignments(reviewPayload?.assignments ?? []);
+        setReviewAssignmentDraft((current) =>
+          current.expertUserId
+            ? current
+            : defaultExpertReviewAssignmentDraft(
+                teamPayload.members.find((member) => member.systemRole === "评审专家")?.id ?? "",
+              ),
+        );
       } catch (error) {
         if (!isMounted) {
           return;
@@ -805,6 +1139,18 @@ export function WorkspaceDashboard({
 
     return () => window.clearInterval(timer);
   }, [events, nearestEvent]);
+
+  useEffect(() => {
+    const timer = window.setInterval(() => {
+      setCurrentDateTime(new Date());
+    }, 60 * 1000);
+
+    return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    setProfileDraft(defaultProfileDraft(currentUser));
+  }, [currentUser]);
 
   useEffect(() => {
     if (safeActiveTab !== "documents" || !targetDocumentId) {
@@ -846,23 +1192,25 @@ export function WorkspaceDashboard({
     reportEntries.map((item) => [item.memberId, item]),
   );
   const firstAssignableMemberId =
-    members.find((item) => !["指导教师", "系统管理员"].includes(item.systemRole))?.id ?? currentMemberId;
+    members.find((item) => !["指导教师", "系统管理员", "评审专家"].includes(item.systemRole))?.id ??
+    currentMemberId;
 
   const visibleReportMembers = permissions.canViewAllReports
-    ? members.filter((item) => !["指导教师", "系统管理员"].includes(item.systemRole))
+    ? members.filter((item) => !["指导教师", "系统管理员", "评审专家"].includes(item.systemRole))
     : members.filter((item) => item.id === currentMemberId);
 
   const filteredDocuments = selectedCategory
     ? documents.filter((item) => item.category === selectedCategory)
     : documents;
   const unreadNotificationCount = notifications.filter((item) => !item.isRead).length;
+  const expertMembers = members.filter((member) => member.systemRole === "评审专家");
 
   const getMemberName = (memberId: string) => membersMap[memberId]?.name ?? memberId;
 
   const dashboardHighlights = [
     {
       label: "团队成员",
-      value: `${members.length} 人`,
+      value: `${members.filter((item) => item.systemRole !== "评审专家").length} 人`,
       description: "覆盖教师、队长及核心团队成员。",
     },
     {
@@ -872,7 +1220,7 @@ export function WorkspaceDashboard({
     },
     {
       label: "本日汇报",
-      value: `${(reportEntriesByDay[reportDates[0]] ?? []).length} / ${members.filter((item) => !["指导教师", "系统管理员"].includes(item.systemRole)).length}`,
+      value: `${(reportEntriesByDay[reportDates[0]] ?? []).length} / ${members.filter((item) => !["指导教师", "系统管理员", "评审专家"].includes(item.systemRole)).length}`,
       description: "按当前日期统计已提交的成员汇报数。",
     },
     {
@@ -895,7 +1243,11 @@ export function WorkspaceDashboard({
       return true;
     }
     if (currentRole === "teacher") {
-      return member.systemRole === "项目负责人" || member.systemRole === "团队成员";
+      return (
+        member.systemRole === "项目负责人" ||
+        member.systemRole === "团队成员" ||
+        member.systemRole === "评审专家"
+      );
     }
     if (currentRole === "leader") {
       return member.canBeManagedByLeader;
@@ -912,14 +1264,38 @@ export function WorkspaceDashboard({
       return true;
     }
 
-    return member.systemRole === "项目负责人" || member.systemRole === "团队成员";
+    return (
+      member.systemRole === "项目负责人" ||
+      member.systemRole === "团队成员" ||
+      member.systemRole === "评审专家"
+    );
+  };
+
+  const canApprovePendingMember = (member: TeamMember) => {
+    if (member.approvalStatus !== "pending") {
+      return false;
+    }
+
+    if (currentRole === "admin") {
+      return ["指导教师", "项目负责人", "团队成员", "评审专家"].includes(member.systemRole);
+    }
+
+    if (currentRole === "teacher") {
+      return member.systemRole === "项目负责人" || member.systemRole === "团队成员" || member.systemRole === "评审专家";
+    }
+
+    if (currentRole === "leader") {
+      return member.systemRole === "团队成员";
+    }
+
+    return false;
   };
 
   const availableRoleOptions: TeamRoleLabel[] =
     currentRole === "admin"
-      ? ["系统管理员", "指导教师", "项目负责人", "团队成员"]
+      ? ["指导教师", "项目负责人", "团队成员", "评审专家"]
       : currentRole === "teacher"
-        ? ["项目负责人", "团队成员"]
+        ? ["项目负责人", "团队成员", "评审专家"]
         : ["团队成员"];
 
   const visibleTeamMembers = members.filter((member) => {
@@ -928,15 +1304,20 @@ export function WorkspaceDashboard({
     }
 
     if (currentRole === "teacher") {
-      return teamRoleRank[member.systemRole] < teamRoleRank["指导教师"];
+      return (
+        member.systemRole === "评审专家" ||
+        teamRoleRank[member.systemRole] < teamRoleRank["指导教师"]
+      );
     }
 
     if (currentRole === "leader") {
-      return teamRoleRank[member.systemRole] < teamRoleRank["项目负责人"];
+      return member.systemRole !== "评审专家" && teamRoleRank[member.systemRole] < teamRoleRank["项目负责人"];
     }
 
     return member.id === currentMemberId;
   });
+
+  const pendingApprovalMembers = pendingTeamMembers.filter((member) => canApprovePendingMember(member));
 
   const canMoveTask = (task: BoardTask) =>
     permissions.canMoveAnyTask || (currentRole === "member" && task.assigneeId === currentMemberId);
@@ -949,6 +1330,9 @@ export function WorkspaceDashboard({
     permissions.canDeleteAnyDocument ||
     ((doc.ownerId === currentMemberId || version.uploaderId === currentMemberId) &&
       doc.statusKey !== "approved");
+
+  const canManageReviewMaterials = ["admin", "teacher", "leader"].includes(currentRole);
+  const canCreateReviewPackage = currentRole === "admin";
 
   const getDocumentActionButtons = (doc: DocumentItem): DocumentActionButton[] => {
     if ((permissions.canLeaderReviewDocument || currentRole === "admin") && doc.statusKey === "pending") {
@@ -1006,6 +1390,47 @@ export function WorkspaceDashboard({
     }
 
     window.location.href = downloadUrl;
+  };
+
+  const openPreviewAsset = (asset?: PreviewAsset | null) => {
+    if (!asset?.url) {
+      setLoadError("当前材料暂不可预览");
+      return;
+    }
+
+    setPreviewAsset(asset);
+  };
+
+  const buildInlinePreviewUrl = (downloadUrl?: string | null) => {
+    if (!downloadUrl) {
+      return null;
+    }
+
+    const separator = downloadUrl.includes("?") ? "&" : "?";
+    return `${downloadUrl}${separator}inline=1`;
+  };
+
+  const handlePreviewDocument = ({
+    downloadUrl,
+    fileName,
+    mimeType,
+  }: {
+    downloadUrl?: string | null;
+    fileName?: string | null;
+    mimeType?: string | null;
+  }) => {
+    const previewUrl = buildInlinePreviewUrl(downloadUrl);
+    if (!previewUrl) {
+      setLoadError("当前文件暂不可预览");
+      return;
+    }
+
+    openPreviewAsset({
+      title: "材料在线预览",
+      url: previewUrl,
+      fileName,
+      mimeType,
+    });
   };
 
   const handleLogout = async () => {
@@ -1477,6 +1902,225 @@ export function WorkspaceDashboard({
     }
   };
 
+  const openReviewAssignmentModal = () => {
+    setReviewAssignmentDraft(defaultExpertReviewAssignmentDraft(expertMembers[0]?.id ?? ""));
+    setReviewAssignmentModalOpen(true);
+  };
+
+  const saveReviewAssignment = async () => {
+    if (!reviewAssignmentDraft.expertUserId || !reviewAssignmentDraft.targetName.trim()) {
+      setLoadError("请先选择专家并填写评审对象");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      await requestJson("/api/expert-reviews/assignments", {
+        method: "POST",
+        body: JSON.stringify({
+          expertUserId: reviewAssignmentDraft.expertUserId,
+          targetName: reviewAssignmentDraft.targetName.trim(),
+          roundLabel: reviewAssignmentDraft.roundLabel.trim(),
+          overview: reviewAssignmentDraft.overview.trim(),
+          deadline: reviewAssignmentDraft.deadline
+            ? new Date(reviewAssignmentDraft.deadline).toISOString()
+            : undefined,
+        }),
+      });
+
+      setReviewAssignmentModalOpen(false);
+      setReviewAssignmentDraft(defaultExpertReviewAssignmentDraft(expertMembers[0]?.id ?? ""));
+      refreshWorkspace();
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "评审任务创建失败");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const openReviewMaterialModal = (assignmentId: string, kind: "plan" | "ppt" | "video") => {
+    setReviewMaterialTargetId(assignmentId);
+    setReviewMaterialSavingLabel("上传中...");
+    setReviewMaterialUploadProgress(null);
+    setReviewMaterialDraft({
+      kind,
+      name: "",
+      file: null,
+    });
+    setReviewMaterialModalOpen(true);
+  };
+
+  const saveReviewMaterial = async () => {
+    if (!reviewMaterialTargetId || !reviewMaterialDraft.file) {
+      setLoadError("请先选择需要上传的评审材料");
+      return;
+    }
+
+    if (reviewMaterialDraft.kind !== "video" && !(await hasPdfSignature(reviewMaterialDraft.file))) {
+      setLoadError(
+        `${reviewMaterialDraft.kind === "plan" ? "计划书" : "路演材料"}需上传有效的 PDF 文件`,
+      );
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      setReviewMaterialSavingLabel("准备上传...");
+      setReviewMaterialUploadProgress(null);
+
+      const uploadTicket = await requestJson<{
+        uploadUrl: string;
+        objectKey: string;
+        contentType: string;
+      }>(`/api/expert-reviews/assignments/${reviewMaterialTargetId}/materials/upload-url`, {
+        method: "POST",
+        body: JSON.stringify({
+          kind: reviewMaterialDraft.kind,
+          fileName: reviewMaterialDraft.file.name,
+          fileSize: reviewMaterialDraft.file.size,
+          mimeType: reviewMaterialDraft.file.type,
+        }),
+      });
+
+      setReviewMaterialSavingLabel("直传中... 0%");
+      await uploadFileDirectly({
+        url: uploadTicket.uploadUrl,
+        file: reviewMaterialDraft.file,
+        contentType: uploadTicket.contentType,
+        onProgress: (percent) => {
+          setReviewMaterialUploadProgress(percent);
+          setReviewMaterialSavingLabel(`直传中... ${percent}%`);
+        },
+      });
+
+      setReviewMaterialSavingLabel("保存中...");
+      setReviewMaterialUploadProgress(100);
+      await requestJson<{ assignment: ExpertReviewAssignmentItem }>(
+        `/api/expert-reviews/assignments/${reviewMaterialTargetId}/materials`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            kind: reviewMaterialDraft.kind,
+            name: reviewMaterialDraft.name.trim(),
+            fileName: reviewMaterialDraft.file.name,
+            filePath: uploadTicket.objectKey,
+            fileSize: reviewMaterialDraft.file.size,
+            mimeType: uploadTicket.contentType,
+          }),
+        },
+      );
+
+      setReviewMaterialModalOpen(false);
+      setReviewMaterialTargetId(null);
+      setReviewMaterialDraft(defaultExpertReviewMaterialDraft());
+      setReviewMaterialSavingLabel("上传中...");
+      setReviewMaterialUploadProgress(null);
+      refreshWorkspace();
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "评审材料上传失败");
+    } finally {
+      setIsSaving(false);
+      setReviewMaterialSavingLabel("上传中...");
+      setReviewMaterialUploadProgress(null);
+    }
+  };
+
+  const deleteReviewMaterialRequest = async (
+    assignmentId: string,
+    kind: "plan" | "ppt" | "video",
+  ) => {
+    await requestJson<{ assignment: ExpertReviewAssignmentItem }>(
+      `/api/expert-reviews/assignments/${assignmentId}/materials?kind=${kind}`,
+      {
+        method: "DELETE",
+      },
+    );
+    refreshWorkspace();
+  };
+
+  const deleteReviewMaterial = (
+    assignmentId: string,
+    kind: "plan" | "ppt" | "video",
+  ) => {
+    setConfirmDialog({
+      open: true,
+      title: "删除评审材料",
+      message: `确认删除${expertReviewMaterialLabels[kind]}？删除后专家将无法继续查看该材料。`,
+      confirmLabel: "确认删除",
+      onConfirm: () => deleteReviewMaterialRequest(assignmentId, kind),
+    });
+  };
+
+  const deleteReviewAssignmentRequest = async (assignmentId: string) => {
+    await requestJson(`/api/expert-reviews/assignments/${assignmentId}`, {
+      method: "DELETE",
+    });
+    refreshWorkspace();
+  };
+
+  const deleteReviewAssignment = (assignmentId: string, targetName: string) => {
+    setConfirmDialog({
+      open: true,
+      title: "删除专家评审包",
+      message: `确认删除专家评审包「${targetName}」？相关指派、评分与临时材料都会一起清除。`,
+      confirmLabel: "确认删除",
+      onConfirm: () => deleteReviewAssignmentRequest(assignmentId),
+    });
+  };
+
+  const updateReviewScoreDraft = (
+    assignmentId: string,
+    field: keyof ExpertReviewScoreDraft,
+    value: string,
+  ) => {
+    setReviewScoreDrafts((current) => ({
+      ...current,
+      [assignmentId]: {
+        ...(current[assignmentId] ?? createExpertReviewScoreDraft()),
+        [field]: value,
+      },
+    }));
+  };
+
+  const getReviewScoreTotal = (draft: ExpertReviewScoreDraft | undefined) =>
+    (Number(draft?.scorePersonalGrowth || 0) || 0) +
+    (Number(draft?.scoreInnovation || 0) || 0) +
+    (Number(draft?.scoreIndustry || 0) || 0) +
+    (Number(draft?.scoreTeamwork || 0) || 0);
+
+  const saveExpertReviewScore = async (assignmentId: string) => {
+    const draft = reviewScoreDrafts[assignmentId];
+    if (!draft) {
+      setLoadError("评分表单尚未准备完成");
+      return;
+    }
+
+    if (!draft.commentTotal.trim()) {
+      setLoadError("请填写综合评语");
+      return;
+    }
+
+    setActiveReviewAssignmentId(assignmentId);
+    try {
+      await requestJson("/api/expert-reviews/scores", {
+        method: "POST",
+        body: JSON.stringify({
+          assignmentId,
+          scorePersonalGrowth: Number(draft.scorePersonalGrowth),
+          scoreInnovation: Number(draft.scoreInnovation),
+          scoreIndustry: Number(draft.scoreIndustry),
+          scoreTeamwork: Number(draft.scoreTeamwork),
+          commentTotal: draft.commentTotal.trim(),
+        }),
+      });
+      refreshWorkspace();
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "专家评分提交失败");
+    } finally {
+      setActiveReviewAssignmentId(null);
+    }
+  };
+
   const removeDocumentRequest = async (docId: string) => {
     await requestJson(`/api/documents/${docId}`, {
       method: "DELETE",
@@ -1539,6 +2183,81 @@ export function WorkspaceDashboard({
       refreshWorkspace();
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "成员创建失败");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const openProfilePage = () => {
+    setProfileMessage(null);
+    router.push("/workspace?tab=profile");
+  };
+
+  const saveProfile = async () => {
+    if (!profileDraft.name.trim()) {
+      setLoadError("请输入姓名");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const payload = await requestJson<{ user: CurrentUser }>("/api/profile", {
+        method: "PATCH",
+        body: JSON.stringify({
+          name: profileDraft.name.trim(),
+          email: profileDraft.email.trim(),
+          responsibility: profileDraft.responsibility.trim(),
+          password: profileDraft.password.trim() || undefined,
+        }),
+      });
+
+      setCurrentUser(payload.user);
+      setMembers((current) =>
+        current.map((member) =>
+          member.id === payload.user.id
+            ? {
+                ...member,
+                name: payload.user.name,
+                account: payload.user.email || payload.user.username,
+                responsibility: payload.user.responsibility,
+                avatar: payload.user.avatar,
+              }
+            : member,
+        ),
+      );
+      setPendingTeamMembers((current) =>
+        current.map((member) =>
+          member.id === payload.user.id
+            ? {
+                ...member,
+                name: payload.user.name,
+                account: payload.user.email || payload.user.username,
+                responsibility: payload.user.responsibility,
+                avatar: payload.user.avatar,
+              }
+            : member,
+        ),
+      );
+      setProfileDraft({ ...defaultProfileDraft(payload.user), password: "" });
+      setProfileMessage("个人信息已保存");
+      setLoadError(null);
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "个人信息保存失败");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const approveMemberRegistration = async (memberId: string) => {
+    setIsSaving(true);
+    try {
+      await requestJson(`/api/team/${memberId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ action: "approve" }),
+      });
+      refreshWorkspace();
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "账号审核失败");
     } finally {
       setIsSaving(false);
     }
@@ -1641,6 +2360,18 @@ export function WorkspaceDashboard({
           </ActionButton>
         </div>
       </div>
+
+      <section className={surfaceCardClassName}>
+        <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <p className="text-2xl font-bold tracking-[-0.02em] text-slate-900">{greetingCopy.title}</p>
+            <p className="mt-2 text-sm leading-7 text-slate-500">{greetingCopy.description}</p>
+          </div>
+          <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
+            {formatFriendlyDate(currentDateTime)}
+          </div>
+        </div>
+      </section>
 
       <section className={`${surfaceCardClassName} p-6`}>
         <p className="text-center text-sm font-medium tracking-[0.16em] text-blue-600">最近关键节点</p>
@@ -2090,6 +2821,358 @@ export function WorkspaceDashboard({
     </div>
   );
 
+  const renderReview = () => {
+    const reviewStatusStyles = {
+      pending: "bg-amber-50 text-amber-700",
+      completed: "bg-blue-50 text-blue-600",
+      locked: "bg-slate-100 text-slate-600",
+    } as const;
+
+    const groupedAssignments = reviewAssignments.reduce<
+      Array<{
+        key: string;
+        targetName: string;
+        roundLabel: string;
+        deadline: string | null;
+        items: ExpertReviewAssignmentItem[];
+      }>
+    >((groups, assignment) => {
+      const key = assignment.packageId;
+      const existingGroup = groups.find((item) => item.key === key);
+
+      if (existingGroup) {
+        existingGroup.items.push(assignment);
+        return groups;
+      }
+
+      return [
+        ...groups,
+        {
+          key,
+          targetName: assignment.targetName,
+          roundLabel: assignment.roundLabel,
+          deadline: assignment.deadline,
+          items: [assignment],
+        },
+      ];
+    }, []);
+
+    return (
+      <div className="space-y-4">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <SectionHeader
+            description={
+              currentRole === "expert"
+                ? "仅显示当前专家被指派的评审任务，材料只支持在线查看计划书、路演材料和视频；提交后截止前可继续修改，截止后自动锁定。"
+                : "评审材料与主文档中心完全独立，管理员可创建并指派一次性评审包，教师和负责人可补充材料；教师和管理员可查看全部评分。"
+            }
+            title="专家评审"
+          />
+          <div className="flex flex-wrap items-center gap-3">
+            {currentRole !== "expert" ? <DemoResetNote /> : null}
+            {canCreateReviewPackage ? (
+              <ActionButton onClick={openReviewAssignmentModal} variant="primary">
+                <span className="inline-flex items-center gap-2">
+                  <Plus className="h-4 w-4" />
+                  <span>新建评审包</span>
+                </span>
+              </ActionButton>
+            ) : null}
+          </div>
+        </div>
+
+        {reviewAssignments.length === 0 ? (
+          <section className={surfaceCardClassName}>
+            <EmptyState
+              description={
+                currentRole === "expert"
+                  ? "管理员、教师或负责人完成指派后，你的评审任务会显示在这里。"
+                  : "当前还没有专家评审包，创建后即可上传计划书、路演材料和视频，并分配给指定专家。"
+              }
+              icon={FileCheck}
+              title="暂无专家评审包"
+            />
+          </section>
+        ) : currentRole === "expert" ? (
+          <section className="space-y-4">
+            {reviewAssignments.map((assignment) => {
+              const draft = reviewScoreDrafts[assignment.id] ?? createExpertReviewScoreDraft(assignment);
+              const planMaterial = assignment.materials.plan;
+              const pptMaterial = assignment.materials.ppt;
+              const videoMaterial = assignment.materials.video;
+
+              return (
+                <article key={assignment.id} className={surfaceCardClassName}>
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                    <div>
+                      <div className="flex flex-wrap items-center gap-3">
+                        <h3 className="text-base font-semibold text-slate-900">{assignment.targetName}</h3>
+                        <span className={`rounded-md px-3 py-1 text-sm ${reviewStatusStyles[assignment.statusKey]}`}>
+                          {assignment.status}
+                        </span>
+                      </div>
+                      <p className="mt-2 text-sm text-slate-500">
+                        {assignment.roundLabel}
+                        {assignment.deadline ? ` · 截止时间 ${formatDateTime(assignment.deadline)}` : ""}
+                      </p>
+                      {assignment.overview ? (
+                        <p className="mt-3 text-sm leading-7 text-slate-600">{assignment.overview}</p>
+                      ) : null}
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {planMaterial ? (
+                        <ActionButton
+                          onClick={() =>
+                            openPreviewAsset({
+                              title: `${assignment.targetName} · 计划书`,
+                              url: planMaterial.previewUrl,
+                              mimeType: planMaterial.mimeType,
+                              fileName: planMaterial.fileName,
+                            })
+                          }
+                        >
+                          查看计划书
+                        </ActionButton>
+                      ) : null}
+                      {pptMaterial ? (
+                        <ActionButton
+                          onClick={() =>
+                            openPreviewAsset({
+                              title: `${assignment.targetName} · 路演材料`,
+                              url: pptMaterial.previewUrl,
+                              mimeType: pptMaterial.mimeType,
+                              fileName: pptMaterial.fileName,
+                            })
+                          }
+                        >
+                          查看路演材料
+                        </ActionButton>
+                      ) : null}
+                      {videoMaterial ? (
+                        <ActionButton
+                          onClick={() =>
+                            openPreviewAsset({
+                              title: `${assignment.targetName} · 视频`,
+                              url: videoMaterial.previewUrl,
+                              mimeType: videoMaterial.mimeType,
+                              fileName: videoMaterial.fileName,
+                            })
+                          }
+                        >
+                          查看视频
+                        </ActionButton>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  <div className="mt-5 grid gap-4 md:grid-cols-2">
+                    {(Object.keys(expertReviewCategoryCaps) as Array<keyof typeof expertReviewCategoryCaps>).map(
+                      (fieldKey) => (
+                        <label key={`${assignment.id}-${fieldKey}`} className="block text-sm text-slate-500">
+                          {expertReviewFieldLabels[fieldKey]}（满分 {expertReviewCategoryCaps[fieldKey]}）
+                          <input
+                            className={fieldClassName}
+                            disabled={!assignment.canEdit || activeReviewAssignmentId === assignment.id}
+                            inputMode="numeric"
+                            min={0}
+                            placeholder={`请输入 0-${expertReviewCategoryCaps[fieldKey]} 分`}
+                            value={draft[fieldKey]}
+                            onChange={(event) =>
+                              updateReviewScoreDraft(assignment.id, fieldKey, event.target.value)
+                            }
+                          />
+                          <span className="mt-2 block text-xs leading-6 text-slate-400">
+                            {expertReviewFieldHints[fieldKey].join(" / ")}
+                          </span>
+                        </label>
+                      ),
+                    )}
+                  </div>
+
+                  <label className="mt-5 block text-sm text-slate-500">
+                    综合评语
+                    <textarea
+                      className={`${textareaClassName} min-h-32`}
+                      disabled={!assignment.canEdit || activeReviewAssignmentId === assignment.id}
+                      placeholder="请结合四大类评分填写综合评语"
+                      value={draft.commentTotal}
+                      onChange={(event) =>
+                        updateReviewScoreDraft(assignment.id, "commentTotal", event.target.value)
+                      }
+                    />
+                  </label>
+
+                  <div className="mt-5 flex flex-col gap-3 border-t border-slate-200 pt-4 md:flex-row md:items-center md:justify-between">
+                    <div>
+                      <p className="text-sm text-slate-500">当前总分</p>
+                      <p className="mt-1 text-2xl font-bold text-blue-600">
+                        {getReviewScoreTotal(draft)}
+                        <span className="ml-2 text-sm font-medium text-slate-400">/ 100</span>
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap items-center gap-3">
+                      {assignment.score ? (
+                        <p className="text-sm text-slate-400">
+                          最近提交：{formatDateTime(assignment.score.updatedAt)}
+                        </p>
+                      ) : null}
+                      <ActionButton
+                        disabled={!assignment.canEdit}
+                        loading={activeReviewAssignmentId === assignment.id}
+                        loadingLabel="提交中..."
+                        onClick={() => void saveExpertReviewScore(assignment.id)}
+                        title={assignment.canEdit ? undefined : "已截止，当前任务已锁定"}
+                        variant="primary"
+                      >
+                        {assignment.score ? "更新评分" : "提交评分"}
+                      </ActionButton>
+                    </div>
+                  </div>
+                </article>
+              );
+            })}
+          </section>
+        ) : (
+          <section className="space-y-4">
+            {groupedAssignments.map((group) => (
+              <article key={group.key} className={surfaceCardClassName}>
+                <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                  <div>
+                    <h3 className="text-base font-semibold text-slate-900">{group.targetName}</h3>
+                    <p className="mt-2 text-sm text-slate-500">
+                      {group.roundLabel}
+                      {group.deadline ? ` · 截止时间 ${formatDateTime(group.deadline)}` : ""}
+                    </p>
+                  </div>
+                  {canManageReviewMaterials ? (
+                    <ActionButton
+                      onClick={() => deleteReviewAssignment(group.items[0].id, group.targetName)}
+                      variant="danger"
+                    >
+                      删除整包评审数据
+                    </ActionButton>
+                  ) : null}
+                </div>
+
+                <div className="mt-5 grid gap-4 md:grid-cols-3">
+                  {(["plan", "ppt", "video"] as const).map((kind) => {
+                    const material = group.items[0]?.materials[kind];
+
+                    return (
+                      <div key={`${group.key}-${kind}`} className={subtleCardClassName}>
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-medium text-slate-900">{expertReviewMaterialLabels[kind]}</p>
+                            <p className="mt-2 text-xs text-slate-400">
+                              {material ? material.fileName : "暂未上传"}
+                            </p>
+                          </div>
+                          <span
+                            className={`rounded-md px-2.5 py-1 text-xs ${
+                              material ? "bg-blue-50 text-blue-600" : "bg-slate-100 text-slate-400"
+                            }`}
+                          >
+                            {material ? "已上传" : "待补充"}
+                          </span>
+                        </div>
+                        <div className="mt-4 flex flex-wrap gap-2">
+                          {material ? (
+                            <>
+                              <ActionButton
+                                onClick={() =>
+                                  openPreviewAsset({
+                                    title: `${group.targetName} · ${expertReviewMaterialLabels[kind]}`,
+                                    url: material.previewUrl,
+                                    mimeType: material.mimeType,
+                                    fileName: material.fileName,
+                                  })
+                                }
+                              >
+                                查看
+                              </ActionButton>
+                              {canManageReviewMaterials ? (
+                                <>
+                                  <ActionButton onClick={() => openReviewMaterialModal(group.items[0].id, kind)}>
+                                    替换
+                                  </ActionButton>
+                                  <ActionButton
+                                    onClick={() => deleteReviewMaterial(group.items[0].id, kind)}
+                                    variant="danger"
+                                  >
+                                    删除
+                                  </ActionButton>
+                                </>
+                              ) : null}
+                            </>
+                          ) : canManageReviewMaterials ? (
+                            <ActionButton onClick={() => openReviewMaterialModal(group.items[0].id, kind)} variant="primary">
+                              上传
+                            </ActionButton>
+                          ) : (
+                            <span className="text-sm text-slate-400">暂未提供</span>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                {currentRole !== "leader" ? (
+                  <div className="mt-5 grid gap-4 xl:grid-cols-2">
+                    {group.items.map((assignment) => (
+                      <div key={assignment.id} className={subtleCardClassName}>
+                        <div className="flex items-start justify-between gap-4">
+                          <div>
+                            <p className="text-base font-semibold text-slate-900">{assignment.expert.name}</p>
+                            <p className="mt-2 text-sm text-slate-500">{assignment.expert.roleLabel}</p>
+                          </div>
+                          <span className={`rounded-md px-3 py-1 text-sm ${reviewStatusStyles[assignment.statusKey]}`}>
+                            {assignment.status}
+                          </span>
+                        </div>
+
+                        {assignment.score ? (
+                          <>
+                            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                              {(Object.keys(expertReviewCategoryCaps) as Array<keyof typeof expertReviewCategoryCaps>).map(
+                                (fieldKey) => (
+                                  <div key={`${assignment.id}-${fieldKey}`} className="rounded-lg bg-white px-4 py-3">
+                                    <p className="text-xs text-slate-400">{expertReviewFieldLabels[fieldKey]}</p>
+                                    <p className="mt-2 text-lg font-semibold text-slate-900">
+                                      {assignment.score?.[fieldKey]}
+                                      <span className="ml-1 text-xs text-slate-400">
+                                        / {expertReviewCategoryCaps[fieldKey]}
+                                      </span>
+                                    </p>
+                                  </div>
+                                ),
+                              )}
+                            </div>
+                            <p className="mt-4 text-sm font-medium text-blue-600">
+                              总分：{assignment.score.totalScore} / 100
+                            </p>
+                            <p className="mt-3 text-sm leading-7 text-slate-600">
+                              评语：{assignment.score.commentTotal}
+                            </p>
+                            <p className="mt-3 text-xs text-slate-400">
+                              提交时间：{formatDateTime(assignment.score.updatedAt)}
+                            </p>
+                          </>
+                        ) : (
+                          <p className="mt-4 text-sm leading-7 text-slate-500">该专家尚未提交本次评分。</p>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
+              </article>
+            ))}
+          </section>
+        )}
+      </div>
+    );
+  };
+
   const renderDocuments = () => (
     <div className="space-y-4">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -2214,6 +3297,20 @@ export function WorkspaceDashboard({
                     <span>上传新版本</span>
                   </span>
                 </ActionButton>
+                <ActionButton
+                  onClick={() =>
+                    handlePreviewDocument({
+                      downloadUrl: doc.downloadUrl,
+                      fileName: doc.currentFileName,
+                      mimeType: doc.currentMimeType,
+                    })
+                  }
+                >
+                  <span className="inline-flex items-center gap-2">
+                    <Eye className="h-4 w-4" />
+                    <span>在线预览</span>
+                  </span>
+                </ActionButton>
                 <ActionButton onClick={() => handleDownload(doc.downloadUrl)}>
                   <span className="inline-flex items-center gap-2">
                     <Download className="h-4 w-4" />
@@ -2284,6 +3381,20 @@ export function WorkspaceDashboard({
                     </div>
                     <div className="flex items-center gap-3">
                       <p className="text-sm text-slate-500">{version.note}</p>
+                      <ActionButton
+                        onClick={() =>
+                          handlePreviewDocument({
+                            downloadUrl: version.downloadUrl,
+                            fileName: version.fileName,
+                            mimeType: version.mimeType,
+                          })
+                        }
+                      >
+                        <span className="inline-flex items-center gap-2">
+                          <Eye className="h-4 w-4" />
+                          <span>预览版本</span>
+                        </span>
+                      </ActionButton>
                       <ActionButton onClick={() => handleDownload(version.downloadUrl)}>
                         <span className="inline-flex items-center gap-2">
                           <Download className="h-4 w-4" />
@@ -2327,7 +3438,7 @@ export function WorkspaceDashboard({
     <div className="space-y-4">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <SectionHeader
-          description="通过角色下拉框管理团队成员权限，并按当前角色限制操作范围。"
+          description="支持创建直属账号，并对自助注册的下级账号执行审核通过。"
           title="团队管理"
         />
         <div className="flex flex-wrap items-center gap-3">
@@ -2346,6 +3457,70 @@ export function WorkspaceDashboard({
         </div>
       </div>
 
+      {pendingApprovalMembers.length > 0 ? (
+        <section className="space-y-4">
+          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+            当前有 {pendingApprovalMembers.length} 个账号待你审核，通过后对方才能登录系统。
+          </div>
+
+          <div className="grid gap-4 xl:grid-cols-2">
+            {pendingApprovalMembers.map((member) => (
+              <article key={`pending-${member.id}`} className={surfaceCardClassName}>
+                <div className="flex items-start gap-4">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-amber-500 text-base font-semibold text-white">
+                    {member.avatar}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <h3 className="text-base font-semibold text-slate-900">{member.name}</h3>
+                        <p className="mt-2 text-sm text-slate-500">账号：{member.account}</p>
+                      </div>
+                      <div className="rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-700">
+                        待{member.pendingApproverLabel ?? "上级"}审核
+                      </div>
+                    </div>
+
+                    <div className="mt-4 grid gap-3 md:grid-cols-2">
+                      <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
+                        <p className="text-xs text-slate-400">申请身份</p>
+                        <p className="mt-1 text-sm font-medium text-slate-700">{member.systemRole}</p>
+                      </div>
+                      <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
+                        <p className="text-xs text-slate-400">账号状态</p>
+                        <p className="mt-1 text-sm font-medium text-amber-700">{member.approvalStatusLabel}</p>
+                      </div>
+                    </div>
+
+                    <p className="mt-4 text-sm leading-7 text-slate-600">
+                      负责内容：{member.responsibility || "待审核通过后补充"}
+                    </p>
+
+                    <div className="mt-4 flex flex-wrap gap-3">
+                      <ActionButton
+                        loading={isSaving}
+                        loadingLabel="审核中..."
+                        onClick={() => void approveMemberRegistration(member.id)}
+                        variant="primary"
+                      >
+                        审核通过
+                      </ActionButton>
+                      <ActionButton
+                        disabled={isSaving}
+                        onClick={() => removeMember(member.id, member.name)}
+                        variant="danger"
+                      >
+                        驳回删除
+                      </ActionButton>
+                    </div>
+                  </div>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+      ) : null}
+
       <section className="grid gap-4 xl:grid-cols-2">
         {visibleTeamMembers.map((member) => {
           const editable = canManageMember(member);
@@ -2361,7 +3536,7 @@ export function WorkspaceDashboard({
                   {member.avatar}
                 </div>
                 <div className="min-w-0 flex-1">
-                  <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                  <div>
                     <div>
                       <h3 className="text-base font-semibold text-slate-900">{member.name}</h3>
                       <p className="mt-2 text-sm text-slate-500">账号：{member.account}</p>
@@ -2369,9 +3544,6 @@ export function WorkspaceDashboard({
                         <p className="mt-2 text-sm text-blue-600">系统最高权限账号</p>
                       ) : null}
                     </div>
-                    <span className="rounded-md bg-blue-50 px-3 py-1 text-sm text-blue-600">
-                      当前进度 {member.progress}
-                    </span>
                   </div>
 
                   <p className="mt-4 text-sm leading-7 text-slate-600">负责内容：{member.responsibility}</p>
@@ -2425,6 +3597,129 @@ export function WorkspaceDashboard({
     </div>
   );
 
+  const renderProfile = () => {
+    if (!currentUser) {
+      return null;
+    }
+
+    return (
+      <div className="space-y-4">
+      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+        <SectionHeader
+          description="这里仅显示你自己的账号资料，可按需维护姓名、联系邮箱和个人职责说明。"
+          title="个人信息"
+        />
+      </div>
+
+      <section className="grid gap-4 xl:grid-cols-[320px_minmax(0,1fr)]">
+        <article className={surfaceCardClassName}>
+          <div className="flex flex-col items-center text-center">
+            <div className="flex h-20 w-20 items-center justify-center rounded-full bg-blue-600 text-2xl font-semibold text-white">
+              {currentUser.profile.avatar}
+            </div>
+            <h3 className="mt-4 text-xl font-semibold text-slate-900">{currentUser.profile.name}</h3>
+            <p className="mt-2 rounded-md bg-blue-50 px-3 py-1 text-sm text-blue-600">
+              {roleLabels[currentRole]}
+            </p>
+          </div>
+
+          <div className="mt-6 space-y-4">
+            <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+              <p className="text-xs text-slate-400">账号名</p>
+              <p className="mt-1 text-sm font-medium text-slate-700">{currentUser.username}</p>
+            </div>
+            <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+              <p className="text-xs text-slate-400">账号角色</p>
+              <p className="mt-1 text-sm font-medium text-slate-700">{currentUser.roleLabel}</p>
+            </div>
+            <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+              <p className="text-xs text-slate-400">账号状态</p>
+              <p className="mt-1 text-sm font-medium text-slate-700">
+                {currentUser.approvalStatusLabel ?? "已通过"}
+              </p>
+            </div>
+          </div>
+        </article>
+
+        <article className={surfaceCardClassName}>
+          {profileMessage ? (
+            <div className="mb-4 rounded-lg bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+              {profileMessage}
+            </div>
+          ) : null}
+
+          <div className="grid gap-4 md:grid-cols-2">
+            <label className="block text-sm text-slate-500">
+              姓名
+              <input
+                className={fieldClassName}
+                value={profileDraft.name}
+                onChange={(event) => {
+                  setProfileDraft((current) => ({ ...current, name: event.target.value }));
+                  setProfileMessage(null);
+                }}
+              />
+            </label>
+            <label className="block text-sm text-slate-500">
+              联系邮箱
+              <input
+                className={fieldClassName}
+                placeholder="可选，用于联系"
+                value={profileDraft.email}
+                onChange={(event) => {
+                  setProfileDraft((current) => ({ ...current, email: event.target.value }));
+                  setProfileMessage(null);
+                }}
+              />
+            </label>
+          </div>
+
+          <label className="mt-4 block text-sm text-slate-500">
+            个人职责 / 简介
+            <textarea
+              className={`${textareaClassName} min-h-32`}
+              value={profileDraft.responsibility}
+              onChange={(event) => {
+                setProfileDraft((current) => ({ ...current, responsibility: event.target.value }));
+                setProfileMessage(null);
+              }}
+            />
+          </label>
+
+          <label className="mt-4 block text-sm text-slate-500">
+            新密码
+            <input
+              className={fieldClassName}
+              placeholder="如不修改可留空"
+              type="password"
+              value={profileDraft.password}
+              onChange={(event) => {
+                setProfileDraft((current) => ({ ...current, password: event.target.value }));
+                setProfileMessage(null);
+              }}
+            />
+          </label>
+
+          <ModalActions>
+            <ActionButton
+              disabled={isSaving}
+              onClick={() => {
+                setProfileDraft(defaultProfileDraft(currentUser));
+                setProfileMessage(null);
+              }}
+            >
+              重置
+            </ActionButton>
+            <ActionButton loading={isSaving} loadingLabel="保存中..." onClick={saveProfile} variant="primary">
+              保存个人信息
+            </ActionButton>
+          </ModalActions>
+        </article>
+      </section>
+      </div>
+    );
+  };
+
   const renderContent = () => {
     switch (safeActiveTab) {
       case "overview":
@@ -2437,10 +3732,14 @@ export function WorkspaceDashboard({
         return renderReports();
       case "experts":
         return renderExperts();
+      case "review":
+        return renderReview();
       case "documents":
         return renderDocuments();
       case "team":
         return renderTeam();
+      case "profile":
+        return renderProfile();
       default:
         return renderOverview();
     }
@@ -2476,11 +3775,11 @@ export function WorkspaceDashboard({
           <aside className="hidden xl:block xl:w-[280px] xl:flex-none">
             <div className="rounded-xl bg-slate-900 px-5 py-6 text-white shadow-sm xl:sticky xl:top-4 xl:flex xl:h-[calc(100vh-2rem)] xl:flex-col">
               <div className="border-b border-white/10 pb-4">
-                <h1 className="text-[18px] font-semibold tracking-[0.02em] text-white">备赛管理中心</h1>
+                <h1 className="text-[18px] font-semibold tracking-[0.02em] text-white">管理中心</h1>
               </div>
 
               <nav className="mt-5 space-y-1.5">
-                {visibleTabs.map((item) => {
+                {sidebarTabs.map((item) => {
                   const Icon = item.icon;
                   const isActive = item.key === safeActiveTab;
                   const href =
@@ -2533,7 +3832,7 @@ export function WorkspaceDashboard({
           >
             <div className="flex h-full flex-col">
               <div className="flex items-center justify-between border-b border-white/10 pb-4">
-                <h1 className="text-[18px] font-semibold tracking-[0.02em] text-white">备赛管理中心</h1>
+                <h1 className="text-[18px] font-semibold tracking-[0.02em] text-white">管理中心</h1>
                 <button
                   className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 text-white/80"
                   onClick={() => setMobileSidebarOpen(false)}
@@ -2544,7 +3843,7 @@ export function WorkspaceDashboard({
               </div>
 
               <nav className="mt-5 space-y-1.5">
-                {visibleTabs.map((item) => {
+                {sidebarTabs.map((item) => {
                   const Icon = item.icon;
                   const isActive = item.key === safeActiveTab;
                   const href =
@@ -2606,79 +3905,85 @@ export function WorkspaceDashboard({
                 </div>
 
                 <div className="flex flex-wrap items-center gap-3">
-                  <div className="relative">
-                    <button
-                      className="relative inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-sm hover:bg-slate-50"
-                      onClick={() => setNotificationsOpen((current) => !current)}
-                      type="button"
-                    >
-                      <Bell className="h-4 w-4" />
-                      {unreadNotificationCount > 0 ? (
-                        <span className="absolute right-1 top-1 inline-flex min-w-5 items-center justify-center rounded-full bg-[#ef4444] px-1.5 text-[10px] font-semibold text-white">
-                          {unreadNotificationCount}
-                        </span>
-                      ) : null}
-                    </button>
+                  {currentRole !== "expert" ? (
+                    <div className="relative">
+                      <button
+                        className="relative inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-sm hover:bg-slate-50"
+                        onClick={() => setNotificationsOpen((current) => !current)}
+                        type="button"
+                      >
+                        <Bell className="h-4 w-4" />
+                        {unreadNotificationCount > 0 ? (
+                          <span className="absolute right-1 top-1 inline-flex min-w-5 items-center justify-center rounded-full bg-[#ef4444] px-1.5 text-[10px] font-semibold text-white">
+                            {unreadNotificationCount}
+                          </span>
+                        ) : null}
+                      </button>
 
-                    {notificationsOpen ? (
-                      <div className="absolute right-0 top-12 z-20 w-[360px] rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
-                        <div className="flex items-center justify-between">
-                          <div>
-                            <p className="text-base font-semibold text-slate-900">站内消息</p>
-                            <p className="mt-1 text-xs text-slate-400">文档审批进度会实时同步到这里。</p>
-                          </div>
-                          <button
-                            className="text-sm text-blue-600"
-                            onClick={() => void markAllNotificationsAsRead()}
-                            type="button"
-                          >
-                            全部已读
-                          </button>
-                        </div>
-
-                        <div className="mt-4 space-y-3">
-                          {notifications.length > 0 ? (
-                            notifications.map((notification) => (
-                              <button
-                                className={`w-full rounded-lg border px-4 py-3 text-left transition ${
-                                  notification.isRead
-                                    ? "border-slate-200 bg-white"
-                                    : "border-blue-100 bg-blue-50/40"
-                                }`}
-                                key={notification.id}
-                                onClick={() => void openNotification(notification)}
-                                type="button"
-                              >
-                                <div className="flex items-start justify-between gap-3">
-                                  <div>
-                                    <p className="text-sm font-semibold text-slate-900">
-                                      {notification.title}
-                                    </p>
-                                    <p className="mt-2 text-sm leading-6 text-slate-500">
-                                      {notification.detail}
-                                    </p>
-                                  </div>
-                                  {!notification.isRead ? (
-                                    <span className="mt-1 h-2.5 w-2.5 rounded-full bg-blue-600" />
-                                  ) : null}
-                                </div>
-                                <p className="mt-2 text-xs text-slate-400">{notification.createdAt}</p>
-                              </button>
-                            ))
-                          ) : (
-                            <div className="rounded-lg border border-dashed border-slate-200">
-                              <EmptyState
-                                description="文档审批、上传和状态变更的提醒会显示在这里。"
-                                icon={Bell}
-                                title="暂无站内消息"
-                              />
+                      {notificationsOpen ? (
+                        <div className="absolute right-0 top-12 z-20 w-[360px] rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+                          <div className="flex items-center justify-between">
+                            <div>
+                              <p className="text-base font-semibold text-slate-900">站内消息</p>
+                              <p className="mt-1 text-xs text-slate-400">文档审批进度会实时同步到这里。</p>
                             </div>
-                          )}
+                            <button
+                              className="text-sm text-blue-600"
+                              onClick={() => void markAllNotificationsAsRead()}
+                              type="button"
+                            >
+                              全部已读
+                            </button>
+                          </div>
+
+                          <div className="mt-4 space-y-3">
+                            {notifications.length > 0 ? (
+                              notifications.map((notification) => (
+                                <button
+                                  className={`w-full rounded-lg border px-4 py-3 text-left transition ${
+                                    notification.isRead
+                                      ? "border-slate-200 bg-white"
+                                      : "border-blue-100 bg-blue-50/40"
+                                  }`}
+                                  key={notification.id}
+                                  onClick={() => void openNotification(notification)}
+                                  type="button"
+                                >
+                                  <div className="flex items-start justify-between gap-3">
+                                    <div>
+                                      <p className="text-sm font-semibold text-slate-900">
+                                        {notification.title}
+                                      </p>
+                                      <p className="mt-2 text-sm leading-6 text-slate-500">
+                                        {notification.detail}
+                                      </p>
+                                    </div>
+                                    {!notification.isRead ? (
+                                      <span className="mt-1 h-2.5 w-2.5 rounded-full bg-blue-600" />
+                                    ) : null}
+                                  </div>
+                                  <p className="mt-2 text-xs text-slate-400">{notification.createdAt}</p>
+                                </button>
+                              ))
+                            ) : (
+                              <div className="rounded-lg border border-dashed border-slate-200">
+                                <EmptyState
+                                  description="文档审批、上传和状态变更的提醒会显示在这里。"
+                                  icon={Bell}
+                                  title="暂无站内消息"
+                                />
+                              </div>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    ) : null}
-                  </div>
-                  <div className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-sm">
+                      ) : null}
+                    </div>
+                  ) : null}
+                  <button
+                    className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2 text-left shadow-sm transition hover:bg-slate-50"
+                    onClick={openProfilePage}
+                    type="button"
+                  >
                     <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#2563eb] text-sm font-semibold text-white">
                       {currentUser.profile.avatar}
                     </div>
@@ -2689,8 +3994,9 @@ export function WorkspaceDashboard({
                           {roleLabels[currentRole]}
                         </span>
                       </div>
+                      <p className="mt-1 text-xs text-slate-400">点击查看个人信息</p>
                     </div>
-                  </div>
+                  </button>
                   <button
                     className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm text-slate-700 no-underline shadow-sm hover:bg-slate-50"
                     onClick={() => void handleLogout()}
@@ -2738,7 +4044,7 @@ export function WorkspaceDashboard({
                 }
               >
                 {members
-                  .filter((item) => !["指导教师", "系统管理员"].includes(item.systemRole))
+                  .filter((item) => !["指导教师", "系统管理员", "评审专家"].includes(item.systemRole))
                   .map((member) => (
                     <option key={member.id} value={member.id}>
                       {member.name}
@@ -3033,6 +4339,215 @@ export function WorkspaceDashboard({
         </Modal>
       ) : null}
 
+      {reviewAssignmentModalOpen ? (
+        <Modal title="新建专家评审包" onClose={() => setReviewAssignmentModalOpen(false)}>
+          <div className="space-y-4">
+            <div className="grid gap-4 md:grid-cols-2">
+              <label className="block text-sm text-slate-500">
+                评审专家
+                <select
+                  className={fieldClassName}
+                  value={reviewAssignmentDraft.expertUserId}
+                  onChange={(event) =>
+                    setReviewAssignmentDraft((current) => ({
+                      ...current,
+                      expertUserId: event.target.value,
+                    }))
+                  }
+                >
+                  <option value="">请选择专家</option>
+                  {expertMembers.map((member) => (
+                    <option key={member.id} value={member.id}>
+                      {member.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="block text-sm text-slate-500">
+                评审轮次
+                <input
+                  className={fieldClassName}
+                  value={reviewAssignmentDraft.roundLabel}
+                  onChange={(event) =>
+                    setReviewAssignmentDraft((current) => ({
+                      ...current,
+                      roundLabel: event.target.value,
+                    }))
+                  }
+                />
+              </label>
+            </div>
+            <label className="block text-sm text-slate-500">
+              评审对象 / 项目名称
+              <input
+                className={fieldClassName}
+                value={reviewAssignmentDraft.targetName}
+                onChange={(event) =>
+                  setReviewAssignmentDraft((current) => ({
+                    ...current,
+                    targetName: event.target.value,
+                  }))
+                }
+              />
+            </label>
+            <label className="block text-sm text-slate-500">
+              任务说明
+              <textarea
+                className={`${textareaClassName} min-h-28`}
+                value={reviewAssignmentDraft.overview}
+                onChange={(event) =>
+                  setReviewAssignmentDraft((current) => ({
+                    ...current,
+                    overview: event.target.value,
+                  }))
+                }
+              />
+            </label>
+            <label className="block text-sm text-slate-500">
+              截止时间
+              <input
+                className={fieldClassName}
+                type="datetime-local"
+                value={reviewAssignmentDraft.deadline}
+                onChange={(event) =>
+                  setReviewAssignmentDraft((current) => ({
+                    ...current,
+                    deadline: event.target.value,
+                  }))
+                }
+              />
+            </label>
+            <p className={`${subtleCardClassName} text-sm leading-7 text-slate-500`}>
+              评审包创建后，可在卡片里分别上传计划书、路演材料和视频，和主文档中心完全分离。
+            </p>
+            <ModalActions>
+              <ActionButton disabled={isSaving} onClick={() => setReviewAssignmentModalOpen(false)}>
+                取消
+              </ActionButton>
+              <ActionButton
+                loading={isSaving}
+                loadingLabel="保存中..."
+                onClick={saveReviewAssignment}
+                variant="primary"
+              >
+                保存评审包
+              </ActionButton>
+            </ModalActions>
+          </div>
+        </Modal>
+      ) : null}
+
+      {reviewMaterialModalOpen ? (
+        <Modal title={`上传${expertReviewMaterialLabels[reviewMaterialDraft.kind]}`} onClose={() => setReviewMaterialModalOpen(false)}>
+          <div className="space-y-4">
+            <label className="block text-sm text-slate-500">
+              材料名称
+              <input
+                className={fieldClassName}
+                value={reviewMaterialDraft.name}
+                onChange={(event) =>
+                  setReviewMaterialDraft((current) => ({ ...current, name: event.target.value }))
+                }
+              />
+            </label>
+            <label className="block text-sm text-slate-500">
+              选择文件
+              <input
+                accept={expertReviewAcceptAttributes[reviewMaterialDraft.kind]}
+                className={`${fieldClassName} block`}
+                type="file"
+                onChange={(event) => {
+                  const file = event.target.files?.[0] ?? null;
+                  setReviewMaterialDraft((current) => ({ ...current, file }));
+                }}
+              />
+            </label>
+            <p className={`${subtleCardClassName} text-sm leading-7 text-slate-500`}>
+              {reviewMaterialDraft.kind === "plan"
+                ? "计划书仅支持 PDF 导出版，确保评委端在线预览稳定。"
+                : reviewMaterialDraft.kind === "ppt"
+                  ? "路演材料仅支持 PDF 导出版，确保评委端在线预览稳定。"
+                  : "视频支持 .mp4 / .mov / .avi"}，单文件最大 30MB。
+            </p>
+            {reviewMaterialUploadProgress !== null ? (
+              <div className={`${subtleCardClassName} space-y-3`}>
+                <div className="flex items-center justify-between text-sm text-slate-500">
+                  <span>当前上传进度</span>
+                  <span className="font-medium text-slate-700">{reviewMaterialUploadProgress}%</span>
+                </div>
+                <div className="h-2 overflow-hidden rounded-full bg-slate-200">
+                  <div
+                    className="h-full rounded-full bg-blue-600 transition-all"
+                    style={{ width: `${reviewMaterialUploadProgress}%` }}
+                  />
+                </div>
+              </div>
+            ) : null}
+            <ModalActions>
+              <ActionButton disabled={isSaving} onClick={() => setReviewMaterialModalOpen(false)}>
+                取消
+              </ActionButton>
+              <ActionButton
+                loading={isSaving}
+                loadingLabel={reviewMaterialSavingLabel}
+                onClick={() => void saveReviewMaterial()}
+                variant="primary"
+              >
+                保存材料
+              </ActionButton>
+            </ModalActions>
+          </div>
+        </Modal>
+      ) : null}
+
+      {previewAsset ? (
+        <Modal
+          bodyClassName="px-5 py-4 md:px-6 md:py-5"
+          onClose={() => setPreviewAsset(null)}
+          size="preview"
+          title={previewAsset.title}
+        >
+          <div className="space-y-4">
+            {previewAsset.mimeType?.startsWith("video/") ? (
+              <video
+                className="max-h-[78vh] w-full rounded-lg border border-slate-200 bg-black"
+                controls
+                playsInline
+                src={previewAsset.url}
+              />
+            ) : isPdfAsset(previewAsset) ? (
+              <PdfPreview url={previewAsset.url} />
+            ) : isImageAsset(previewAsset) ? (
+              <div className="overflow-auto rounded-lg border border-slate-200 bg-slate-100 p-3">
+                <object
+                  className="h-[78vh] w-full rounded-md border border-slate-200 bg-white shadow-sm"
+                  data={previewAsset.url}
+                  type={previewAsset.mimeType || undefined}
+                >
+                  <iframe className="h-[78vh] w-full rounded-md border-0 bg-white" src={previewAsset.url} />
+                </object>
+              </div>
+            ) : (
+              <iframe
+                className="h-[78vh] w-full rounded-lg border border-slate-200 bg-white"
+                src={previewAsset.url}
+                title={previewAsset.title}
+              />
+            )}
+            <p className={`${subtleCardClassName} text-sm leading-7 text-slate-500`}>
+              {previewAsset.mimeType?.startsWith("video/")
+                ? "视频材料支持在当前页面直接播放。"
+                : isPdfAsset(previewAsset)
+                  ? "PDF 在电脑端优先使用浏览器原生预览，手机端使用站内渲染，兼顾字体显示与移动端兼容性。"
+                  : "已切换为站内在线预览模式。"}
+            </p>
+            <ModalActions>
+              <ActionButton onClick={() => setPreviewAsset(null)}>关闭</ActionButton>
+            </ModalActions>
+          </div>
+        </Modal>
+      ) : null}
+
       {documentModalOpen ? (
         <Modal title="上传文档" onClose={() => setDocumentModalOpen(false)}>
           <div className="space-y-4">
@@ -3212,6 +4727,9 @@ export function WorkspaceDashboard({
       {teamModalOpen ? (
         <Modal title="创建账号" onClose={() => setTeamModalOpen(false)}>
           <div className="space-y-4">
+            <div className="rounded-lg bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-500">
+              通过团队管理创建的直属账号会立即生效，无需再走待审核流程。
+            </div>
             <div className="grid gap-4 md:grid-cols-2">
               <label className="block text-sm text-slate-500">
                 姓名 / 显示名
@@ -3277,7 +4795,7 @@ export function WorkspaceDashboard({
             <ModalActions>
               <ActionButton disabled={isSaving} onClick={() => setTeamModalOpen(false)}>取消</ActionButton>
               <ActionButton loading={isSaving} loadingLabel="保存中..." onClick={saveTeamMember} variant="primary">
-                保存成员
+                创建账号
               </ActionButton>
             </ModalActions>
           </div>

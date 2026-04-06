@@ -7,7 +7,7 @@ import { AUTH_COOKIE_NAME } from "@/lib/demo-auth";
 
 type AuthTokenPayload = {
   sub: string;
-  role: "admin" | "teacher" | "leader" | "member";
+  role: "admin" | "teacher" | "leader" | "member" | "expert";
   email: string;
   name: string;
 };
@@ -66,11 +66,17 @@ export const getSessionUser = async (request: NextRequest) => {
         username: true,
         email: true,
         role: true,
+        approvalStatus: true,
+        approvedAt: true,
         avatar: true,
         responsibility: true,
         createdAt: true,
       },
     });
+
+    if (!user || user.approvalStatus !== "approved") {
+      return null;
+    }
 
     return user;
   } catch {

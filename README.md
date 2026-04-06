@@ -7,7 +7,7 @@
 - Turso 数据库
 - JWT + HttpOnly Cookie 登录态
 - Cloudflare R2 文档存储
-- 角色权限控制（系统管理员 / 指导教师 / 项目负责人 / 团队成员）
+- 角色权限控制（系统管理员 / 指导教师 / 项目负责人 / 团队成员 / 评审专家）
 
 ## 本地启动
 
@@ -61,6 +61,7 @@ npm run dev
 - 指导教师：`teacher@competition.cn / teacher123`
 - 项目负责人：`captain@competition.cn / leader123`
 - 团队成员：`member@competition.cn / member123`
+- 评审专家：`expertjudge@competition.cn / expert123`
 
 ## 已实现后端能力
 
@@ -74,6 +75,8 @@ npm run dev
 - `GET/POST /api/events`
 - `PATCH /api/events/[id]`
 - `GET/POST /api/experts`
+- `GET/POST /api/expert-reviews/assignments`
+- `POST /api/expert-reviews/scores`
 - `GET/POST /api/documents`
 - `POST /api/documents/[id]/version`
 - `PATCH /api/documents/[id]/review`
@@ -87,6 +90,10 @@ npm run dev
 - 页面刷新后数据不会丢失
 - 文档文件会保存到 Cloudflare R2，对象 key 按分类目录组织
 - 仅支持上传 `.doc`、`.docx`、`.pdf`、`.xls`、`.xlsx`、`.txt`、`.jpg`、`.jpeg`、`.png`，单文件最大 20MB
+- 专家评审采用四大类 100 分量表：个人成长 25 / 项目创新 30 / 产业价值 30 / 团队协作 15
+- 专家评审当前策略为：截止前可修改，截止后自动锁定
+- 专家评审材料与主文档中心完全分离，管理员创建评审包后可由教师 / 项目负责人补充计划书、路演材料和视频
+- 专家账号登录后仅可进入「专家评审」板块，只支持在线查看计划书、路演材料和视频，不提供下载
 
 ## 生产环境注意
 

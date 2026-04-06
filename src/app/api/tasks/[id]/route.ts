@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { getSessionUser } from "@/lib/auth";
 import { parseLocalDateTime } from "@/lib/date";
+import { assertMainWorkspaceRole } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { serializeTask, taskPriorityValueToDb } from "@/lib/api-serializers";
 
@@ -12,6 +13,12 @@ export async function PATCH(
   const user = await getSessionUser(request);
   if (!user) {
     return NextResponse.json({ message: "未登录" }, { status: 401 });
+  }
+
+  try {
+    assertMainWorkspaceRole(user.role);
+  } catch {
+    return NextResponse.json({ message: "无权限" }, { status: 403 });
   }
 
   const { id } = await params;
@@ -80,6 +87,12 @@ export async function DELETE(
   const user = await getSessionUser(request);
   if (!user) {
     return NextResponse.json({ message: "未登录" }, { status: 401 });
+  }
+
+  try {
+    assertMainWorkspaceRole(user.role);
+  } catch {
+    return NextResponse.json({ message: "无权限" }, { status: 403 });
   }
 
   if (user.role !== "teacher" && user.role !== "admin") {

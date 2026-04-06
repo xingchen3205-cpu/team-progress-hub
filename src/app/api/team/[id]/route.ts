@@ -1,7 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { getSessionUser } from "@/lib/auth";
-import { canManageUser } from "@/lib/permissions";
+import {
+  assertMainWorkspaceRole,
+  canApproveRegistration,
+  canManageUser,
+} from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { serializeUser } from "@/lib/api-serializers";
 
@@ -14,7 +18,9 @@ export async function PATCH(
     return NextResponse.json({ message: "未登录" }, { status: 401 });
   }
 
-  if (user.role === "member") {
+  try {
+    assertMainWorkspaceRole(user.role);
+  } catch {
     return NextResponse.json({ message: "无权限" }, { status: 403 });
   }
 
@@ -30,9 +36,10 @@ export async function PATCH(
         name?: string;
         username?: string;
         email?: string;
-        role?: "系统管理员" | "指导教师" | "项目负责人" | "团队成员";
+        role?: "系统管理员" | "指导教师" | "项目负责人" | "团队成员" | "评审专家";
         responsibility?: string;
         password?: string;
+        action?: "approve";
       }
     | null;
 
@@ -41,9 +48,47 @@ export async function PATCH(
     指导教师: "teacher",
     项目负责人: "leader",
     团队成员: "member",
+    评审专家: "expert",
   } as const;
 
   const nextRole = body?.role ? roleMap[body.role] : target.role;
+
+  if (body?.action === "approve") {
+    if (target.approvalStatus === "approved") {
+      return NextResponse.json({ message: "该账号已审核通过" }, { status: 400 });
+    }
+
+    if (!canApproveRegistration(user.role, target.role)) {
+      return NextResponse.json({ message: "无权限审核该账号" }, { status: 403 });
+    }
+
+    const member = await prisma.user.update({
+      where: { id },
+      data: {
+        approvalStatus: "approved",
+        approvedAt: new Date(),
+        approvedById: user.id,
+      },
+      select: {
+        id: true,
+        name: true,
+        username: true,
+        email: true,
+        role: true,
+        avatar: true,
+        responsibility: true,
+        approvalStatus: true,
+        approvedAt: true,
+        createdAt: true,
+      },
+    });
+
+    return NextResponse.json({ member: serializeUser(member) });
+  }
+
+  if (target.approvalStatus === "pending") {
+    return NextResponse.json({ message: "待审核账号请先审核通过或删除" }, { status: 400 });
+  }
 
   if (target.role === "admin" && nextRole !== "admin") {
     return NextResponse.json({ message: "admin 账号角色不能被修改" }, { status: 403 });
@@ -51,6 +96,33 @@ export async function PATCH(
 
   if (!canManageUser(user.role, target.role, nextRole)) {
     return NextResponse.json({ message: "无权限" }, { status: 403 });
+  }
+
+  const nextUsername = body?.username?.trim();
+  const nextEmail =
+    body?.email === ""
+      ? null
+      : body?.email?.trim() || undefined;
+
+  const conflictChecks = [
+    ...(nextUsername ? [{ username: nextUsername }, { email: nextUsername }] : []),
+    ...(typeof nextEmail === "string" ? [{ email: nextEmail }, { username: nextEmail }] : []),
+  ];
+
+  if (conflictChecks.length > 0) {
+    const conflictAccount = await prisma.user.findFirst({
+      where: {
+        id: {
+          not: target.id,
+        },
+        OR: conflictChecks,
+      },
+      select: { id: true },
+    });
+
+    if (conflictAccount) {
+      return NextResponse.json({ message: "用户名或邮箱已存在，请更换后再试" }, { status: 409 });
+    }
   }
 
   let nextPassword: string | undefined;
@@ -63,8 +135,8 @@ export async function PATCH(
     where: { id },
     data: {
       name: body?.name?.trim() || undefined,
-      username: body?.username?.trim() || undefined,
-      email: body?.email?.trim() || (body?.email === "" ? null : undefined),
+      username: nextUsername || undefined,
+      email: nextEmail,
       role: target.role === "admin" ? undefined : nextRole,
       responsibility: body?.responsibility?.trim() || undefined,
       avatar: body?.name?.trim()?.slice(0, 1) || undefined,
@@ -78,6 +150,8 @@ export async function PATCH(
       role: true,
       avatar: true,
       responsibility: true,
+      approvalStatus: true,
+      approvedAt: true,
       createdAt: true,
     },
   });
@@ -94,7 +168,9 @@ export async function DELETE(
     return NextResponse.json({ message: "未登录" }, { status: 401 });
   }
 
-  if (user.role === "member") {
+  try {
+    assertMainWorkspaceRole(user.role);
+  } catch {
     return NextResponse.json({ message: "无权限" }, { status: 403 });
   }
 
@@ -106,6 +182,20 @@ export async function DELETE(
 
   if (!canManageUser(user.role, target.role)) {
     return NextResponse.json({ message: "无权限" }, { status: 403 });
+  }
+
+  if (target.approvalStatus === "pending") {
+    if (!canApproveRegistration(user.role, target.role)) {
+      return NextResponse.json({ message: "无权限删除该待审核账号" }, { status: 403 });
+    }
+
+    await prisma.user.delete({
+      where: {
+        id: target.id,
+      },
+    });
+
+    return NextResponse.json({ success: true });
   }
 
   if (target.role === "admin") {

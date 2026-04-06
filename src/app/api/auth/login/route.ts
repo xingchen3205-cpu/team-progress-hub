@@ -41,6 +41,13 @@ export async function POST(request: Request) {
     return NextResponse.json({ message: "账号或密码错误" }, { status: 401 });
   }
 
+  if (user.approvalStatus !== "approved") {
+    return NextResponse.json(
+      { message: "账号待上一级审核通过后方可登录" },
+      { status: 403 },
+    );
+  }
+
   const token = signAuthToken({
     sub: user.id,
     role: user.role,

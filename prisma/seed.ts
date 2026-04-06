@@ -35,6 +35,7 @@ const roleMap = {
   指导教师: Role.teacher,
   项目负责人: Role.leader,
   团队成员: Role.member,
+  评审专家: Role.expert,
 } as const satisfies Record<string, Role>;
 
 const taskPriorityMap = {
@@ -68,6 +69,10 @@ const uploadFolderByCategory = {
 } as const;
 
 async function main() {
+  await prisma.expertReviewScore.deleteMany();
+  await prisma.expertReviewMaterial.deleteMany();
+  await prisma.expertReviewAssignment.deleteMany();
+  await prisma.expertReviewPackage.deleteMany();
   await prisma.notification.deleteMany();
   await prisma.documentVersion.deleteMany();
   await prisma.document.deleteMany();
@@ -119,6 +124,26 @@ async function main() {
       avatar: "林",
       responsibility: "市场规模、用户访谈、竞品分析",
     },
+    {
+      id: "expert-1",
+      name: "王评委",
+      username: "expertjudge",
+      email: "expertjudge@competition.cn",
+      password: "expert123",
+      role: Role.expert,
+      avatar: "王",
+      responsibility: "职教赛道创业组专家评审",
+    },
+    {
+      id: "expert-2",
+      name: "周评委",
+      username: "reviewzhou",
+      email: "reviewzhou@competition.cn",
+      password: "expert123",
+      role: Role.expert,
+      avatar: "周",
+      responsibility: "职教赛道创业组专家评审",
+    },
     ...teamMembers
       .filter((member) => !["teacher-1", "leader-1", "member-1"].includes(member.id))
       .map((member) => ({
@@ -138,6 +163,8 @@ async function main() {
       data: {
         ...user,
         password: await bcrypt.hash(user.password, 10),
+        approvalStatus: "approved",
+        approvedAt: new Date(),
       },
     });
   }
@@ -234,6 +261,75 @@ async function main() {
       },
     });
   }
+
+  await prisma.expertReviewPackage.create({
+    data: {
+      id: "review-package-1",
+      targetName: "星辰智造服务项目",
+      roundLabel: "校内专家预审",
+      overview:
+        "请结合计划书、路演材料与演示视频，对项目成长性、创新性与产业价值进行独立评分。",
+      deadline: new Date("2026-04-10T18:00:00+08:00"),
+      createdById: "admin-1",
+      assignments: {
+        create: [
+          {
+            id: "review-assignment-1",
+            expertUserId: "expert-1",
+            status: "completed",
+          },
+          {
+            id: "review-assignment-2",
+            expertUserId: "expert-2",
+            status: "pending",
+          },
+        ],
+      },
+      materials: {
+        create: [
+          {
+            kind: "plan",
+            name: "专家评审版计划书",
+            fileName: "expert-review-plan.pdf",
+            filePath: "expert-review/expert-review-plan.pdf",
+            fileSize: 1024,
+            mimeType: "application/pdf",
+          },
+          {
+            kind: "ppt",
+            name: "专家评审版路演材料",
+            fileName: "expert-review-ppt.pdf",
+            filePath: "expert-review/expert-review-ppt.pdf",
+            fileSize: 1024,
+            mimeType: "application/pdf",
+          },
+          {
+            kind: "video",
+            name: "项目演示视频",
+            fileName: "expert-review-video.mp4",
+            filePath: "expert-review/expert-review-video.mp4",
+            fileSize: 1024,
+            mimeType: "video/mp4",
+          },
+        ],
+      },
+    },
+  });
+
+  await prisma.expertReviewScore.create({
+    data: {
+      assignmentId: "review-assignment-1",
+      reviewerId: "expert-1",
+      scorePersonalGrowth: 22,
+      scoreInnovation: 26,
+      scoreIndustry: 25,
+      scoreTeamwork: 13,
+      totalScore: 86,
+      commentTotal:
+        "项目逻辑清晰，产业场景扎实，建议在商业模式页进一步补强盈利闭环与推广路径。",
+      submittedAt: new Date("2026-04-06T11:20:00+08:00"),
+    },
+  });
 
   await prisma.notification.createMany({
     data: [

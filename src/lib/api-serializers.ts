@@ -16,7 +16,7 @@ import type {
   User,
 } from "@prisma/client";
 
-import { roleLabels } from "@/lib/permissions";
+import { approvalStatusLabels, roleLabels } from "@/lib/permissions";
 
 export const categoryLabels: Record<DocumentCategory, "计划书" | "PPT" | "答辩材料" | "证明附件"> = {
   plan: "计划书",
@@ -88,7 +88,20 @@ export const formatTimeOnly = (value: Date | string) => {
 };
 
 export const serializeUser = (
-  user: Pick<User, "id" | "name" | "username" | "email" | "role" | "avatar" | "responsibility">,
+  user: Pick<
+    User,
+    | "id"
+    | "name"
+    | "username"
+    | "email"
+    | "role"
+    | "avatar"
+    | "responsibility"
+    | "approvalStatus"
+    | "approvedAt"
+  > & {
+    approvedBy?: Pick<User, "id" | "name" | "role"> | null;
+  },
 ) => ({
   id: user.id,
   name: user.name,
@@ -98,6 +111,16 @@ export const serializeUser = (
   avatar: user.avatar,
   responsibility: user.responsibility ?? "",
   roleLabel: roleLabels[user.role as Role],
+  approvalStatus: user.approvalStatus,
+  approvalStatusLabel: approvalStatusLabels[user.approvalStatus],
+  approvedAt: user.approvedAt?.toISOString() ?? null,
+  approvedBy: user.approvedBy
+    ? {
+        id: user.approvedBy.id,
+        name: user.approvedBy.name,
+        roleLabel: roleLabels[user.approvedBy.role],
+      }
+    : null,
   profile: {
     name: user.name,
     avatar: user.avatar,
@@ -207,13 +230,31 @@ export const serializeExpertFeedback = (
         }))
       : (() => {
           try {
-            return (JSON.parse(feedback.attachments) as string[]).map((item, index) => ({
-              id: `${feedback.id}-legacy-${index}`,
-              fileName: item,
-              fileSize: 0,
-              mimeType: "",
-              downloadUrl: null,
-            }));
+            return (JSON.parse(feedback.attachments) as Array<string | { id?: string; fileName?: string }>)
+              .map((item, index) => {
+                if (typeof item === "string") {
+                  return {
+                    id: `${feedback.id}-legacy-${index}`,
+                    fileName: item,
+                    fileSize: 0,
+                    mimeType: "",
+                    downloadUrl: null,
+                  };
+                }
+
+                if (item && typeof item === "object") {
+                  return {
+                    id: item.id || `${feedback.id}-legacy-${index}`,
+                    fileName: item.fileName || "历史附件",
+                    fileSize: 0,
+                    mimeType: "",
+                    downloadUrl: null,
+                  };
+                }
+
+                return null;
+              })
+              .filter((item): item is NonNullable<typeof item> => Boolean(item));
           } catch {
             return [];
           }

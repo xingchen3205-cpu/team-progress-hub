@@ -18,22 +18,88 @@ const uploadFolderByCategory: Record<DocumentCategory, string> = {
   proof: "proof",
 };
 
-const sanitizeBaseName = (fileName: string) =>
+export const sanitizeUploadFileName = (fileName: string) =>
   path
     .basename(fileName)
     .replace(/[^\w.\-\u4e00-\u9fa5]/g, "_")
     .replace(/_+/g, "_");
 
+export const buildStoredObjectKey = ({
+  fileName,
+  category,
+  folder,
+}: {
+  fileName: string;
+  category?: DocumentCategory;
+  folder?: string;
+}) => {
+  const targetFolder = folder || (category ? uploadFolderByCategory[category] : null);
+  if (!targetFolder) {
+    throw new Error("上传目录缺失");
+  }
+
+  const safeFileName = `${Date.now()}_${sanitizeUploadFileName(fileName)}`;
+  return {
+    targetFolder,
+    objectKey: `${targetFolder}/${safeFileName}`,
+  };
+};
+
+export const uploadBufferToStorage = async ({
+  objectKey,
+  fileBuffer,
+  contentType,
+}: {
+  objectKey: string;
+  fileBuffer: Buffer;
+  contentType: string;
+}) => {
+  await r2Client.send(
+    new PutObjectCommand({
+      Bucket: R2_BUCKET,
+      Key: objectKey,
+      Body: fileBuffer,
+      ContentType: contentType || "application/octet-stream",
+    }),
+  );
+};
+
+export async function readStoredFileRange({
+  objectKey,
+  start,
+  end,
+}: {
+  objectKey: string;
+  start: number;
+  end: number;
+}) {
+  const response = await r2Client.send(
+    new GetObjectCommand({
+      Bucket: R2_BUCKET,
+      Key: objectKey,
+      Range: `bytes=${start}-${end}`,
+    }),
+  );
+
+  if (!response.Body) {
+    throw new Error("文件不存在或已丢失");
+  }
+
+  return Buffer.from(await response.Body.transformToByteArray());
+}
+
 export async function saveUploadedFile({
   file,
   category,
   folder,
+  validator,
 }: {
   file: File;
   category?: DocumentCategory;
   folder?: string;
+  validator?: (meta: { fileName: string; fileSize: number }) => string | null;
 }) {
-  const validationError = validateUploadMeta({
+  const validationError = (validator ?? validateUploadMeta)({
     fileName: file.name,
     fileSize: file.size,
   });
@@ -42,23 +108,18 @@ export async function saveUploadedFile({
     throw new Error(validationError);
   }
 
-  const targetFolder = folder || (category ? uploadFolderByCategory[category] : null);
-  if (!targetFolder) {
-    throw new Error("上传目录缺失");
-  }
-
-  const safeFileName = `${Date.now()}_${sanitizeBaseName(file.name)}`;
-  const objectKey = `${targetFolder}/${safeFileName}`;
+  const { objectKey } = buildStoredObjectKey({
+    fileName: file.name,
+    category,
+    folder,
+  });
   const fileBuffer = Buffer.from(await file.arrayBuffer());
 
-  await r2Client.send(
-    new PutObjectCommand({
-      Bucket: R2_BUCKET,
-      Key: objectKey,
-      Body: fileBuffer,
-      ContentType: file.type || "application/octet-stream",
-    }),
-  );
+  await uploadBufferToStorage({
+    objectKey,
+    fileBuffer,
+    contentType: file.type || "application/octet-stream",
+  });
 
   return {
     fileName: file.name,

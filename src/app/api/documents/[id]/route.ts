@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { serializeDocument } from "@/lib/api-serializers";
 import { canDeleteDocument, isPrivilegedReviewer } from "@/lib/document-workflow";
+import { assertMainWorkspaceRole } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { deleteStoredFile } from "@/lib/uploads";
 
@@ -15,6 +16,12 @@ export async function DELETE(
   const user = await getSessionUser(request);
   if (!user) {
     return NextResponse.json({ message: "未登录" }, { status: 401 });
+  }
+
+  try {
+    assertMainWorkspaceRole(user.role);
+  } catch {
+    return NextResponse.json({ message: "无权限" }, { status: 403 });
   }
 
   const { id } = await params;

@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "中国国际大学生创新大赛备赛管理系统",
-  description: "用于管理团队每日进度、任务安排、文档资料与备赛协作内容的平台原型。",
+  title: "中国国际大学生创新大赛管理系统",
+  description: "用于管理团队每日进度、任务安排、文档资料、评审协作与账号审批的平台。",
 };
 
 export default function RootLayout({

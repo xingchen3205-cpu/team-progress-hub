@@ -58,19 +58,13 @@ export default async function MemberInputPage({
           </aside>
 
           <section className="glass-panel p-6">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div>
               <div>
                 <p className="section-eyebrow">当前填写人</p>
                 <h2 className="mt-3 text-3xl font-semibold tracking-[-0.04em] text-[var(--color-ink)]">
                   {currentMember.name}
                 </h2>
                 <p className="mt-2 text-sm text-[var(--color-muted)]">{currentMember.role}</p>
-              </div>
-              <div className="rounded-[22px] bg-[var(--color-panel)] px-4 py-4">
-                <p className="text-sm text-[var(--color-muted)]">今日完成度</p>
-                <p className="mt-2 text-3xl font-semibold text-[var(--color-ink)]">
-                  {currentMember.progress}
-                </p>
               </div>
             </div>
 

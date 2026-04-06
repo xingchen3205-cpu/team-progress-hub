@@ -11,8 +11,10 @@ const validTabs = [
   "board",
   "reports",
   "experts",
+  "review",
   "documents",
   "team",
+  "profile",
 ] as const;
 
 type ValidTab = (typeof validTabs)[number];
