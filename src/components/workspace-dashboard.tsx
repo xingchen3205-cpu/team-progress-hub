@@ -214,6 +214,7 @@ type DocumentActionButton = {
 };
 
 const documentStepLabels = ["成员提交", "负责人审批", "教师终审"] as const;
+type DocumentStepState = "complete" | "current" | "pending" | "rejected";
 
 const getDocumentWorkflowState = (statusKey: DocumentStatusKey) => {
   switch (statusKey) {
@@ -229,6 +230,20 @@ const getDocumentWorkflowState = (statusKey: DocumentStatusKey) => {
       return ["complete", "complete", "rejected"] as const;
     default:
       return ["complete", "pending", "pending"] as const;
+  }
+};
+
+const getDocumentStepCaption = (stepState: DocumentStepState) => {
+  switch (stepState) {
+    case "complete":
+      return "已完成";
+    case "current":
+      return "处理中";
+    case "rejected":
+      return "已打回";
+    case "pending":
+    default:
+      return "等待中";
   }
 };
 
@@ -1765,13 +1780,17 @@ export function WorkspaceDashboard({
                           ? "border-red-500 bg-red-500"
                           : "border-slate-300 bg-white";
                   const lineClassName =
-                    index < documentStepLabels.length - 1 && states[index + 1] !== "pending"
+                    index < documentStepLabels.length - 1 &&
+                    stepState === "complete" &&
+                    states[index + 1] === "complete"
                       ? "bg-blue-600"
                       : "bg-slate-300";
                   const textClassName =
                     stepState === "rejected"
                       ? "text-red-600"
-                      : stepState === "pending"
+                      : stepState === "current"
+                        ? "text-blue-600"
+                        : stepState === "pending"
                         ? "text-slate-400"
                         : "text-slate-700";
 
@@ -1787,9 +1806,7 @@ export function WorkspaceDashboard({
                       />
                       <div className="relative z-10">
                         <p className={`text-xs font-medium ${textClassName}`}>{label}</p>
-                        <p className="mt-1 text-xs text-slate-400">
-                          {index === 0 ? "上传完成" : index === 1 ? "处理中" : "等待完成"}
-                        </p>
+                        <p className={`mt-1 text-xs ${textClassName}`}>{getDocumentStepCaption(stepState)}</p>
                       </div>
                     </div>
                   );
