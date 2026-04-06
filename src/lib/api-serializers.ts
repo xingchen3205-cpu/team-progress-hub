@@ -6,6 +6,7 @@ import type {
   DocumentVersion,
   Event,
   ExpertFeedback,
+  Notification,
   Report,
   Role,
   Task,
@@ -30,16 +31,23 @@ export const categoryValueToDb = {
   证明附件: "proof",
 } as const;
 
-export const statusLabels: Record<DocumentStatus, "待审核" | "已审核" | "需修改"> = {
-  pending: "待审核",
-  approved: "已审核",
-  revision: "需修改",
+export const statusLabels: Record<
+  DocumentStatus,
+  "待负责人审批" | "待教师终审" | "终审通过" | "负责人打回" | "教师打回"
+> = {
+  pending: "待负责人审批",
+  leader_approved: "待教师终审",
+  approved: "终审通过",
+  leader_revision: "负责人打回",
+  revision: "教师打回",
 };
 
 export const statusValueToDb = {
-  待审核: "pending",
-  已审核: "approved",
-  需修改: "revision",
+  待负责人审批: "pending",
+  待教师终审: "leader_approved",
+  终审通过: "approved",
+  负责人打回: "leader_revision",
+  教师打回: "revision",
 } as const;
 
 export const taskPriorityLabels: Record<TaskPriority, "高优先级" | "中优先级" | "低优先级"> = {
@@ -154,6 +162,17 @@ export const serializeAnnouncement = (
   author: announcement.author,
 });
 
+export const serializeNotification = (notification: Notification) => ({
+  id: notification.id,
+  title: notification.title,
+  detail: notification.detail,
+  type: notification.type,
+  targetTab: notification.targetTab,
+  relatedId: notification.relatedId,
+  isRead: notification.isRead,
+  createdAt: formatDateTime(notification.createdAt),
+});
+
 export const serializeEvent = (event: Event) => ({
   id: event.id,
   title: event.title,
@@ -219,6 +238,7 @@ export const serializeDocument = (
     category: categoryLabels[document.category],
     ownerId: document.ownerId,
     ownerName: document.owner.name,
+    statusKey: document.status,
     status: statusLabels[document.status],
     comment: document.comment ?? "",
     currentVersion: document.currentVersion,

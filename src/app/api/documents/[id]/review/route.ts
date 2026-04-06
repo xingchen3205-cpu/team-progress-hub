@@ -1,11 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { getSessionUser } from "@/lib/auth";
-import { prisma } from "@/lib/prisma";
+import { serializeDocument } from "@/lib/api-serializers";
 import {
-  serializeDocument,
-  statusValueToDb,
-} from "@/lib/api-serializers";
+  type DocumentReviewAction,
+  getDocumentReviewTransition,
+} from "@/lib/document-workflow";
+import { createNotifications, getUserIdsByRoles } from "@/lib/notifications";
+import { prisma } from "@/lib/prisma";
 
 export async function PATCH(
   request: NextRequest,
@@ -16,30 +18,52 @@ export async function PATCH(
     return NextResponse.json({ message: "未登录" }, { status: 401 });
   }
 
-  if (user.role !== "teacher") {
-    return NextResponse.json({ message: "无权限" }, { status: 403 });
-  }
-
   const { id } = await params;
   const body = (await request.json().catch(() => null)) as
-    | { status?: "已审核" | "需修改"; comment?: string }
+    | { action?: DocumentReviewAction; comment?: string }
     | null;
 
-  const reviewStatus = body?.status;
-  const status = reviewStatus ? statusValueToDb[reviewStatus] : null;
-  if (!status || (reviewStatus !== "已审核" && reviewStatus !== "需修改")) {
-    return NextResponse.json({ message: "审核状态无效" }, { status: 400 });
+  const action = body?.action;
+  if (!action) {
+    return NextResponse.json({ message: "审核动作无效" }, { status: 400 });
+  }
+
+  const currentDocument = await prisma.document.findUnique({
+    where: { id },
+    include: {
+      owner: {
+        select: { id: true, name: true },
+      },
+      versions: {
+        orderBy: { uploadedAt: "desc" },
+        include: {
+          uploader: {
+            select: { name: true },
+          },
+        },
+      },
+    },
+  });
+
+  if (!currentDocument) {
+    return NextResponse.json({ message: "文档不存在" }, { status: 404 });
+  }
+
+  const transition = getDocumentReviewTransition({
+    actorRole: user.role,
+    currentStatus: currentDocument.status,
+    action,
+  });
+
+  if (!transition) {
+    return NextResponse.json({ message: "当前角色无法执行该审批动作" }, { status: 403 });
   }
 
   const document = await prisma.document.update({
     where: { id },
     data: {
-      status,
-      comment:
-        body?.comment?.trim() ||
-        (reviewStatus === "已审核"
-          ? "指导教师已审核通过，可进入最终提交阶段。"
-          : "指导教师要求修改，请根据批注重新上传版本。"),
+      status: transition.nextStatus,
+      comment: body?.comment?.trim() || transition.defaultComment,
     },
     include: {
       owner: {
@@ -55,6 +79,34 @@ export async function PATCH(
       },
     },
   });
+
+  if (action === "leaderApprove") {
+    const recipientIds = await getUserIdsByRoles({
+      roles: transition.notificationTargetRoles,
+      excludeUserIds: [user.id],
+    });
+
+    await createNotifications({
+      userIds: recipientIds,
+      title: transition.notificationTitle,
+      detail: `${user.name} 已完成《${document.name}》初审，请及时终审。`,
+      type: "document_review",
+      targetTab: "documents",
+      relatedId: document.id,
+    });
+  } else {
+    await createNotifications({
+      userIds: [document.ownerId],
+      title: transition.notificationTitle,
+      detail:
+        action === "teacherApprove"
+          ? `《${document.name}》已通过终审。`
+          : `《${document.name}》已被退回，请查看最新批注并重新提交。`,
+      type: "document_review_result",
+      targetTab: "documents",
+      relatedId: document.id,
+    });
+  }
 
   return NextResponse.json({ document: serializeDocument(document) });
 }

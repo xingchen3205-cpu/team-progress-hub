@@ -3,7 +3,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { serializeDocument } from "@/lib/api-serializers";
-import { saveUploadedFile } from "@/lib/uploads";
+import {
+  canDeleteDocumentVersion,
+  getUploadWorkflow,
+  isPrivilegedReviewer,
+} from "@/lib/document-workflow";
+import { createNotifications, getUserIdsByRoles } from "@/lib/notifications";
+import { deleteStoredFile, saveUploadedFile } from "@/lib/uploads";
 
 export const runtime = "nodejs";
 
@@ -39,6 +45,7 @@ export async function POST(
   const nextVersion = getNextVersion(currentDocument.currentVersion);
 
   try {
+    const workflow = getUploadWorkflow(user.role, true);
     const storedFile = await saveUploadedFile({
       file,
       category: currentDocument.category,
@@ -48,8 +55,8 @@ export async function POST(
       where: { id },
       data: {
         currentVersion: nextVersion,
-        status: "pending",
-        comment: "已上传新版本，等待审核",
+        status: workflow.status,
+        comment: workflow.comment,
         versions: {
           create: {
             version: nextVersion,
@@ -77,6 +84,23 @@ export async function POST(
       },
     });
 
+    if (workflow.notificationTargetRoles.length > 0) {
+      const recipientIds = await getUserIdsByRoles({
+        roles: workflow.notificationTargetRoles,
+        excludeUserIds: [user.id],
+      });
+
+      await createNotifications({
+        userIds: recipientIds,
+        title:
+          workflow.status === "pending" ? "文档新版本待负责人审批" : "文档新版本待教师终审",
+        detail: `${user.name} 为《${document.name}》上传了 ${nextVersion}，请及时处理。`,
+        type: "document_review",
+        targetTab: "documents",
+        relatedId: document.id,
+      });
+    }
+
     return NextResponse.json({ document: serializeDocument(document) });
   } catch (error) {
     const message = error instanceof Error ? error.message : "文件上传失败";
@@ -87,4 +111,122 @@ export async function POST(
       { status: isValidationMessage ? 400 : 500 },
     );
   }
+}
+
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const user = await getSessionUser(request);
+  if (!user) {
+    return NextResponse.json({ message: "未登录" }, { status: 401 });
+  }
+
+  const { id } = await params;
+  const versionId = request.nextUrl.searchParams.get("versionId");
+
+  if (!versionId) {
+    return NextResponse.json({ message: "缺少版本编号" }, { status: 400 });
+  }
+
+  const document = await prisma.document.findUnique({
+    where: { id },
+    include: {
+      owner: {
+        select: { id: true, name: true },
+      },
+      versions: {
+        orderBy: { uploadedAt: "desc" },
+        include: {
+          uploader: {
+            select: { name: true },
+          },
+        },
+      },
+    },
+  });
+
+  if (!document) {
+    return NextResponse.json({ message: "文档不存在" }, { status: 404 });
+  }
+
+  const version = document.versions.find((item) => item.id === versionId);
+  if (!version) {
+    return NextResponse.json({ message: "版本不存在" }, { status: 404 });
+  }
+
+  if (
+    !canDeleteDocumentVersion({
+      actorRole: user.role,
+      actorId: user.id,
+      ownerId: document.ownerId,
+      uploaderId: version.uploaderId,
+      status: document.status,
+    })
+  ) {
+    return NextResponse.json({ message: "无权限删除该版本" }, { status: 403 });
+  }
+
+  if (document.versions.length <= 1) {
+    return NextResponse.json(
+      { message: "当前文档只剩最后一个版本，请直接删除整个文档。" },
+      { status: 409 },
+    );
+  }
+
+  if (document.status === "approved" && !isPrivilegedReviewer(user.role)) {
+    return NextResponse.json(
+      { message: "终审通过的文档版本仅指导教师或管理员可删除。" },
+      { status: 403 },
+    );
+  }
+
+  const remainingVersions = document.versions.filter((item) => item.id !== versionId);
+  const fallbackVersion = remainingVersions[0];
+  const deletingCurrentVersion = version.version === document.currentVersion;
+
+  if (deletingCurrentVersion) {
+    await prisma.$transaction([
+      prisma.documentVersion.delete({
+        where: { id: version.id },
+      }),
+      prisma.document.update({
+        where: { id: document.id },
+        data: {
+          currentVersion: fallbackVersion.version,
+          status: "pending",
+          comment: `已删除 ${version.version}，当前回退至 ${fallbackVersion.version}，请重新发起审批。`,
+        },
+      }),
+    ]);
+  } else {
+    await prisma.documentVersion.delete({
+      where: { id: version.id },
+    });
+  }
+
+  await deleteStoredFile(version.filePath).catch(() => null);
+
+  const refreshedDocument = await prisma.document.findUnique({
+    where: { id: document.id },
+    include: {
+      owner: {
+        select: { id: true, name: true },
+      },
+      versions: {
+        orderBy: { uploadedAt: "desc" },
+        include: {
+          uploader: {
+            select: { name: true },
+          },
+        },
+      },
+    },
+  });
+
+  if (!refreshedDocument) {
+    return NextResponse.json({ message: "文档不存在" }, { status: 404 });
+  }
+
+  return NextResponse.json({ document: serializeDocument(refreshedDocument) });
 }

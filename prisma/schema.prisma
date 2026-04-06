@@ -28,7 +28,9 @@ enum TaskPriority {
 
 enum DocumentStatus {
   pending
+  leader_approved
   approved
+  leader_revision
   revision
 }
 
@@ -55,6 +57,7 @@ model User {
   announcements  Announcement[]
   documents      Document[]        @relation("DocumentOwner")
   documentEdits  DocumentVersion[] @relation("DocumentVersionUploader")
+  notifications  Notification[]
 }
 
 model Task {
@@ -139,4 +142,19 @@ model DocumentVersion {
   mimeType   String
   document   Document @relation(fields: [documentId], references: [id])
   uploader   User     @relation("DocumentVersionUploader", fields: [uploaderId], references: [id])
+}
+
+model Notification {
+  id        String   @id @default(cuid())
+  userId    String
+  title     String
+  detail    String
+  type      String
+  targetTab String?
+  relatedId String?
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@index([userId, isRead, createdAt])
 }

@@ -53,9 +53,11 @@ const documentCategoryMap = {
 } as const satisfies Record<string, DocumentCategory>;
 
 const documentStatusMap = {
-  待审核: DocumentStatus.pending,
-  已审核: DocumentStatus.approved,
-  需修改: DocumentStatus.revision,
+  待负责人审批: DocumentStatus.pending,
+  待教师终审: DocumentStatus.leader_approved,
+  终审通过: DocumentStatus.approved,
+  负责人打回: DocumentStatus.leader_revision,
+  教师打回: DocumentStatus.revision,
 } as const satisfies Record<string, DocumentStatus>;
 
 const uploadFolderByCategory = {
@@ -66,6 +68,7 @@ const uploadFolderByCategory = {
 } as const;
 
 async function main() {
+  await prisma.notification.deleteMany();
   await prisma.documentVersion.deleteMany();
   await prisma.document.deleteMany();
   await prisma.expertFeedback.deleteMany();
@@ -231,6 +234,29 @@ async function main() {
       },
     });
   }
+
+  await prisma.notification.createMany({
+    data: [
+      {
+        userId: "leader-1",
+        title: "文档待负责人审批",
+        detail: "林沐晴上传了《商业计划书》新版本，请及时处理。",
+        type: "document_review",
+        targetTab: "documents",
+        relatedId: "doc-1",
+        isRead: false,
+      },
+      {
+        userId: "teacher-1",
+        title: "文档待教师终审",
+        detail: "项目负责人已完成《商业计划书》初审，请安排终审。",
+        type: "document_review",
+        targetTab: "documents",
+        relatedId: "doc-1",
+        isRead: false,
+      },
+    ],
+  });
 
   console.log("Database seeded successfully.");
 }

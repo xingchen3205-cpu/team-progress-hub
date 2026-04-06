@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
+  Bell,
   BellPlus,
   CalendarDays,
   ChevronDown,
@@ -19,6 +20,7 @@ import {
   MessageSquareText,
   Plus,
   Timer,
+  Trash2,
   Upload,
   Users,
 } from "lucide-react";
@@ -29,6 +31,7 @@ import type {
   DocumentItem,
   EventItem,
   ExpertItem,
+  NotificationItem,
   ReportEntry,
   RoleKey,
   TeamMember,
@@ -191,9 +194,59 @@ const boardBadgeStyles: Record<BoardStatus, string> = {
 };
 
 const docStatusStyles: Record<DocumentItem["status"], string> = {
-  待审核: "bg-[#fef3c7] text-[#9a6700]",
-  已审核: "bg-[#e7f4eb] text-[#32734c]",
-  需修改: "bg-[#fee2e2] text-[#b91c1c]",
+  待负责人审批: "bg-[#fef3c7] text-[#9a6700]",
+  待教师终审: "bg-[#dbeafe] text-[#1d4ed8]",
+  终审通过: "bg-[#e7f4eb] text-[#32734c]",
+  负责人打回: "bg-[#fee2e2] text-[#b91c1c]",
+  教师打回: "bg-[#fce7f3] text-[#be185d]",
+};
+
+type DocumentStatusKey = NonNullable<DocumentItem["statusKey"]>;
+type DocumentReviewActionKey =
+  | "leaderApprove"
+  | "leaderRevision"
+  | "teacherApprove"
+  | "teacherRevision";
+type DocumentActionButton = {
+  key: DocumentReviewActionKey;
+  label: string;
+  variant: "secondary" | "danger";
+};
+
+const documentStepLabels = ["成员提交", "负责人审批", "教师终审"] as const;
+
+const getDocumentWorkflowState = (statusKey: DocumentStatusKey) => {
+  switch (statusKey) {
+    case "pending":
+      return ["complete", "current", "pending"] as const;
+    case "leader_approved":
+      return ["complete", "complete", "current"] as const;
+    case "approved":
+      return ["complete", "complete", "complete"] as const;
+    case "leader_revision":
+      return ["complete", "rejected", "pending"] as const;
+    case "revision":
+      return ["complete", "complete", "rejected"] as const;
+    default:
+      return ["complete", "pending", "pending"] as const;
+  }
+};
+
+const getDocumentStatusHint = (statusKey: DocumentStatusKey) => {
+  switch (statusKey) {
+    case "pending":
+      return "当前正等待项目负责人审批。";
+    case "leader_approved":
+      return "负责人已通过，等待指导教师终审。";
+    case "approved":
+      return "文档已完成终审，可用于正式提交。";
+    case "leader_revision":
+      return "负责人已打回，请先修改后再提交。";
+    case "revision":
+      return "教师已打回，请根据终审意见修改。";
+    default:
+      return "当前审批状态已更新。";
+  }
 };
 
 const taskPriorityStyles: Record<TaskDraft["priority"], string> = {
@@ -214,7 +267,9 @@ const rolePermissions = {
     canViewAllReports: true,
     canUploadExpert: true,
     canUploadDocument: true,
-    canReviewDocument: true,
+    canLeaderReviewDocument: true,
+    canTeacherReviewDocument: true,
+    canDeleteAnyDocument: true,
     canManageTeam: true,
     canManageTeacherAccount: true,
     canEditTimeline: true,
@@ -231,7 +286,9 @@ const rolePermissions = {
     canViewAllReports: true,
     canUploadExpert: true,
     canUploadDocument: true,
-    canReviewDocument: true,
+    canLeaderReviewDocument: false,
+    canTeacherReviewDocument: true,
+    canDeleteAnyDocument: true,
     canManageTeam: true,
     canManageTeacherAccount: true,
     canEditTimeline: true,
@@ -248,7 +305,9 @@ const rolePermissions = {
     canViewAllReports: true,
     canUploadExpert: true,
     canUploadDocument: true,
-    canReviewDocument: false,
+    canLeaderReviewDocument: true,
+    canTeacherReviewDocument: false,
+    canDeleteAnyDocument: false,
     canManageTeam: true,
     canManageTeacherAccount: false,
     canEditTimeline: false,
@@ -265,7 +324,9 @@ const rolePermissions = {
     canViewAllReports: false,
     canUploadExpert: false,
     canUploadDocument: true,
-    canReviewDocument: false,
+    canLeaderReviewDocument: false,
+    canTeacherReviewDocument: false,
+    canDeleteAnyDocument: false,
     canManageTeam: false,
     canManageTeacherAccount: false,
     canEditTimeline: false,
@@ -388,7 +449,7 @@ function SectionHeader({ title, description }: { title: string; description: str
 }
 
 function DemoResetNote() {
-  return <p className="text-xs leading-6 text-[#94a3b8]">当前数据已保存到本地 SQLite 数据库</p>;
+  return <p className="text-xs leading-6 text-[#94a3b8]">当前数据已保存到云端数据库，可跨设备同步</p>;
 }
 
 function Modal({
@@ -465,6 +526,7 @@ export function WorkspaceDashboard({
   const [tasks, setTasks] = useState<BoardTask[]>([]);
   const [experts, setExperts] = useState<ExpertItem[]>([]);
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
+  const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [reportEntriesByDay, setReportEntriesByDay] = useState<Record<string, ReportEntryWithDate[]>>({});
   const [reportDates, setReportDates] = useState<string[]>([getDefaultDateKey()]);
@@ -473,6 +535,7 @@ export function WorkspaceDashboard({
   const [expandedDocs, setExpandedDocs] = useState<string[]>([]);
   const [draggingTaskId, setDraggingTaskId] = useState<string | null>(null);
   const [countdown, setCountdown] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
 
   const [taskModalOpen, setTaskModalOpen] = useState(false);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
@@ -519,7 +582,17 @@ export function WorkspaceDashboard({
       setLoadError(null);
 
       try {
-        const [mePayload, announcementsPayload, eventsPayload, tasksPayload, reportsPayload, expertsPayload, documentsPayload, teamPayload] =
+        const [
+          mePayload,
+          announcementsPayload,
+          eventsPayload,
+          tasksPayload,
+          reportsPayload,
+          expertsPayload,
+          documentsPayload,
+          notificationsPayload,
+          teamPayload,
+        ] =
           await Promise.all([
             requestJson<{ user: CurrentUser }>("/api/auth/me"),
             requestJson<{ announcements: Announcement[] }>("/api/announcements"),
@@ -528,6 +601,7 @@ export function WorkspaceDashboard({
             requestJson<{ dates: string[]; reports: ReportEntryWithDate[] }>("/api/reports"),
             requestJson<{ experts: ExpertItem[] }>("/api/experts"),
             requestJson<{ documents: DocumentItem[] }>("/api/documents"),
+            requestJson<{ notifications: NotificationItem[] }>("/api/notifications"),
             requestJson<{ members: TeamMember[] }>("/api/team"),
           ]);
 
@@ -552,6 +626,7 @@ export function WorkspaceDashboard({
         setTasks(tasksPayload.tasks);
         setExperts(expertsPayload.experts);
         setDocuments(documentsPayload.documents);
+        setNotifications(notificationsPayload.notifications);
         setMembers(teamPayload.members);
         setReportEntriesByDay(groupedReports);
         setReportDates(nextDates);
@@ -612,6 +687,7 @@ export function WorkspaceDashboard({
   const filteredDocuments = selectedCategory
     ? documents.filter((item) => item.category === selectedCategory)
     : documents;
+  const unreadNotificationCount = notifications.filter((item) => !item.isRead).length;
 
   const getMemberName = (memberId: string) => membersMap[memberId]?.name ?? memberId;
 
@@ -681,6 +757,49 @@ export function WorkspaceDashboard({
   const canMoveTask = (task: BoardTask) =>
     permissions.canMoveAnyTask || (currentRole === "member" && task.assigneeId === currentMemberId);
 
+  const canDeleteDocument = (doc: DocumentItem) =>
+    permissions.canDeleteAnyDocument ||
+    (doc.ownerId === currentMemberId && doc.statusKey !== "approved");
+
+  const canDeleteDocumentVersion = (doc: DocumentItem, version: DocumentItem["versions"][number]) =>
+    permissions.canDeleteAnyDocument ||
+    ((doc.ownerId === currentMemberId || version.uploaderId === currentMemberId) &&
+      doc.statusKey !== "approved");
+
+  const getDocumentActionButtons = (doc: DocumentItem): DocumentActionButton[] => {
+    if ((permissions.canLeaderReviewDocument || currentRole === "admin") && doc.statusKey === "pending") {
+      return [
+        {
+          key: "leaderApprove",
+          label: "负责人通过",
+          variant: "secondary" as const,
+        },
+        {
+          key: "leaderRevision",
+          label: "负责人打回",
+          variant: "danger" as const,
+        },
+      ];
+    }
+
+    if ((permissions.canTeacherReviewDocument || currentRole === "admin") && doc.statusKey === "leader_approved") {
+      return [
+        {
+          key: "teacherApprove",
+          label: "教师终审通过",
+          variant: "secondary" as const,
+        },
+        {
+          key: "teacherRevision",
+          label: "教师打回",
+          variant: "danger" as const,
+        },
+      ];
+    }
+
+    return [];
+  };
+
   const refreshWorkspace = () => {
     setReloadToken((current) => current + 1);
   };
@@ -711,6 +830,43 @@ export function WorkspaceDashboard({
     });
     router.push("/login");
     router.refresh();
+  };
+
+  const markNotificationAsRead = async (notificationId: string) => {
+    try {
+      await requestJson(`/api/notifications/${notificationId}`, {
+        method: "PATCH",
+      });
+      setNotifications((current) =>
+        current.map((item) => (item.id === notificationId ? { ...item, isRead: true } : item)),
+      );
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "消息状态更新失败");
+    }
+  };
+
+  const markAllNotificationsAsRead = async () => {
+    try {
+      await requestJson("/api/notifications/read-all", {
+        method: "PATCH",
+      });
+      setNotifications((current) => current.map((item) => ({ ...item, isRead: true })));
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "消息状态更新失败");
+    }
+  };
+
+  const openNotification = async (notification: NotificationItem) => {
+    if (!notification.isRead) {
+      await markNotificationAsRead(notification.id);
+    }
+
+    setNotificationsOpen(false);
+
+    if (notification.targetTab && permissions.visibleTabs.includes(notification.targetTab as TabKey)) {
+      router.push(notification.targetTab === "overview" ? "/workspace" : `/workspace?tab=${notification.targetTab}`);
+      router.refresh();
+    }
   };
 
   const openCreateTaskModal = () => {
@@ -928,6 +1084,7 @@ export function WorkspaceDashboard({
       const response = await fetch("/api/documents", {
         method: "POST",
         body: formData,
+        credentials: "same-origin",
       });
 
       const payload = (await response.json().catch(() => null)) as { message?: string } | null;
@@ -974,6 +1131,7 @@ export function WorkspaceDashboard({
       const response = await fetch(`/api/documents/${versionTargetDocId}/version`, {
         method: "POST",
         body: formData,
+        credentials: "same-origin",
       });
 
       const payload = (await response.json().catch(() => null)) as { message?: string } | null;
@@ -991,19 +1149,46 @@ export function WorkspaceDashboard({
     }
   };
 
-  const reviewDocument = async (docId: string, status: DocumentItem["status"]) => {
-    if (!permissions.canReviewDocument) {
-      return;
-    }
-
+  const reviewDocument = async (
+    docId: string,
+    action: DocumentReviewActionKey,
+  ) => {
     try {
       await requestJson(`/api/documents/${docId}/review`, {
         method: "PATCH",
-        body: JSON.stringify({ status }),
+        body: JSON.stringify({ action }),
       });
       refreshWorkspace();
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "文档审核失败");
+    }
+  };
+
+  const removeDocument = async (docId: string) => {
+    try {
+      await requestJson(`/api/documents/${docId}`, {
+        method: "DELETE",
+      });
+      setExpandedDocs((current) => current.filter((item) => item !== docId));
+      refreshWorkspace();
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "文档删除失败");
+    }
+  };
+
+  const removeDocumentVersion = async (docId: string, versionId?: string) => {
+    if (!versionId) {
+      setLoadError("版本编号缺失，暂时无法删除");
+      return;
+    }
+
+    try {
+      await requestJson(`/api/documents/${docId}/version?versionId=${versionId}`, {
+        method: "DELETE",
+      });
+      refreshWorkspace();
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "版本删除失败");
     }
   };
 
@@ -1559,6 +1744,42 @@ export function WorkspaceDashboard({
             key={doc.id}
             className="rounded-[24px] border border-[#e5e7eb] bg-white p-5 shadow-[0_12px_32px_rgba(15,23,42,0.05)]"
           >
+            <div className="rounded-[20px] border border-[#eef2f7] bg-[#fbfdff] p-4">
+              <div className="grid gap-4 md:grid-cols-3">
+                {documentStepLabels.map((label, index) => {
+                  const stepState = getDocumentWorkflowState(doc.statusKey ?? "pending")[index];
+                  const dotClassName =
+                    stepState === "complete"
+                      ? "border-[#2563eb] bg-[#2563eb]"
+                      : stepState === "current"
+                        ? "border-[#2563eb] bg-[#2563eb] ring-4 ring-[#dbeafe]"
+                        : stepState === "rejected"
+                          ? "border-[#ef4444] bg-[#ef4444]"
+                          : "border-[#cbd5e1] bg-white";
+
+                  return (
+                    <div className="relative flex items-center gap-3" key={`${doc.id}-${label}`}>
+                      {index < documentStepLabels.length - 1 ? (
+                        <div className="absolute left-4 right-0 top-4 hidden h-[2px] bg-[#dbe3ef] md:block" />
+                      ) : null}
+                      <span
+                        className={`relative z-10 h-8 w-8 rounded-full border-2 ${dotClassName} ${
+                          stepState === "current" ? "animate-pulse" : ""
+                        }`}
+                      />
+                      <div className="relative z-10">
+                        <p className="text-sm font-medium text-[#111827]">{label}</p>
+                        <p className="mt-1 text-xs text-[#94a3b8]">
+                          {index === 0 ? "上传完成" : index === 1 ? "处理中" : "等待完成"}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <p className="mt-4 text-sm text-[#6b7280]">{getDocumentStatusHint(doc.statusKey ?? "pending")}</p>
+            </div>
+
             <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
               <div>
                 <h3 className="text-base font-semibold text-[#111827]">{doc.name}</h3>
@@ -1568,9 +1789,9 @@ export function WorkspaceDashboard({
                 <p className="mt-2 text-sm leading-7 text-[#6b7280]">批注：{doc.comment}</p>
               </div>
               <div className="flex flex-wrap items-center gap-3">
-                <span className={`rounded-full px-3 py-1 text-sm ${docStatusStyles[doc.status]}`}>
-                  {doc.status}
-                </span>
+                  <span className={`rounded-full px-3 py-1 text-sm ${docStatusStyles[doc.status]}`}>
+                    {doc.status}
+                  </span>
                 <ActionButton
                   onClick={() => openVersionUploadModal(doc.id)}
                   disabled={!permissions.canUploadDocument}
@@ -1587,28 +1808,33 @@ export function WorkspaceDashboard({
                     <span>下载</span>
                   </span>
                 </ActionButton>
+                <ActionButton
+                  disabled={!canDeleteDocument(doc)}
+                  onClick={() => void removeDocument(doc.id)}
+                  title="无权限"
+                  variant="danger"
+                >
+                  <span className="inline-flex items-center gap-2">
+                    <Trash2 className="h-4 w-4" />
+                    <span>删除文档</span>
+                  </span>
+                </ActionButton>
               </div>
             </div>
 
             <div className="mt-4 flex flex-wrap gap-3">
-              <ActionButton
-                disabled={!permissions.canReviewDocument}
-                onClick={() => reviewDocument(doc.id, "已审核")}
-                title="无权限"
-              >
-                <span className="inline-flex items-center gap-2">
-                  <FileCheck className="h-4 w-4" />
-                  <span>标记已审核</span>
-                </span>
-              </ActionButton>
-              <ActionButton
-                disabled={!permissions.canReviewDocument}
-                onClick={() => reviewDocument(doc.id, "需修改")}
-                title="无权限"
-                variant="danger"
-              >
-                标记需修改
-              </ActionButton>
+              {getDocumentActionButtons(doc).map((actionButton) => (
+                <ActionButton
+                  key={`${doc.id}-${actionButton.key}`}
+                  onClick={() => void reviewDocument(doc.id, actionButton.key)}
+                  variant={actionButton.variant}
+                >
+                  <span className="inline-flex items-center gap-2">
+                    {actionButton.variant === "danger" ? null : <FileCheck className="h-4 w-4" />}
+                    <span>{actionButton.label}</span>
+                  </span>
+                </ActionButton>
+              ))}
               <button
                 className="inline-flex items-center gap-2 text-sm text-[#2563eb]"
                 onClick={() => toggleDocExpand(doc.id)}
@@ -1650,6 +1876,17 @@ export function WorkspaceDashboard({
                         <span className="inline-flex items-center gap-2">
                           <Download className="h-4 w-4" />
                           <span>下载版本</span>
+                        </span>
+                      </ActionButton>
+                      <ActionButton
+                        disabled={!canDeleteDocumentVersion(doc, version) || doc.versions.length <= 1}
+                        onClick={() => void removeDocumentVersion(doc.id, version.id)}
+                        title={doc.versions.length <= 1 ? "至少保留一个版本" : "无权限"}
+                        variant="danger"
+                      >
+                        <span className="inline-flex items-center gap-2">
+                          <Trash2 className="h-4 w-4" />
+                          <span>删除版本</span>
                         </span>
                       </ActionButton>
                     </div>
@@ -1844,6 +2081,74 @@ export function WorkspaceDashboard({
                 <p className="text-lg font-semibold text-[#111827]">中国国际大学生创新大赛备赛管理系统</p>
 
                 <div className="flex flex-wrap items-center gap-3">
+                  <div className="relative">
+                    <button
+                      className="relative inline-flex h-10 w-10 items-center justify-center rounded-full border border-[#d1d9e6] text-[#4b5563] hover:bg-[#f8fafc]"
+                      onClick={() => setNotificationsOpen((current) => !current)}
+                      type="button"
+                    >
+                      <Bell className="h-4 w-4" />
+                      {unreadNotificationCount > 0 ? (
+                        <span className="absolute right-1 top-1 inline-flex min-w-5 items-center justify-center rounded-full bg-[#ef4444] px-1.5 text-[10px] font-semibold text-white">
+                          {unreadNotificationCount}
+                        </span>
+                      ) : null}
+                    </button>
+
+                    {notificationsOpen ? (
+                      <div className="absolute right-0 top-12 z-20 w-[360px] rounded-[24px] border border-[#e5e7eb] bg-white p-4 shadow-[0_18px_40px_rgba(15,23,42,0.12)]">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <p className="text-base font-semibold text-[#111827]">站内消息</p>
+                            <p className="mt-1 text-xs text-[#94a3b8]">文档审批进度会实时同步到这里。</p>
+                          </div>
+                          <button
+                            className="text-sm text-[#2563eb]"
+                            onClick={() => void markAllNotificationsAsRead()}
+                            type="button"
+                          >
+                            全部已读
+                          </button>
+                        </div>
+
+                        <div className="mt-4 space-y-3">
+                          {notifications.length > 0 ? (
+                            notifications.map((notification) => (
+                              <button
+                                className={`w-full rounded-[18px] border px-4 py-3 text-left transition ${
+                                  notification.isRead
+                                    ? "border-[#e5e7eb] bg-white"
+                                    : "border-[#dbeafe] bg-[#f8fbff]"
+                                }`}
+                                key={notification.id}
+                                onClick={() => void openNotification(notification)}
+                                type="button"
+                              >
+                                <div className="flex items-start justify-between gap-3">
+                                  <div>
+                                    <p className="text-sm font-semibold text-[#111827]">
+                                      {notification.title}
+                                    </p>
+                                    <p className="mt-2 text-sm leading-6 text-[#6b7280]">
+                                      {notification.detail}
+                                    </p>
+                                  </div>
+                                  {!notification.isRead ? (
+                                    <span className="mt-1 h-2.5 w-2.5 rounded-full bg-[#2563eb]" />
+                                  ) : null}
+                                </div>
+                                <p className="mt-2 text-xs text-[#94a3b8]">{notification.createdAt}</p>
+                              </button>
+                            ))
+                          ) : (
+                            <div className="rounded-[18px] border border-dashed border-[#d1d9e6] px-4 py-6 text-center text-sm text-[#94a3b8]">
+                              暂无新的站内消息
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
                   <div className="flex items-center gap-3 rounded-full bg-[#f8fafc] px-3 py-2">
                     <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#2563eb] text-sm font-semibold text-white">
                       {currentUser.profile.avatar}

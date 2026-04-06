@@ -6,6 +6,8 @@ import {
   categoryValueToDb,
   serializeDocument,
 } from "@/lib/api-serializers";
+import { getUploadWorkflow } from "@/lib/document-workflow";
+import { createNotifications, getUserIdsByRoles } from "@/lib/notifications";
 import { saveUploadedFile } from "@/lib/uploads";
 
 export const runtime = "nodejs";
@@ -58,6 +60,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
+    const workflow = getUploadWorkflow(user.role, false);
     const storedFile = await saveUploadedFile({
       file,
       category,
@@ -68,8 +71,8 @@ export async function POST(request: NextRequest) {
         name,
         category,
         ownerId: user.id,
-        status: "pending",
-        comment: "等待审核",
+        status: workflow.status,
+        comment: workflow.comment,
         currentVersion: "v1.0",
         versions: {
           create: {
@@ -97,6 +100,23 @@ export async function POST(request: NextRequest) {
         },
       },
     });
+
+    if (workflow.notificationTargetRoles.length > 0) {
+      const recipientIds = await getUserIdsByRoles({
+        roles: workflow.notificationTargetRoles,
+        excludeUserIds: [user.id],
+      });
+
+      await createNotifications({
+        userIds: recipientIds,
+        title:
+          workflow.status === "pending" ? "文档待负责人审批" : "文档待教师终审",
+        detail: `${user.name} 上传了《${document.name}》，请及时处理。`,
+        type: "document_review",
+        targetTab: "documents",
+        relatedId: document.id,
+      });
+    }
 
     return NextResponse.json({ document: serializeDocument(document) }, { status: 201 });
   } catch (error) {

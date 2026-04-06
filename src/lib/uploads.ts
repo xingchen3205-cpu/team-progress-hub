@@ -3,7 +3,13 @@ import path from "node:path";
 import type { DocumentCategory } from "@prisma/client";
 
 import { validateUploadMeta } from "@/lib/file-policy";
-import { GetObjectCommand, PutObjectCommand, R2_BUCKET, r2Client } from "@/lib/r2";
+import {
+  DeleteObjectCommand,
+  GetObjectCommand,
+  PutObjectCommand,
+  R2_BUCKET,
+  r2Client,
+} from "@/lib/r2";
 
 const uploadFolderByCategory: Record<DocumentCategory, string> = {
   plan: "plans",
@@ -71,4 +77,17 @@ export async function readStoredFile(objectKey: string) {
     buffer: Buffer.from(await response.Body.transformToByteArray()),
     contentType: response.ContentType || "application/octet-stream",
   };
+}
+
+export async function deleteStoredFile(objectKey: string) {
+  if (!objectKey) {
+    return;
+  }
+
+  await r2Client.send(
+    new DeleteObjectCommand({
+      Bucket: R2_BUCKET,
+      Key: objectKey,
+    }),
+  );
 }

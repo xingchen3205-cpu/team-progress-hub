@@ -41,6 +41,7 @@ export type DocumentVersion = {
   version: string;
   uploadedAt: string;
   uploader: string;
+  uploaderId?: string;
   note: string;
   fileName?: string;
   filePath?: string;
@@ -54,7 +55,13 @@ export type DocumentItem = {
   name: string;
   category: string;
   ownerId: string;
-  status: "待审核" | "已审核" | "需修改";
+  status:
+    | "待负责人审批"
+    | "待教师终审"
+    | "终审通过"
+    | "负责人打回"
+    | "教师打回";
+  statusKey?: "pending" | "leader_approved" | "approved" | "leader_revision" | "revision";
   comment: string;
   currentVersion: string;
   currentFileName?: string;
@@ -63,6 +70,17 @@ export type DocumentItem = {
   currentMimeType?: string;
   downloadUrl?: string;
   versions: DocumentVersion[];
+};
+
+export type NotificationItem = {
+  id: string;
+  title: string;
+  detail: string;
+  type: string;
+  targetTab?: string | null;
+  relatedId?: string | null;
+  isRead: boolean;
+  createdAt: string;
 };
 
 export type Announcement = {
@@ -462,8 +480,9 @@ export const initialDocuments: DocumentItem[] = [
     name: "商业计划书",
     category: "计划书",
     ownerId: "leader-1",
-    status: "待审核",
-    comment: "等待老师确认市场规模表达和商业闭环页。",
+    status: "待教师终审",
+    statusKey: "leader_approved",
+    comment: "项目负责人已完成初审，等待老师确认市场规模表达和商业闭环页。",
     currentVersion: "v5.2",
     versions: [
       {
@@ -485,8 +504,9 @@ export const initialDocuments: DocumentItem[] = [
     name: "决赛路演 PPT",
     category: "PPT",
     ownerId: "member-2",
-    status: "需修改",
-    comment: "技术亮点页需前置，字体层级需要统一。",
+    status: "教师打回",
+    statusKey: "revision",
+    comment: "教师建议前置技术亮点页，并统一字体层级后重新提交。",
     currentVersion: "v7.0",
     versions: [
       {
@@ -508,7 +528,8 @@ export const initialDocuments: DocumentItem[] = [
     name: "答辩题库与回答稿",
     category: "答辩材料",
     ownerId: "member-4",
-    status: "已审核",
+    status: "终审通过",
+    statusKey: "approved",
     comment: "问题分类清晰，可继续迭代老师追问版本。",
     currentVersion: "v3.1",
     versions: [
@@ -531,8 +552,9 @@ export const initialDocuments: DocumentItem[] = [
     name: "专利与证明附件包",
     category: "证明附件",
     ownerId: "member-5",
-    status: "已审核",
-    comment: "证明附件齐全，后续补充签字版即可。",
+    status: "负责人打回",
+    statusKey: "leader_revision",
+    comment: "负责人要求补充签字版扫描件后再提交教师终审。",
     currentVersion: "v2.4",
     versions: [
       {
