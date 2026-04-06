@@ -4154,10 +4154,6 @@ export function WorkspaceDashboard({
                       </div>
                     </div>
 
-                    <p className="mt-4 text-sm leading-7 text-slate-600">
-                      负责内容：{member.responsibility || "待审核通过后补充"}
-                    </p>
-
                     <div className="mt-4 flex flex-wrap gap-3">
                       <ActionButton
                         loading={isSaving}
@@ -4207,8 +4203,6 @@ export function WorkspaceDashboard({
                       ) : null}
                     </div>
                   </div>
-
-                  <p className="mt-4 text-sm leading-7 text-slate-600">负责内容：{member.responsibility}</p>
 
                   <div className="mt-4 grid gap-4 md:grid-cols-[1fr_auto] md:items-center">
                     <label className="text-sm text-slate-500">
@@ -4340,18 +4334,6 @@ export function WorkspaceDashboard({
               />
             </label>
           </div>
-
-          <label className="mt-4 block text-sm text-slate-500">
-            个人职责 / 简介
-            <textarea
-              className={`${textareaClassName} min-h-32`}
-              value={profileDraft.responsibility}
-              onChange={(event) => {
-                setProfileDraft((current) => ({ ...current, responsibility: event.target.value }));
-                setProfileMessage(null);
-              }}
-            />
-          </label>
 
           <label className="mt-4 block text-sm text-slate-500">
             新密码
@@ -5728,16 +5710,6 @@ export function WorkspaceDashboard({
                   </option>
                 ))}
               </select>
-            </label>
-            <label className="block text-sm text-slate-500">
-              负责内容
-              <textarea
-                className={`${textareaClassName} min-h-24`}
-                value={teamDraft.responsibility}
-                onChange={(event) =>
-                  setTeamDraft((current) => ({ ...current, responsibility: event.target.value }))
-                }
-              />
             </label>
             <ModalActions>
               <ActionButton disabled={isSaving} onClick={() => setTeamModalOpen(false)}>取消</ActionButton>
