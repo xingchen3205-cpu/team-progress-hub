@@ -106,6 +106,17 @@ type ExpertDraft = {
   nextAction: string;
 };
 
+type ExpertDraftErrors = {
+  date?: string;
+  format?: string;
+  expert?: string;
+  topic?: string;
+  summary?: string;
+  nextAction?: string;
+  attachments?: string;
+  submit?: string;
+};
+
 type AnnouncementDraft = {
   title: string;
   detail: string;
@@ -364,6 +375,8 @@ const surfaceCardClassName = "rounded-xl border border-slate-200 bg-white p-5 sh
 const subtleCardClassName = "rounded-xl border border-slate-200 bg-slate-50 p-4";
 const fieldClassName =
   "mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20";
+const fieldErrorClassName =
+  "mt-1.5 w-full rounded-lg border border-red-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-red-400 focus:ring-2 focus:ring-red-200";
 const textareaClassName = `${fieldClassName} min-h-28`;
 
 const rolePermissions = {
@@ -648,6 +661,8 @@ const defaultExpertDraft: ExpertDraft = {
   summary: "",
   nextAction: "",
 };
+
+const defaultExpertDraftErrors = (): ExpertDraftErrors => ({});
 
 const defaultTeamDraft: TeamDraft = {
   name: "",
@@ -1031,6 +1046,7 @@ export function WorkspaceDashboard({
   const [expertModalOpen, setExpertModalOpen] = useState(false);
   const [expertDraft, setExpertDraft] = useState<ExpertDraft>(defaultExpertDraft);
   const [expertFiles, setExpertFiles] = useState<File[]>([]);
+  const [expertDraftErrors, setExpertDraftErrors] = useState<ExpertDraftErrors>(defaultExpertDraftErrors);
   const [reviewAssignmentModalOpen, setReviewAssignmentModalOpen] = useState(false);
   const [reviewAssignmentDraft, setReviewAssignmentDraft] = useState<ExpertReviewAssignmentDraft>(
     defaultExpertReviewAssignmentDraft(),
@@ -1843,19 +1859,29 @@ export function WorkspaceDashboard({
   };
 
   const saveExpert = async () => {
-    if (
-      !expertDraft.expert.trim() ||
-      !expertDraft.topic.trim() ||
-      !expertDraft.summary.trim() ||
-      !expertDraft.nextAction.trim()
-    ) {
+    const nextErrors: ExpertDraftErrors = {
+      date: expertDraft.date.trim() ? undefined : "请选择日期",
+      format: expertDraft.format.trim() ? undefined : "请填写沟通形式",
+      expert: expertDraft.expert.trim() ? undefined : "请填写专家姓名",
+      topic: expertDraft.topic.trim() ? undefined : "请填写主题",
+      summary: expertDraft.summary.trim() ? undefined : "请填写反馈摘要",
+      nextAction: expertDraft.nextAction.trim() ? undefined : "请填写后续动作",
+    };
+
+    setExpertDraftErrors(nextErrors);
+
+    if (Object.values(nextErrors).some(Boolean)) {
       return;
     }
 
     for (const file of expertFiles) {
       const validationError = validateClientFile(file);
       if (validationError) {
-        setLoadError(validationError);
+        setExpertDraftErrors((current) => ({
+          ...current,
+          attachments: validationError,
+          submit: undefined,
+        }));
         return;
       }
     }
@@ -1886,11 +1912,15 @@ export function WorkspaceDashboard({
 
       setExpertDraft(defaultExpertDraft);
       setExpertFiles([]);
+      setExpertDraftErrors(defaultExpertDraftErrors());
       setExpertModalOpen(false);
       showSuccessToast("专家意见已保存", "新的专家反馈已经写入专家意见板块。");
       refreshWorkspace();
     } catch (error) {
-      setLoadError(error instanceof Error ? error.message : "专家意见保存失败");
+      setExpertDraftErrors((current) => ({
+        ...current,
+        submit: error instanceof Error ? error.message : "专家意见保存失败",
+      }));
     } finally {
       setIsSaving(false);
     }
@@ -2931,6 +2961,7 @@ export function WorkspaceDashboard({
             onClick={() => {
               setExpertDraft(defaultExpertDraft);
               setExpertFiles([]);
+              setExpertDraftErrors(defaultExpertDraftErrors());
               setExpertModalOpen(true);
             }}
             title="无权限"
@@ -4452,65 +4483,119 @@ export function WorkspaceDashboard({
             setExpertModalOpen(false);
             setExpertDraft(defaultExpertDraft);
             setExpertFiles([]);
+            setExpertDraftErrors(defaultExpertDraftErrors());
           }}
         >
           <div className="space-y-4">
+            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-500">
+              <p className="font-medium text-slate-700">带 <span className="text-red-500">*</span> 的项目为必填项</p>
+              <p className="mt-1">如提交失败，会在对应字段下方直接说明原因。</p>
+            </div>
+            {expertDraftErrors.submit ? (
+              <div className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm leading-6 text-red-700">
+                {expertDraftErrors.submit}
+              </div>
+            ) : null}
             <div className="grid gap-4 md:grid-cols-2">
               <label className="block text-sm text-slate-500">
-                日期
+                日期 <span className="text-red-500">*</span>
                 <input
-                  className={fieldClassName}
+                  className={expertDraftErrors.date ? fieldErrorClassName : fieldClassName}
                   type="date"
                   value={expertDraft.date}
-                  onChange={(event) => setExpertDraft((current) => ({ ...current, date: event.target.value }))}
+                  onChange={(event) => {
+                    setExpertDraft((current) => ({ ...current, date: event.target.value }));
+                    setExpertDraftErrors((current) => ({
+                      ...current,
+                      date: undefined,
+                      submit: undefined,
+                    }));
+                  }}
                 />
+                {expertDraftErrors.date ? <p className="mt-1 text-sm text-red-600">{expertDraftErrors.date}</p> : null}
               </label>
               <label className="block text-sm text-slate-500">
-                形式
+                形式 <span className="text-red-500">*</span>
                 <input
-                  className={fieldClassName}
+                  className={expertDraftErrors.format ? fieldErrorClassName : fieldClassName}
                   value={expertDraft.format}
-                  onChange={(event) => setExpertDraft((current) => ({ ...current, format: event.target.value }))}
+                  onChange={(event) => {
+                    setExpertDraft((current) => ({ ...current, format: event.target.value }));
+                    setExpertDraftErrors((current) => ({
+                      ...current,
+                      format: undefined,
+                      submit: undefined,
+                    }));
+                  }}
                 />
+                {expertDraftErrors.format ? <p className="mt-1 text-sm text-red-600">{expertDraftErrors.format}</p> : null}
               </label>
             </div>
             <div className="grid gap-4 md:grid-cols-2">
               <label className="block text-sm text-slate-500">
-                专家姓名
+                专家姓名 <span className="text-red-500">*</span>
                 <input
-                  className={fieldClassName}
+                  className={expertDraftErrors.expert ? fieldErrorClassName : fieldClassName}
                   value={expertDraft.expert}
-                  onChange={(event) => setExpertDraft((current) => ({ ...current, expert: event.target.value }))}
+                  onChange={(event) => {
+                    setExpertDraft((current) => ({ ...current, expert: event.target.value }));
+                    setExpertDraftErrors((current) => ({
+                      ...current,
+                      expert: undefined,
+                      submit: undefined,
+                    }));
+                  }}
                 />
+                {expertDraftErrors.expert ? <p className="mt-1 text-sm text-red-600">{expertDraftErrors.expert}</p> : null}
               </label>
               <label className="block text-sm text-slate-500">
-                主题
+                主题 <span className="text-red-500">*</span>
                 <input
-                  className={fieldClassName}
+                  className={expertDraftErrors.topic ? fieldErrorClassName : fieldClassName}
                   value={expertDraft.topic}
-                  onChange={(event) => setExpertDraft((current) => ({ ...current, topic: event.target.value }))}
+                  onChange={(event) => {
+                    setExpertDraft((current) => ({ ...current, topic: event.target.value }));
+                    setExpertDraftErrors((current) => ({
+                      ...current,
+                      topic: undefined,
+                      submit: undefined,
+                    }));
+                  }}
                 />
+                {expertDraftErrors.topic ? <p className="mt-1 text-sm text-red-600">{expertDraftErrors.topic}</p> : null}
               </label>
             </div>
             <label className="block text-sm text-slate-500">
-              反馈摘要
+              反馈摘要 <span className="text-red-500">*</span>
               <textarea
-                className={textareaClassName}
+                className={`${expertDraftErrors.summary ? fieldErrorClassName : fieldClassName} min-h-28`}
                 value={expertDraft.summary}
-                onChange={(event) =>
-                  setExpertDraft((current) => ({ ...current, summary: event.target.value }))
-                }
+                onChange={(event) => {
+                  setExpertDraft((current) => ({ ...current, summary: event.target.value }));
+                  setExpertDraftErrors((current) => ({
+                    ...current,
+                    summary: undefined,
+                    submit: undefined,
+                  }));
+                }}
               />
+              {expertDraftErrors.summary ? <p className="mt-1 text-sm text-red-600">{expertDraftErrors.summary}</p> : null}
             </label>
             <label className="block text-sm text-slate-500">
-              后续动作
+              后续动作 <span className="text-red-500">*</span>
               <textarea
-                className={textareaClassName}
+                className={`${expertDraftErrors.nextAction ? fieldErrorClassName : fieldClassName} min-h-28`}
                 value={expertDraft.nextAction}
-                onChange={(event) =>
-                  setExpertDraft((current) => ({ ...current, nextAction: event.target.value }))
-                }
+                onChange={(event) => {
+                  setExpertDraft((current) => ({ ...current, nextAction: event.target.value }));
+                  setExpertDraftErrors((current) => ({
+                    ...current,
+                    nextAction: undefined,
+                    submit: undefined,
+                  }));
+                }}
               />
+              {expertDraftErrors.nextAction ? <p className="mt-1 text-sm text-red-600">{expertDraftErrors.nextAction}</p> : null}
             </label>
             <label className="block text-sm text-slate-500">
               上传附件
@@ -4524,15 +4609,28 @@ export function WorkspaceDashboard({
                   for (const file of nextFiles) {
                     const validationError = validateClientFile(file);
                     if (validationError) {
-                      setLoadError(validationError);
+                      setExpertDraftErrors((current) => ({
+                        ...current,
+                        attachments: validationError,
+                        submit: undefined,
+                      }));
                       event.target.value = "";
                       setExpertFiles([]);
                       return;
                     }
                   }
                   setExpertFiles(nextFiles);
+                  setExpertDraftErrors((current) => ({
+                    ...current,
+                    attachments: undefined,
+                    submit: undefined,
+                  }));
                 }}
               />
+              <p className="mt-1 text-xs leading-5 text-slate-400">附件选填，支持 Word / PDF / Excel / 图片。</p>
+              {expertDraftErrors.attachments ? (
+                <p className="mt-1 text-sm text-red-600">{expertDraftErrors.attachments}</p>
+              ) : null}
             </label>
             {expertFiles.length > 0 ? (
               <div className={`${subtleCardClassName} space-y-2`}>
