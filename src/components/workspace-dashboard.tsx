@@ -1118,6 +1118,7 @@ export function WorkspaceDashboard({
   const [teamSearch, setTeamSearch] = useState("");
   const [teamRoleFilter, setTeamRoleFilter] = useState<"全部" | TeamRoleLabel>("全部");
   const [todoAutoOpened, setTodoAutoOpened] = useState(false);
+  const [dismissedTodosReady, setDismissedTodosReady] = useState(false);
   const [dismissedTodoIds, setDismissedTodoIds] = useState<string[]>([]);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState>(null);
@@ -1434,6 +1435,8 @@ export function WorkspaceDashboard({
     reportEntries.map((item) => [item.memberId, item]),
   );
   const todayDateKey = getDefaultDateKey();
+  const dismissedTodoStorageKey =
+    currentUser && todayDateKey ? `workspace-dismissed-todos:${currentUser.id}:${todayDateKey}` : null;
   const todayReportEntries = useMemo(
     () => reportEntriesByDay[todayDateKey] ?? [],
     [reportEntriesByDay, todayDateKey],
@@ -1649,7 +1652,7 @@ export function WorkspaceDashboard({
 
     if ((currentRole === "leader" || currentRole === "admin") && pendingLeaderReviewCount > 0) {
       items.push({
-        id: `leader-review-${pendingLeaderReviewCount}`,
+        id: "leader-review",
         title: "文档待负责人审批",
         detail: `当前有 ${pendingLeaderReviewCount} 份文档在等待负责人审批。`,
         actionLabel: "前往文档中心",
@@ -1660,7 +1663,7 @@ export function WorkspaceDashboard({
 
     if ((currentRole === "teacher" || currentRole === "admin") && pendingTeacherReviewCount > 0) {
       items.push({
-        id: `teacher-review-${pendingTeacherReviewCount}`,
+        id: "teacher-review",
         title: "文档待教师终审",
         detail: `当前有 ${pendingTeacherReviewCount} 份文档已经通过负责人审批，等待教师终审。`,
         actionLabel: "查看待审文档",
@@ -1671,7 +1674,7 @@ export function WorkspaceDashboard({
 
     if (pendingApprovalMembers.length > 0) {
       items.push({
-        id: `approval-${pendingApprovalMembers.length}`,
+        id: "approval",
         title: "账号待审核",
         detail: `当前有 ${pendingApprovalMembers.length} 个账号等待你审核，通过后他们才能登录系统。`,
         actionLabel: "前往团队管理",
@@ -1684,7 +1687,7 @@ export function WorkspaceDashboard({
       const pendingAssignments = reviewAssignments.filter((assignment) => assignment.statusKey === "pending");
       if (pendingAssignments.length > 0) {
         items.push({
-          id: `expert-review-${pendingAssignments.length}`,
+          id: "expert-review",
           title: "专家评审待完成",
           detail: `你当前还有 ${pendingAssignments.length} 个评审包待提交评分，请按材料逐项完成。`,
           actionLabel: "前往专家评审",
@@ -1733,13 +1736,44 @@ export function WorkspaceDashboard({
   const todoItemCount = visibleRoleTodoItems.length + todoNotifications.length;
 
   useEffect(() => {
-    if (isBooting || todoAutoOpened || todoItemCount <= 0) {
+    if (isBooting || !dismissedTodosReady || todoAutoOpened || todoItemCount <= 0) {
       return;
     }
 
     setNotificationsOpen(true);
     setTodoAutoOpened(true);
-  }, [isBooting, todoAutoOpened, todoItemCount]);
+  }, [dismissedTodosReady, isBooting, todoAutoOpened, todoItemCount]);
+
+  useEffect(() => {
+    if (!dismissedTodoStorageKey) {
+      setDismissedTodoIds([]);
+      setDismissedTodosReady(false);
+      return;
+    }
+
+    try {
+      const rawValue = window.localStorage.getItem(dismissedTodoStorageKey);
+      if (!rawValue) {
+        setDismissedTodoIds([]);
+      } else {
+        const parsedValue = JSON.parse(rawValue) as unknown;
+        setDismissedTodoIds(Array.isArray(parsedValue) ? parsedValue.filter((item) => typeof item === "string") : []);
+      }
+    } catch {
+      setDismissedTodoIds([]);
+    } finally {
+      setDismissedTodosReady(true);
+      setTodoAutoOpened(false);
+    }
+  }, [dismissedTodoStorageKey]);
+
+  useEffect(() => {
+    if (!dismissedTodosReady || !dismissedTodoStorageKey) {
+      return;
+    }
+
+    window.localStorage.setItem(dismissedTodoStorageKey, JSON.stringify(dismissedTodoIds));
+  }, [dismissedTodoIds, dismissedTodoStorageKey, dismissedTodosReady]);
 
   const dismissTodoItem = (itemId: string) => {
     setDismissedTodoIds((current) => (current.includes(itemId) ? current : [...current, itemId]));
