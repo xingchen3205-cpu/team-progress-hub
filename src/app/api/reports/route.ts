@@ -107,14 +107,16 @@ export async function POST(request: NextRequest) {
     excludeUserIds: [user.id],
   });
 
-  await createNotifications({
-    userIds: recipientIds,
-    title: "工作汇报提交提醒",
-    detail: `${report.user.name} 提交了 ${date} 的工作汇报`,
-    type: "report_submit",
-    targetTab: "reports",
-    relatedId: report.id,
-  });
+  if (!existingReport) {
+    await createNotifications({
+      userIds: recipientIds,
+      title: "工作汇报提交提醒",
+      detail: `${report.user.name} 提交了 ${date} 的工作汇报`,
+      type: "report_submit",
+      targetTab: "reports",
+      relatedId: report.id,
+    });
+  }
 
   return NextResponse.json(
     { report: serializeReport(report) },

@@ -3038,7 +3038,7 @@ export function WorkspaceDashboard({
           <div className="space-y-4">
             <p className={`${subtleCardClassName} text-sm leading-7 text-slate-500`}>
               仅支持 `.doc`、`.docx`、`.pdf`、`.xls`、`.xlsx`、`.txt`、`.jpg`、`.jpeg`、`.png`，
-              单文件最大 20MB；不支持视频、压缩包和 PPT 文件。
+              单文件最大 20MB；不支持视频、压缩包和 PPT 源文件。若选择 “PPT” 分类，请上传导出版 PDF 或图片版本。
             </p>
             <div className="grid gap-4 md:grid-cols-2">
               <label className="block text-sm text-slate-500">
@@ -3120,7 +3120,7 @@ export function WorkspaceDashboard({
           <div className="space-y-4">
             <p className={`${subtleCardClassName} text-sm leading-7 text-slate-500`}>
               仅支持 `.doc`、`.docx`、`.pdf`、`.xls`、`.xlsx`、`.txt`、`.jpg`、`.jpeg`、`.png`，
-              单文件最大 20MB；不支持视频、压缩包和 PPT 文件。
+              单文件最大 20MB；不支持视频、压缩包和 PPT 源文件。若选择 “PPT” 分类，请上传导出版 PDF 或图片版本。
             </p>
             <label className="block text-sm text-slate-500">
               版本说明

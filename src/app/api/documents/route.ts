@@ -8,7 +8,7 @@ import {
 } from "@/lib/api-serializers";
 import { getUploadWorkflow } from "@/lib/document-workflow";
 import { createNotifications, getUserIdsByRoles } from "@/lib/notifications";
-import { saveUploadedFile } from "@/lib/uploads";
+import { deleteStoredFile, saveUploadedFile } from "@/lib/uploads";
 
 export const runtime = "nodejs";
 
@@ -59,9 +59,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: "文档信息不完整" }, { status: 400 });
   }
 
+  let storedFile: Awaited<ReturnType<typeof saveUploadedFile>> | null = null;
+
   try {
     const workflow = getUploadWorkflow(user.role, false);
-    const storedFile = await saveUploadedFile({
+    storedFile = await saveUploadedFile({
       file,
       category,
     });
@@ -121,6 +123,10 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ document: serializeDocument(document) }, { status: 201 });
   } catch (error) {
+    if (storedFile) {
+      await Promise.allSettled([deleteStoredFile(storedFile.filePath)]);
+    }
+
     const message = error instanceof Error ? error.message : "文件上传失败";
     const isValidationMessage =
       message === "不支持该文件格式" || message === "文件大小不能超过 20MB";

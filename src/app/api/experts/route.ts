@@ -4,7 +4,7 @@ import { getSessionUser } from "@/lib/auth";
 import { assertRole } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { serializeExpertFeedback } from "@/lib/api-serializers";
-import { saveUploadedFile } from "@/lib/uploads";
+import { deleteStoredFile, saveUploadedFile } from "@/lib/uploads";
 
 export const runtime = "nodejs";
 
@@ -51,8 +51,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: "专家意见信息不完整" }, { status: 400 });
   }
 
+  let storedFiles: Awaited<ReturnType<typeof saveUploadedFile>>[] = [];
+
   try {
-    const storedFiles = await Promise.all(
+    storedFiles = await Promise.all(
       files.map((file) =>
         saveUploadedFile({
           file,
@@ -88,6 +90,8 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ expert: serializeExpertFeedback(feedback) }, { status: 201 });
   } catch (error) {
+    await Promise.allSettled(storedFiles.map((item) => deleteStoredFile(item.filePath)));
+
     const message = error instanceof Error ? error.message : "专家意见上传失败";
     const isValidationMessage =
       message === "不支持该文件格式" || message === "文件大小不能超过 20MB";
