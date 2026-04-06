@@ -377,6 +377,7 @@ const rolePermissions = {
     canSubmitReport: false,
     canViewAllReports: true,
     canUploadExpert: true,
+    canDeleteExpert: true,
     canUploadDocument: true,
     canLeaderReviewDocument: true,
     canTeacherReviewDocument: true,
@@ -396,6 +397,7 @@ const rolePermissions = {
     canSubmitReport: false,
     canViewAllReports: true,
     canUploadExpert: true,
+    canDeleteExpert: true,
     canUploadDocument: true,
     canLeaderReviewDocument: false,
     canTeacherReviewDocument: true,
@@ -415,6 +417,7 @@ const rolePermissions = {
     canSubmitReport: true,
     canViewAllReports: true,
     canUploadExpert: true,
+    canDeleteExpert: true,
     canUploadDocument: true,
     canLeaderReviewDocument: true,
     canTeacherReviewDocument: false,
@@ -434,6 +437,7 @@ const rolePermissions = {
     canSubmitReport: true,
     canViewAllReports: false,
     canUploadExpert: false,
+    canDeleteExpert: false,
     canUploadDocument: true,
     canLeaderReviewDocument: false,
     canTeacherReviewDocument: false,
@@ -453,6 +457,7 @@ const rolePermissions = {
     canSubmitReport: false,
     canViewAllReports: false,
     canUploadExpert: false,
+    canDeleteExpert: false,
     canUploadDocument: false,
     canLeaderReviewDocument: false,
     canTeacherReviewDocument: false,
@@ -1824,6 +1829,25 @@ export function WorkspaceDashboard({
     }
   };
 
+  const removeExpertRequest = async (expertId: string) => {
+    await requestJson(`/api/experts/${expertId}`, {
+      method: "DELETE",
+    });
+    refreshWorkspace();
+  };
+
+  const removeExpert = (expertId: string, topic: string) => {
+    setConfirmDialog({
+      open: true,
+      title: "删除专家意见",
+      message: `确认删除这条专家意见「${topic}」？附件和意见内容会一起删除。`,
+      confirmLabel: "确认删除",
+      successTitle: "专家意见已删除",
+      successDetail: "这条专家意见和相关附件已经清理完成。",
+      onConfirm: () => removeExpertRequest(expertId),
+    });
+  };
+
   const toggleDocExpand = (docId: string) => {
     setExpandedDocs((current) =>
       current.includes(docId) ? current.filter((item) => item !== docId) : [...current, docId],
@@ -2869,26 +2893,36 @@ export function WorkspaceDashboard({
                     {session.expert} · {session.topic}
                   </h3>
                 </div>
-                <div className="mt-3 flex flex-wrap gap-2 md:mt-0">
-                  {session.attachments.map((attachment) => (
-                    <button
-                      key={attachment.id}
-                      className={`rounded-md px-3 py-1 text-sm ${
-                        attachment.downloadUrl
-                          ? "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                          : "bg-slate-100 text-slate-400"
-                      }`}
-                      disabled={!attachment.downloadUrl}
-                      onClick={() => {
-                        if (attachment.downloadUrl) {
-                          handleDownload(attachment.downloadUrl);
-                        }
-                      }}
-                      type="button"
-                    >
-                      {attachment.fileName}
-                    </button>
-                  ))}
+                <div className="mt-3 flex flex-col items-start gap-3 md:mt-0 md:items-end">
+                  <div className="flex flex-wrap gap-2">
+                    {session.attachments.map((attachment) => (
+                      <button
+                        key={attachment.id}
+                        className={`rounded-md px-3 py-1 text-sm ${
+                          attachment.downloadUrl
+                            ? "bg-slate-100 text-slate-600 hover:bg-slate-200"
+                            : "bg-slate-100 text-slate-400"
+                        }`}
+                        disabled={!attachment.downloadUrl}
+                        onClick={() => {
+                          if (attachment.downloadUrl) {
+                            handleDownload(attachment.downloadUrl);
+                          }
+                        }}
+                        type="button"
+                      >
+                        {attachment.fileName}
+                      </button>
+                    ))}
+                  </div>
+                  {permissions.canDeleteExpert ? (
+                    <ActionButton onClick={() => removeExpert(session.id, session.topic)} variant="danger">
+                      <span className="inline-flex items-center gap-2">
+                        <Trash2 className="h-4 w-4" />
+                        <span>删除意见</span>
+                      </span>
+                    </ActionButton>
+                  ) : null}
                 </div>
               </div>
               <p className="mt-4 text-sm leading-7 text-slate-600">反馈摘要：{session.summary}</p>
