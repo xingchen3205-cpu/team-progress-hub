@@ -10,6 +10,7 @@ export async function createNotifications({
   targetTab,
   documentId,
   relatedId,
+  senderId,
 }: {
   userIds: string[];
   title: string;
@@ -18,6 +19,7 @@ export async function createNotifications({
   targetTab?: string;
   documentId?: string | null;
   relatedId?: string | null;
+  senderId?: string | null;
 }) {
   const dedupedUserIds = [...new Set(userIds.filter(Boolean))];
 
@@ -28,6 +30,7 @@ export async function createNotifications({
   await prisma.notification.createMany({
     data: dedupedUserIds.map((userId) => ({
       userId,
+      senderId: senderId ?? null,
       documentId: documentId ?? null,
       title,
       detail,

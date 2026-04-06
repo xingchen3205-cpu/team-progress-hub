@@ -287,6 +287,14 @@ export async function DELETE(
         userId: target.id,
       },
     }),
+    prisma.notification.updateMany({
+      where: {
+        senderId: target.id,
+      },
+      data: {
+        senderId: null,
+      },
+    }),
     prisma.document.updateMany({
       where: {
         ownerId: target.id,

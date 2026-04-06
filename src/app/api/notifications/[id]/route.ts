@@ -33,6 +33,17 @@ export async function PATCH(
     where: { id },
     data: {
       isRead: true,
+      readAt: notification.isRead ? notification.readAt : new Date(),
+    },
+    include: {
+      sender: {
+        select: {
+          id: true,
+          name: true,
+          avatar: true,
+          role: true,
+        },
+      },
     },
   });
 

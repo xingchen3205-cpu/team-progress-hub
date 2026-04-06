@@ -18,6 +18,41 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ message: "无权限" }, { status: 403 });
   }
 
+  const scope = request.nextUrl.searchParams.get("scope");
+
+  if (scope === "sent") {
+    try {
+      assertRole(user.role, ["admin", "teacher"]);
+    } catch {
+      return NextResponse.json({ message: "无权限" }, { status: 403 });
+    }
+
+    const notifications = await prisma.notification.findMany({
+      where: {
+        senderId: user.id,
+        type: "directive",
+      },
+      orderBy: {
+        createdAt: "desc",
+      },
+      take: 30,
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            avatar: true,
+            role: true,
+          },
+        },
+      },
+    });
+
+    return NextResponse.json({
+      notifications: notifications.map(serializeNotification),
+    });
+  }
+
   const notifications = await prisma.notification.findMany({
     where: {
       userId: user.id,
@@ -26,6 +61,16 @@ export async function GET(request: NextRequest) {
       createdAt: "desc",
     },
     take: 20,
+    include: {
+      sender: {
+        select: {
+          id: true,
+          name: true,
+          avatar: true,
+          role: true,
+        },
+      },
+    },
   });
 
   return NextResponse.json({
@@ -98,6 +143,7 @@ export async function POST(request: NextRequest) {
     type: "directive",
     targetTab: targetTab ?? undefined,
     relatedId: null,
+    senderId: user.id,
   });
 
   return NextResponse.json({ success: true }, { status: 201 });

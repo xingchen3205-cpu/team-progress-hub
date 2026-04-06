@@ -186,17 +186,41 @@ export const serializeAnnouncement = (
   author: announcement.author,
 });
 
-export const serializeNotification = (notification: Notification) => ({
-  id: notification.id,
-  documentId: notification.documentId,
-  title: notification.title,
-  detail: notification.detail,
-  type: notification.type,
-  targetTab: notification.targetTab,
-  relatedId: notification.relatedId,
-  isRead: notification.isRead,
-  createdAt: formatDateTime(notification.createdAt),
-});
+export const serializeNotification = (notification: Notification) => {
+  const typedNotification = notification as Notification & {
+    user?: Pick<User, "id" | "name" | "avatar" | "role">;
+    sender?: Pick<User, "id" | "name" | "avatar" | "role"> | null;
+  };
+
+  return {
+    id: notification.id,
+    documentId: notification.documentId,
+    title: notification.title,
+    detail: notification.detail,
+    type: notification.type,
+    targetTab: notification.targetTab,
+    relatedId: notification.relatedId,
+    isRead: notification.isRead,
+    readAt: notification.readAt ? formatDateTime(notification.readAt) : null,
+    createdAt: formatDateTime(notification.createdAt),
+    recipient: typedNotification.user
+      ? {
+          id: typedNotification.user.id,
+          name: typedNotification.user.name,
+          avatar: typedNotification.user.avatar,
+          roleLabel: roleLabels[typedNotification.user.role],
+        }
+      : null,
+    sender: typedNotification.sender
+      ? {
+          id: typedNotification.sender.id,
+          name: typedNotification.sender.name,
+          avatar: typedNotification.sender.avatar,
+          roleLabel: roleLabels[typedNotification.sender.role],
+        }
+      : null,
+  };
+};
 
 export const serializeEvent = (event: Event) => ({
   id: event.id,

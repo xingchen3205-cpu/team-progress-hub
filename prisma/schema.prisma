@@ -80,7 +80,8 @@ model User {
   announcements        Announcement[]
   documents            Document[]               @relation("DocumentOwner")
   documentEdits        DocumentVersion[]        @relation("DocumentVersionUploader")
-  notifications        Notification[]
+  notifications        Notification[]           @relation("NotificationRecipient")
+  sentNotifications    Notification[]           @relation("NotificationSender")
   expertReviewPackages ExpertReviewPackage[]    @relation("ExpertReviewPackageCreator")
   expertAssignments    ExpertReviewAssignment[] @relation("ExpertAssignmentUser")
   expertScores         ExpertReviewScore[]      @relation("ExpertScoreReviewer")
@@ -185,6 +186,7 @@ model DocumentVersion {
 model Notification {
   id         String   @id @default(cuid())
   userId     String
+  senderId   String?
   documentId String?
   title      String
   detail     String
@@ -192,10 +194,13 @@ model Notification {
   targetTab  String?
   relatedId  String?
   isRead     Boolean  @default(false)
+  readAt     DateTime?
   createdAt  DateTime @default(now())
-  user       User     @relation(fields: [userId], references: [id])
+  user       User     @relation("NotificationRecipient", fields: [userId], references: [id])
+  sender     User?    @relation("NotificationSender", fields: [senderId], references: [id])
 
   @@index([userId, isRead, createdAt])
+  @@index([senderId, type, createdAt])
 }
 
 model ExpertReviewPackage {

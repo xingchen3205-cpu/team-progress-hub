@@ -1074,6 +1074,7 @@ export function WorkspaceDashboard({
   const [reviewAssignments, setReviewAssignments] = useState<ExpertReviewAssignmentItem[]>([]);
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
+  const [sentReminders, setSentReminders] = useState<NotificationItem[]>([]);
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [pendingTeamMembers, setPendingTeamMembers] = useState<TeamMember[]>([]);
   const [reportEntriesByDay, setReportEntriesByDay] = useState<Record<string, ReportEntryWithDate[]>>({});
@@ -1084,6 +1085,8 @@ export function WorkspaceDashboard({
   const [draggingTaskId, setDraggingTaskId] = useState<string | null>(null);
   const [countdown, setCountdown] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [sentRemindersOpen, setSentRemindersOpen] = useState(false);
+  const [sentRemindersLoading, setSentRemindersLoading] = useState(false);
   const [todoAutoOpened, setTodoAutoOpened] = useState(false);
   const [dismissedTodoIds, setDismissedTodoIds] = useState<string[]>([]);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
@@ -1218,6 +1221,7 @@ export function WorkspaceDashboard({
           setExperts([]);
           setDocuments([]);
           setNotifications([]);
+          setSentReminders([]);
           setMembers([]);
           setPendingTeamMembers([]);
           setReportEntriesByDay({});
@@ -1289,6 +1293,9 @@ export function WorkspaceDashboard({
         setExperts(expertsPayload.experts);
         setDocuments(documentsPayload.documents);
         setNotifications(notificationsPayload.notifications);
+        if (!["admin", "teacher"].includes(mePayload.user.role)) {
+          setSentReminders([]);
+        }
         setMembers(teamPayload.members);
         setPendingTeamMembers(teamPayload.pendingMembers);
         setReportEntriesByDay(groupedReports);
@@ -1879,13 +1886,34 @@ export function WorkspaceDashboard({
     router.refresh();
   };
 
+  const loadSentReminders = async () => {
+    if (!permissions.canSendDirective) {
+      return;
+    }
+
+    setSentRemindersLoading(true);
+    try {
+      const payload = await requestJson<{ notifications: NotificationItem[] }>("/api/notifications?scope=sent");
+      setSentReminders(payload.notifications);
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "提醒记录加载失败");
+    } finally {
+      setSentRemindersLoading(false);
+    }
+  };
+
+  const openSentRemindersModal = () => {
+    setSentRemindersOpen(true);
+    void loadSentReminders();
+  };
+
   const markNotificationAsRead = async (notificationId: string) => {
     try {
-      await requestJson(`/api/notifications/${notificationId}`, {
+      const payload = await requestJson<{ notification: NotificationItem }>(`/api/notifications/${notificationId}`, {
         method: "PATCH",
       });
       setNotifications((current) =>
-        current.map((item) => (item.id === notificationId ? { ...item, isRead: true } : item)),
+        current.map((item) => (item.id === notificationId ? payload.notification : item)),
       );
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "消息状态更新失败");
@@ -1897,7 +1925,8 @@ export function WorkspaceDashboard({
       await requestJson("/api/notifications/read-all", {
         method: "PATCH",
       });
-      setNotifications((current) => current.map((item) => ({ ...item, isRead: true })));
+      const nowText = formatDateTime(new Date().toISOString());
+      setNotifications((current) => current.map((item) => ({ ...item, isRead: true, readAt: item.readAt ?? nowText })));
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "消息状态更新失败");
     }
@@ -2127,6 +2156,7 @@ export function WorkspaceDashboard({
         }),
       });
       closeReminderModal();
+      void loadSentReminders();
       showSuccessToast("站内提醒已发送", `已通知 ${reminderTargetMember.name} 及时处理相关事项。`);
       refreshWorkspace();
     } catch (error) {
@@ -4105,6 +4135,14 @@ export function WorkspaceDashboard({
         />
         <div className="flex flex-wrap items-center gap-3">
           <DemoResetNote />
+          {permissions.canSendDirective ? (
+            <ActionButton onClick={openSentRemindersModal}>
+              <span className="inline-flex items-center gap-2">
+                <BellPlus className="h-4 w-4" />
+                <span>提醒记录</span>
+              </span>
+            </ActionButton>
+          ) : null}
           <ActionButton
             disabled={!permissions.canManageTeam}
             onClick={() => setTeamModalOpen(true)}
@@ -5398,6 +5436,79 @@ export function WorkspaceDashboard({
               <ActionButton loading={isSaving} loadingLabel="发送中..." onClick={saveReminder} variant="primary">
                 发送提醒
               </ActionButton>
+            </ModalActions>
+          </div>
+        </Modal>
+      ) : null}
+
+      {sentRemindersOpen ? (
+        <Modal onClose={() => setSentRemindersOpen(false)} panelClassName="max-w-[min(92vw,860px)]" title="提醒记录">
+          <div className="space-y-4">
+            <div className={`${subtleCardClassName} flex flex-col gap-3 md:flex-row md:items-center md:justify-between`}>
+              <div>
+                <p className="text-sm font-medium text-slate-900">这里会记录你发送给成员的站内提醒。</p>
+                <p className="mt-1 text-sm leading-6 text-slate-500">成员点开提醒或代办后，这里会更新为已读状态。</p>
+              </div>
+              <ActionButton disabled={sentRemindersLoading} onClick={() => void loadSentReminders()}>
+                刷新记录
+              </ActionButton>
+            </div>
+
+            {sentRemindersLoading ? (
+              <div className={`${subtleCardClassName} flex items-center justify-center py-12 text-sm text-slate-500`}>
+                <span className="inline-flex items-center gap-2">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  <span>正在加载提醒记录...</span>
+                </span>
+              </div>
+            ) : sentReminders.length > 0 ? (
+              <div className="space-y-3">
+                {sentReminders.map((item) => (
+                  <article key={item.id} className={surfaceCardClassName}>
+                    <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="text-sm font-semibold text-slate-900">{item.title}</p>
+                          <span
+                            className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+                              item.isRead ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"
+                            }`}
+                          >
+                            {item.isRead ? "已读" : "未读"}
+                          </span>
+                        </div>
+                        <p className="mt-2 text-sm leading-6 text-slate-500">{item.detail}</p>
+                        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-slate-400">
+                          <span>接收人：{item.recipient?.name ?? "成员"}</span>
+                          <span>发送时间：{item.createdAt}</span>
+                          {item.targetTab ? (
+                            <span>
+                              跳转板块：
+                              {allTabs.find((tab) => tab.key === item.targetTab)?.label ?? item.targetTab}
+                            </span>
+                          ) : null}
+                        </div>
+                      </div>
+                      <div className="shrink-0 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-right text-xs text-slate-500">
+                        <p className="font-medium text-slate-700">{item.isRead ? "对方已查看" : "等待查看"}</p>
+                        <p className="mt-1">{item.readAt ? `已读时间：${item.readAt}` : "暂未打开此提醒"}</p>
+                      </div>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <div className="rounded-lg border border-dashed border-slate-200">
+                <EmptyState
+                  description="你最近还没有发送新的站内提醒，后续发送后会在这里查看已读状态。"
+                  icon={BellPlus}
+                  title="暂无提醒记录"
+                />
+              </div>
+            )}
+
+            <ModalActions>
+              <ActionButton onClick={() => setSentRemindersOpen(false)}>关闭</ActionButton>
             </ModalActions>
           </div>
         </Modal>

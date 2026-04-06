@@ -86,7 +86,20 @@ export type NotificationItem = {
   targetTab?: string | null;
   relatedId?: string | null;
   isRead: boolean;
+  readAt?: string | null;
   createdAt: string;
+  recipient?: {
+    id: string;
+    name: string;
+    avatar: string;
+    roleLabel: TeamRoleLabel;
+  } | null;
+  sender?: {
+    id: string;
+    name: string;
+    avatar: string;
+    roleLabel: TeamRoleLabel;
+  } | null;
 };
 
 export type Announcement = {

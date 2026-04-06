@@ -23,6 +23,7 @@ export async function PATCH(request: NextRequest) {
     },
     data: {
       isRead: true,
+      readAt: new Date(),
     },
   });
 
