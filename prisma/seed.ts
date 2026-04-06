@@ -239,6 +239,7 @@ async function main() {
     data: [
       {
         userId: "leader-1",
+        documentId: "doc-1",
         title: "文档待负责人审批",
         detail: "林沐晴上传了《商业计划书》新版本，请及时处理。",
         type: "document_review",
@@ -248,6 +249,7 @@ async function main() {
       },
       {
         userId: "teacher-1",
+        documentId: "doc-1",
         title: "文档待教师终审",
         detail: "项目负责人已完成《商业计划书》初审，请安排终审。",
         type: "document_review",

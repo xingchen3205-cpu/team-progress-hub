@@ -2,6 +2,7 @@ import { WorkspaceDashboard } from "@/components/workspace-dashboard";
 
 type SearchParams = Promise<{
   tab?: string;
+  doc?: string;
 }>;
 
 const validTabs = [
@@ -27,5 +28,5 @@ export default async function WorkspacePage({
       ? (params.tab as ValidTab)
       : "overview";
 
-  return <WorkspaceDashboard activeTab={activeTab} />;
+  return <WorkspaceDashboard activeTab={activeTab} targetDocumentId={params.doc ?? null} />;
 }

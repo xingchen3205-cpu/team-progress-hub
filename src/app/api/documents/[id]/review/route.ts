@@ -88,6 +88,7 @@ export async function PATCH(
 
     await createNotifications({
       userIds: recipientIds,
+      documentId: document.id,
       title: transition.notificationTitle,
       detail: `${user.name} 已完成《${document.name}》初审，请及时终审。`,
       type: "document_review",
@@ -102,6 +103,7 @@ export async function PATCH(
 
     await createNotifications({
       userIds: [...new Set([...recipientIds, document.ownerId])],
+      documentId: document.id,
       title: transition.notificationTitle,
       detail: `《${document.name}》已被教师打回，等待负责人修改后重新提交。`,
       type: "document_review_result",
@@ -111,6 +113,7 @@ export async function PATCH(
   } else {
     await createNotifications({
       userIds: [document.ownerId],
+      documentId: document.id,
       title: transition.notificationTitle,
       detail:
         action === "teacherApprove"

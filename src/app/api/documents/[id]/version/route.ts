@@ -92,6 +92,7 @@ export async function POST(
 
       await createNotifications({
         userIds: recipientIds,
+        documentId: document.id,
         title:
           workflow.status === "pending" ? "文档新版本待负责人审批" : "文档新版本待教师终审",
         detail: `${user.name} 为《${document.name}》上传了 ${nextVersion}，请及时处理。`,

@@ -109,6 +109,7 @@ export async function POST(request: NextRequest) {
 
       await createNotifications({
         userIds: recipientIds,
+        documentId: document.id,
         title:
           workflow.status === "pending" ? "文档待负责人审批" : "文档待教师终审",
         detail: `${user.name} 上传了《${document.name}》，请及时处理。`,

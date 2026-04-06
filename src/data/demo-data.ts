@@ -74,6 +74,7 @@ export type DocumentItem = {
 
 export type NotificationItem = {
   id: string;
+  documentId?: string | null;
   title: string;
   detail: string;
   type: string;

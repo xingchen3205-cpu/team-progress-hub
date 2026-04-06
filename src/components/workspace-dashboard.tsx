@@ -213,6 +213,13 @@ type DocumentActionButton = {
   variant: "secondary" | "danger";
 };
 
+const reviewActionTitles: Record<DocumentReviewActionKey, string> = {
+  leaderApprove: "负责人审批通过",
+  leaderRevision: "负责人打回",
+  teacherApprove: "教师终审通过",
+  teacherRevision: "教师打回",
+};
+
 const documentStepLabels = ["成员提交", "负责人审批", "教师终审"] as const;
 type DocumentStepState = "complete" | "current" | "pending";
 
@@ -536,8 +543,10 @@ function ActionButton({
 
 export function WorkspaceDashboard({
   activeTab = "overview",
+  targetDocumentId = null,
 }: {
   activeTab?: TabKey;
+  targetDocumentId?: string | null;
 }) {
   const router = useRouter();
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null);
@@ -587,6 +596,11 @@ export function WorkspaceDashboard({
   const [versionTargetDocId, setVersionTargetDocId] = useState<string | null>(null);
   const [versionUploadNote, setVersionUploadNote] = useState("");
   const [versionUploadFile, setVersionUploadFile] = useState<File | null>(null);
+  const [reviewModalOpen, setReviewModalOpen] = useState(false);
+  const [reviewTargetDocId, setReviewTargetDocId] = useState<string | null>(null);
+  const [reviewAction, setReviewAction] = useState<DocumentReviewActionKey | null>(null);
+  const [reviewComment, setReviewComment] = useState("");
+  const [highlightedDocId, setHighlightedDocId] = useState<string | null>(null);
 
   const role = currentUser?.role ?? null;
   const currentRole = role ?? "member";
@@ -693,6 +707,32 @@ export function WorkspaceDashboard({
 
     return () => window.clearInterval(timer);
   }, [events, nearestEvent]);
+
+  useEffect(() => {
+    if (safeActiveTab !== "documents" || !targetDocumentId) {
+      return undefined;
+    }
+
+    setExpandedDocs((current) =>
+      current.includes(targetDocumentId) ? current : [...current, targetDocumentId],
+    );
+    setHighlightedDocId(targetDocumentId);
+
+    const scrollTimer = window.setTimeout(() => {
+      document
+        .getElementById(`doc-${targetDocumentId}`)
+        ?.scrollIntoView({ behavior: "smooth", block: "center" });
+    }, 300);
+
+    const clearHighlightTimer = window.setTimeout(() => {
+      setHighlightedDocId((current) => (current === targetDocumentId ? null : current));
+    }, 2000);
+
+    return () => {
+      window.clearTimeout(scrollTimer);
+      window.clearTimeout(clearHighlightTimer);
+    };
+  }, [documents, safeActiveTab, targetDocumentId]);
 
   const membersMap = useMemo(
     () => Object.fromEntries(members.map((item) => [item.id, item])),
@@ -887,9 +927,24 @@ export function WorkspaceDashboard({
 
     setNotificationsOpen(false);
 
+    if (notification.documentId) {
+      setExpandedDocs((current) =>
+        current.includes(notification.documentId as string)
+          ? current
+          : [...current, notification.documentId as string],
+      );
+      setHighlightedDocId(notification.documentId);
+      window.setTimeout(() => {
+        document
+          .getElementById(`doc-${notification.documentId}`)
+          ?.scrollIntoView({ behavior: "smooth", block: "center" });
+      }, 300);
+      router.push(`/workspace?tab=documents&doc=${notification.documentId}`, { scroll: false });
+      return;
+    }
+
     if (notification.targetTab && permissions.visibleTabs.includes(notification.targetTab as TabKey)) {
       router.push(notification.targetTab === "overview" ? "/workspace" : `/workspace?tab=${notification.targetTab}`);
-      router.refresh();
     }
   };
 
@@ -1131,6 +1186,13 @@ export function WorkspaceDashboard({
     setVersionModalOpen(true);
   };
 
+  const openReviewModal = (docId: string, action: DocumentReviewActionKey) => {
+    setReviewTargetDocId(docId);
+    setReviewAction(action);
+    setReviewComment("");
+    setReviewModalOpen(true);
+  };
+
   const uploadNewDocumentVersion = async () => {
     if (!permissions.canUploadDocument) {
       return;
@@ -1173,15 +1235,24 @@ export function WorkspaceDashboard({
     }
   };
 
-  const reviewDocument = async (
-    docId: string,
-    action: DocumentReviewActionKey,
-  ) => {
+  const reviewDocument = async () => {
+    if (!reviewTargetDocId || !reviewAction) {
+      setLoadError("未找到审批目标");
+      return;
+    }
+
     try {
-      await requestJson(`/api/documents/${docId}/review`, {
+      await requestJson(`/api/documents/${reviewTargetDocId}/review`, {
         method: "PATCH",
-        body: JSON.stringify({ action }),
+        body: JSON.stringify({
+          action: reviewAction,
+          comment: reviewComment.trim() || undefined,
+        }),
       });
+      setReviewModalOpen(false);
+      setReviewTargetDocId(null);
+      setReviewAction(null);
+      setReviewComment("");
       refreshWorkspace();
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "文档审核失败");
@@ -1761,8 +1832,11 @@ export function WorkspaceDashboard({
       <section className="space-y-4">
         {filteredDocuments.map((doc) => (
           <article
+            id={`doc-${doc.id}`}
             key={doc.id}
-            className={surfaceCardClassName}
+            className={`${surfaceCardClassName} transition ${
+              highlightedDocId === doc.id ? "ring-2 ring-blue-500 ring-offset-2" : ""
+            }`}
           >
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
               <div className="grid gap-4 md:grid-cols-3">
@@ -1855,7 +1929,7 @@ export function WorkspaceDashboard({
               {getDocumentActionButtons(doc).map((actionButton) => (
                 <ActionButton
                   key={`${doc.id}-${actionButton.key}`}
-                  onClick={() => void reviewDocument(doc.id, actionButton.key)}
+                  onClick={() => openReviewModal(doc.id, actionButton.key)}
                   variant={actionButton.variant}
                 >
                   <span className="inline-flex items-center gap-2">
@@ -2601,6 +2675,48 @@ export function WorkspaceDashboard({
               <ActionButton onClick={() => setVersionModalOpen(false)}>取消</ActionButton>
               <ActionButton onClick={() => void uploadNewDocumentVersion()} variant="primary">
                 上传新版本
+              </ActionButton>
+            </ModalActions>
+          </div>
+        </Modal>
+      ) : null}
+
+      {reviewModalOpen && reviewAction ? (
+        <Modal
+          title={reviewActionTitles[reviewAction]}
+          onClose={() => {
+            setReviewModalOpen(false);
+            setReviewTargetDocId(null);
+            setReviewAction(null);
+            setReviewComment("");
+          }}
+        >
+          <div className="space-y-4">
+            <label className="block text-sm text-slate-500">
+              审批批注
+              <textarea
+                className={textareaClassName}
+                placeholder="请填写审批批注（可选）"
+                value={reviewComment}
+                onChange={(event) => setReviewComment(event.target.value)}
+              />
+            </label>
+            <ModalActions>
+              <ActionButton
+                onClick={() => {
+                  setReviewModalOpen(false);
+                  setReviewTargetDocId(null);
+                  setReviewAction(null);
+                  setReviewComment("");
+                }}
+              >
+                取消
+              </ActionButton>
+              <ActionButton
+                onClick={() => void reviewDocument()}
+                variant={reviewAction === "leaderRevision" || reviewAction === "teacherRevision" ? "danger" : "primary"}
+              >
+                确认提交
               </ActionButton>
             </ModalActions>
           </div>

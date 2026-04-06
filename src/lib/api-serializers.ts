@@ -164,6 +164,7 @@ export const serializeAnnouncement = (
 
 export const serializeNotification = (notification: Notification) => ({
   id: notification.id,
+  documentId: notification.documentId,
   title: notification.title,
   detail: notification.detail,
   type: notification.type,
