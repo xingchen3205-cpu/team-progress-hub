@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { getSessionUser } from "@/lib/auth";
-import { buildAttachmentDisposition } from "@/lib/downloads";
+import { buildAttachmentDisposition, buildInlineDisposition } from "@/lib/downloads";
 import { assertExpertFeedbackAccess } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { readStoredFile } from "@/lib/uploads";
@@ -25,6 +25,7 @@ export async function GET(
 
   const { id } = await params;
   const attachmentId = request.nextUrl.searchParams.get("attachmentId");
+  const inline = request.nextUrl.searchParams.get("inline") === "1";
 
   if (!attachmentId) {
     return NextResponse.json({ message: "缺少附件编号" }, { status: 400 });
@@ -52,7 +53,9 @@ export async function GET(
     return new NextResponse(fileData.buffer, {
       headers: {
         "Content-Type": fileData.contentType || attachment.mimeType || "application/octet-stream",
-        "Content-Disposition": buildAttachmentDisposition(attachment.fileName),
+        "Content-Disposition": inline
+          ? buildInlineDisposition(attachment.fileName)
+          : buildAttachmentDisposition(attachment.fileName),
         "Content-Length": String(attachment.fileSize),
       },
     });

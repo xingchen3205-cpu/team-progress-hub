@@ -201,6 +201,9 @@ type PreviewAsset = {
   url: string;
   mimeType?: string | null;
   fileName?: string | null;
+  mode?: "preview" | "download-fallback";
+  downloadUrl?: string | null;
+  fallbackMessage?: string;
 };
 
 const imagePreviewExtensions = [".png", ".jpg", ".jpeg", ".gif", ".webp"] as const;
@@ -741,6 +744,14 @@ const isImageAsset = (asset: PreviewAsset) =>
   asset.mimeType?.startsWith("image/") ||
   imagePreviewExtensions.includes(getAssetExtension(asset.fileName) as (typeof imagePreviewExtensions)[number]) ||
   imagePreviewExtensions.includes(getAssetExtension(asset.url) as (typeof imagePreviewExtensions)[number]);
+
+const isTextAsset = (asset: PreviewAsset) =>
+  asset.mimeType?.startsWith("text/") ||
+  getAssetExtension(asset.fileName) === ".txt" ||
+  getAssetExtension(asset.url) === ".txt";
+
+const canPreviewInlineAsset = (asset: Pick<PreviewAsset, "mimeType" | "fileName" | "url">) =>
+  isPdfAsset(asset as PreviewAsset) || isImageAsset(asset as PreviewAsset) || isTextAsset(asset as PreviewAsset);
 
 const hasPdfSignature = async (file: File) => {
   const header = new Uint8Array(await file.slice(0, 5).arrayBuffer());
@@ -1551,11 +1562,31 @@ export function WorkspaceDashboard({
     downloadUrl,
     fileName,
     mimeType,
+    title = "材料在线预览",
   }: {
     downloadUrl?: string | null;
     fileName?: string | null;
     mimeType?: string | null;
+    title?: string;
   }) => {
+    if (!downloadUrl) {
+      setLoadError("当前文件暂不可预览");
+      return;
+    }
+
+    if (!canPreviewInlineAsset({ downloadUrl, fileName, mimeType, url: downloadUrl } as PreviewAsset)) {
+      openPreviewAsset({
+        title,
+        url: "",
+        fileName,
+        mimeType,
+        mode: "download-fallback",
+        downloadUrl,
+        fallbackMessage: "该文件类型暂不支持站内预览，请下载后使用本地软件查看。",
+      });
+      return;
+    }
+
     const previewUrl = buildInlinePreviewUrl(downloadUrl);
     if (!previewUrl) {
       setLoadError("当前文件暂不可预览");
@@ -1563,10 +1594,11 @@ export function WorkspaceDashboard({
     }
 
     openPreviewAsset({
-      title: "材料在线预览",
+      title,
       url: previewUrl,
       fileName,
       mimeType,
+      mode: "preview",
     });
   };
 
@@ -2996,7 +3028,7 @@ export function WorkspaceDashboard({
                     {session.attachments.map((attachment) => (
                       <button
                         key={attachment.id}
-                        className={`rounded-md px-3 py-1 text-sm ${
+                        className={`inline-flex items-center gap-2 rounded-md px-3 py-1 text-sm ${
                           attachment.downloadUrl
                             ? "bg-slate-100 text-slate-600 hover:bg-slate-200"
                             : "bg-slate-100 text-slate-400"
@@ -3004,11 +3036,16 @@ export function WorkspaceDashboard({
                         disabled={!attachment.downloadUrl}
                         onClick={() => {
                           if (attachment.downloadUrl) {
-                            handleDownload(attachment.downloadUrl);
+                            handlePreviewDocument({
+                              downloadUrl: attachment.downloadUrl,
+                              fileName: attachment.fileName,
+                              mimeType: attachment.mimeType,
+                            });
                           }
                         }}
                         type="button"
                       >
+                        <Eye className="h-4 w-4" />
                         {attachment.fileName}
                       </button>
                     ))}
@@ -3528,12 +3565,6 @@ export function WorkspaceDashboard({
                     <span>在线预览</span>
                   </span>
                 </ActionButton>
-                <ActionButton onClick={() => handleDownload(doc.downloadUrl)}>
-                  <span className="inline-flex items-center gap-2">
-                    <Download className="h-4 w-4" />
-                    <span>下载</span>
-                  </span>
-                </ActionButton>
                 <ActionButton
                   disabled={!canDeleteDocument(doc)}
                   onClick={() => removeDocument(doc.id, doc.name)}
@@ -3610,12 +3641,6 @@ export function WorkspaceDashboard({
                         <span className="inline-flex items-center gap-2">
                           <Eye className="h-4 w-4" />
                           <span>预览版本</span>
-                        </span>
-                      </ActionButton>
-                      <ActionButton onClick={() => handleDownload(version.downloadUrl)}>
-                        <span className="inline-flex items-center gap-2">
-                          <Download className="h-4 w-4" />
-                          <span>下载版本</span>
                         </span>
                       </ActionButton>
                       <ActionButton
@@ -4830,7 +4855,18 @@ export function WorkspaceDashboard({
           title={previewAsset.title}
         >
           <div className="space-y-4">
-            {previewAsset.mimeType?.startsWith("video/") ? (
+            {previewAsset.mode === "download-fallback" ? (
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-6">
+                <div className="space-y-3">
+                  <p className="text-base font-medium text-slate-900">
+                    {previewAsset.fileName || "当前文件"}
+                  </p>
+                  <p className="text-sm leading-7 text-slate-500">
+                    {previewAsset.fallbackMessage || "该文件类型暂不支持站内预览，请下载后使用本地软件查看。"}
+                  </p>
+                </div>
+              </div>
+            ) : previewAsset.mimeType?.startsWith("video/") ? (
               <video
                 className="max-h-[78vh] w-full rounded-lg border border-slate-200 bg-black"
                 controls
@@ -4857,13 +4893,26 @@ export function WorkspaceDashboard({
               />
             )}
             <p className={`${subtleCardClassName} text-sm leading-7 text-slate-500`}>
-              {previewAsset.mimeType?.startsWith("video/")
+              {previewAsset.mode === "download-fallback"
+                ? "已为当前文件切换到下载查看模式。"
+                : previewAsset.mimeType?.startsWith("video/")
                 ? "视频材料支持在当前页面直接播放。"
                 : isPdfAsset(previewAsset)
                   ? "PDF 在电脑端优先使用浏览器原生预览，手机端使用站内渲染，兼顾字体显示与移动端兼容性。"
                   : "已切换为站内在线预览模式。"}
             </p>
             <ModalActions>
+              {previewAsset.mode === "download-fallback" ? (
+                <ActionButton
+                  onClick={() => handleDownload(previewAsset.downloadUrl)}
+                  variant="primary"
+                >
+                  <span className="inline-flex items-center gap-2">
+                    <Download className="h-4 w-4" />
+                    <span>下载查看</span>
+                  </span>
+                </ActionButton>
+              ) : null}
               <ActionButton onClick={() => setPreviewAsset(null)}>关闭</ActionButton>
             </ModalActions>
           </div>
