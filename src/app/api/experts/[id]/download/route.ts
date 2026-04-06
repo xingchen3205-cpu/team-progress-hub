@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { getSessionUser } from "@/lib/auth";
+import { buildAttachmentDisposition } from "@/lib/downloads";
+import { assertExpertFeedbackAccess } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { readStoredFile } from "@/lib/uploads";
 
@@ -13,6 +15,12 @@ export async function GET(
   const user = await getSessionUser(request);
   if (!user) {
     return NextResponse.json({ message: "未登录" }, { status: 401 });
+  }
+
+  try {
+    assertExpertFeedbackAccess(user.role);
+  } catch {
+    return NextResponse.json({ message: "无权限" }, { status: 403 });
   }
 
   const { id } = await params;
@@ -44,7 +52,7 @@ export async function GET(
     return new NextResponse(fileData.buffer, {
       headers: {
         "Content-Type": fileData.contentType || attachment.mimeType || "application/octet-stream",
-        "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(attachment.fileName)}`,
+        "Content-Disposition": buildAttachmentDisposition(attachment.fileName),
         "Content-Length": String(attachment.fileSize),
       },
     });

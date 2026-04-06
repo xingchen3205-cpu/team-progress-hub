@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { getSessionUser } from "@/lib/auth";
+import { buildAttachmentDisposition } from "@/lib/downloads";
 import { prisma } from "@/lib/prisma";
 import { readStoredFile } from "@/lib/uploads";
 
@@ -46,7 +47,7 @@ export async function GET(
     return new NextResponse(fileData.buffer, {
       headers: {
         "Content-Type": fileData.contentType || version.mimeType || "application/octet-stream",
-        "Content-Disposition": `attachment; filename*=UTF-8''${encodeURIComponent(version.fileName)}`,
+        "Content-Disposition": buildAttachmentDisposition(version.fileName),
         "Content-Length": String(version.fileSize),
       },
     });

@@ -13,6 +13,10 @@ export const assertRole = (role: Role, allowed: Role[]) => {
   }
 };
 
+export const assertExpertFeedbackAccess = (role: Role) => {
+  assertRole(role, ["admin", "teacher", "leader", "member"]);
+};
+
 const roleRank: Record<Role, number> = {
   admin: 4,
   teacher: 3,

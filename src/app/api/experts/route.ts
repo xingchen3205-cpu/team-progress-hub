@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { getSessionUser } from "@/lib/auth";
-import { assertRole } from "@/lib/permissions";
+import { assertExpertFeedbackAccess, assertRole } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { serializeExpertFeedback } from "@/lib/api-serializers";
 import { deleteStoredFile, saveUploadedFile } from "@/lib/uploads";
@@ -12,6 +12,12 @@ export async function GET(request: NextRequest) {
   const user = await getSessionUser(request);
   if (!user) {
     return NextResponse.json({ message: "未登录" }, { status: 401 });
+  }
+
+  try {
+    assertExpertFeedbackAccess(user.role);
+  } catch {
+    return NextResponse.json({ message: "无权限" }, { status: 403 });
   }
 
   const experts = await prisma.expertFeedback.findMany({
