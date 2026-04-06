@@ -20,6 +20,16 @@ export const expertReviewCategoryCaps = {
 } as const;
 
 export type ExpertReviewScoreField = keyof typeof expertReviewCategoryCaps;
+export type ExpertReviewGrade = "A" | "B" | "C" | "D" | "E";
+
+export const expertReviewGradeOrder: ExpertReviewGrade[] = ["A", "B", "C", "D", "E"];
+const expertReviewGradeRatios: Record<ExpertReviewGrade, number> = {
+  A: 1,
+  B: 0.9,
+  C: 0.8,
+  D: 0.7,
+  E: 0.6,
+};
 
 export const expertReviewFieldLabels: Record<ExpertReviewScoreField, string> = {
   scorePersonalGrowth: "个人成长",
@@ -55,6 +65,32 @@ export const expertReviewFieldHints: Record<ExpertReviewScoreField, string[]> = 
     "团队效能",
     "团队资源",
   ],
+};
+
+export const getExpertReviewGradeChoices = (field: ExpertReviewScoreField) =>
+  expertReviewGradeOrder.map((grade) => ({
+    grade,
+    score: Math.round(expertReviewCategoryCaps[field] * expertReviewGradeRatios[grade]),
+  }));
+
+export const mapExpertReviewGradeToScore = (
+  field: ExpertReviewScoreField,
+  grade: ExpertReviewGrade,
+) => Math.round(expertReviewCategoryCaps[field] * expertReviewGradeRatios[grade]);
+
+export const getExpertReviewGradeFromScore = (
+  field: ExpertReviewScoreField,
+  score?: number | null,
+): ExpertReviewGrade | "" => {
+  if (typeof score !== "number" || Number.isNaN(score)) {
+    return "";
+  }
+
+  return getExpertReviewGradeChoices(field).reduce<ExpertReviewGrade>((closest, option) => {
+    const closestDistance = Math.abs(mapExpertReviewGradeToScore(field, closest) - score);
+    const optionDistance = Math.abs(option.score - score);
+    return optionDistance < closestDistance ? option.grade : closest;
+  }, "A");
 };
 
 export const expertReviewMaterialLabels: Record<ExpertReviewMaterialKind, string> = {

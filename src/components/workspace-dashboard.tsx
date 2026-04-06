@@ -59,6 +59,9 @@ import {
   expertReviewCategoryCaps,
   expertReviewFieldHints,
   expertReviewFieldLabels,
+  getExpertReviewGradeChoices,
+  getExpertReviewGradeFromScore,
+  mapExpertReviewGradeToScore,
   expertReviewMaterialLabels,
 } from "@/lib/expert-review";
 
@@ -720,10 +723,10 @@ const defaultExpertReviewMaterialDraft = (): ExpertReviewMaterialDraft => ({
 const createExpertReviewScoreDraft = (
   assignment?: ExpertReviewAssignmentItem | null,
 ): ExpertReviewScoreDraft => ({
-  scorePersonalGrowth: assignment?.score?.scorePersonalGrowth?.toString() ?? "",
-  scoreInnovation: assignment?.score?.scoreInnovation?.toString() ?? "",
-  scoreIndustry: assignment?.score?.scoreIndustry?.toString() ?? "",
-  scoreTeamwork: assignment?.score?.scoreTeamwork?.toString() ?? "",
+  scorePersonalGrowth: getExpertReviewGradeFromScore("scorePersonalGrowth", assignment?.score?.scorePersonalGrowth),
+  scoreInnovation: getExpertReviewGradeFromScore("scoreInnovation", assignment?.score?.scoreInnovation),
+  scoreIndustry: getExpertReviewGradeFromScore("scoreIndustry", assignment?.score?.scoreIndustry),
+  scoreTeamwork: getExpertReviewGradeFromScore("scoreTeamwork", assignment?.score?.scoreTeamwork),
   commentTotal: assignment?.score?.commentTotal ?? "",
 });
 
@@ -1661,7 +1664,7 @@ export function WorkspaceDashboard({
       doc.statusKey !== "approved");
 
   const canManageReviewMaterials = ["admin", "teacher", "leader"].includes(currentRole);
-  const canCreateReviewPackage = currentRole === "admin";
+  const canCreateReviewPackage = ["admin", "teacher", "leader"].includes(currentRole);
 
   const getDocumentActionButtons = (doc: DocumentItem): DocumentActionButton[] => {
     if ((permissions.canLeaderReviewDocument || currentRole === "admin") && doc.statusKey === "pending") {
@@ -2512,10 +2515,18 @@ export function WorkspaceDashboard({
   };
 
   const getReviewScoreTotal = (draft: ExpertReviewScoreDraft | undefined) =>
-    (Number(draft?.scorePersonalGrowth || 0) || 0) +
-    (Number(draft?.scoreInnovation || 0) || 0) +
-    (Number(draft?.scoreIndustry || 0) || 0) +
-    (Number(draft?.scoreTeamwork || 0) || 0);
+    (draft?.scorePersonalGrowth
+      ? mapExpertReviewGradeToScore("scorePersonalGrowth", draft.scorePersonalGrowth as "A" | "B" | "C" | "D" | "E")
+      : 0) +
+    (draft?.scoreInnovation
+      ? mapExpertReviewGradeToScore("scoreInnovation", draft.scoreInnovation as "A" | "B" | "C" | "D" | "E")
+      : 0) +
+    (draft?.scoreIndustry
+      ? mapExpertReviewGradeToScore("scoreIndustry", draft.scoreIndustry as "A" | "B" | "C" | "D" | "E")
+      : 0) +
+    (draft?.scoreTeamwork
+      ? mapExpertReviewGradeToScore("scoreTeamwork", draft.scoreTeamwork as "A" | "B" | "C" | "D" | "E")
+      : 0);
 
   const saveExpertReviewScore = async (assignmentId: string) => {
     const draft = reviewScoreDrafts[assignmentId];
@@ -2529,16 +2540,26 @@ export function WorkspaceDashboard({
       return;
     }
 
+    if (
+      !draft.scorePersonalGrowth ||
+      !draft.scoreInnovation ||
+      !draft.scoreIndustry ||
+      !draft.scoreTeamwork
+    ) {
+      setLoadError("请先为四个评分项都选择一个等级");
+      return;
+    }
+
     setActiveReviewAssignmentId(assignmentId);
     try {
       await requestJson("/api/expert-reviews/scores", {
         method: "POST",
         body: JSON.stringify({
           assignmentId,
-          scorePersonalGrowth: Number(draft.scorePersonalGrowth),
-          scoreInnovation: Number(draft.scoreInnovation),
-          scoreIndustry: Number(draft.scoreIndustry),
-          scoreTeamwork: Number(draft.scoreTeamwork),
+          scorePersonalGrowth: mapExpertReviewGradeToScore("scorePersonalGrowth", draft.scorePersonalGrowth as "A" | "B" | "C" | "D" | "E"),
+          scoreInnovation: mapExpertReviewGradeToScore("scoreInnovation", draft.scoreInnovation as "A" | "B" | "C" | "D" | "E"),
+          scoreIndustry: mapExpertReviewGradeToScore("scoreIndustry", draft.scoreIndustry as "A" | "B" | "C" | "D" | "E"),
+          scoreTeamwork: mapExpertReviewGradeToScore("scoreTeamwork", draft.scoreTeamwork as "A" | "B" | "C" | "D" | "E"),
           commentTotal: draft.commentTotal.trim(),
         }),
       });
@@ -3325,7 +3346,7 @@ export function WorkspaceDashboard({
             description={
               currentRole === "expert"
                 ? "仅显示当前专家被指派的评审任务，材料只支持在线查看计划书、路演材料和视频；提交后截止前可继续修改，截止后自动锁定。"
-                : "评审材料与主文档中心完全独立，管理员可创建并指派一次性评审包，教师和负责人可补充材料；教师和管理员可查看全部评分。"
+                : "评审材料与主文档中心完全独立，管理员、教师和负责人都可创建并指派评审包；教师和管理员可查看全部评分。"
             }
             title="专家评审"
           />
@@ -3428,25 +3449,52 @@ export function WorkspaceDashboard({
 
                   <div className="mt-5 grid gap-4 md:grid-cols-2">
                     {(Object.keys(expertReviewCategoryCaps) as Array<keyof typeof expertReviewCategoryCaps>).map(
-                      (fieldKey) => (
-                        <label key={`${assignment.id}-${fieldKey}`} className="block text-sm text-slate-500">
-                          {expertReviewFieldLabels[fieldKey]}（满分 {expertReviewCategoryCaps[fieldKey]}）
-                          <input
-                            className={fieldClassName}
-                            disabled={!assignment.canEdit || activeReviewAssignmentId === assignment.id}
-                            inputMode="numeric"
-                            min={0}
-                            placeholder={`请输入 0-${expertReviewCategoryCaps[fieldKey]} 分`}
-                            value={draft[fieldKey]}
-                            onChange={(event) =>
-                              updateReviewScoreDraft(assignment.id, fieldKey, event.target.value)
-                            }
-                          />
-                          <span className="mt-2 block text-xs leading-6 text-slate-400">
-                            {expertReviewFieldHints[fieldKey].join(" / ")}
-                          </span>
-                        </label>
-                      ),
+                      (fieldKey) => {
+                        const choices = getExpertReviewGradeChoices(fieldKey);
+                        const selectedGrade = draft[fieldKey];
+
+                        return (
+                          <div key={`${assignment.id}-${fieldKey}`} className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4">
+                            <div className="flex items-center justify-between gap-3">
+                              <p className="text-sm font-semibold text-slate-900">
+                                {expertReviewFieldLabels[fieldKey]}
+                                <span className="ml-2 text-xs font-medium text-slate-400">
+                                  满分 {expertReviewCategoryCaps[fieldKey]}
+                                </span>
+                              </p>
+                              <span className="rounded-full bg-white px-2.5 py-1 text-xs text-slate-500 shadow-sm">
+                                {selectedGrade
+                                  ? `${selectedGrade} · ${mapExpertReviewGradeToScore(fieldKey, selectedGrade as "A" | "B" | "C" | "D" | "E")} 分`
+                                  : "请选择等级"}
+                              </span>
+                            </div>
+                            <div className="mt-4 grid grid-cols-5 gap-2">
+                              {choices.map((choice) => {
+                                const isSelected = selectedGrade === choice.grade;
+                                return (
+                                  <button
+                                    key={`${assignment.id}-${fieldKey}-${choice.grade}`}
+                                    className={`rounded-lg border px-3 py-2 text-center transition ${
+                                      isSelected
+                                        ? "border-blue-600 bg-blue-600 text-white shadow-sm"
+                                        : "border-slate-200 bg-white text-slate-600 hover:border-blue-300 hover:text-blue-600"
+                                    } ${!assignment.canEdit || activeReviewAssignmentId === assignment.id ? "cursor-not-allowed opacity-60" : ""}`}
+                                    disabled={!assignment.canEdit || activeReviewAssignmentId === assignment.id}
+                                    onClick={() => updateReviewScoreDraft(assignment.id, fieldKey, choice.grade)}
+                                    type="button"
+                                  >
+                                    <span className="block text-sm font-semibold">{choice.grade}</span>
+                                    <span className="mt-1 block text-[11px]">{choice.score}分</span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                            <span className="mt-3 block text-xs leading-6 text-slate-400">
+                              {expertReviewFieldHints[fieldKey].join(" / ")}
+                            </span>
+                          </div>
+                        );
+                      },
                     )}
                   </div>
 
@@ -3600,7 +3648,10 @@ export function WorkspaceDashboard({
                                   <div key={`${assignment.id}-${fieldKey}`} className="rounded-lg bg-white px-4 py-3">
                                     <p className="text-xs text-slate-400">{expertReviewFieldLabels[fieldKey]}</p>
                                     <p className="mt-2 text-lg font-semibold text-slate-900">
-                                      {assignment.score?.[fieldKey]}
+                                      {getExpertReviewGradeFromScore(fieldKey, assignment.score?.[fieldKey])}
+                                      <span className="ml-2 text-sm font-medium text-slate-500">
+                                        {assignment.score?.[fieldKey]}分
+                                      </span>
                                       <span className="ml-1 text-xs text-slate-400">
                                         / {expertReviewCategoryCaps[fieldKey]}
                                       </span>
