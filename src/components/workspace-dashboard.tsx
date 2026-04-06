@@ -996,7 +996,7 @@ function ActionButton({
 
   return (
     <button
-      className={`inline-flex h-10 items-center justify-center rounded-lg px-4 text-sm shadow-sm transition duration-200 focus-visible:ring-2 focus-visible:ring-blue-200 focus-visible:outline-none ${className} ${
+      className={`inline-flex h-10 shrink-0 items-center justify-center whitespace-nowrap rounded-lg px-4 text-sm shadow-sm transition duration-200 focus-visible:ring-2 focus-visible:ring-blue-200 focus-visible:outline-none ${className} ${
         disabled || loading
           ? "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400 hover:bg-slate-100"
           : "hover:-translate-y-px active:translate-y-0 active:scale-[0.98]"
@@ -5018,7 +5018,7 @@ export function WorkspaceDashboard({
                 <div className="space-y-3">
                   {roleTodoItems.map((item) => (
                     <div
-                      className={`rounded-xl border px-4 py-4 ${
+                      className={`rounded-xl border px-4 py-4 shadow-sm ${
                         item.priority === "danger"
                           ? "border-red-200 bg-red-50/70"
                           : item.priority === "warning"
@@ -5027,14 +5027,27 @@ export function WorkspaceDashboard({
                       }`}
                       key={item.id}
                     >
-                      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                      <div className="flex flex-col gap-4 md:grid md:grid-cols-[minmax(0,1fr)_auto] md:items-start md:gap-4">
                         <div className="min-w-0">
-                          <p className="text-sm font-semibold text-slate-900">{item.title}</p>
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="text-sm font-semibold text-slate-900">{item.title}</p>
+                            {item.priority === "danger" ? (
+                              <span className="rounded-full bg-red-100 px-2.5 py-1 text-xs font-medium text-red-700">
+                                紧急
+                              </span>
+                            ) : item.priority === "warning" ? (
+                              <span className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-medium text-amber-700">
+                                待处理
+                              </span>
+                            ) : null}
+                          </div>
                           <p className="mt-2 text-sm leading-6 text-slate-500">{item.detail}</p>
                         </div>
-                        <ActionButton onClick={() => void openTodoItem(item)} variant="primary">
-                          {item.actionLabel}
-                        </ActionButton>
+                        <div className="flex items-center md:justify-end">
+                          <ActionButton onClick={() => void openTodoItem(item)} variant="primary">
+                            {item.actionLabel}
+                          </ActionButton>
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -5060,19 +5073,21 @@ export function WorkspaceDashboard({
                 <div className="space-y-3">
                   {todoNotifications.map((item) => (
                     <button
-                      className="w-full rounded-xl border border-blue-100 bg-blue-50/40 px-4 py-4 text-left transition hover:bg-blue-50"
+                      className="w-full rounded-xl border border-blue-100 bg-blue-50/40 px-4 py-4 text-left shadow-sm transition hover:bg-blue-50"
                       key={item.id}
                       onClick={() => void openTodoItem(item)}
                       type="button"
                     >
-                      <div className="flex items-start justify-between gap-3">
+                      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                         <div className="min-w-0">
                           <p className="text-sm font-semibold text-slate-900">{item.title}</p>
                           <p className="mt-2 text-sm leading-6 text-slate-500">{item.detail}</p>
                         </div>
-                        <span className="mt-1 h-2.5 w-2.5 rounded-full bg-blue-600" />
+                        <div className="flex items-center gap-3 md:pl-4">
+                          <span className="h-2.5 w-2.5 rounded-full bg-blue-600" />
+                          <span className="text-sm font-medium text-blue-600">{item.actionLabel}</span>
+                        </div>
                       </div>
-                      <p className="mt-3 text-sm font-medium text-blue-600">{item.actionLabel}</p>
                     </button>
                   ))}
                 </div>
