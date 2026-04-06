@@ -16,6 +16,7 @@ import type {
   User,
 } from "@prisma/client";
 
+import { formatBeijingDateTime, formatBeijingTimeOnly } from "@/lib/date";
 import { approvalStatusLabels, roleLabels } from "@/lib/permissions";
 
 export const categoryLabels: Record<DocumentCategory, "计划书" | "PPT" | "答辩材料" | "证明附件"> = {
@@ -69,23 +70,8 @@ export const taskStatusLabels: Record<TaskStatus, "todo" | "doing" | "done"> = {
   done: "done",
 };
 
-export const formatDateTime = (value: Date | string) => {
-  const date = new Date(value);
-  const year = date.getFullYear();
-  const month = `${date.getMonth() + 1}`.padStart(2, "0");
-  const day = `${date.getDate()}`.padStart(2, "0");
-  const hours = `${date.getHours()}`.padStart(2, "0");
-  const minutes = `${date.getMinutes()}`.padStart(2, "0");
-
-  return `${year}-${month}-${day} ${hours}:${minutes}`;
-};
-
-export const formatTimeOnly = (value: Date | string) => {
-  const date = new Date(value);
-  const hours = `${date.getHours()}`.padStart(2, "0");
-  const minutes = `${date.getMinutes()}`.padStart(2, "0");
-  return `${hours}:${minutes}`;
-};
+export const formatDateTime = formatBeijingDateTime;
+export const formatTimeOnly = formatBeijingTimeOnly;
 
 export const serializeUser = (
   user: Pick<

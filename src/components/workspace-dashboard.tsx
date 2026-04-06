@@ -22,6 +22,7 @@ import {
   Menu,
   MessageSquareText,
   Plus,
+  Search,
   Timer,
   Trash2,
   Upload,
@@ -49,7 +50,12 @@ import {
   roleLabels,
 } from "@/data/demo-data";
 import { PdfPreview } from "@/components/pdf-preview";
-import { toIsoDateKey } from "@/lib/date";
+import {
+  formatBeijingDateTimeShort,
+  formatBeijingFriendlyDate,
+  getBeijingHour,
+  toIsoDateKey,
+} from "@/lib/date";
 import {
   documentAcceptAttribute,
   validateUploadMeta,
@@ -532,15 +538,7 @@ const teamRoleRank: Record<TeamRoleLabel, number> = {
   评审专家: 0,
 };
 
-const formatDateTime = (value: string) => {
-  const date = new Date(value);
-  const month = `${date.getMonth() + 1}`.padStart(2, "0");
-  const day = `${date.getDate()}`.padStart(2, "0");
-  const hours = `${date.getHours()}`.padStart(2, "0");
-  const minutes = `${date.getMinutes()}`.padStart(2, "0");
-
-  return `${month}/${day} ${hours}:${minutes}`;
-};
+const formatDateTime = (value: string) => formatBeijingDateTimeShort(value);
 
 const formatShortDate = (value: string) => {
   const [year, month, day] = value.split("-");
@@ -614,15 +612,10 @@ const toDateTimeInputValue = (value: string) => {
   return `${parsed.getFullYear()}-${padDatePart(parsed.getMonth() + 1)}-${padDatePart(parsed.getDate())}T${padDatePart(parsed.getHours())}:${padDatePart(parsed.getMinutes())}`;
 };
 
-const formatFriendlyDate = (value: Date) =>
-  new Intl.DateTimeFormat("zh-CN", {
-    month: "long",
-    day: "numeric",
-    weekday: "long",
-  }).format(value);
+const formatFriendlyDate = (value: Date) => formatBeijingFriendlyDate(value);
 
 const getGreetingCopy = (name: string, date: Date) => {
-  const hour = date.getHours();
+  const hour = getBeijingHour(date);
 
   if (hour >= 5 && hour < 11) {
     return {
@@ -1087,6 +1080,8 @@ export function WorkspaceDashboard({
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [sentRemindersOpen, setSentRemindersOpen] = useState(false);
   const [sentRemindersLoading, setSentRemindersLoading] = useState(false);
+  const [teamSearch, setTeamSearch] = useState("");
+  const [teamRoleFilter, setTeamRoleFilter] = useState<"全部" | TeamRoleLabel>("全部");
   const [todoAutoOpened, setTodoAutoOpened] = useState(false);
   const [dismissedTodoIds, setDismissedTodoIds] = useState<string[]>([]);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
@@ -1534,6 +1529,22 @@ export function WorkspaceDashboard({
     }
 
     return member.id === currentMemberId;
+  });
+
+  const teamFilterOptions = useMemo(
+    () => ["全部", ...new Set(visibleTeamMembers.map((member) => member.systemRole))] as Array<"全部" | TeamRoleLabel>,
+    [visibleTeamMembers],
+  );
+
+  const filteredTeamMembers = visibleTeamMembers.filter((member) => {
+    const normalizedKeyword = teamSearch.trim().toLowerCase();
+    const matchesKeyword =
+      !normalizedKeyword ||
+      member.name.toLowerCase().includes(normalizedKeyword) ||
+      member.account.toLowerCase().includes(normalizedKeyword);
+
+    const matchesRole = teamRoleFilter === "全部" || member.systemRole === teamRoleFilter;
+    return matchesKeyword && matchesRole;
   });
 
   const pendingApprovalMembers = pendingTeamMembers.filter((member) => canApprovePendingMember(member));
@@ -4217,81 +4228,161 @@ export function WorkspaceDashboard({
         </section>
       ) : null}
 
-      <section className="grid gap-4 xl:grid-cols-2">
-        {visibleTeamMembers.map((member) => {
-          const editable = canManageMember(member);
-          const roleDisabled = !editable || member.systemRole === "系统管理员";
+      <section className={`${surfaceCardClassName} p-0 overflow-hidden`}>
+        <div className="border-b border-slate-200 px-5 py-4">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <div>
+              <h3 className="text-base font-semibold text-slate-900">账号列表</h3>
+              <p className="mt-1 text-sm text-slate-500">按账号、角色和状态快速管理团队成员与评审专家。</p>
+            </div>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+              <label className="relative block min-w-[240px] text-sm text-slate-500">
+                <span className="sr-only">搜索账号</span>
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <input
+                  className="w-full rounded-lg border border-slate-300 bg-white py-2.5 pl-9 pr-3 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                  placeholder="搜索姓名或账号"
+                  type="text"
+                  value={teamSearch}
+                  onChange={(event) => setTeamSearch(event.target.value)}
+                />
+              </label>
+              <label className="text-sm text-slate-500">
+                <span className="sr-only">按角色筛选</span>
+                <select
+                  className="w-full min-w-[160px] rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                  value={teamRoleFilter}
+                  onChange={(event) => setTeamRoleFilter(event.target.value as "全部" | TeamRoleLabel)}
+                >
+                  {teamFilterOptions.map((roleOption) => (
+                    <option key={roleOption} value={roleOption}>
+                      {roleOption === "全部" ? "全部角色" : roleOption}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+          </div>
 
-          return (
-            <article
-              key={member.id}
-              className={surfaceCardClassName}
-            >
-              <div className="flex items-start gap-4">
-                <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#2563eb] text-base font-semibold text-white">
-                  {member.avatar}
-                </div>
-                <div className="min-w-0 flex-1">
+          <div className="mt-4 flex flex-wrap gap-2 text-xs text-slate-500">
+            <span className="rounded-full bg-slate-100 px-3 py-1">当前共 {visibleTeamMembers.length} 个账号</span>
+            <span className="rounded-full bg-blue-50 px-3 py-1 text-blue-600">
+              已筛选 {filteredTeamMembers.length} 个结果
+            </span>
+            {pendingApprovalMembers.length > 0 ? (
+              <span className="rounded-full bg-amber-50 px-3 py-1 text-amber-700">
+                待审核 {pendingApprovalMembers.length} 个
+              </span>
+            ) : null}
+          </div>
+        </div>
+
+        <div className="hidden grid-cols-[minmax(0,1.4fr)_180px_140px_minmax(280px,1fr)] gap-4 border-b border-slate-200 bg-slate-50 px-5 py-3 text-xs font-medium tracking-[0.06em] text-slate-400 lg:grid">
+          <span>账号信息</span>
+          <span>角色</span>
+          <span>状态</span>
+          <span className="text-right">操作</span>
+        </div>
+
+        {filteredTeamMembers.length > 0 ? (
+          filteredTeamMembers.map((member) => {
+            const editable = canManageMember(member);
+            const roleDisabled = !editable || member.systemRole === "系统管理员";
+
+            return (
+              <article
+                key={member.id}
+                className="border-b border-slate-200 px-5 py-4 last:border-b-0"
+              >
+                <div className="grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_180px_140px_minmax(280px,1fr)] lg:items-center">
+                  <div className="flex min-w-0 items-center gap-3">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-600 text-sm font-semibold text-white">
+                      {member.avatar}
+                    </div>
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3 className="truncate text-sm font-semibold text-slate-900">{member.name}</h3>
+                        {member.systemRole === "系统管理员" ? (
+                          <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-600">
+                            最高权限
+                          </span>
+                        ) : member.systemRole === "评审专家" ? (
+                          <span className="rounded-full bg-violet-50 px-2.5 py-1 text-xs font-medium text-violet-600">
+                            评审专家
+                          </span>
+                        ) : null}
+                      </div>
+                      <p className="mt-1 truncate text-sm text-slate-500">账号：{member.account}</p>
+                    </div>
+                  </div>
+
                   <div>
-                    <div>
-                      <h3 className="text-base font-semibold text-slate-900">{member.name}</h3>
-                      <p className="mt-2 text-sm text-slate-500">账号：{member.account}</p>
-                      {member.systemRole === "系统管理员" ? (
-                        <p className="mt-2 text-sm text-blue-600">系统最高权限账号</p>
-                      ) : null}
-                    </div>
+                    <p className="mb-2 text-xs text-slate-400 lg:hidden">角色</p>
+                    <select
+                      className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+                      disabled={roleDisabled}
+                      title={roleDisabled ? "无权限" : undefined}
+                      value={member.systemRole}
+                      onChange={(event) => updateMemberRole(member.id, event.target.value as TeamRoleLabel)}
+                    >
+                      {availableRoleOptions.map((roleOption) => (
+                        <option key={roleOption} value={roleOption}>
+                          {roleOption}
+                        </option>
+                      ))}
+                    </select>
                   </div>
 
-                  <div className="mt-4 grid gap-4 md:grid-cols-[1fr_auto] md:items-center">
-                    <label className="text-sm text-slate-500">
-                      角色
-                      <select
-                        className={`${fieldClassName} disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400`}
-                        disabled={roleDisabled}
-                        title={roleDisabled ? "无权限" : undefined}
-                        value={member.systemRole}
-                        onChange={(event) =>
-                          updateMemberRole(member.id, event.target.value as TeamRoleLabel)
-                        }
-                      >
-                        {availableRoleOptions.map((roleOption) => (
-                          <option key={roleOption} value={roleOption}>
-                            {roleOption}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
+                  <div>
+                    <p className="mb-2 text-xs text-slate-400 lg:hidden">状态</p>
+                    <span
+                      className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${
+                        member.systemRole === "系统管理员"
+                          ? "bg-blue-50 text-blue-600"
+                          : "bg-emerald-50 text-emerald-700"
+                      }`}
+                    >
+                      {member.systemRole === "系统管理员" ? "系统保留账号" : "已启用"}
+                    </span>
+                  </div>
 
-                    <div className="flex flex-wrap gap-3">
-                      {canSendDirectiveToMember(member) ? (
-                        <ActionButton onClick={() => openReminderModal(member)}>
-                          发送提醒
-                        </ActionButton>
-                      ) : null}
-                      {permissions.canResetPassword ? (
-                        <ActionButton
-                          disabled={!canResetMemberPassword(member)}
-                          onClick={() => openPasswordModal(member)}
-                          title="无权限"
-                        >
-                          重置密码
-                        </ActionButton>
-                      ) : null}
-                      <ActionButton
-                        disabled={!editable || member.systemRole === "系统管理员"}
-                        onClick={() => removeMember(member.id, member.name)}
-                        title="无权限"
-                        variant="danger"
-                      >
-                        删除账号
+                  <div className="flex flex-wrap gap-2 lg:justify-end">
+                    {canSendDirectiveToMember(member) ? (
+                      <ActionButton onClick={() => openReminderModal(member)}>
+                        发送提醒
                       </ActionButton>
-                    </div>
+                    ) : null}
+                    {permissions.canResetPassword ? (
+                      <ActionButton
+                        disabled={!canResetMemberPassword(member)}
+                        onClick={() => openPasswordModal(member)}
+                        title="无权限"
+                      >
+                        重置密码
+                      </ActionButton>
+                    ) : null}
+                    <ActionButton
+                      disabled={!editable || member.systemRole === "系统管理员"}
+                      onClick={() => removeMember(member.id, member.name)}
+                      title="无权限"
+                      variant="danger"
+                    >
+                      删除账号
+                    </ActionButton>
                   </div>
                 </div>
-              </div>
-            </article>
-          );
-        })}
+              </article>
+            );
+          })
+        ) : (
+          <div className="px-5 py-8">
+            <EmptyState
+              description="当前筛选条件下没有匹配账号，可以调整角色筛选或搜索关键词。"
+              icon={Users}
+              title="暂无匹配账号"
+            />
+          </div>
+        )}
       </section>
     </div>
   );
