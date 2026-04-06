@@ -124,6 +124,18 @@ type AnnouncementDraft = {
   detail: string;
 };
 
+type ReminderDraft = {
+  title: string;
+  detail: string;
+  targetTab: string;
+};
+
+type ReminderDraftErrors = {
+  title?: string;
+  detail?: string;
+  submit?: string;
+};
+
 type TeamDraft = {
   name: string;
   username: string;
@@ -400,6 +412,7 @@ const rolePermissions = {
   admin: {
     visibleTabs: ["overview", "timeline", "board", "reports", "experts", "review", "documents", "team", "profile"] as TabKey[],
     canPublishAnnouncement: true,
+    canSendDirective: true,
     canCreateTask: true,
     canEditTask: true,
     canDeleteTask: true,
@@ -420,6 +433,7 @@ const rolePermissions = {
   teacher: {
     visibleTabs: ["overview", "timeline", "board", "reports", "experts", "review", "documents", "team", "profile"] as TabKey[],
     canPublishAnnouncement: true,
+    canSendDirective: true,
     canCreateTask: true,
     canEditTask: true,
     canDeleteTask: true,
@@ -440,6 +454,7 @@ const rolePermissions = {
   leader: {
     visibleTabs: ["overview", "timeline", "board", "reports", "experts", "review", "documents", "team", "profile"] as TabKey[],
     canPublishAnnouncement: true,
+    canSendDirective: false,
     canCreateTask: true,
     canEditTask: true,
     canDeleteTask: false,
@@ -460,6 +475,7 @@ const rolePermissions = {
   member: {
     visibleTabs: ["overview", "timeline", "board", "reports", "experts", "documents", "profile"] as TabKey[],
     canPublishAnnouncement: false,
+    canSendDirective: false,
     canCreateTask: false,
     canEditTask: false,
     canDeleteTask: false,
@@ -480,6 +496,7 @@ const rolePermissions = {
   expert: {
     visibleTabs: ["review", "profile"] as TabKey[],
     canPublishAnnouncement: false,
+    canSendDirective: false,
     canCreateTask: false,
     canEditTask: false,
     canDeleteTask: false,
@@ -498,6 +515,14 @@ const rolePermissions = {
     canResetPassword: false,
   },
 } as const;
+
+const teamRoleToRoleKey: Record<TeamRoleLabel, RoleKey> = {
+  系统管理员: "admin",
+  指导教师: "teacher",
+  项目负责人: "leader",
+  团队成员: "member",
+  评审专家: "expert",
+};
 
 const teamRoleRank: Record<TeamRoleLabel, number> = {
   系统管理员: 4,
@@ -662,6 +687,14 @@ const defaultAnnouncementDraft: AnnouncementDraft = {
   title: "",
   detail: "",
 };
+
+const defaultReminderDraft: ReminderDraft = {
+  title: "请及时查看并处理",
+  detail: "",
+  targetTab: "",
+};
+
+const defaultReminderDraftErrors = (): ReminderDraftErrors => ({});
 
 const defaultEventDraft: EventDraft = {
   title: "",
@@ -1065,6 +1098,10 @@ export function WorkspaceDashboard({
 
   const [announcementModalOpen, setAnnouncementModalOpen] = useState(false);
   const [announcementDraft, setAnnouncementDraft] = useState<AnnouncementDraft>(defaultAnnouncementDraft);
+  const [reminderModalOpen, setReminderModalOpen] = useState(false);
+  const [reminderTargetMember, setReminderTargetMember] = useState<TeamMember | null>(null);
+  const [reminderDraft, setReminderDraft] = useState<ReminderDraft>(defaultReminderDraft);
+  const [reminderDraftErrors, setReminderDraftErrors] = useState<ReminderDraftErrors>(defaultReminderDraftErrors);
 
   const [eventModalOpen, setEventModalOpen] = useState(false);
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
@@ -1622,7 +1659,7 @@ export function WorkspaceDashboard({
         id: `notification-${notification.id}`,
         title: notification.title,
         detail: notification.detail,
-        actionLabel: "去处理",
+        actionLabel: notification.targetTab ? "去处理" : "查看提醒",
         targetTab:
           notification.targetTab && permissions.visibleTabs.includes(notification.targetTab as TabKey)
             ? (notification.targetTab as TabKey)
@@ -1649,6 +1686,53 @@ export function WorkspaceDashboard({
 
   const dismissTodoItem = (itemId: string) => {
     setDismissedTodoIds((current) => (current.includes(itemId) ? current : [...current, itemId]));
+  };
+
+  const canSendDirectiveToMember = (member: TeamMember) => {
+    if (!permissions.canSendDirective) {
+      return false;
+    }
+
+    if (member.id === currentMemberId) {
+      return false;
+    }
+
+    return member.systemRole !== "系统管理员";
+  };
+
+  const reminderTabOptions = useMemo(() => {
+    if (!reminderTargetMember) {
+      return [] as Array<{ key: string; label: string }>;
+    }
+
+    const targetRole = teamRoleToRoleKey[reminderTargetMember.systemRole];
+    return rolePermissions[targetRole].visibleTabs
+      .filter((key) => key !== "profile")
+      .map((key) => ({
+        key,
+        label: allTabs.find((item) => item.key === key)?.label ?? key,
+      }));
+  }, [reminderTargetMember]);
+
+  const closeReminderModal = () => {
+    setReminderModalOpen(false);
+    setReminderTargetMember(null);
+    setReminderDraft(defaultReminderDraft);
+    setReminderDraftErrors(defaultReminderDraftErrors());
+  };
+
+  const openReminderModal = (member: TeamMember) => {
+    const targetRole = teamRoleToRoleKey[member.systemRole];
+    const targetTabs = rolePermissions[targetRole].visibleTabs.filter((key) => key !== "profile");
+
+    setReminderTargetMember(member);
+    setReminderDraft({
+      title: `请及时查看：${member.name}`,
+      detail: "",
+      targetTab: targetTabs.includes("overview") ? "overview" : (targetTabs[0] ?? ""),
+    });
+    setReminderDraftErrors(defaultReminderDraftErrors());
+    setReminderModalOpen(true);
   };
 
   const canMoveTask = (task: BoardTask) =>
@@ -1982,6 +2066,73 @@ export function WorkspaceDashboard({
       refreshWorkspace();
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "公告发布失败");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const deleteAnnouncementRequest = async (announcementId: string) => {
+    await requestJson(`/api/announcements/${announcementId}`, {
+      method: "DELETE",
+    });
+    refreshWorkspace();
+  };
+
+  const deleteAnnouncement = (announcementId: string, announcementTitle: string) => {
+    setConfirmDialog({
+      open: true,
+      title: "删除公告",
+      message: `确认删除公告「${announcementTitle}」？删除后首页将不再展示这条公告。`,
+      confirmLabel: "确认删除",
+      successTitle: "公告已删除",
+      successDetail: "首页公告列表已经同步更新。",
+      onConfirm: () => deleteAnnouncementRequest(announcementId),
+    });
+  };
+
+  const saveReminder = async () => {
+    const title = reminderDraft.title.trim();
+    const detail = reminderDraft.detail.trim();
+    const nextErrors: ReminderDraftErrors = {};
+
+    if (!title) {
+      nextErrors.title = "请填写提醒标题";
+    }
+
+    if (!detail) {
+      nextErrors.detail = "请填写提醒内容";
+    }
+
+    if (Object.keys(nextErrors).length > 0) {
+      setReminderDraftErrors(nextErrors);
+      return;
+    }
+
+    if (!reminderTargetMember) {
+      setReminderDraftErrors({ submit: "当前未选择提醒对象，请关闭后重试" });
+      return;
+    }
+
+    setIsSaving(true);
+    setReminderDraftErrors(defaultReminderDraftErrors());
+
+    try {
+      await requestJson("/api/notifications", {
+        method: "POST",
+        body: JSON.stringify({
+          userId: reminderTargetMember.id,
+          title,
+          detail,
+          targetTab: reminderDraft.targetTab || null,
+        }),
+      });
+      closeReminderModal();
+      showSuccessToast("站内提醒已发送", `已通知 ${reminderTargetMember.name} 及时处理相关事项。`);
+      refreshWorkspace();
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "提醒发送失败";
+      setReminderDraftErrors({ submit: message });
+      setLoadError(message);
     } finally {
       setIsSaving(false);
     }
@@ -2893,7 +3044,18 @@ export function WorkspaceDashboard({
           <div className="mt-4 space-y-4">
             {announcements.slice(0, 2).map((item) => (
               <article key={item.id} className={subtleCardClassName}>
-                <p className="text-sm font-medium text-slate-900">{item.title}</p>
+                <div className="flex items-start justify-between gap-3">
+                  <p className="text-sm font-medium text-slate-900">{item.title}</p>
+                  {permissions.canPublishAnnouncement ? (
+                    <button
+                      className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+                      onClick={() => deleteAnnouncement(item.id, item.title)}
+                      type="button"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  ) : null}
+                </div>
                 <p className="mt-2 text-sm leading-7 text-slate-500">{item.detail}</p>
               </article>
             ))}
@@ -4069,6 +4231,11 @@ export function WorkspaceDashboard({
                     </label>
 
                     <div className="flex flex-wrap gap-3">
+                      {canSendDirectiveToMember(member) ? (
+                        <ActionButton onClick={() => openReminderModal(member)}>
+                          发送提醒
+                        </ActionButton>
+                      ) : null}
                       {permissions.canResetPassword ? (
                         <ActionButton
                           disabled={!canResetMemberPassword(member)}
@@ -5166,6 +5333,89 @@ export function WorkspaceDashboard({
 
             <ModalActions>
               <ActionButton onClick={() => setNotificationsOpen(false)}>稍后处理</ActionButton>
+            </ModalActions>
+          </div>
+        </Modal>
+      ) : null}
+
+      {reminderModalOpen ? (
+        <Modal onClose={closeReminderModal} title="发送站内提醒">
+          <div className="space-y-4">
+            <div className={`${subtleCardClassName} text-sm leading-7 text-slate-500`}>
+              当前提醒对象：
+              <span className="ml-1 font-medium text-slate-800">
+                {reminderTargetMember?.name}（{reminderTargetMember?.systemRole}）
+              </span>
+            </div>
+
+            <div>
+              <label className="text-sm text-slate-500">
+                提醒标题 <span className="text-red-500">*</span>
+                <input
+                  className={reminderDraftErrors.title ? fieldErrorClassName : fieldClassName}
+                  placeholder="例如：请尽快补齐材料并同步结果"
+                  type="text"
+                  value={reminderDraft.title}
+                  onChange={(event) =>
+                    setReminderDraft((current) => ({ ...current, title: event.target.value }))
+                  }
+                />
+              </label>
+              {reminderDraftErrors.title ? (
+                <p className="mt-1 text-xs text-red-500">{reminderDraftErrors.title}</p>
+              ) : null}
+            </div>
+
+            <div>
+              <label className="text-sm text-slate-500">
+                跳转板块
+                <select
+                  className={fieldClassName}
+                  value={reminderDraft.targetTab}
+                  onChange={(event) =>
+                    setReminderDraft((current) => ({ ...current, targetTab: event.target.value }))
+                  }
+                >
+                  <option value="">仅提醒，不跳转</option>
+                  {reminderTabOptions.map((option) => (
+                    <option key={option.key} value={option.key}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            </div>
+
+            <div>
+              <label className="text-sm text-slate-500">
+                提醒内容 <span className="text-red-500">*</span>
+                <textarea
+                  className={reminderDraftErrors.detail ? fieldErrorClassName : textareaClassName}
+                  placeholder="请填写需要对方查看和执行的事项。"
+                  value={reminderDraft.detail}
+                  onChange={(event) =>
+                    setReminderDraft((current) => ({ ...current, detail: event.target.value }))
+                  }
+                />
+              </label>
+              {reminderDraftErrors.detail ? (
+                <p className="mt-1 text-xs text-red-500">{reminderDraftErrors.detail}</p>
+              ) : null}
+            </div>
+
+            {reminderDraftErrors.submit ? (
+              <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-600">
+                {reminderDraftErrors.submit}
+              </div>
+            ) : null}
+
+            <ModalActions>
+              <ActionButton disabled={isSaving} onClick={closeReminderModal}>
+                取消
+              </ActionButton>
+              <ActionButton loading={isSaving} loadingLabel="发送中..." onClick={saveReminder} variant="primary">
+                发送提醒
+              </ActionButton>
             </ModalActions>
           </div>
         </Modal>
