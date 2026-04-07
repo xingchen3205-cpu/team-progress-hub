@@ -987,11 +987,11 @@ async function requestJson<T>(input: string, init?: RequestInit) {
   return payload as T;
 }
 
-function SectionHeader({ title, description }: { title: string; description: string }) {
+function SectionHeader({ title, description }: { title: string; description?: string }) {
   return (
     <div className="space-y-2">
       <h2 className="text-2xl font-bold text-slate-900">{title}</h2>
-      <p className="text-sm leading-6 text-slate-500">{description}</p>
+      {description ? <p className="text-sm leading-6 text-slate-500">{description}</p> : null}
     </div>
   );
 }
@@ -2399,7 +2399,7 @@ export function WorkspaceDashboard({
 
   const createQuickTask = async () => {
     const title = quickTaskTitle.trim();
-    const assigneeId = quickTaskAssigneeId || firstAssignableMemberId;
+    const assigneeId = currentRole === "member" ? currentMemberId : quickTaskAssigneeId || firstAssignableMemberId;
 
     if (!title) {
       setLoadError("请先输入任务名称");
@@ -4366,17 +4366,23 @@ export function WorkspaceDashboard({
                         onChange={(event) => setQuickTaskTitle(event.target.value)}
                       />
                       <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
-                        <select
-                          className="h-10 rounded-lg border border-blue-100 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-[#1d4ed8] focus:ring-2 focus:ring-blue-500/20"
-                          value={quickTaskAssigneeId || firstAssignableMemberId}
-                          onChange={(event) => setQuickTaskAssigneeId(event.target.value)}
-                        >
-                          {assignableMembers.map((member) => (
-                            <option key={member.id} value={member.id}>
-                              {member.name}
-                            </option>
-                          ))}
-                        </select>
+                        {currentRole === "member" ? (
+                          <div className="flex h-10 items-center rounded-lg border border-blue-100 bg-white px-3 text-sm text-slate-600">
+                            指派给自己
+                          </div>
+                        ) : (
+                          <select
+                            className="h-10 rounded-lg border border-blue-100 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-[#1d4ed8] focus:ring-2 focus:ring-blue-500/20"
+                            value={quickTaskAssigneeId || firstAssignableMemberId}
+                            onChange={(event) => setQuickTaskAssigneeId(event.target.value)}
+                          >
+                            {assignableMembers.map((member) => (
+                              <option key={member.id} value={member.id}>
+                                {member.name}
+                              </option>
+                            ))}
+                          </select>
+                        )}
                         <ActionButton
                           disabled={isSaving || !quickTaskTitle.trim()}
                           loading={isSaving && Boolean(quickTaskTitle.trim())}
@@ -5974,7 +5980,7 @@ export function WorkspaceDashboard({
           description={
             permissions.canManageTeam
               ? "支持创建直属账号，并对自助注册的下级账号执行审核通过。"
-              : "这里显示你所在团队的老师、负责人和成员；账号名已隐藏，仅用于团队协作识别。"
+              : undefined
           }
           title="团队管理"
         />
