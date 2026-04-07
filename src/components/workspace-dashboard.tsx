@@ -506,9 +506,9 @@ const getDocumentStatusHint = (statusKey: DocumentStatusKey) => {
 };
 
 const taskPriorityStyles: Record<TaskDraft["priority"], string> = {
-  高优先级: "bg-[#fee2e2] text-[#b91c1c]",
-  中优先级: "bg-[#fef3c7] text-[#9a6700]",
-  低优先级: "bg-[#e5e7eb] text-[#4b5563]",
+  高优先级: "border-rose-200 bg-rose-50 text-rose-700",
+  中优先级: "border-amber-200 bg-amber-50 text-amber-700",
+  低优先级: "border-slate-200 bg-slate-100 text-slate-600",
 };
 
 const surfaceCardClassName = "rounded-xl border border-slate-200 bg-white p-5 shadow-sm";
@@ -1268,6 +1268,7 @@ export function WorkspaceDashboard({
   const [selectedDate, setSelectedDate] = useState(getDefaultDateKey());
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [expandedDocs, setExpandedDocs] = useState<string[]>([]);
+  const [expandedBoardTaskIds, setExpandedBoardTaskIds] = useState<string[]>([]);
   const [draggingTaskId, setDraggingTaskId] = useState<string | null>(null);
   const [countdown, setCountdown] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
   const [notificationsOpen, setNotificationsOpen] = useState(false);
@@ -2057,6 +2058,12 @@ export function WorkspaceDashboard({
 
   const canMoveTask = (task: BoardTask) =>
     permissions.canMoveAnyTask || (currentRole === "member" && task.assigneeId === currentMemberId);
+
+  const toggleBoardTaskExpand = (taskId: string) => {
+    setExpandedBoardTaskIds((current) =>
+      current.includes(taskId) ? current.filter((item) => item !== taskId) : [...current, taskId],
+    );
+  };
 
   const canDeleteDocument = (doc: DocumentItem) =>
     permissions.canDeleteAnyDocument ||
@@ -4608,6 +4615,8 @@ export function WorkspaceDashboard({
                   .filter((task) => task.status === column.id)
                   .map((task) => {
                   const canMove = canMoveTask(task);
+                  const isTaskExpanded = expandedBoardTaskIds.includes(task.id);
+                  const canExpandTask = task.title.length > 24;
 
                   return (
                     <article
@@ -4624,15 +4633,37 @@ export function WorkspaceDashboard({
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
                             <GripVertical className="h-4 w-4 shrink-0 text-slate-400" />
-                            <h4 className="line-clamp-2 text-sm font-semibold leading-6 text-slate-900">{task.title}</h4>
+                            <button
+                              className="min-w-0 text-left"
+                              onClick={() => toggleBoardTaskExpand(task.id)}
+                              title={canExpandTask ? "点击查看完整任务" : task.title}
+                              type="button"
+                            >
+                              <h4
+                                className={`text-sm font-semibold leading-6 text-slate-900 ${
+                                  isTaskExpanded ? "" : "line-clamp-2"
+                                }`}
+                              >
+                                {task.title}
+                              </h4>
+                            </button>
                           </div>
+                          {canExpandTask ? (
+                            <button
+                              className="mt-1 text-xs font-medium text-blue-600 transition hover:text-blue-700"
+                              onClick={() => toggleBoardTaskExpand(task.id)}
+                              type="button"
+                            >
+                              {isTaskExpanded ? "收起内容" : "查看完整"}
+                            </button>
+                          ) : null}
                           <p className="mt-1.5 text-sm text-slate-500">负责人：{getTaskAssigneeName(task)}</p>
                         </div>
                         <span
-                          className={`rounded-md px-2.5 py-1 text-xs ${
+                          className={`shrink-0 rounded-lg border px-2.5 py-1 text-xs font-medium ${
                             task.priority in taskPriorityStyles
                               ? taskPriorityStyles[task.priority as TaskDraft["priority"]]
-                              : boardBadgeStyles[task.status]
+                              : `${boardBadgeStyles[task.status]} border-transparent`
                           }`}
                         >
                           {task.priority}
