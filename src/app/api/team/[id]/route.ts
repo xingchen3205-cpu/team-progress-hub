@@ -33,6 +33,15 @@ export async function PATCH(
     return NextResponse.json({ message: "成员不存在" }, { status: 404 });
   }
 
+  if (
+    user.role !== "admin" &&
+    target.role !== "expert" &&
+    target.id !== user.id &&
+    target.teamGroupId !== user.teamGroupId
+  ) {
+    return NextResponse.json({ message: "无权限操作其他队伍账号" }, { status: 403 });
+  }
+
   const body = (await request.json().catch(() => null)) as
     | {
         name?: string;
@@ -42,6 +51,7 @@ export async function PATCH(
         responsibility?: string;
         password?: string;
         action?: "approve";
+        teamGroupId?: string | null;
       }
     | null;
 
@@ -83,6 +93,12 @@ export async function PATCH(
         approvalStatus: true,
         approvedAt: true,
         createdAt: true,
+        teamGroup: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
       },
     });
 
@@ -99,6 +115,32 @@ export async function PATCH(
 
   if (!canManageUser(user.role, target.role, nextRole)) {
     return NextResponse.json({ message: "无权限" }, { status: 403 });
+  }
+
+  let nextTeamGroupId: string | null | undefined;
+  if (Object.prototype.hasOwnProperty.call(body ?? {}, "teamGroupId")) {
+    if (user.role !== "admin") {
+      return NextResponse.json({ message: "无权限设置账号分组" }, { status: 403 });
+    }
+
+    if (nextRole === "expert") {
+      nextTeamGroupId = null;
+    } else if (body?.teamGroupId) {
+      const group = await prisma.teamGroup.findUnique({
+        where: { id: body.teamGroupId },
+        select: { id: true },
+      });
+
+      if (!group) {
+        return NextResponse.json({ message: "分组不存在" }, { status: 404 });
+      }
+
+      nextTeamGroupId = group.id;
+    } else {
+      nextTeamGroupId = null;
+    }
+  } else if (nextRole === "expert" && target.role !== "expert") {
+    nextTeamGroupId = null;
   }
 
   const nextUsername = body?.username?.trim();
@@ -148,6 +190,7 @@ export async function PATCH(
       username: nextUsername || undefined,
       email: nextEmail,
       role: target.role === "admin" ? undefined : nextRole,
+      teamGroupId: nextTeamGroupId,
       responsibility: body?.responsibility?.trim() || undefined,
       avatar: body?.name?.trim()?.slice(0, 1) || undefined,
       password: nextPassword,
@@ -164,6 +207,12 @@ export async function PATCH(
       approvalStatus: true,
       approvedAt: true,
       createdAt: true,
+      teamGroup: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
     },
   });
 

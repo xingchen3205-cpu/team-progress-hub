@@ -11,6 +11,8 @@ export type TeamMember = {
   account: string;
   avatar: string;
   avatarUrl?: string | null;
+  teamGroupId?: string | null;
+  teamGroupName?: string | null;
   systemRole: TeamRoleLabel;
   role: string;
   responsibility: string;
@@ -22,6 +24,14 @@ export type TeamMember = {
   todayFocus: string;
   completed: string;
   blockers: string;
+};
+
+export type TeamGroupItem = {
+  id: string;
+  name: string;
+  description?: string | null;
+  memberCount: number;
+  createdAt: string;
 };
 
 export type BoardTask = {

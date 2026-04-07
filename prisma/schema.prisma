@@ -69,12 +69,14 @@ model User {
   approvalStatus       UserApprovalStatus       @default(approved)
   approvedAt           DateTime?
   approvedById         String?
+  teamGroupId          String?
   avatar               String
   avatarImagePath      String?
   responsibility       String?
   createdAt            DateTime                 @default(now())
   approvedBy           User?                    @relation("UserApprovals", fields: [approvedById], references: [id])
   approvedUsers        User[]                   @relation("UserApprovals")
+  teamGroup            TeamGroup?               @relation(fields: [teamGroupId], references: [id], onDelete: SetNull)
   tasksAssigned        Task[]                   @relation("TaskAssignee")
   tasksCreated         Task[]                   @relation("TaskCreator")
   reports              Report[]
@@ -88,6 +90,14 @@ model User {
   expertScores         ExpertReviewScore[]      @relation("ExpertScoreReviewer")
   trainingQuestions    TrainingQuestion[]       @relation("TrainingQuestionCreator")
   trainingSessions     TrainingSession[]        @relation("TrainingSessionCreator")
+}
+
+model TeamGroup {
+  id          String   @id @default(cuid())
+  name        String   @unique
+  description String?
+  createdAt   DateTime @default(now())
+  members     User[]
 }
 
 model Task {

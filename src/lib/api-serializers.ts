@@ -89,7 +89,9 @@ export const serializeUser = (
     | "approvedAt"
   > & {
     avatarImagePath?: string | null;
+    teamGroupId?: string | null;
     approvedBy?: Pick<User, "id" | "name" | "role"> | null;
+    teamGroup?: { id: string; name: string } | null;
   },
 ) => ({
   id: user.id,
@@ -99,6 +101,8 @@ export const serializeUser = (
   role: user.role,
   avatar: user.avatar,
   avatarUrl: user.avatarImagePath ? `/api/avatar/${user.id}` : null,
+  teamGroupId: user.teamGroup?.id ?? user.teamGroupId ?? null,
+  teamGroupName: user.teamGroup?.name ?? null,
   responsibility: user.responsibility ?? "",
   roleLabel: roleLabels[user.role as Role],
   approvalStatus: user.approvalStatus,

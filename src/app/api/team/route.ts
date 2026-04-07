@@ -29,6 +29,7 @@ const buildTeamMemberPayload = (
     responsibility: string | null;
     approvalStatus: "pending" | "approved";
     approvedAt: Date | null;
+    teamGroup?: { id: string; name: string } | null;
   },
   tasks: Array<{ assigneeId: string; status: "todo" | "doing" | "done" }>,
   latestReportByUser: Map<string, { summary: string; nextPlan: string }>,
@@ -78,6 +79,12 @@ export async function GET(request: NextRequest) {
       approvalStatus: true,
       approvedAt: true,
       createdAt: true,
+      teamGroup: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
     },
   });
 
@@ -104,7 +111,11 @@ export async function GET(request: NextRequest) {
     .filter(
       (member) =>
         member.approvalStatus === "approved" &&
-        canViewTeamMember(user.role, user.id, member.role, member.id),
+        canViewTeamMember(user.role, user.id, member.role, member.id) &&
+        (user.role === "admin" ||
+          member.role === "expert" ||
+          member.id === user.id ||
+          (user.teamGroupId ? member.teamGroup?.id === user.teamGroupId : !member.teamGroup?.id)),
     )
     .map((member) => buildTeamMemberPayload(member, tasks, latestReportByUser));
 
@@ -115,9 +126,30 @@ export async function GET(request: NextRequest) {
     )
     .map((member) => buildTeamMemberPayload(member, tasks, latestReportByUser));
 
+  const groups =
+    user.role === "admin"
+      ? await prisma.teamGroup.findMany({
+          orderBy: { createdAt: "asc" },
+          include: {
+            _count: {
+              select: {
+                members: true,
+              },
+            },
+          },
+        })
+      : [];
+
   return NextResponse.json({
     members: approvedMembers,
     pendingMembers,
+    groups: groups.map((group) => ({
+      id: group.id,
+      name: group.name,
+      description: group.description,
+      memberCount: group._count.members,
+      createdAt: group.createdAt.toISOString(),
+    })),
   });
 }
 
@@ -139,6 +171,7 @@ export async function POST(request: NextRequest) {
         role?: "系统管理员" | "指导教师" | "项目负责人" | "团队成员" | "评审专家";
         responsibility?: string;
         password?: string;
+        teamGroupId?: string | null;
       }
     | null;
 
@@ -154,6 +187,7 @@ export async function POST(request: NextRequest) {
   const username = body?.username?.trim();
   const email = body?.email?.trim() || null;
   const role = body?.role ? roleMap[body.role] : "member";
+  const requestedTeamGroupId = body?.teamGroupId?.trim() || null;
 
   if (!name || !username) {
     return NextResponse.json({ message: "成员信息不完整" }, { status: 400 });
@@ -170,6 +204,26 @@ export async function POST(request: NextRequest) {
 
   if (!canManageUser(user.role, role, role)) {
     return NextResponse.json({ message: "无权限创建该角色账号" }, { status: 403 });
+  }
+
+  let teamGroupId: string | null = null;
+  if (requestedTeamGroupId && role !== "expert") {
+    if (user.role !== "admin") {
+      return NextResponse.json({ message: "无权限设置账号分组" }, { status: 403 });
+    }
+
+    const group = await prisma.teamGroup.findUnique({
+      where: { id: requestedTeamGroupId },
+      select: { id: true },
+    });
+
+    if (!group) {
+      return NextResponse.json({ message: "分组不存在" }, { status: 404 });
+    }
+
+    teamGroupId = group.id;
+  } else if (user.role !== "admin" && role !== "expert" && user.teamGroupId) {
+    teamGroupId = user.teamGroupId;
   }
 
   const existingAccount = await prisma.user.findFirst({
@@ -198,6 +252,7 @@ export async function POST(request: NextRequest) {
         approvedById: user.id,
         avatar: name.slice(0, 1),
         avatarImagePath: null,
+        teamGroupId,
         responsibility: body?.responsibility?.trim() || "待分配职责",
       },
       select: {
@@ -212,6 +267,12 @@ export async function POST(request: NextRequest) {
         approvalStatus: true,
         approvedAt: true,
         createdAt: true,
+        teamGroup: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
       },
     });
 

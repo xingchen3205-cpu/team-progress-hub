@@ -86,6 +86,13 @@ export async function PATCH(request: NextRequest) {
       approvalStatus: true,
       approvedAt: true,
       createdAt: true,
+      teamGroupId: true,
+      teamGroup: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
     },
   });
 

@@ -68,6 +68,13 @@ export const getSessionUser = async (request: NextRequest) => {
         role: true,
         approvalStatus: true,
         approvedAt: true,
+        teamGroupId: true,
+        teamGroup: {
+          select: {
+            id: true,
+            name: true,
+          },
+        },
         avatar: true,
         avatarImagePath: true,
         responsibility: true,

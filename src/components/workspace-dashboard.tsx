@@ -46,6 +46,7 @@ import type {
   NotificationItem,
   ReportEntry,
   RoleKey,
+  TeamGroupItem,
   TeamMember,
   TeamRoleLabel,
   TrainingQuestionItem,
@@ -179,10 +180,16 @@ type TeamDraft = {
   password: string;
   role: TeamRoleLabel;
   responsibility: string;
+  teamGroupId: string;
 };
 
 type BatchExpertDraft = {
   rows: string;
+};
+
+type TeamGroupDraft = {
+  name: string;
+  description: string;
 };
 
 type ProfileDraft = {
@@ -236,6 +243,8 @@ type CurrentUser = {
   role: RoleKey;
   avatar: string;
   avatarUrl?: string | null;
+  teamGroupId?: string | null;
+  teamGroupName?: string | null;
   responsibility: string;
   roleLabel: TeamRoleLabel;
   approvalStatus?: "pending" | "approved";
@@ -822,10 +831,16 @@ const defaultTeamDraft: TeamDraft = {
   password: "123456",
   role: "团队成员",
   responsibility: "",
+  teamGroupId: "",
 };
 
 const defaultBatchExpertDraft: BatchExpertDraft = {
   rows: "",
+};
+
+const defaultTeamGroupDraft: TeamGroupDraft = {
+  name: "",
+  description: "",
 };
 
 const defaultProfileDraft = (user?: CurrentUser | null): ProfileDraft => ({
@@ -1222,6 +1237,7 @@ export function WorkspaceDashboard({
   const [sentReminders, setSentReminders] = useState<NotificationItem[]>([]);
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [pendingTeamMembers, setPendingTeamMembers] = useState<TeamMember[]>([]);
+  const [teamGroups, setTeamGroups] = useState<TeamGroupItem[]>([]);
   const [reportEntriesByDay, setReportEntriesByDay] = useState<Record<string, ReportEntryWithDate[]>>({});
   const [reportDates, setReportDates] = useState<string[]>([getDefaultDateKey()]);
   const [selectedDate, setSelectedDate] = useState(getDefaultDateKey());
@@ -1234,6 +1250,7 @@ export function WorkspaceDashboard({
   const [sentRemindersLoading, setSentRemindersLoading] = useState(false);
   const [teamSearch, setTeamSearch] = useState("");
   const [teamRoleFilter, setTeamRoleFilter] = useState<"全部" | TeamRoleLabel>("全部");
+  const [teamGroupFilter, setTeamGroupFilter] = useState("全部");
   const [teamAccountView, setTeamAccountView] = useState<"team" | "experts">("team");
   const [todoAutoOpened, setTodoAutoOpened] = useState(false);
   const [dismissedTodosReady, setDismissedTodosReady] = useState(false);
@@ -1299,6 +1316,7 @@ export function WorkspaceDashboard({
 
   const [teamModalOpen, setTeamModalOpen] = useState(false);
   const [teamDraft, setTeamDraft] = useState<TeamDraft>(defaultTeamDraft);
+  const [teamGroupDraft, setTeamGroupDraft] = useState<TeamGroupDraft>(defaultTeamGroupDraft);
   const [batchExpertModalOpen, setBatchExpertModalOpen] = useState(false);
   const [batchExpertDraft, setBatchExpertDraft] = useState<BatchExpertDraft>(defaultBatchExpertDraft);
   const [profileDraft, setProfileDraft] = useState<ProfileDraft>(defaultProfileDraft());
@@ -1405,6 +1423,7 @@ export function WorkspaceDashboard({
           setSentReminders([]);
           setMembers([]);
           setPendingTeamMembers([]);
+          setTeamGroups([]);
           setReportEntriesByDay({});
           setReportDates([getDefaultDateKey()]);
           setSelectedDate(getDefaultDateKey());
@@ -1420,7 +1439,7 @@ export function WorkspaceDashboard({
           requestJson<{ experts: ExpertItem[] }>("/api/experts"),
           requestJson<{ documents: DocumentItem[] }>("/api/documents"),
           requestJson<{ notifications: NotificationItem[] }>("/api/notifications"),
-          requestJson<{ members: TeamMember[]; pendingMembers: TeamMember[] }>("/api/team"),
+          requestJson<{ members: TeamMember[]; pendingMembers: TeamMember[]; groups?: TeamGroupItem[] }>("/api/team"),
           requestJson<{ questions: TrainingQuestionItem[] }>("/api/training/questions"),
           requestJson<{ sessions: TrainingSessionItem[]; stats: TrainingStats }>("/api/training/sessions"),
         ];
@@ -1458,7 +1477,7 @@ export function WorkspaceDashboard({
           { experts: ExpertItem[] },
           { documents: DocumentItem[] },
           { notifications: NotificationItem[] },
-          { members: TeamMember[]; pendingMembers: TeamMember[] },
+          { members: TeamMember[]; pendingMembers: TeamMember[]; groups?: TeamGroupItem[] },
           { questions: TrainingQuestionItem[] },
           { sessions: TrainingSessionItem[]; stats: TrainingStats },
           { assignments: ExpertReviewAssignmentItem[] } | undefined,
@@ -1489,6 +1508,7 @@ export function WorkspaceDashboard({
         }
         setMembers(teamPayload.members);
         setPendingTeamMembers(teamPayload.pendingMembers);
+        setTeamGroups(teamPayload.groups ?? []);
         setReportEntriesByDay(groupedReports);
         setReportDates(nextDates);
         setSelectedDate((current) => (nextDates.includes(current) ? current : nextDates[0]));
@@ -1752,6 +1772,10 @@ export function WorkspaceDashboard({
   const visibleExpertAccountMembers = visibleTeamMembers.filter((member) => member.systemRole === "评审专家");
   const activeTeamMembers =
     teamAccountView === "experts" ? visibleExpertAccountMembers : visibleCoreTeamMembers;
+  const canUseTeamGroups = currentRole === "admin" && teamAccountView === "team";
+  const teamListGridClassName = canUseTeamGroups
+    ? "lg:grid-cols-[minmax(0,1.3fr)_160px_180px_120px_minmax(260px,1fr)]"
+    : "lg:grid-cols-[minmax(0,1.4fr)_180px_140px_minmax(280px,1fr)]";
 
   const teamFilterOptions = useMemo(
     () => ["全部", ...new Set(activeTeamMembers.map((member) => member.systemRole))] as Array<"全部" | TeamRoleLabel>,
@@ -1766,7 +1790,12 @@ export function WorkspaceDashboard({
       member.account.toLowerCase().includes(normalizedKeyword);
 
     const matchesRole = teamRoleFilter === "全部" || member.systemRole === teamRoleFilter;
-    return matchesKeyword && matchesRole;
+    const matchesGroup =
+      currentRole !== "admin" ||
+      teamAccountView !== "team" ||
+      teamGroupFilter === "全部" ||
+      (teamGroupFilter === "未分组" ? !member.teamGroupId : member.teamGroupId === teamGroupFilter);
+    return matchesKeyword && matchesRole && matchesGroup;
   });
   const canBatchCreateExperts = currentRole === "admin" || currentRole === "teacher";
 
@@ -3518,6 +3547,7 @@ export function WorkspaceDashboard({
           password: teamDraft.password || "123456",
           role: teamDraft.role,
           responsibility: teamDraft.responsibility,
+          teamGroupId: teamDraft.role === "评审专家" ? null : teamDraft.teamGroupId || null,
         }),
       });
       setTeamDraft(defaultTeamDraft);
@@ -3529,6 +3559,53 @@ export function WorkspaceDashboard({
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const saveTeamGroup = async () => {
+    if (!teamGroupDraft.name.trim()) {
+      setLoadError("请输入分组名称");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      await requestJson("/api/team/groups", {
+        method: "POST",
+        body: JSON.stringify({
+          name: teamGroupDraft.name,
+          description: teamGroupDraft.description,
+        }),
+      });
+      setTeamGroupDraft(defaultTeamGroupDraft);
+      showSuccessToast("分组已创建", "现在可以把团队账号分配到这个分组。");
+      refreshWorkspace();
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "分组创建失败");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const deleteTeamGroupRequest = async (groupId: string) => {
+    await requestJson(`/api/team/groups/${groupId}`, {
+      method: "DELETE",
+    });
+    if (teamGroupFilter === groupId) {
+      setTeamGroupFilter("全部");
+    }
+    refreshWorkspace();
+  };
+
+  const deleteTeamGroup = (group: TeamGroupItem) => {
+    setConfirmDialog({
+      open: true,
+      title: "删除分组",
+      message: `确认删除分组「${group.name}」？组内账号会自动变为未分组，账号本身不会被删除。`,
+      confirmLabel: "确认删除",
+      successTitle: "分组已删除",
+      successDetail: "组内账号已转为未分组。",
+      onConfirm: () => deleteTeamGroupRequest(group.id),
+    });
   };
 
   const saveBatchExperts = async () => {
@@ -3730,6 +3807,18 @@ export function WorkspaceDashboard({
       refreshWorkspace();
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "角色更新失败");
+    }
+  };
+
+  const updateMemberGroup = async (memberId: string, teamGroupId: string) => {
+    try {
+      await requestJson(`/api/team/${memberId}`, {
+        method: "PATCH",
+        body: JSON.stringify({ teamGroupId: teamGroupId || null }),
+      });
+      refreshWorkspace();
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "分组更新失败");
     }
   };
 
@@ -5814,6 +5903,75 @@ export function WorkspaceDashboard({
         </section>
       ) : null}
 
+      {currentRole === "admin" ? (
+        <section className={`${surfaceCardClassName} space-y-4`}>
+          <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <h3 className="text-base font-semibold text-slate-900">团队分组</h3>
+              <p className="mt-1 text-sm text-slate-500">
+                仅系统管理员可见，可按学校、项目组等维度管理教师、负责人和成员；评审专家独立管理，不参与分组。
+              </p>
+            </div>
+            <span className="w-fit rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-500">
+              {teamGroups.length} 个分组
+            </span>
+          </div>
+
+          <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)_auto]">
+            <label className="block text-sm text-slate-500">
+              分组名称
+              <input
+                className={fieldClassName}
+                placeholder="例如：南铁院 / 智轨灯塔项目组"
+                value={teamGroupDraft.name}
+                onChange={(event) => setTeamGroupDraft((current) => ({ ...current, name: event.target.value }))}
+              />
+            </label>
+            <label className="block text-sm text-slate-500">
+              说明（选填）
+              <input
+                className={fieldClassName}
+                placeholder="可填写学校、项目方向或管理备注"
+                value={teamGroupDraft.description}
+                onChange={(event) =>
+                  setTeamGroupDraft((current) => ({ ...current, description: event.target.value }))
+                }
+              />
+            </label>
+            <div className="flex items-end">
+              <ActionButton loading={isSaving} loadingLabel="创建中..." onClick={saveTeamGroup} variant="primary">
+                新建分组
+              </ActionButton>
+            </div>
+          </div>
+
+          {teamGroups.length > 0 ? (
+            <div className="flex flex-wrap gap-2">
+              {teamGroups.map((group) => (
+                <div
+                  className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600"
+                  key={group.id}
+                >
+                  <span className="font-medium text-slate-800">{group.name}</span>
+                  <span className="text-xs text-slate-400">{group.memberCount} 人</span>
+                  <button
+                    className="rounded-md px-1.5 py-1 text-xs text-slate-400 transition hover:bg-red-50 hover:text-red-600"
+                    onClick={() => deleteTeamGroup(group)}
+                    type="button"
+                  >
+                    删除
+                  </button>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-500">
+              暂无分组。可以先按学校或项目组创建，再在账号列表里分配成员。
+            </div>
+          )}
+        </section>
+      ) : null}
+
       <section className={`${surfaceCardClassName} p-0 overflow-hidden`}>
         <div className="border-b border-slate-200 px-5 py-4">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -5853,6 +6011,24 @@ export function WorkspaceDashboard({
                   ))}
                 </select>
               </label>
+              {canUseTeamGroups ? (
+                <label className="text-sm text-slate-500">
+                  <span className="sr-only">按分组筛选</span>
+                  <select
+                    className="w-full min-w-[180px] rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                    value={teamGroupFilter}
+                    onChange={(event) => setTeamGroupFilter(event.target.value)}
+                  >
+                    <option value="全部">全部分组</option>
+                    <option value="未分组">未分组</option>
+                    {teamGroups.map((group) => (
+                      <option key={group.id} value={group.id}>
+                        {group.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
             </div>
           </div>
 
@@ -5891,12 +6067,20 @@ export function WorkspaceDashboard({
                 待审核 {pendingApprovalMembers.length} 个
               </span>
             ) : null}
+            {canUseTeamGroups && teamGroupFilter !== "全部" ? (
+              <span className="rounded-full bg-emerald-50 px-3 py-1 text-emerald-700">
+                分组：{teamGroupFilter === "未分组"
+                  ? "未分组"
+                  : teamGroups.find((group) => group.id === teamGroupFilter)?.name ?? "已筛选"}
+              </span>
+            ) : null}
           </div>
         </div>
 
-        <div className="hidden grid-cols-[minmax(0,1.4fr)_180px_140px_minmax(280px,1fr)] gap-4 border-b border-slate-200 bg-slate-50 px-5 py-3 text-xs font-medium tracking-[0.06em] text-slate-400 lg:grid">
+        <div className={`hidden ${teamListGridClassName} gap-4 border-b border-slate-200 bg-slate-50 px-5 py-3 text-xs font-medium tracking-[0.06em] text-slate-400 lg:grid`}>
           <span>账号信息</span>
           <span>角色</span>
+          {canUseTeamGroups ? <span>分组</span> : null}
           <span>状态</span>
           <span className="text-right">操作</span>
         </div>
@@ -5911,7 +6095,7 @@ export function WorkspaceDashboard({
                 key={member.id}
                 className="border-b border-slate-200 px-5 py-4 last:border-b-0"
               >
-                <div className="grid gap-4 lg:grid-cols-[minmax(0,1.4fr)_180px_140px_minmax(280px,1fr)] lg:items-center">
+                <div className={`grid gap-4 ${teamListGridClassName} lg:items-center`}>
                   <div className="flex min-w-0 items-center gap-3">
                     <UserAvatar
                       avatar={member.avatar}
@@ -5953,6 +6137,25 @@ export function WorkspaceDashboard({
                       ))}
                     </select>
                   </div>
+
+                  {canUseTeamGroups ? (
+                    <div>
+                      <p className="mb-2 text-xs text-slate-400 lg:hidden">分组</p>
+                      <select
+                        className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+                        disabled={member.systemRole === "系统管理员"}
+                        value={member.teamGroupId ?? ""}
+                        onChange={(event) => updateMemberGroup(member.id, event.target.value)}
+                      >
+                        <option value="">未分组</option>
+                        {teamGroups.map((group) => (
+                          <option key={group.id} value={group.id}>
+                            {group.name}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  ) : null}
 
                   <div>
                     <p className="mb-2 text-xs text-slate-400 lg:hidden">状态</p>
@@ -6074,6 +6277,14 @@ export function WorkspaceDashboard({
               <p className="text-xs text-slate-400">账号角色</p>
               <p className="mt-1 text-sm font-medium text-slate-700">{currentUser.roleLabel}</p>
             </div>
+            {currentUser.role !== "admin" && currentUser.role !== "expert" ? (
+              <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
+                <p className="text-xs text-slate-400">当前队伍</p>
+                <p className="mt-1 text-sm font-medium text-slate-700">
+                  {currentUser.teamGroupName ?? "暂未分组"}
+                </p>
+              </div>
+            ) : null}
             <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
               <p className="text-xs text-slate-400">账号状态</p>
               <p className="mt-1 text-sm font-medium text-slate-700">
@@ -6280,6 +6491,9 @@ export function WorkspaceDashboard({
                   <div className="min-w-0">
                     <p className="truncate text-sm text-white">{currentUser.profile.name}</p>
                     <p className="mt-1 text-xs text-white/60">{roleLabels[currentRole]}</p>
+                    {currentUser.teamGroupName ? (
+                      <p className="mt-1 truncate text-xs text-white/50">{currentUser.teamGroupName}</p>
+                    ) : null}
                   </div>
                 </div>
                 <button
@@ -6349,6 +6563,9 @@ export function WorkspaceDashboard({
                   <div className="min-w-0">
                     <p className="truncate text-sm text-white">{currentUser.profile.name}</p>
                     <p className="mt-1 text-xs text-white/60">{roleLabels[currentRole]}</p>
+                    {currentUser.teamGroupName ? (
+                      <p className="mt-1 truncate text-xs text-white/50">{currentUser.teamGroupName}</p>
+                    ) : null}
                   </div>
                 </div>
                 <button
@@ -6415,6 +6632,9 @@ export function WorkspaceDashboard({
                         </span>
                       </div>
                       <p className="mt-1 text-xs text-slate-400">点击查看个人信息</p>
+                      {currentUser.teamGroupName ? (
+                        <p className="mt-1 text-xs text-slate-500">当前队伍：{currentUser.teamGroupName}</p>
+                      ) : null}
                     </div>
                   </button>
                   <button
@@ -7691,7 +7911,11 @@ export function WorkspaceDashboard({
                 className={fieldClassName}
                 value={teamDraft.role}
                 onChange={(event) =>
-                  setTeamDraft((current) => ({ ...current, role: event.target.value as TeamRoleLabel }))
+                  setTeamDraft((current) => ({
+                    ...current,
+                    role: event.target.value as TeamRoleLabel,
+                    teamGroupId: event.target.value === "评审专家" ? "" : current.teamGroupId,
+                  }))
                 }
               >
                 {availableRoleOptions.map((roleOption) => (
@@ -7701,6 +7925,25 @@ export function WorkspaceDashboard({
                 ))}
               </select>
             </label>
+            {currentRole === "admin" && teamDraft.role !== "评审专家" ? (
+              <label className="block text-sm text-slate-500">
+                分组（选填）
+                <select
+                  className={fieldClassName}
+                  value={teamDraft.teamGroupId}
+                  onChange={(event) =>
+                    setTeamDraft((current) => ({ ...current, teamGroupId: event.target.value }))
+                  }
+                >
+                  <option value="">暂不分组</option>
+                  {teamGroups.map((group) => (
+                    <option key={group.id} value={group.id}>
+                      {group.name}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            ) : null}
             <ModalActions>
               <ActionButton disabled={isSaving} onClick={() => setTeamModalOpen(false)}>取消</ActionButton>
               <ActionButton loading={isSaving} loadingLabel="保存中..." onClick={saveTeamMember} variant="primary">
