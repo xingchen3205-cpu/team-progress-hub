@@ -1256,6 +1256,7 @@ export function WorkspaceDashboard({
   const [questionImportFileName, setQuestionImportFileName] = useState("");
   const [questionImportRows, setQuestionImportRows] = useState<TrainingQuestionImportRow[]>([]);
   const [questionImportError, setQuestionImportError] = useState<string | null>(null);
+  const [selectedTrainingQuestionIds, setSelectedTrainingQuestionIds] = useState<string[]>([]);
   const [activeDrillQuestionId, setActiveDrillQuestionId] = useState<string | null>(null);
   const [qaDrillStats, setQaDrillStats] = useState({ total: 0, hit: 0 });
   const [trainingTimerDuration, setTrainingTimerDuration] = useState(8 * 60);
@@ -1596,6 +1597,12 @@ export function WorkspaceDashboard({
   useEffect(() => {
     setTeamRoleFilter("全部");
   }, [teamAccountView]);
+
+  useEffect(() => {
+    setSelectedTrainingQuestionIds((current) =>
+      current.filter((questionId) => trainingQuestions.some((question) => question.id === questionId)),
+    );
+  }, [trainingQuestions]);
 
   const membersMap = useMemo(
     () => Object.fromEntries(members.map((item) => [item.id, item])),
@@ -2613,6 +2620,7 @@ export function WorkspaceDashboard({
     if (activeDrillQuestionId === questionId) {
       setActiveDrillQuestionId(null);
     }
+    setSelectedTrainingQuestionIds((current) => current.filter((item) => item !== questionId));
     refreshWorkspace();
   };
 
@@ -2625,6 +2633,63 @@ export function WorkspaceDashboard({
       successTitle: "题目已删除",
       successDetail: "模拟 Q&A 题库已经更新。",
       onConfirm: () => deleteTrainingQuestionRequest(question.id),
+    });
+  };
+
+  const toggleTrainingQuestionSelection = (questionId: string, selected: boolean) => {
+    setSelectedTrainingQuestionIds((current) =>
+      selected
+        ? current.includes(questionId)
+          ? current
+          : [...current, questionId]
+        : current.filter((item) => item !== questionId),
+    );
+  };
+
+  const selectAllManageableTrainingQuestions = () => {
+    const manageableIds = trainingQuestions.filter(canManageTrainingQuestion).map((question) => question.id);
+    setSelectedTrainingQuestionIds((current) =>
+      manageableIds.every((questionId) => current.includes(questionId)) ? [] : manageableIds,
+    );
+  };
+
+  const deleteSelectedTrainingQuestionsRequest = async () => {
+    const questionIds = selectedTrainingQuestionIds.filter((questionId) =>
+      trainingQuestions.some((question) => question.id === questionId && canManageTrainingQuestion(question)),
+    );
+
+    await Promise.all(
+      questionIds.map((questionId) =>
+        requestJson(`/api/training/questions/${questionId}`, {
+          method: "DELETE",
+        }),
+      ),
+    );
+    if (activeDrillQuestionId && questionIds.includes(activeDrillQuestionId)) {
+      setActiveDrillQuestionId(null);
+    }
+    setSelectedTrainingQuestionIds([]);
+    refreshWorkspace();
+  };
+
+  const deleteSelectedTrainingQuestions = () => {
+    const count = selectedTrainingQuestionIds.filter((questionId) =>
+      trainingQuestions.some((question) => question.id === questionId && canManageTrainingQuestion(question)),
+    ).length;
+
+    if (count === 0) {
+      setLoadError("请先选择可以删除的题目");
+      return;
+    }
+
+    setConfirmDialog({
+      open: true,
+      title: "批量删除题目",
+      message: `确认删除已选择的 ${count} 条题目？删除后不可恢复。`,
+      confirmLabel: "确认删除",
+      successTitle: "题目已批量删除",
+      successDetail: "模拟 Q&A 题库已经更新。",
+      onConfirm: deleteSelectedTrainingQuestionsRequest,
     });
   };
 
@@ -4559,20 +4624,54 @@ export function WorkspaceDashboard({
               </div>
             </div>
 
-            <div className="mt-5 space-y-3">
+            {trainingQuestions.length > 0 ? (
+              <div className="mt-5 flex flex-col gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm font-medium text-slate-900">题库管理</p>
+                  <p className="mt-1 text-xs text-slate-500">
+                    已选择 {selectedTrainingQuestionIds.length} / {trainingQuestions.length} 题；列表固定高度滚动展示。
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <ActionButton onClick={selectAllManageableTrainingQuestions}>
+                    {selectedTrainingQuestionIds.length > 0 ? "取消选择" : "全选可删题目"}
+                  </ActionButton>
+                  <ActionButton
+                    disabled={selectedTrainingQuestionIds.length === 0}
+                    onClick={deleteSelectedTrainingQuestions}
+                    variant="danger"
+                  >
+                    批量删除
+                  </ActionButton>
+                </div>
+              </div>
+            ) : null}
+
+            <div className="mt-5 max-h-[640px] space-y-3 overflow-y-auto pr-1">
               {trainingQuestions.length > 0 ? (
                 trainingQuestions.map((item) => (
                   <article className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm" key={item.id}>
                     <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                      <div className="min-w-0">
-                        <span className="rounded-md bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-600">
-                          {item.category}
-                        </span>
-                        <h4 className="mt-3 text-base font-semibold leading-7 text-slate-900">{item.question}</h4>
-                        <p className="mt-2 text-sm leading-7 text-slate-500">{item.answerPoints}</p>
-                        <p className="mt-2 text-xs text-slate-400">
-                          录入：{item.createdByName} · 更新：{item.updatedAt}
-                        </p>
+                      <div className="flex min-w-0 gap-3">
+                        {canManageTrainingQuestion(item) ? (
+                          <input
+                            aria-label={`选择题目：${item.question}`}
+                            checked={selectedTrainingQuestionIds.includes(item.id)}
+                            className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600"
+                            onChange={(event) => toggleTrainingQuestionSelection(item.id, event.target.checked)}
+                            type="checkbox"
+                          />
+                        ) : null}
+                        <div className="min-w-0">
+                          <span className="rounded-md bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-600">
+                            {item.category}
+                          </span>
+                          <h4 className="mt-3 text-base font-semibold leading-7 text-slate-900">{item.question}</h4>
+                          <p className="mt-2 text-sm leading-7 text-slate-500">{item.answerPoints}</p>
+                          <p className="mt-2 text-xs text-slate-400">
+                            录入：{item.createdByName} · 更新：{item.updatedAt}
+                          </p>
+                        </div>
                       </div>
                       <div className="flex flex-wrap gap-2 md:justify-end">
                         <ActionButton onClick={() => setActiveDrillQuestionId(item.id)}>
