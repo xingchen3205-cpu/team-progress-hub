@@ -1026,16 +1026,37 @@ function Modal({
   const sizeClassName =
     size === "preview" ? "max-w-[min(96vw,1600px)] md:max-h-[92vh]" : "max-w-lg";
 
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        onClose();
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
-      <div className={`w-full rounded-xl bg-white shadow-xl ${sizeClassName} ${panelClassName ?? ""}`.trim()}>
-        <div className="flex items-center justify-between border-b border-slate-200 px-6 pb-4 pt-6">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/40 p-4"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget) {
+          onClose();
+        }
+      }}
+    >
+      <div
+        className={`flex max-h-[calc(100vh-2rem)] w-full flex-col overflow-hidden rounded-xl bg-white shadow-xl ${sizeClassName} ${panelClassName ?? ""}`.trim()}
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <div className="flex shrink-0 items-center justify-between border-b border-slate-200 px-6 pb-4 pt-6">
           <h3 className="text-lg font-semibold text-slate-900">{title}</h3>
           <button className="text-sm text-slate-500" onClick={onClose} type="button">
             关闭
           </button>
         </div>
-        <div className={`px-6 py-5 ${bodyClassName ?? ""}`.trim()}>{children}</div>
+        <div className={`min-h-0 flex-1 overflow-y-auto px-6 py-5 ${bodyClassName ?? ""}`.trim()}>{children}</div>
       </div>
     </div>
   );
@@ -1363,6 +1384,7 @@ export function WorkspaceDashboard({
   useEffect(() => {
     setLoadError(null);
     setPreviewAsset(null);
+    setSentRemindersOpen(false);
   }, [safeActiveTab]);
 
   useEffect(() => {
