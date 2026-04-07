@@ -13,6 +13,8 @@ import type {
   Task,
   TaskPriority,
   TaskStatus,
+  TrainingQuestion,
+  TrainingSession,
   User,
 } from "@prisma/client";
 
@@ -325,3 +327,35 @@ export const serializeDocument = (
     versions: serializedVersions,
   };
 };
+
+export const serializeTrainingQuestion = (
+  question: TrainingQuestion & {
+    createdBy: Pick<User, "id" | "name">;
+  },
+) => ({
+  id: question.id,
+  category: question.category,
+  question: question.question,
+  answerPoints: question.answerPoints,
+  createdById: question.createdById,
+  createdByName: question.createdBy.name,
+  createdAt: formatDateTime(question.createdAt),
+  updatedAt: formatDateTime(question.updatedAt),
+});
+
+export const serializeTrainingSession = (
+  session: TrainingSession & {
+    createdBy: Pick<User, "name">;
+  },
+) => ({
+  id: session.id,
+  title: session.title ?? "模拟答辩训练",
+  durationSeconds: session.durationSeconds,
+  overtimeSeconds: session.overtimeSeconds,
+  qaTotal: session.qaTotal,
+  qaHit: session.qaHit,
+  qaHitRate: session.qaTotal > 0 ? Math.round((session.qaHit / session.qaTotal) * 100) : 0,
+  notes: session.notes ?? "",
+  createdByName: session.createdBy.name,
+  createdAt: formatDateTime(session.createdAt),
+});

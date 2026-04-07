@@ -15,14 +15,19 @@ import {
   FileCheck,
   FolderOpen,
   GripVertical,
+  HelpCircle,
   Home,
   KanbanSquare,
   Loader2,
   LogOut,
   Menu,
   MessageSquareText,
+  Pause,
+  Play,
   Plus,
+  RotateCcw,
   Search,
+  Shuffle,
   Timer,
   Trash2,
   Upload,
@@ -43,6 +48,9 @@ import type {
   RoleKey,
   TeamMember,
   TeamRoleLabel,
+  TrainingQuestionItem,
+  TrainingSessionItem,
+  TrainingStats,
 } from "@/data/demo-data";
 import {
   boardColumns,
@@ -78,6 +86,7 @@ type TabKey =
   | "overview"
   | "timeline"
   | "board"
+  | "training"
   | "reports"
   | "experts"
   | "review"
@@ -97,6 +106,19 @@ type TaskDraft = {
   assigneeId: string;
   dueDate: string;
   priority: "高优先级" | "中优先级" | "低优先级";
+};
+
+type TrainingQuestionDraft = {
+  category: string;
+  question: string;
+  answerPoints: string;
+};
+
+type TrainingTimerPreset = {
+  key: "pitch" | "qa" | "full";
+  label: string;
+  seconds: number;
+  description: string;
 };
 
 type EventDraft = {
@@ -247,6 +269,35 @@ type TodoCenterItem = {
 
 const imagePreviewExtensions = [".png", ".jpg", ".jpeg", ".gif", ".webp"] as const;
 
+const trainingQuestionCategories = ["商业模式", "技术壁垒", "市场与竞品", "财务数据", "团队分工", "综合答辩"] as const;
+
+const defaultTrainingQuestionDraft: TrainingQuestionDraft = {
+  category: "商业模式",
+  question: "",
+  answerPoints: "",
+};
+
+const trainingTimerPresets: TrainingTimerPreset[] = [
+  {
+    key: "pitch",
+    label: "5 分钟陈述",
+    seconds: 5 * 60,
+    description: "适合单独练路演节奏。",
+  },
+  {
+    key: "qa",
+    label: "3 分钟问答",
+    seconds: 3 * 60,
+    description: "适合快速练临场回应。",
+  },
+  {
+    key: "full",
+    label: "8 分钟完整训练",
+    seconds: 8 * 60,
+    description: "5 分钟陈述 + 3 分钟问答。",
+  },
+];
+
 const allTabs: TabItem[] = [
   {
     key: "overview",
@@ -265,6 +316,12 @@ const allTabs: TabItem[] = [
     label: "任务看板",
     description: "在待办、进行中、已完成三列之间拖拽调整任务状态。",
     icon: KanbanSquare,
+  },
+  {
+    key: "training",
+    label: "答辩训练",
+    description: "沉淀模拟 Q&A 题库、随机抽查和计时训练记录。",
+    icon: HelpCircle,
   },
   {
     key: "reports",
@@ -423,7 +480,7 @@ const textareaClassName = `${fieldClassName} min-h-28`;
 
 const rolePermissions = {
   admin: {
-    visibleTabs: ["overview", "timeline", "board", "reports", "experts", "review", "documents", "team", "profile"] as TabKey[],
+    visibleTabs: ["overview", "timeline", "board", "training", "reports", "experts", "review", "documents", "team", "profile"] as TabKey[],
     canPublishAnnouncement: true,
     canSendDirective: true,
     canCreateTask: true,
@@ -444,7 +501,7 @@ const rolePermissions = {
     canResetPassword: true,
   },
   teacher: {
-    visibleTabs: ["overview", "timeline", "board", "reports", "experts", "review", "documents", "team", "profile"] as TabKey[],
+    visibleTabs: ["overview", "timeline", "board", "training", "reports", "experts", "review", "documents", "team", "profile"] as TabKey[],
     canPublishAnnouncement: true,
     canSendDirective: true,
     canCreateTask: true,
@@ -465,7 +522,7 @@ const rolePermissions = {
     canResetPassword: true,
   },
   leader: {
-    visibleTabs: ["overview", "timeline", "board", "reports", "experts", "review", "documents", "team", "profile"] as TabKey[],
+    visibleTabs: ["overview", "timeline", "board", "training", "reports", "experts", "review", "documents", "team", "profile"] as TabKey[],
     canPublishAnnouncement: true,
     canSendDirective: false,
     canCreateTask: true,
@@ -486,7 +543,7 @@ const rolePermissions = {
     canResetPassword: false,
   },
   member: {
-    visibleTabs: ["overview", "timeline", "board", "reports", "experts", "review", "documents", "profile"] as TabKey[],
+    visibleTabs: ["overview", "timeline", "board", "training", "reports", "experts", "review", "documents", "profile"] as TabKey[],
     canPublishAnnouncement: false,
     canSendDirective: false,
     canCreateTask: false,
@@ -633,36 +690,43 @@ const getGreetingCopy = (name: string, date: Date) => {
 
   if (hour >= 5 && hour < 11) {
     return {
-      title: `${name}，早上好`,
+      title: `早上好，${name}！`,
       description: "新的一天开始了，先看关键节点和今日重点，我们稳稳推进。",
     };
   }
 
   if (hour >= 11 && hour < 14) {
     return {
-      title: `${name}，中午好`,
+      title: `中午好，${name}！`,
       description: "午间也别太赶，先把优先级最高的事项再确认一遍。",
     };
   }
 
   if (hour >= 14 && hour < 18) {
     return {
-      title: `${name}，下午好`,
+      title: `下午好，${name}！`,
       description: "下午适合把任务和材料同步顺一遍，节奏继续往前推。",
     };
   }
 
   if (hour >= 18 && hour < 23) {
     return {
-      title: `${name}，晚上好，辛苦了`,
+      title: `晚上好，${name}！辛苦了`,
       description: "今天的成果已经很扎实了，再把关键收尾工作补齐就很好。",
     };
   }
 
   return {
-    title: `${name}，夜深了`,
+    title: `夜深了，${name}`,
     description: "如果还在处理材料，记得适当收尾休息，我们明天继续推进。",
   };
+};
+
+const formatSeconds = (seconds: number) => {
+  const normalizedSeconds = Math.max(0, Math.round(seconds));
+  const minutes = Math.floor(normalizedSeconds / 60);
+  const remainingSeconds = normalizedSeconds % 60;
+  return `${minutes}:${`${remainingSeconds}`.padStart(2, "0")}`;
 };
 
 const getCountdown = (target: string) => {
@@ -1115,6 +1179,14 @@ export function WorkspaceDashboard({
   const [tasks, setTasks] = useState<BoardTask[]>([]);
   const [experts, setExperts] = useState<ExpertItem[]>([]);
   const [reviewAssignments, setReviewAssignments] = useState<ExpertReviewAssignmentItem[]>([]);
+  const [trainingQuestions, setTrainingQuestions] = useState<TrainingQuestionItem[]>([]);
+  const [trainingSessions, setTrainingSessions] = useState<TrainingSessionItem[]>([]);
+  const [trainingStats, setTrainingStats] = useState<TrainingStats>({
+    questionCount: 0,
+    sessionCount: 0,
+    averageOvertimeSeconds: 0,
+    qaHitRate: 0,
+  });
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [sentReminders, setSentReminders] = useState<NotificationItem[]>([]);
@@ -1147,6 +1219,16 @@ export function WorkspaceDashboard({
   const [taskDraft, setTaskDraft] = useState<TaskDraft>(defaultTaskDraft("leader-1"));
   const [quickTaskTitle, setQuickTaskTitle] = useState("");
   const [quickTaskAssigneeId, setQuickTaskAssigneeId] = useState("");
+  const [trainingQuestionDraft, setTrainingQuestionDraft] =
+    useState<TrainingQuestionDraft>(defaultTrainingQuestionDraft);
+  const [editingTrainingQuestionId, setEditingTrainingQuestionId] = useState<string | null>(null);
+  const [activeDrillQuestionId, setActiveDrillQuestionId] = useState<string | null>(null);
+  const [qaDrillStats, setQaDrillStats] = useState({ total: 0, hit: 0 });
+  const [trainingTimerDuration, setTrainingTimerDuration] = useState(8 * 60);
+  const [trainingTimerElapsed, setTrainingTimerElapsed] = useState(0);
+  const [trainingTimerRunning, setTrainingTimerRunning] = useState(false);
+  const [trainingSessionTitle, setTrainingSessionTitle] = useState("完整答辩模拟");
+  const [trainingSessionNotes, setTrainingSessionNotes] = useState("");
 
   const [announcementModalOpen, setAnnouncementModalOpen] = useState(false);
   const [announcementDraft, setAnnouncementDraft] = useState<AnnouncementDraft>(defaultAnnouncementDraft);
@@ -1274,6 +1356,14 @@ export function WorkspaceDashboard({
           setEvents([]);
           setTasks([]);
           setExperts([]);
+          setTrainingQuestions([]);
+          setTrainingSessions([]);
+          setTrainingStats({
+            questionCount: 0,
+            sessionCount: 0,
+            averageOvertimeSeconds: 0,
+            qaHitRate: 0,
+          });
           setDocuments([]);
           setNotifications([]);
           setSentReminders([]);
@@ -1295,6 +1385,8 @@ export function WorkspaceDashboard({
           requestJson<{ documents: DocumentItem[] }>("/api/documents"),
           requestJson<{ notifications: NotificationItem[] }>("/api/notifications"),
           requestJson<{ members: TeamMember[]; pendingMembers: TeamMember[] }>("/api/team"),
+          requestJson<{ questions: TrainingQuestionItem[] }>("/api/training/questions"),
+          requestJson<{ sessions: TrainingSessionItem[]; stats: TrainingStats }>("/api/training/sessions"),
         ];
 
         if (
@@ -1319,6 +1411,8 @@ export function WorkspaceDashboard({
           documentsPayload,
           notificationsPayload,
           teamPayload,
+          trainingQuestionsPayload,
+          trainingSessionsPayload,
           reviewPayload,
         ] = (await Promise.all(requests)) as [
           { announcements: Announcement[] },
@@ -1329,6 +1423,8 @@ export function WorkspaceDashboard({
           { documents: DocumentItem[] },
           { notifications: NotificationItem[] },
           { members: TeamMember[]; pendingMembers: TeamMember[] },
+          { questions: TrainingQuestionItem[] },
+          { sessions: TrainingSessionItem[]; stats: TrainingStats },
           { assignments: ExpertReviewAssignmentItem[] } | undefined,
         ];
 
@@ -1349,6 +1445,9 @@ export function WorkspaceDashboard({
         setExperts(expertsPayload.experts);
         setDocuments(documentsPayload.documents);
         setNotifications(notificationsPayload.notifications);
+        setTrainingQuestions(trainingQuestionsPayload.questions);
+        setTrainingSessions(trainingSessionsPayload.sessions);
+        setTrainingStats(trainingSessionsPayload.stats);
         if (!["admin", "teacher"].includes(mePayload.user.role)) {
           setSentReminders([]);
         }
@@ -1411,6 +1510,18 @@ export function WorkspaceDashboard({
 
     return () => window.clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    if (!trainingTimerRunning) {
+      return undefined;
+    }
+
+    const timer = window.setInterval(() => {
+      setTrainingTimerElapsed((current) => current + 1);
+    }, 1000);
+
+    return () => window.clearInterval(timer);
+  }, [trainingTimerRunning]);
 
   useEffect(() => {
     setProfileDraft(defaultProfileDraft(currentUser));
@@ -1507,10 +1618,10 @@ export function WorkspaceDashboard({
   const getTaskAssigneeName = (task: BoardTask) =>
     task.assignee?.name ?? membersMap[task.assigneeId]?.name ?? "未分配";
 
-  const todayTaskSummary = tasks
+  const todayTaskSummaryTasks = tasks
     .filter((item) => item.status !== "done")
-    .slice(0, 3)
-    .map((item) => `${item.title} · ${getTaskAssigneeName(item)}`);
+    .slice(0, 3);
+  const todayTaskSummary = todayTaskSummaryTasks.map((item) => `${item.title} · ${getTaskAssigneeName(item)}`);
 
   const canManageMember = (member: TeamMember) => {
     if (!permissions.canManageTeam) {
@@ -1784,9 +1895,9 @@ export function WorkspaceDashboard({
       progress: documents.length > 0 ? 100 : 0,
     },
     {
-      label: "代办清理",
+      label: "待办清理",
       value: `${todoItemCount} 项`,
-      description: todoItemCount > 0 ? "仍有事项等待处理" : "当前没有新的代办积压",
+      description: todoItemCount > 0 ? "仍有事项等待处理" : "当前没有新的待办积压",
       progress: todoItemCount > 0 ? Math.max(10, 100 - Math.min(todoItemCount * 20, 90)) : 100,
     },
   ];
@@ -1896,6 +2007,10 @@ export function WorkspaceDashboard({
 
   const canManageReviewMaterials = ["admin", "teacher", "leader"].includes(currentRole);
   const canCreateReviewPackage = ["admin", "teacher", "leader"].includes(currentRole);
+  const canManageTrainingQuestion = (question: TrainingQuestionItem) =>
+    ["admin", "teacher", "leader"].includes(currentRole) || question.createdById === currentMemberId;
+  const activeDrillQuestion =
+    trainingQuestions.find((question) => question.id === activeDrillQuestionId) ?? trainingQuestions[0] ?? null;
 
   const getDocumentActionButtons = (doc: DocumentItem): DocumentActionButton[] => {
     if ((permissions.canLeaderReviewDocument || currentRole === "admin") && doc.statusKey === "pending") {
@@ -2270,6 +2385,158 @@ export function WorkspaceDashboard({
       refreshWorkspace();
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "任务状态更新失败");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const resetTrainingQuestionDraft = () => {
+    setTrainingQuestionDraft(defaultTrainingQuestionDraft);
+    setEditingTrainingQuestionId(null);
+  };
+
+  const saveTrainingQuestion = async () => {
+    const question = trainingQuestionDraft.question.trim();
+    const answerPoints = trainingQuestionDraft.answerPoints.trim();
+
+    if (!question) {
+      setLoadError("请先填写模拟问题");
+      return;
+    }
+
+    if (!answerPoints) {
+      setLoadError("请先填写标准回答要点");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      if (editingTrainingQuestionId) {
+        await requestJson(`/api/training/questions/${editingTrainingQuestionId}`, {
+          method: "PATCH",
+          body: JSON.stringify({
+            category: trainingQuestionDraft.category,
+            question,
+            answerPoints,
+          }),
+        });
+      } else {
+        await requestJson("/api/training/questions", {
+          method: "POST",
+          body: JSON.stringify({
+            category: trainingQuestionDraft.category,
+            question,
+            answerPoints,
+          }),
+        });
+      }
+
+      showSuccessToast(editingTrainingQuestionId ? "题目已更新" : "题目已加入题库", "答辩训练题库已经同步。");
+      resetTrainingQuestionDraft();
+      refreshWorkspace();
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "题目保存失败");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const editTrainingQuestion = (question: TrainingQuestionItem) => {
+    setEditingTrainingQuestionId(question.id);
+    setTrainingQuestionDraft({
+      category: question.category,
+      question: question.question,
+      answerPoints: question.answerPoints,
+    });
+  };
+
+  const deleteTrainingQuestionRequest = async (questionId: string) => {
+    await requestJson(`/api/training/questions/${questionId}`, {
+      method: "DELETE",
+    });
+    if (activeDrillQuestionId === questionId) {
+      setActiveDrillQuestionId(null);
+    }
+    refreshWorkspace();
+  };
+
+  const deleteTrainingQuestion = (question: TrainingQuestionItem) => {
+    setConfirmDialog({
+      open: true,
+      title: "删除题目",
+      message: `确认删除题目「${question.question}」？`,
+      confirmLabel: "确认删除",
+      successTitle: "题目已删除",
+      successDetail: "模拟 Q&A 题库已经更新。",
+      onConfirm: () => deleteTrainingQuestionRequest(question.id),
+    });
+  };
+
+  const drawRandomTrainingQuestion = () => {
+    if (trainingQuestions.length === 0) {
+      setLoadError("题库里还没有可抽查的问题");
+      return;
+    }
+
+    const candidates =
+      trainingQuestions.length === 1
+        ? trainingQuestions
+        : trainingQuestions.filter((question) => question.id !== activeDrillQuestionId);
+    const nextQuestion = candidates[Math.floor(Math.random() * candidates.length)];
+    if (!nextQuestion) {
+      return;
+    }
+
+    setActiveDrillQuestionId(nextQuestion.id);
+  };
+
+  const recordDrillAnswer = (hit: boolean) => {
+    setQaDrillStats((current) => ({
+      total: current.total + 1,
+      hit: current.hit + (hit ? 1 : 0),
+    }));
+    drawRandomTrainingQuestion();
+  };
+
+  const applyTrainingTimerPreset = (preset: TrainingTimerPreset) => {
+    setTrainingTimerDuration(preset.seconds);
+    setTrainingTimerElapsed(0);
+    setTrainingTimerRunning(false);
+    setTrainingSessionTitle(preset.label);
+  };
+
+  const resetTrainingTimer = () => {
+    setTrainingTimerRunning(false);
+    setTrainingTimerElapsed(0);
+  };
+
+  const saveTrainingSession = async () => {
+    if (trainingTimerElapsed <= 0) {
+      setLoadError("请先完成一次计时训练");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      await requestJson("/api/training/sessions", {
+        method: "POST",
+        body: JSON.stringify({
+          title: trainingSessionTitle.trim() || "模拟答辩训练",
+          durationSeconds: trainingTimerElapsed,
+          overtimeSeconds: Math.max(0, trainingTimerElapsed - trainingTimerDuration),
+          qaTotal: qaDrillStats.total,
+          qaHit: qaDrillStats.hit,
+          notes: trainingSessionNotes.trim(),
+        }),
+      });
+      setTrainingTimerRunning(false);
+      setTrainingTimerElapsed(0);
+      setTrainingSessionNotes("");
+      setQaDrillStats({ total: 0, hit: 0 });
+      showSuccessToast("训练记录已保存", "仪表盘统计已经同步更新。");
+      refreshWorkspace();
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "训练记录保存失败");
     } finally {
       setIsSaving(false);
     }
@@ -3340,9 +3607,9 @@ export function WorkspaceDashboard({
             progress: 100,
           },
           {
-            label: "代办事项",
+            label: "待办事项",
             value: `${todoItemCount} 项`,
-            hint: todoItemCount > 0 ? "建议优先处理代办中心事项" : "当前没有新的待办堆积",
+            hint: todoItemCount > 0 ? "建议优先处理待办中心事项" : "当前没有新的待办堆积",
             progress: todoItemCount > 0 ? Math.max(10, 100 - Math.min(todoItemCount * 20, 90)) : 100,
           },
           {
@@ -3567,12 +3834,6 @@ export function WorkspaceDashboard({
                       <p className="text-xs tracking-[0.08em] text-slate-400">{item.label}</p>
                       <p className="mt-2 text-2xl font-bold tracking-[-0.02em] text-slate-900">{item.value}</p>
                       <p className="mt-2 text-sm leading-6 text-slate-500">{item.hint}</p>
-                      <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-200">
-                        <span
-                          className="block h-full rounded-full bg-[#1d4ed8] transition-all"
-                          style={{ width: `${Math.max(0, Math.min(100, item.progress))}%` }}
-                        />
-                      </div>
                     </article>
                   ))}
                 </div>
@@ -3728,13 +3989,34 @@ export function WorkspaceDashboard({
         <section className={surfaceCardClassName}>
           <h3 className="text-base font-semibold text-slate-900">今日任务摘要</h3>
           <div className="mt-4 space-y-4">
-            {todayTaskSummary.length > 0 ? (
-              todayTaskSummary.slice(0, 3).map((item, index) => (
-                <div key={item} className="flex items-start gap-3">
+            {todayTaskSummaryTasks.length > 0 ? (
+              todayTaskSummaryTasks.map((item, index) => (
+                <div key={item.id} className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex items-start gap-3">
                   <span className="mt-0.5 flex h-6 w-6 items-center justify-center rounded-md bg-blue-600 text-xs font-semibold text-white">
                     {index + 1}
                   </span>
-                  <p className="text-sm leading-7 text-slate-600">{item}</p>
+                    <div>
+                      <p className="text-sm font-medium leading-6 text-slate-900">{item.title}</p>
+                      <p className="mt-1 text-sm leading-6 text-slate-500">负责人：{getTaskAssigneeName(item)}</p>
+                    </div>
+                  </div>
+                  {canMoveTask(item) ? (
+                    <ActionButton
+                      disabled={isSaving}
+                      onClick={() => void completeTaskFromOverview(item)}
+                    >
+                      勾选完成
+                    </ActionButton>
+                  ) : (
+                    <button
+                      className="self-start text-sm font-medium text-blue-600 transition hover:text-blue-700 sm:self-center"
+                      onClick={() => router.push("/workspace?tab=board")}
+                      type="button"
+                    >
+                      查看任务 →
+                    </button>
+                  )}
                 </div>
               ))
             ) : (
@@ -3773,12 +4055,6 @@ export function WorkspaceDashboard({
             <p className="text-sm text-slate-500">{item.label}</p>
             <p className="mt-2 text-2xl font-bold tracking-[-0.02em] text-slate-900">{item.value}</p>
             <p className="mt-2 text-sm leading-6 text-slate-500">{item.description}</p>
-            <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-slate-200">
-              <span
-                className="block h-full rounded-full bg-[#1d4ed8] transition-all"
-                style={{ width: `${Math.max(0, Math.min(100, item.progress))}%` }}
-              />
-            </div>
           </article>
         ))}
       </section>
@@ -3979,6 +4255,307 @@ export function WorkspaceDashboard({
       </section>
     </div>
   );
+
+  const renderTraining = () => {
+    const remainingSeconds = Math.max(trainingTimerDuration - trainingTimerElapsed, 0);
+    const overtimeSeconds = Math.max(trainingTimerElapsed - trainingTimerDuration, 0);
+    const timerProgress =
+      trainingTimerDuration > 0
+        ? Math.min(100, Math.round((Math.min(trainingTimerElapsed, trainingTimerDuration) / trainingTimerDuration) * 100))
+        : 0;
+
+    return (
+      <div className="space-y-4">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <SectionHeader
+            description="沉淀评委可能追问的问题，随机抽查训练临场反应，并记录模拟答辩节奏。"
+            title="答辩训练"
+          />
+          <DemoResetNote />
+        </div>
+
+        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          {[
+            { label: "题库数量", value: `${trainingStats.questionCount} 题`, hint: "覆盖商业、技术、财务等方向" },
+            { label: "模拟训练", value: `${trainingStats.sessionCount} 次`, hint: "已保存的完整训练记录" },
+            { label: "平均超时", value: formatSeconds(trainingStats.averageOvertimeSeconds), hint: "越接近 0 越稳" },
+            { label: "Q&A 命中率", value: `${trainingStats.qaHitRate}%`, hint: "抽查题回答到位比例" },
+          ].map((item) => (
+            <article className={surfaceCardClassName} key={item.label}>
+              <p className="text-sm text-slate-500">{item.label}</p>
+              <p className="mt-2 text-2xl font-bold tracking-[-0.02em] text-slate-900">{item.value}</p>
+              <p className="mt-2 text-sm leading-6 text-slate-500">{item.hint}</p>
+            </article>
+          ))}
+        </section>
+
+        <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
+          <article className={surfaceCardClassName}>
+            <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+              <div>
+                <h3 className="text-base font-semibold text-slate-900">模拟 Q&A 题库</h3>
+                <p className="mt-1 text-sm leading-6 text-slate-500">
+                  录入常见追问和标准回答要点，适合答辩前反复抽查。
+                </p>
+              </div>
+              {editingTrainingQuestionId ? (
+                <ActionButton onClick={resetTrainingQuestionDraft}>取消编辑</ActionButton>
+              ) : null}
+            </div>
+
+            <div className="mt-4 grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <div className="grid gap-3 md:grid-cols-[180px_minmax(0,1fr)]">
+                <label className="text-sm text-slate-500">
+                  问题分类
+                  <select
+                    className={fieldClassName}
+                    value={trainingQuestionDraft.category}
+                    onChange={(event) =>
+                      setTrainingQuestionDraft((current) => ({ ...current, category: event.target.value }))
+                    }
+                  >
+                    {trainingQuestionCategories.map((category) => (
+                      <option key={category} value={category}>
+                        {category}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label className="text-sm text-slate-500">
+                  评委可能提问 <span className="text-red-500">*</span>
+                  <input
+                    className={fieldClassName}
+                    placeholder="例如：你们的商业模式如何形成可持续收入？"
+                    value={trainingQuestionDraft.question}
+                    onChange={(event) =>
+                      setTrainingQuestionDraft((current) => ({ ...current, question: event.target.value }))
+                    }
+                  />
+                </label>
+              </div>
+              <label className="text-sm text-slate-500">
+                标准回答要点 <span className="text-red-500">*</span>
+                <textarea
+                  className={textareaClassName}
+                  placeholder="写下 3-5 个回答关键词，便于抽查时快速复盘。"
+                  value={trainingQuestionDraft.answerPoints}
+                  onChange={(event) =>
+                    setTrainingQuestionDraft((current) => ({ ...current, answerPoints: event.target.value }))
+                  }
+                />
+              </label>
+              <div className="flex justify-end">
+                <ActionButton
+                  disabled={isSaving}
+                  loading={isSaving}
+                  loadingLabel="保存中..."
+                  onClick={() => void saveTrainingQuestion()}
+                  variant="primary"
+                >
+                  {editingTrainingQuestionId ? "保存修改" : "加入题库"}
+                </ActionButton>
+              </div>
+            </div>
+
+            <div className="mt-5 space-y-3">
+              {trainingQuestions.length > 0 ? (
+                trainingQuestions.map((item) => (
+                  <article className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm" key={item.id}>
+                    <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                      <div className="min-w-0">
+                        <span className="rounded-md bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-600">
+                          {item.category}
+                        </span>
+                        <h4 className="mt-3 text-base font-semibold leading-7 text-slate-900">{item.question}</h4>
+                        <p className="mt-2 text-sm leading-7 text-slate-500">{item.answerPoints}</p>
+                        <p className="mt-2 text-xs text-slate-400">
+                          录入：{item.createdByName} · 更新：{item.updatedAt}
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap gap-2 md:justify-end">
+                        <ActionButton onClick={() => setActiveDrillQuestionId(item.id)}>
+                          抽这题
+                        </ActionButton>
+                        {canManageTrainingQuestion(item) ? (
+                          <>
+                            <ActionButton onClick={() => editTrainingQuestion(item)}>编辑</ActionButton>
+                            <ActionButton onClick={() => deleteTrainingQuestion(item)} variant="danger">
+                              删除
+                            </ActionButton>
+                          </>
+                        ) : null}
+                      </div>
+                    </div>
+                  </article>
+                ))
+              ) : (
+                <div className="rounded-lg border border-dashed border-slate-200">
+                  <EmptyState
+                    description="先录入几条评委常问问题，比如商业模式、技术壁垒、财务数据。"
+                    icon={HelpCircle}
+                    title="题库还是空的"
+                  />
+                </div>
+              )}
+            </div>
+          </article>
+
+          <div className="space-y-4">
+            <article className={surfaceCardClassName}>
+              <div className="flex items-start justify-between gap-3">
+                <div>
+                  <h3 className="text-base font-semibold text-slate-900">抽查模式</h3>
+                  <p className="mt-1 text-sm leading-6 text-slate-500">随机弹题，训练答辩人的临场反应。</p>
+                </div>
+                <ActionButton onClick={drawRandomTrainingQuestion} variant="primary">
+                  <span className="inline-flex items-center gap-2">
+                    <Shuffle className="h-4 w-4" />
+                    抽一题
+                  </span>
+                </ActionButton>
+              </div>
+
+              <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50/60 p-4">
+                {activeDrillQuestion ? (
+                  <>
+                    <span className="rounded-md bg-white px-2.5 py-1 text-xs font-medium text-blue-600">
+                      {activeDrillQuestion.category}
+                    </span>
+                    <p className="mt-3 text-lg font-semibold leading-8 text-slate-900">
+                      {activeDrillQuestion.question}
+                    </p>
+                    <p className="mt-3 text-sm leading-7 text-slate-600">
+                      <span className="font-medium text-slate-900">回答要点：</span>
+                      {activeDrillQuestion.answerPoints}
+                    </p>
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <ActionButton onClick={() => recordDrillAnswer(true)} variant="primary">
+                        命中要点
+                      </ActionButton>
+                      <ActionButton onClick={() => recordDrillAnswer(false)}>
+                        还需打磨
+                      </ActionButton>
+                    </div>
+                  </>
+                ) : (
+                  <p className="text-sm leading-7 text-slate-500">题库有内容后，点击“抽一题”开始训练。</p>
+                )}
+              </div>
+
+              <div className="mt-4 grid grid-cols-2 gap-3">
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <p className="text-xs text-slate-400">本轮抽查</p>
+                  <p className="mt-1 text-xl font-bold text-slate-900">{qaDrillStats.total} 题</p>
+                </div>
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-3">
+                  <p className="text-xs text-slate-400">命中率</p>
+                  <p className="mt-1 text-xl font-bold text-slate-900">
+                    {qaDrillStats.total > 0 ? Math.round((qaDrillStats.hit / qaDrillStats.total) * 100) : 0}%
+                  </p>
+                </div>
+              </div>
+            </article>
+
+            <article className={surfaceCardClassName}>
+              <h3 className="text-base font-semibold text-slate-900">模拟计时器</h3>
+              <p className="mt-1 text-sm leading-6 text-slate-500">适配 5 分钟陈述 + 3 分钟问答的节奏训练。</p>
+
+              <div className="mt-4 grid gap-2">
+                {trainingTimerPresets.map((preset) => (
+                  <button
+                    className={`rounded-xl border px-4 py-3 text-left transition ${
+                      trainingTimerDuration === preset.seconds
+                        ? "border-blue-200 bg-blue-50 text-blue-700"
+                        : "border-slate-200 bg-white text-slate-600 hover:border-slate-300"
+                    }`}
+                    key={preset.key}
+                    onClick={() => applyTrainingTimerPreset(preset)}
+                    type="button"
+                  >
+                    <span className="text-sm font-semibold">{preset.label}</span>
+                    <span className="mt-1 block text-xs leading-5 opacity-80">{preset.description}</span>
+                  </button>
+                ))}
+              </div>
+
+              <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-950 px-5 py-6 text-center text-white">
+                <p className="text-xs tracking-[0.2em] text-white/50">
+                  {overtimeSeconds > 0 ? "已超时" : "剩余时间"}
+                </p>
+                <p className={`mt-2 text-[48px] font-bold tabular-nums ${overtimeSeconds > 0 ? "text-red-300" : ""}`}>
+                  {overtimeSeconds > 0 ? `+${formatSeconds(overtimeSeconds)}` : formatSeconds(remainingSeconds)}
+                </p>
+                <div className="mt-4 h-2 overflow-hidden rounded-full bg-white/10">
+                  <span className="block h-full rounded-full bg-blue-400" style={{ width: `${timerProgress}%` }} />
+                </div>
+                <div className="mt-5 flex justify-center gap-2">
+                  <ActionButton
+                    onClick={() => setTrainingTimerRunning((current) => !current)}
+                    variant="primary"
+                  >
+                    <span className="inline-flex items-center gap-2">
+                      {trainingTimerRunning ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+                      {trainingTimerRunning ? "暂停" : "开始"}
+                    </span>
+                  </ActionButton>
+                  <ActionButton onClick={resetTrainingTimer}>
+                    <span className="inline-flex items-center gap-2">
+                      <RotateCcw className="h-4 w-4" />
+                      重置
+                    </span>
+                  </ActionButton>
+                </div>
+              </div>
+
+              <div className="mt-4 space-y-3">
+                <input
+                  className={fieldClassName}
+                  placeholder="训练标题，例如：校内终审彩排第 1 轮"
+                  value={trainingSessionTitle}
+                  onChange={(event) => setTrainingSessionTitle(event.target.value)}
+                />
+                <textarea
+                  className={`${textareaClassName} min-h-24`}
+                  placeholder="复盘备注：哪里超时、哪类问题没答好、下一轮要练什么。"
+                  value={trainingSessionNotes}
+                  onChange={(event) => setTrainingSessionNotes(event.target.value)}
+                />
+                <ActionButton
+                  disabled={isSaving}
+                  loading={isSaving}
+                  loadingLabel="保存中..."
+                  onClick={() => void saveTrainingSession()}
+                  variant="primary"
+                >
+                  保存训练记录
+                </ActionButton>
+              </div>
+            </article>
+
+            <article className={surfaceCardClassName}>
+              <h3 className="text-base font-semibold text-slate-900">最近训练记录</h3>
+              <div className="mt-4 space-y-3">
+                {trainingSessions.slice(0, 5).map((session) => (
+                  <div className="rounded-xl border border-slate-200 bg-slate-50 p-3" key={session.id}>
+                    <div className="flex items-start justify-between gap-3">
+                      <p className="text-sm font-semibold text-slate-900">{session.title}</p>
+                      <span className="text-xs text-slate-400">{session.createdAt}</span>
+                    </div>
+                    <p className="mt-2 text-sm leading-6 text-slate-500">
+                      用时 {formatSeconds(session.durationSeconds)} · 超时 {formatSeconds(session.overtimeSeconds)} · Q&A 命中 {session.qaHitRate}%
+                    </p>
+                  </div>
+                ))}
+                {trainingSessions.length === 0 ? (
+                  <p className="text-sm leading-7 text-slate-500">还没有训练记录，完成一次计时后可以保存复盘。</p>
+                ) : null}
+              </div>
+            </article>
+          </div>
+        </section>
+      </div>
+    );
+  };
 
   const renderReports = () => (
     <div className="space-y-4">
@@ -5257,6 +5834,8 @@ export function WorkspaceDashboard({
         return renderTimeline();
       case "board":
         return renderBoard();
+      case "training":
+        return renderTraining();
       case "reports":
         return renderReports();
       case "experts":
@@ -5485,7 +6064,7 @@ export function WorkspaceDashboard({
                     type="button"
                   >
                     <BellPlus className="h-4 w-4" />
-                    <span className="text-sm font-medium">代办</span>
+                    <span className="text-sm font-medium">待办</span>
                     {todoItemCount > 0 ? (
                       <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-[#ef4444] px-1.5 text-[10px] font-semibold text-white">
                         {todoItemCount}
@@ -6093,7 +6672,7 @@ export function WorkspaceDashboard({
         <Modal
           onClose={() => setNotificationsOpen(false)}
           panelClassName="max-w-[min(92vw,860px)]"
-          title="今日代办"
+          title="今日待办"
         >
           <div className="space-y-5">
             <div className={`${subtleCardClassName} flex flex-col gap-3 md:flex-row md:items-center md:justify-between`}>
@@ -6102,7 +6681,7 @@ export function WorkspaceDashboard({
                   {currentUser.profile.name}，今天先把最关键的几件事推进掉。
                 </p>
                 <p className="mt-1 text-sm leading-6 text-slate-500">
-                  你可以把当前代办先标记为已读，未读提醒点开后也不会重复弹出。
+                  你可以把当前待办先标记为已读，未读提醒点开后也不会重复弹出。
                 </p>
               </div>
               <div className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-xs text-slate-500 shadow-sm">
@@ -6114,8 +6693,8 @@ export function WorkspaceDashboard({
             {visibleRoleTodoItems.length > 0 ? (
               <section className="space-y-3">
                 <div>
-                  <p className="text-base font-semibold text-slate-900">角色代办</p>
-                  <p className="mt-1 text-sm text-slate-400">先点已读收起也可以，需要时再从代办入口打开。</p>
+                  <p className="text-base font-semibold text-slate-900">角色待办</p>
+                  <p className="mt-1 text-sm text-slate-400">先点已读收起也可以，需要时再从待办入口打开。</p>
                 </div>
                 <div className="space-y-3">
                   {visibleRoleTodoItems.map((item) => (
@@ -6204,7 +6783,7 @@ export function WorkspaceDashboard({
                 <EmptyState
                   description="当前没有需要你立刻处理的事项，今天的节奏已经很不错了。"
                   icon={BellPlus}
-                  title="暂时没有新的代办"
+                  title="暂时没有新的待办"
                 />
               </div>
             ) : null}
@@ -6305,7 +6884,7 @@ export function WorkspaceDashboard({
             <div className={`${subtleCardClassName} flex flex-col gap-3 md:flex-row md:items-center md:justify-between`}>
               <div>
                 <p className="text-sm font-medium text-slate-900">这里会记录你发送给成员的站内提醒。</p>
-                <p className="mt-1 text-sm leading-6 text-slate-500">成员点开提醒或代办后，这里会更新为已读状态。</p>
+                <p className="mt-1 text-sm leading-6 text-slate-500">成员点开提醒或待办后，这里会更新为已读状态。</p>
               </div>
               <ActionButton disabled={sentRemindersLoading} onClick={() => void loadSentReminders()}>
                 刷新记录

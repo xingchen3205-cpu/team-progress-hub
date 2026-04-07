@@ -86,6 +86,8 @@ model User {
   expertReviewPackages ExpertReviewPackage[]    @relation("ExpertReviewPackageCreator")
   expertAssignments    ExpertReviewAssignment[] @relation("ExpertAssignmentUser")
   expertScores         ExpertReviewScore[]      @relation("ExpertScoreReviewer")
+  trainingQuestions    TrainingQuestion[]       @relation("TrainingQuestionCreator")
+  trainingSessions     TrainingSession[]        @relation("TrainingSessionCreator")
 }
 
 model Task {
@@ -264,4 +266,34 @@ model ExpertReviewScore {
   lockedAt            DateTime?
   assignment          ExpertReviewAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
   reviewer            User                   @relation("ExpertScoreReviewer", fields: [reviewerId], references: [id])
+}
+
+model TrainingQuestion {
+  id           String   @id @default(cuid())
+  category     String
+  question     String
+  answerPoints String
+  createdById  String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  createdBy    User     @relation("TrainingQuestionCreator", fields: [createdById], references: [id], onDelete: Cascade)
+
+  @@index([category, createdAt])
+  @@index([createdById, createdAt])
+}
+
+model TrainingSession {
+  id              String   @id @default(cuid())
+  title           String?
+  durationSeconds Int
+  overtimeSeconds Int      @default(0)
+  qaTotal         Int      @default(0)
+  qaHit           Int      @default(0)
+  notes           String?
+  createdById     String
+  createdAt       DateTime @default(now())
+  createdBy       User     @relation("TrainingSessionCreator", fields: [createdById], references: [id], onDelete: Cascade)
+
+  @@index([createdAt])
+  @@index([createdById, createdAt])
 }

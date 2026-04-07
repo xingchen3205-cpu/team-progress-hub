@@ -199,6 +199,37 @@ export type ExpertReviewAssignmentItem = {
   } | null;
 };
 
+export type TrainingQuestionItem = {
+  id: string;
+  category: string;
+  question: string;
+  answerPoints: string;
+  createdById: string;
+  createdByName: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type TrainingSessionItem = {
+  id: string;
+  title: string;
+  durationSeconds: number;
+  overtimeSeconds: number;
+  qaTotal: number;
+  qaHit: number;
+  qaHitRate: number;
+  notes: string;
+  createdByName: string;
+  createdAt: string;
+};
+
+export type TrainingStats = {
+  questionCount: number;
+  sessionCount: number;
+  averageOvertimeSeconds: number;
+  qaHitRate: number;
+};
+
 export const roleLabels: Record<RoleKey, TeamRoleLabel> = {
   admin: "系统管理员",
   teacher: "指导教师",
