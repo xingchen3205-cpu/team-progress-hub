@@ -113,6 +113,7 @@ export async function POST(request: NextRequest) {
       targetTab: "board",
       relatedId: task.id,
       senderId: user.id,
+      email: true,
     });
   }
 

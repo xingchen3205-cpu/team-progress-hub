@@ -144,6 +144,7 @@ export async function POST(request: NextRequest) {
     targetTab: targetTab ?? undefined,
     relatedId: null,
     senderId: user.id,
+    email: true,
   });
 
   return NextResponse.json({ success: true }, { status: 201 });

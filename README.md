@@ -33,6 +33,9 @@ cp .env.example .env.local
 - `R2_ACCESS_KEY_ID`
 - `R2_SECRET_ACCESS_KEY`
 - `R2_BUCKET_NAME`
+- `RESEND_API_KEY`（可选，用于邮件提醒）
+- `MAIL_FROM`（可选，邮件提醒发件人）
+- `CRON_SECRET`（可选，用于定时提醒接口校验）
 
 3. 初始化数据库结构并写入种子数据
 
@@ -82,6 +85,7 @@ npm run dev
 - `PATCH /api/documents/[id]/review`
 - `GET/POST /api/team`
 - `PATCH/DELETE /api/team/[id]`
+- `GET /api/cron/daily-report-reminders`
 
 ## 数据说明
 
@@ -94,8 +98,11 @@ npm run dev
 - 专家评审当前策略为：截止前可修改，截止后自动锁定
 - 专家评审材料与主文档中心完全分离，管理员创建评审包后可由教师 / 项目负责人补充计划书、路演材料和视频
 - 专家账号登录后仅可进入「专家评审」板块，只支持在线查看计划书、路演材料和视频，不提供下载
+- 邮件提醒通过 Resend 发送；任务指派、公告同步、站内指令会在站内通知之外尝试发送邮件
+- Vercel Cron 每天 20:00 触发日程汇报提醒，提醒当日未提交汇报的负责人和团队成员
 
 ## 生产环境注意
 
 - 当前默认使用 Turso + Cloudflare R2，部署前需要先在平台侧准备数据库和存储桶
 - 生产部署前必须显式设置 `JWT_SECRET`，不要使用占位值，也不要把真实密钥提交到仓库
+- 如需邮件提醒，需要在 Vercel Production 环境变量里设置 `RESEND_API_KEY`、`MAIL_FROM` 和 `CRON_SECRET`

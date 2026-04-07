@@ -1,5 +1,6 @@
 import type { Role } from "@prisma/client";
 
+import { buildWorkspaceUrl, renderSystemEmail, sendEmail } from "@/lib/email";
 import { prisma } from "@/lib/prisma";
 
 export async function createNotifications({
@@ -11,6 +12,7 @@ export async function createNotifications({
   documentId,
   relatedId,
   senderId,
+  email,
 }: {
   userIds: string[];
   title: string;
@@ -20,6 +22,7 @@ export async function createNotifications({
   documentId?: string | null;
   relatedId?: string | null;
   senderId?: string | null;
+  email?: boolean | { subject?: string; actionLabel?: string };
 }) {
   const dedupedUserIds = [...new Set(userIds.filter(Boolean))];
 
@@ -39,6 +42,53 @@ export async function createNotifications({
       relatedId: relatedId ?? null,
     })),
   });
+
+  if (!email) {
+    return;
+  }
+
+  const recipients = await prisma.user.findMany({
+    where: {
+      id: {
+        in: dedupedUserIds,
+      },
+      email: {
+        not: null,
+      },
+      approvalStatus: "approved",
+    },
+    select: {
+      email: true,
+    },
+  });
+
+  const emailOptions = typeof email === "object" ? email : {};
+  const actionUrl = buildWorkspaceUrl(targetTab);
+  const html = renderSystemEmail({
+    title,
+    detail,
+    actionUrl,
+    actionLabel: emailOptions.actionLabel,
+  });
+
+  const results = await Promise.allSettled(
+    recipients
+      .map((recipient) => recipient.email)
+      .filter((recipientEmail): recipientEmail is string => Boolean(recipientEmail))
+      .map((recipientEmail) =>
+        sendEmail({
+          to: recipientEmail,
+          subject: emailOptions.subject ?? title,
+          html,
+        }),
+      ),
+  );
+
+  for (const result of results) {
+    if (result.status === "rejected") {
+      console.error("Email notification failed", result.reason);
+    }
+  }
 }
 
 export async function getUserIdsByRoles({

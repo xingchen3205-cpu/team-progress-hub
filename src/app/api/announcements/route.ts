@@ -107,6 +107,7 @@ export async function POST(request: NextRequest) {
       targetTab: "overview",
       relatedId: announcement.id,
       senderId: user.id,
+      email: true,
     });
   }
 
