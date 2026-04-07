@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { getSessionUser } from "@/lib/auth";
+import { createNotifications } from "@/lib/notifications";
 import { assertMainWorkspaceRole, assertRole } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { serializeAnnouncement } from "@/lib/api-serializers";
@@ -50,11 +51,12 @@ export async function POST(request: NextRequest) {
   }
 
   const body = (await request.json().catch(() => null)) as
-    | { title?: string; detail?: string }
+    | { title?: string; detail?: string; notifyTeam?: boolean }
     | null;
 
   const title = body?.title?.trim();
   const detail = body?.detail?.trim();
+  const notifyTeam = Boolean(body?.notifyTeam);
 
   if (!title || !detail) {
     return NextResponse.json({ message: "公告信息不完整" }, { status: 400 });
@@ -72,6 +74,41 @@ export async function POST(request: NextRequest) {
       },
     },
   });
+
+  if (notifyTeam) {
+    const targetRoles =
+      user.role === "admin"
+        ? (["teacher", "leader", "member"] as const)
+        : user.role === "teacher"
+          ? (["leader", "member"] as const)
+          : (["member"] as const);
+
+    const recipients = await prisma.user.findMany({
+      where: {
+        approvalStatus: "approved",
+        role: {
+          in: [...targetRoles],
+        },
+        id: {
+          not: user.id,
+        },
+        ...(user.role !== "admin" && user.teamGroupId ? { teamGroupId: user.teamGroupId } : {}),
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    await createNotifications({
+      userIds: recipients.map((recipient) => recipient.id),
+      title: `公告提醒：${announcement.title}`,
+      detail: announcement.detail,
+      type: "announcement",
+      targetTab: "overview",
+      relatedId: announcement.id,
+      senderId: user.id,
+    });
+  }
 
   return NextResponse.json(
     { announcement: serializeAnnouncement(announcement) },

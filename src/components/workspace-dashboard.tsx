@@ -108,6 +108,7 @@ type TaskDraft = {
   assigneeId: string;
   dueDate: string;
   priority: "高优先级" | "中优先级" | "低优先级";
+  notifyAssignee: boolean;
 };
 
 type TrainingQuestionDraft = {
@@ -159,6 +160,7 @@ type ExpertDraftErrors = {
 type AnnouncementDraft = {
   title: string;
   detail: string;
+  notifyTeam: boolean;
 };
 
 type ReminderDraft = {
@@ -401,9 +403,9 @@ const allTabs: TabItem[] = [
 ];
 
 const boardColumnStyles: Record<BoardStatus, string> = {
-  todo: "border-[#ead7bf] bg-[#fbf7f2]",
-  doing: "border-[#d8e6f5] bg-[#f7fbff]",
-  done: "border-[#d6e7dc] bg-[#f7fbf8]",
+  todo: "border-[#ead7bf] bg-[#fbf7f2]/80",
+  doing: "border-[#d8e6f5] bg-[#f7fbff]/80",
+  done: "border-[#d6e7dc] bg-[#f7fbf8]/80",
 };
 
 const boardBadgeStyles: Record<BoardStatus, string> = {
@@ -791,11 +793,13 @@ const defaultTaskDraft = (assigneeId: string): TaskDraft => ({
   assigneeId,
   dueDate: "2026-04-08T18:00",
   priority: "高优先级",
+  notifyAssignee: true,
 });
 
 const defaultAnnouncementDraft: AnnouncementDraft = {
   title: "",
   detail: "",
+  notifyTeam: true,
 };
 
 const defaultReminderDraft: ReminderDraft = {
@@ -2291,6 +2295,7 @@ export function WorkspaceDashboard({
       dueDate: toDateTimeInputValue(task.dueDate),
       priority:
         task.priority === "进行中" || task.priority === "已完成" ? "高优先级" : task.priority,
+      notifyAssignee: false,
     });
     setTaskModalOpen(true);
   };
@@ -2349,6 +2354,7 @@ export function WorkspaceDashboard({
           assigneeId,
           dueDate: `${toIsoDateKey(new Date())}T18:00`,
           priority: "高优先级",
+          notifyAssignee: true,
         }),
       });
       setQuickTaskTitle("");
@@ -2859,6 +2865,86 @@ export function WorkspaceDashboard({
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const sendDirectReminderToUsers = async ({
+    userIds,
+    title,
+    detail,
+    targetTab,
+    successTitle,
+    successDetail,
+  }: {
+    userIds: string[];
+    title: string;
+    detail: string;
+    targetTab: TabKey;
+    successTitle: string;
+    successDetail: string;
+  }) => {
+    if (!permissions.canSendDirective) {
+      setLoadError("当前账号没有发送站内提醒的权限");
+      return;
+    }
+
+    const recipientIds = [...new Set(userIds)].filter((userId) => userId && userId !== currentMemberId);
+
+    if (recipientIds.length === 0) {
+      setLoadError("当前没有可提醒的成员");
+      return;
+    }
+
+    setIsSaving(true);
+
+    try {
+      await Promise.all(
+        recipientIds.map((userId) =>
+          requestJson("/api/notifications", {
+            method: "POST",
+            body: JSON.stringify({
+              userId,
+              title,
+              detail,
+              targetTab,
+            }),
+          }),
+        ),
+      );
+      void loadSentReminders();
+      showSuccessToast(successTitle, successDetail);
+      refreshWorkspace();
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "提醒发送失败");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const sendTaskReminder = (task: BoardTask) => {
+    void sendDirectReminderToUsers({
+      userIds: [task.assigneeId],
+      title: `任务提醒：${task.title}`,
+      detail: `请及时查看并推进任务「${task.title}」。`,
+      targetTab: "board",
+      successTitle: "任务提醒已发送",
+      successDetail: `已提醒 ${getTaskAssigneeName(task)} 查看任务看板。`,
+    });
+  };
+
+  const sendAnnouncementReminder = (announcement: Announcement) => {
+    const recipientIds = members
+      .filter((member) => !["系统管理员", "评审专家"].includes(member.systemRole))
+      .filter(canSendDirectiveToMember)
+      .map((member) => member.id);
+
+    void sendDirectReminderToUsers({
+      userIds: recipientIds,
+      title: `公告提醒：${announcement.title}`,
+      detail: announcement.detail,
+      targetTab: "overview",
+      successTitle: "公告提醒已发送",
+      successDetail: "已提醒相关成员查看首页公告。",
+    });
   };
 
   const openCreateReportModal = () => {
@@ -4316,25 +4402,55 @@ export function WorkspaceDashboard({
         </section>
 
         <section className={surfaceCardClassName}>
-          <h3 className="text-base font-semibold text-slate-900">最新公告</h3>
-          <div className="mt-4 space-y-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h3 className="text-base font-semibold text-slate-900">最新公告</h3>
+              <p className="mt-1 text-xs text-slate-500">重要通知会同步进入成员待办提醒。</p>
+            </div>
+            <span className="rounded-lg bg-blue-50 px-3 py-1 text-xs font-medium text-blue-600">
+              {announcements.length} 条
+            </span>
+          </div>
+          <div className="mt-4 space-y-3">
             {announcements.slice(0, 2).map((item) => (
-              <article key={item.id} className={subtleCardClassName}>
-                <div className="flex items-start justify-between gap-3">
-                  <p className="text-sm font-medium text-slate-900">{item.title}</p>
-                  {permissions.canPublishAnnouncement ? (
-                    <button
-                      className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-500 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600"
-                      onClick={() => deleteAnnouncement(item.id, item.title)}
-                      type="button"
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </button>
-                  ) : null}
+              <article key={item.id} className="rounded-xl border border-blue-100 bg-blue-50/50 p-4 shadow-sm">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="rounded-md bg-white px-2 py-1 text-xs font-medium text-blue-600 shadow-sm">
+                        公告
+                      </span>
+                      <p className="text-sm font-semibold text-slate-900">{item.title}</p>
+                    </div>
+                    <p className="mt-2 text-sm leading-7 text-slate-600">{item.detail}</p>
+                  </div>
+                  <div className="flex shrink-0 items-center gap-2">
+                    {permissions.canSendDirective ? (
+                      <ActionButton disabled={isSaving} onClick={() => sendAnnouncementReminder(item)}>
+                        <span className="inline-flex items-center gap-1.5">
+                          <BellPlus className="h-4 w-4" />
+                          提醒
+                        </span>
+                      </ActionButton>
+                    ) : null}
+                    {permissions.canPublishAnnouncement ? (
+                      <button
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-blue-100 bg-white text-slate-500 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600"
+                        onClick={() => deleteAnnouncement(item.id, item.title)}
+                        type="button"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    ) : null}
+                  </div>
                 </div>
-                <p className="mt-2 text-sm leading-7 text-slate-500">{item.detail}</p>
               </article>
             ))}
+            {announcements.length === 0 ? (
+              <p className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-5 text-sm text-slate-500">
+                当前暂无公告，发布后会在这里重点展示。
+              </p>
+            ) : null}
           </div>
         </section>
       </div>
@@ -4450,18 +4566,21 @@ export function WorkspaceDashboard({
         {boardColumns.map((column) => (
           <div
             key={column.id}
-            className={`flex min-h-[560px] flex-col rounded-xl border border-slate-200 p-5 shadow-sm ${boardColumnStyles[column.id]}`}
+            className={`flex h-[min(720px,calc(100vh-260px))] min-h-[520px] flex-col overflow-hidden rounded-xl border p-4 shadow-sm ${boardColumnStyles[column.id]}`}
             onDragOver={(event) => event.preventDefault()}
             onDrop={() => handleDrop(column.id)}
           >
-            <div className="flex items-center justify-between">
-              <h3 className="text-base font-semibold text-slate-900">{column.title}</h3>
-              <span className="rounded-md bg-white px-3 py-1 text-sm text-slate-500">
+            <div className="flex shrink-0 items-center justify-between border-b border-white/70 pb-3">
+              <div>
+                <h3 className="text-base font-semibold text-slate-900">{column.title}</h3>
+                <p className="mt-1 text-xs text-slate-500">列内滚动，不撑长页面</p>
+              </div>
+              <span className="rounded-lg bg-white px-3 py-1 text-sm font-semibold text-slate-600 shadow-sm">
                 {tasks.filter((task) => task.status === column.id).length}
               </span>
             </div>
 
-            <div className="mt-4 flex-1 space-y-4">
+            <div className="mt-4 flex-1 space-y-3 overflow-y-auto pr-1">
               {tasks.filter((task) => task.status === column.id).length > 0 ? (
                 tasks
                   .filter((task) => task.status === column.id)
@@ -4472,8 +4591,8 @@ export function WorkspaceDashboard({
                     <article
                       key={task.id}
                       draggable={canMove}
-                      className={`rounded-xl border border-slate-200 bg-white p-4 shadow-sm ${
-                        canMove ? "cursor-grab hover:border-slate-300" : ""
+                      className={`rounded-xl border border-slate-200 bg-white p-3 shadow-sm transition ${
+                        canMove ? "cursor-grab hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md" : ""
                       }`}
                       onDragStart={() => setDraggingTaskId(canMove ? task.id : null)}
                       onDragEnd={() => setDraggingTaskId(null)}
@@ -4482,10 +4601,10 @@ export function WorkspaceDashboard({
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
                           <div className="flex items-center gap-2">
-                            <GripVertical className="h-4 w-4 text-slate-400" />
-                            <h4 className="text-base font-semibold leading-6 text-slate-900">{task.title}</h4>
+                            <GripVertical className="h-4 w-4 shrink-0 text-slate-400" />
+                            <h4 className="line-clamp-2 text-sm font-semibold leading-6 text-slate-900">{task.title}</h4>
                           </div>
-                          <p className="mt-2 text-sm text-slate-500">负责人：{getTaskAssigneeName(task)}</p>
+                          <p className="mt-1.5 text-sm text-slate-500">负责人：{getTaskAssigneeName(task)}</p>
                         </div>
                         <span
                           className={`rounded-md px-2.5 py-1 text-xs ${
@@ -4497,9 +4616,14 @@ export function WorkspaceDashboard({
                           {task.priority}
                         </span>
                       </div>
-                      <div className="mt-4 flex items-center justify-between text-sm text-slate-500">
+                      <div className="mt-3 flex flex-col gap-3 border-t border-slate-100 pt-3 text-sm text-slate-500 sm:flex-row sm:items-center sm:justify-between">
                         <span>{task.dueDate}</span>
                         <div className="flex items-center gap-2">
+                          {permissions.canSendDirective && task.assigneeId !== currentMemberId ? (
+                            <ActionButton disabled={isSaving} onClick={() => sendTaskReminder(task)}>
+                              提醒
+                            </ActionButton>
+                          ) : null}
                           <ActionButton
                             disabled={!permissions.canEditTask}
                             onClick={() => openEditTaskModal(task)}
@@ -6796,6 +6920,24 @@ export function WorkspaceDashboard({
                 </select>
               </label>
             </div>
+            {!editingTaskId ? (
+              <label className="flex items-start gap-3 rounded-lg border border-blue-100 bg-blue-50/60 px-4 py-3 text-sm text-slate-600">
+                <input
+                  checked={taskDraft.notifyAssignee}
+                  className="mt-1 h-4 w-4 rounded border-blue-200 text-blue-600"
+                  onChange={(event) =>
+                    setTaskDraft((current) => ({ ...current, notifyAssignee: event.target.checked }))
+                  }
+                  type="checkbox"
+                />
+                <span>
+                  <span className="font-medium text-slate-900">创建后提醒负责人</span>
+                  <span className="mt-1 block text-xs leading-5 text-slate-500">
+                    保存任务后，会同步给负责人发送站内待办提醒。
+                  </span>
+                </span>
+              </label>
+            ) : null}
             <ModalActions>
               <ActionButton disabled={isSaving} onClick={() => setTaskModalOpen(false)}>取消</ActionButton>
               <ActionButton loading={isSaving} loadingLabel="保存中..." onClick={saveTask} variant="primary">
@@ -6875,6 +7017,22 @@ export function WorkspaceDashboard({
                   setAnnouncementDraft((current) => ({ ...current, detail: event.target.value }))
                 }
               />
+            </label>
+            <label className="flex items-start gap-3 rounded-lg border border-blue-100 bg-blue-50/60 px-4 py-3 text-sm text-slate-600">
+              <input
+                checked={announcementDraft.notifyTeam}
+                className="mt-1 h-4 w-4 rounded border-blue-200 text-blue-600"
+                onChange={(event) =>
+                  setAnnouncementDraft((current) => ({ ...current, notifyTeam: event.target.checked }))
+                }
+                type="checkbox"
+              />
+              <span>
+                <span className="font-medium text-slate-900">发布后同步提醒团队</span>
+                <span className="mt-1 block text-xs leading-5 text-slate-500">
+                  勾选后会给相关团队账号发送站内提醒，避免公告被漏看。
+                </span>
+              </span>
             </label>
             <ModalActions>
               <ActionButton disabled={isSaving} onClick={() => setAnnouncementModalOpen(false)}>取消</ActionButton>
