@@ -310,6 +310,16 @@ export const redactExpertReviewAssignmentForRole = (
   assignment: SerializedExpertReviewAssignment,
   role: Role,
 ) => {
-  void role;
-  return assignment;
+  if (role !== "member") {
+    return assignment;
+  }
+
+  return {
+    ...assignment,
+    materials: {
+      plan: null,
+      ppt: null,
+      video: null,
+    },
+  };
 };

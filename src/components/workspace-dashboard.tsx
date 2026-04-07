@@ -4218,6 +4218,8 @@ export function WorkspaceDashboard({
             description={
               currentRole === "expert"
                 ? "仅显示当前专家被指派的评审任务，材料只支持在线查看计划书、路演材料和视频；提交后截止前可继续修改，截止后自动锁定。"
+                : currentRole === "member"
+                  ? "团队成员仅可查看专家已提交的评分和综合评语，不开放评审材料预览。"
                 : "评审材料与主文档中心完全独立，管理员、教师和负责人都可创建并指派评审包；教师和管理员可查看全部评分。"
             }
             title="专家评审"
@@ -4435,68 +4437,74 @@ export function WorkspaceDashboard({
                   ) : null}
                 </div>
 
-                <div className="mt-5 grid gap-4 md:grid-cols-3">
-                  {(["plan", "ppt", "video"] as const).map((kind) => {
-                    const material = group.items[0]?.materials[kind];
+                {currentRole === "member" ? (
+                  <div className="mt-5 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm leading-6 text-blue-700">
+                    团队成员端仅开放专家评分和综合评语，评审材料由管理员、教师、负责人和评审专家端查看。
+                  </div>
+                ) : (
+                  <div className="mt-5 grid gap-4 md:grid-cols-3">
+                    {(["plan", "ppt", "video"] as const).map((kind) => {
+                      const material = group.items[0]?.materials[kind];
 
-                    return (
-                      <div key={`${group.key}-${kind}`} className={subtleCardClassName}>
-                        <div className="flex items-start justify-between gap-3">
-                          <div>
-                            <p className="text-sm font-medium text-slate-900">{expertReviewMaterialLabels[kind]}</p>
-                            <p className="mt-2 text-xs text-slate-400">
-                              {material ? material.fileName : "暂未上传"}
-                            </p>
+                      return (
+                        <div key={`${group.key}-${kind}`} className={subtleCardClassName}>
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <p className="text-sm font-medium text-slate-900">{expertReviewMaterialLabels[kind]}</p>
+                              <p className="mt-2 text-xs text-slate-400">
+                                {material ? material.fileName : "暂未上传"}
+                              </p>
+                            </div>
+                            <span
+                              className={`rounded-md px-2.5 py-1 text-xs ${
+                                material ? "bg-blue-50 text-blue-600" : "bg-slate-100 text-slate-400"
+                              }`}
+                            >
+                              {material ? "已上传" : "待补充"}
+                            </span>
                           </div>
-                          <span
-                            className={`rounded-md px-2.5 py-1 text-xs ${
-                              material ? "bg-blue-50 text-blue-600" : "bg-slate-100 text-slate-400"
-                            }`}
-                          >
-                            {material ? "已上传" : "待补充"}
-                          </span>
-                        </div>
-                        <div className="mt-4 flex flex-wrap gap-2">
-                          {material ? (
-                            <>
-                              <ActionButton
-                                onClick={() =>
-                                  openPreviewAsset({
-                                    title: `${group.targetName} · ${expertReviewMaterialLabels[kind]}`,
-                                    url: material.previewUrl,
-                                    mimeType: material.mimeType,
-                                    fileName: material.fileName,
-                                  })
-                                }
-                              >
-                                查看
+                          <div className="mt-4 flex flex-wrap gap-2">
+                            {material ? (
+                              <>
+                                <ActionButton
+                                  onClick={() =>
+                                    openPreviewAsset({
+                                      title: `${group.targetName} · ${expertReviewMaterialLabels[kind]}`,
+                                      url: material.previewUrl,
+                                      mimeType: material.mimeType,
+                                      fileName: material.fileName,
+                                    })
+                                  }
+                                >
+                                  查看
+                                </ActionButton>
+                                {canManageReviewMaterials ? (
+                                  <>
+                                    <ActionButton onClick={() => openReviewMaterialModal(group.items[0].id, kind)}>
+                                      替换
+                                    </ActionButton>
+                                    <ActionButton
+                                      onClick={() => deleteReviewMaterial(group.items[0].id, kind)}
+                                      variant="danger"
+                                    >
+                                      删除
+                                    </ActionButton>
+                                  </>
+                                ) : null}
+                              </>
+                            ) : canManageReviewMaterials ? (
+                              <ActionButton onClick={() => openReviewMaterialModal(group.items[0].id, kind)} variant="primary">
+                                上传
                               </ActionButton>
-                              {canManageReviewMaterials ? (
-                                <>
-                                  <ActionButton onClick={() => openReviewMaterialModal(group.items[0].id, kind)}>
-                                    替换
-                                  </ActionButton>
-                                  <ActionButton
-                                    onClick={() => deleteReviewMaterial(group.items[0].id, kind)}
-                                    variant="danger"
-                                  >
-                                    删除
-                                  </ActionButton>
-                                </>
-                              ) : null}
-                            </>
-                          ) : canManageReviewMaterials ? (
-                            <ActionButton onClick={() => openReviewMaterialModal(group.items[0].id, kind)} variant="primary">
-                              上传
-                            </ActionButton>
-                          ) : (
-                            <span className="text-sm text-slate-400">暂未提供</span>
-                          )}
+                            ) : (
+                              <span className="text-sm text-slate-400">暂未提供</span>
+                            )}
+                          </div>
                         </div>
-                      </div>
-                    );
-                  })}
-                </div>
+                      );
+                    })}
+                  </div>
+                )}
 
                 <div className="mt-5 grid gap-4 xl:grid-cols-2">
                   {group.items.map((assignment) => (
