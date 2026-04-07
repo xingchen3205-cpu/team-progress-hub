@@ -8,7 +8,6 @@ import {
   assertMainWorkspaceRole,
   canApproveRegistration,
   canManageUser,
-  canViewTeamMember,
   getRegistrationApproverRoles,
   roleLabels,
 } from "@/lib/permissions";
@@ -16,6 +15,34 @@ import { prisma } from "@/lib/prisma";
 import { serializeUser } from "@/lib/api-serializers";
 
 const defaultPassword = "123456";
+type TeamMemberRole = "admin" | "teacher" | "leader" | "member" | "expert";
+type TeamViewerRole = TeamMemberRole;
+
+const canViewAccountIdentifier = (viewerRole: TeamViewerRole) =>
+  viewerRole === "admin" || viewerRole === "teacher";
+
+const canViewApprovedMember = (
+  viewer: { id: string; role: TeamViewerRole; teamGroupId?: string | null },
+  member: { id: string; role: TeamMemberRole; teamGroup?: { id: string } | null },
+) => {
+  if (viewer.role === "admin") {
+    return true;
+  }
+
+  if (member.role === "expert") {
+    return viewer.role === "teacher";
+  }
+
+  if (member.id === viewer.id) {
+    return true;
+  }
+
+  if (!viewer.teamGroupId) {
+    return false;
+  }
+
+  return member.teamGroup?.id === viewer.teamGroupId;
+};
 
 const buildTeamMemberPayload = (
   member: {
@@ -23,7 +50,7 @@ const buildTeamMemberPayload = (
     name: string;
     username: string;
     email: string | null;
-    role: "admin" | "teacher" | "leader" | "member" | "expert";
+    role: TeamMemberRole;
     avatar: string;
     avatarImagePath?: string | null;
     responsibility: string | null;
@@ -33,6 +60,7 @@ const buildTeamMemberPayload = (
   },
   tasks: Array<{ assigneeId: string; status: "todo" | "doing" | "done" }>,
   latestReportByUser: Map<string, { summary: string; nextPlan: string }>,
+  options: { showAccount: boolean },
 ) => {
   const userTasks = tasks.filter((task) => task.assigneeId === member.id);
   const doneCount = userTasks.filter((task) => task.status === "done").length;
@@ -42,7 +70,10 @@ const buildTeamMemberPayload = (
 
   return {
     ...serializeUser(member),
-    account: member.email || member.username,
+    username: options.showAccount ? member.username : "",
+    email: options.showAccount ? member.email ?? "" : "",
+    account: options.showAccount ? member.email || member.username : "",
+    accountHidden: !options.showAccount,
     systemRole: serializeUser(member).roleLabel,
     progress,
     canBeManagedByLeader: member.role === "member",
@@ -111,20 +142,24 @@ export async function GET(request: NextRequest) {
     .filter(
       (member) =>
         member.approvalStatus === "approved" &&
-        canViewTeamMember(user.role, user.id, member.role, member.id) &&
-        (user.role === "admin" ||
-          member.role === "expert" ||
-          member.id === user.id ||
-          (user.teamGroupId ? member.teamGroup?.id === user.teamGroupId : !member.teamGroup?.id)),
+        canViewApprovedMember(user, member),
     )
-    .map((member) => buildTeamMemberPayload(member, tasks, latestReportByUser));
+    .map((member) =>
+      buildTeamMemberPayload(member, tasks, latestReportByUser, {
+        showAccount: canViewAccountIdentifier(user.role),
+      }),
+    );
 
   const pendingMembers = members
     .filter(
       (member) =>
         member.approvalStatus === "pending" && canApproveRegistration(user.role, member.role),
     )
-    .map((member) => buildTeamMemberPayload(member, tasks, latestReportByUser));
+    .map((member) =>
+      buildTeamMemberPayload(member, tasks, latestReportByUser, {
+        showAccount: canViewAccountIdentifier(user.role),
+      }),
+    );
 
   const groups =
     user.role === "admin"

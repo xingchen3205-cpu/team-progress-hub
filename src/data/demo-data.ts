@@ -9,6 +9,7 @@ export type TeamMember = {
   slug: string;
   name: string;
   account: string;
+  accountHidden?: boolean;
   avatar: string;
   avatarUrl?: string | null;
   teamGroupId?: string | null;

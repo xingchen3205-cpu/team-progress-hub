@@ -584,7 +584,7 @@ const rolePermissions = {
     canResetPassword: false,
   },
   member: {
-    visibleTabs: ["overview", "timeline", "board", "training", "reports", "experts", "review", "documents", "profile"] as TabKey[],
+    visibleTabs: ["overview", "timeline", "board", "training", "reports", "experts", "review", "documents", "team", "profile"] as TabKey[],
     canPublishAnnouncement: false,
     canSendDirective: false,
     canCreateTask: true,
@@ -633,14 +633,6 @@ const teamRoleToRoleKey: Record<TeamRoleLabel, RoleKey> = {
   项目负责人: "leader",
   团队成员: "member",
   评审专家: "expert",
-};
-
-const teamRoleRank: Record<TeamRoleLabel, number> = {
-  系统管理员: 4,
-  指导教师: 3,
-  项目负责人: 2,
-  团队成员: 1,
-  评审专家: 0,
 };
 
 const formatDateTime = (value: string) => formatBeijingDateTimeShort(value);
@@ -1686,6 +1678,7 @@ export function WorkspaceDashboard({
       slug: currentUser.username,
       name: currentUser.profile.name,
       account: currentUser.email || currentUser.username,
+      accountHidden: false,
       avatar: currentUser.avatar,
       avatarUrl: currentUser.avatarUrl,
       teamGroupId: currentUser.teamGroupId,
@@ -1815,33 +1808,21 @@ export function WorkspaceDashboard({
         ? ["项目负责人", "团队成员", "评审专家"]
         : ["团队成员"];
 
-  const visibleTeamMembers = members.filter((member) => {
-    if (currentRole === "admin") {
-      return true;
-    }
-
-    if (currentRole === "teacher") {
-      return (
-        member.systemRole === "评审专家" ||
-        teamRoleRank[member.systemRole] < teamRoleRank["指导教师"]
-      );
-    }
-
-    if (currentRole === "leader") {
-      return member.systemRole !== "评审专家" && teamRoleRank[member.systemRole] < teamRoleRank["项目负责人"];
-    }
-
-    return member.id === currentMemberId;
-  });
+  const canViewExpertAccounts = currentRole === "admin" || currentRole === "teacher";
+  const canViewTeamAccountIdentifiers = currentRole === "admin" || currentRole === "teacher";
+  const visibleTeamMembers = members.filter((member) => canViewExpertAccounts || member.systemRole !== "评审专家");
 
   const visibleCoreTeamMembers = visibleTeamMembers.filter((member) => member.systemRole !== "评审专家");
   const visibleExpertAccountMembers = visibleTeamMembers.filter((member) => member.systemRole === "评审专家");
   const activeTeamMembers =
     teamAccountView === "experts" ? visibleExpertAccountMembers : visibleCoreTeamMembers;
   const canUseTeamGroups = currentRole === "admin" && teamAccountView === "team";
+  const showTeamActions = permissions.canManageTeam || permissions.canSendDirective || permissions.canResetPassword;
   const teamListGridClassName = canUseTeamGroups
     ? "lg:grid-cols-[minmax(0,1.3fr)_160px_180px_120px_minmax(260px,1fr)]"
-    : "lg:grid-cols-[minmax(0,1.4fr)_180px_140px_minmax(280px,1fr)]";
+    : showTeamActions
+      ? "lg:grid-cols-[minmax(0,1.4fr)_180px_140px_minmax(280px,1fr)]"
+      : "lg:grid-cols-[minmax(0,1.6fr)_180px_140px]";
 
   const teamFilterOptions = useMemo(
     () => ["全部", ...new Set(activeTeamMembers.map((member) => member.systemRole))] as Array<"全部" | TeamRoleLabel>,
@@ -1853,7 +1834,7 @@ export function WorkspaceDashboard({
     const matchesKeyword =
       !normalizedKeyword ||
       member.name.toLowerCase().includes(normalizedKeyword) ||
-      member.account.toLowerCase().includes(normalizedKeyword);
+      (!member.accountHidden && member.account.toLowerCase().includes(normalizedKeyword));
 
     const matchesRole = teamRoleFilter === "全部" || member.systemRole === teamRoleFilter;
     const matchesGroup =
@@ -1864,6 +1845,12 @@ export function WorkspaceDashboard({
     return matchesKeyword && matchesRole && matchesGroup;
   });
   const canBatchCreateExperts = currentRole === "admin" || currentRole === "teacher";
+
+  useEffect(() => {
+    if (!canViewExpertAccounts && teamAccountView === "experts") {
+      setTeamAccountView("team");
+    }
+  }, [canViewExpertAccounts, teamAccountView]);
 
   const pendingApprovalMembers = pendingTeamMembers.filter((member) => canApprovePendingMember(member));
   const unreadTodoNotifications = notifications.filter((item) => !item.isRead);
@@ -5984,7 +5971,11 @@ export function WorkspaceDashboard({
     <div className="space-y-4">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <SectionHeader
-          description="支持创建直属账号，并对自助注册的下级账号执行审核通过。"
+          description={
+            permissions.canManageTeam
+              ? "支持创建直属账号，并对自助注册的下级账号执行审核通过。"
+              : "这里显示你所在团队的老师、负责人和成员；账号名已隐藏，仅用于团队协作识别。"
+          }
           title="团队管理"
         />
         <div className="flex flex-wrap items-center gap-3">
@@ -6005,17 +5996,14 @@ export function WorkspaceDashboard({
               </span>
             </ActionButton>
           ) : null}
-          <ActionButton
-            disabled={!permissions.canManageTeam}
-            onClick={() => setTeamModalOpen(true)}
-            title="无权限"
-            variant="primary"
-          >
-            <span className="inline-flex items-center gap-2">
-              <Plus className="h-4 w-4" />
-              <span>创建账号</span>
-            </span>
-          </ActionButton>
+          {permissions.canManageTeam ? (
+            <ActionButton onClick={() => setTeamModalOpen(true)} variant="primary">
+              <span className="inline-flex items-center gap-2">
+                <Plus className="h-4 w-4" />
+                <span>创建账号</span>
+              </span>
+            </ActionButton>
+          ) : null}
         </div>
       </div>
 
@@ -6040,7 +6028,9 @@ export function WorkspaceDashboard({
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div>
                         <h3 className="text-base font-semibold text-slate-900">{member.name}</h3>
-                        <p className="mt-2 text-sm text-slate-500">账号：{member.account}</p>
+                        {!member.accountHidden ? (
+                          <p className="mt-2 text-sm text-slate-500">账号：{member.account}</p>
+                        ) : null}
                       </div>
                       <div className="rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-700">
                         待{member.pendingApproverLabel ?? "上级"}审核
@@ -6162,7 +6152,9 @@ export function WorkspaceDashboard({
               <p className="mt-1 text-sm text-slate-500">
                 {teamAccountView === "experts"
                   ? "评审专家账号单独管理，便于临时开通、批量创建和后续清理。"
-                  : "普通团队账号与评审专家分开管理，避免权限和操作混在一起。"}
+                  : canViewTeamAccountIdentifiers
+                    ? "普通团队账号与评审专家分开管理，避免权限和操作混在一起。"
+                    : "仅显示你所在团队的人员姓名与角色，不展示账号名。"}
               </p>
             </div>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
@@ -6171,7 +6163,7 @@ export function WorkspaceDashboard({
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                 <input
                   className="w-full rounded-lg border border-slate-300 bg-white py-2.5 pl-9 pr-3 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
-                  placeholder="搜索姓名或账号"
+                  placeholder={canViewTeamAccountIdentifiers ? "搜索姓名或账号" : "搜索姓名"}
                   type="text"
                   value={teamSearch}
                   onChange={(event) => setTeamSearch(event.target.value)}
@@ -6215,7 +6207,9 @@ export function WorkspaceDashboard({
           <div className="mt-4 inline-flex rounded-xl border border-slate-200 bg-slate-50 p-1">
             {[
               { key: "team", label: "团队账号", count: visibleCoreTeamMembers.length },
-              { key: "experts", label: "评审专家", count: visibleExpertAccountMembers.length },
+              ...(canViewExpertAccounts
+                ? [{ key: "experts", label: "评审专家", count: visibleExpertAccountMembers.length }]
+                : []),
             ].map((item) => (
               <button
                 className={`rounded-lg px-3 py-2 text-sm font-medium transition ${
@@ -6262,7 +6256,7 @@ export function WorkspaceDashboard({
           <span>角色</span>
           {canUseTeamGroups ? <span>分组</span> : null}
           <span>状态</span>
-          <span className="text-right">操作</span>
+          {showTeamActions ? <span className="text-right">操作</span> : null}
         </div>
 
         {filteredTeamMembers.length > 0 ? (
@@ -6297,25 +6291,35 @@ export function WorkspaceDashboard({
                           </span>
                         ) : null}
                       </div>
-                      <p className="mt-1 truncate text-sm text-slate-500">账号：{member.account}</p>
+                      {!member.accountHidden ? (
+                        <p className="mt-1 truncate text-sm text-slate-500">账号：{member.account}</p>
+                      ) : member.teamGroupName ? (
+                        <p className="mt-1 truncate text-sm text-slate-500">团队：{member.teamGroupName}</p>
+                      ) : null}
                     </div>
                   </div>
 
                   <div>
                     <p className="mb-2 text-xs text-slate-400 lg:hidden">角色</p>
-                    <select
-                      className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
-                      disabled={roleDisabled}
-                      title={roleDisabled ? "无权限" : undefined}
-                      value={member.systemRole}
-                      onChange={(event) => updateMemberRole(member.id, event.target.value as TeamRoleLabel)}
-                    >
-                      {availableRoleOptions.map((roleOption) => (
-                        <option key={roleOption} value={roleOption}>
-                          {roleOption}
-                        </option>
-                      ))}
-                    </select>
+                    {permissions.canManageTeam ? (
+                      <select
+                        className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+                        disabled={roleDisabled}
+                        title={roleDisabled ? "无权限" : undefined}
+                        value={member.systemRole}
+                        onChange={(event) => updateMemberRole(member.id, event.target.value as TeamRoleLabel)}
+                      >
+                        {availableRoleOptions.map((roleOption) => (
+                          <option key={roleOption} value={roleOption}>
+                            {roleOption}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <span className="inline-flex rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
+                        {member.systemRole}
+                      </span>
+                    )}
                   </div>
 
                   {canUseTeamGroups ? (
@@ -6350,30 +6354,34 @@ export function WorkspaceDashboard({
                     </span>
                   </div>
 
-                  <div className="flex flex-wrap gap-2 lg:justify-end">
-                    {canSendDirectiveToMember(member) ? (
-                      <ActionButton onClick={() => openReminderModal(member)}>
-                        发送提醒
-                      </ActionButton>
-                    ) : null}
-                    {permissions.canResetPassword ? (
-                      <ActionButton
-                        disabled={!canResetMemberPassword(member)}
-                        onClick={() => openPasswordModal(member)}
-                        title="无权限"
-                      >
-                        重置密码
-                      </ActionButton>
-                    ) : null}
-                    <ActionButton
-                      disabled={!editable || member.systemRole === "系统管理员"}
-                      onClick={() => removeMember(member.id, member.name)}
-                      title="无权限"
-                      variant="danger"
-                    >
-                      删除账号
-                    </ActionButton>
-                  </div>
+                  {showTeamActions ? (
+                    <div className="flex flex-wrap gap-2 lg:justify-end">
+                      {canSendDirectiveToMember(member) ? (
+                        <ActionButton onClick={() => openReminderModal(member)}>
+                          发送提醒
+                        </ActionButton>
+                      ) : null}
+                      {permissions.canResetPassword ? (
+                        <ActionButton
+                          disabled={!canResetMemberPassword(member)}
+                          onClick={() => openPasswordModal(member)}
+                          title="无权限"
+                        >
+                          重置密码
+                        </ActionButton>
+                      ) : null}
+                      {permissions.canManageTeam ? (
+                        <ActionButton
+                          disabled={!editable || member.systemRole === "系统管理员"}
+                          onClick={() => removeMember(member.id, member.name)}
+                          title="无权限"
+                          variant="danger"
+                        >
+                          删除账号
+                        </ActionButton>
+                      ) : null}
+                    </div>
+                  ) : null}
                 </div>
               </article>
             );
