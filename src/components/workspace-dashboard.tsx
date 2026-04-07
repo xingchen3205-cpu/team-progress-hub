@@ -4091,7 +4091,7 @@ export function WorkspaceDashboard({
               </div>
             </div>
 
-            <section className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_360px]">
+            <section className="grid gap-4 xl:grid-cols-2">
               <article className={surfaceCardClassName}>
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                   <div>
@@ -4128,75 +4128,6 @@ export function WorkspaceDashboard({
                 </div>
               </article>
 
-              <article className={`${surfaceCardClassName} bg-[linear-gradient(180deg,#ffffff_0%,#f8fbff_100%)]`}>
-                <p className="text-sm font-semibold text-slate-900">今日工作提示</p>
-                <div className="mt-4 space-y-2.5">
-                  {attentionCards.map((item) => (
-                    <div key={item.label} className="rounded-xl border border-slate-200 bg-white px-4 py-3">
-                      <div className="flex items-center justify-between gap-3">
-                        <p className="text-sm font-medium text-slate-900">{item.label}</p>
-                        <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs text-blue-600">{item.value}</span>
-                      </div>
-                      <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-500">{item.detail}</p>
-                      <button
-                        className="mt-3 inline-flex items-center text-sm font-medium text-[#1d4ed8] transition hover:text-[#1e40af]"
-                        onClick={item.onAction}
-                        type="button"
-                      >
-                        {item.actionLabel} <span className="ml-1">→</span>
-                      </button>
-                    </div>
-                  ))}
-                </div>
-                {permissions.canCreateTask ? (
-                  <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50/60 p-4">
-                    <div className="flex items-start gap-3">
-                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white text-lg shadow-sm">
-                        📋
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-semibold text-slate-900">任务快速创建</p>
-                        <p className="mt-1 text-xs leading-5 text-slate-500">
-                          在首页先记下临时安排，稍后可到任务看板细化。
-                        </p>
-                      </div>
-                    </div>
-                    <div className="mt-3 grid gap-2">
-                      <input
-                        className="h-10 rounded-lg border border-blue-100 bg-white px-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#1d4ed8] focus:ring-2 focus:ring-blue-500/20"
-                        placeholder="输入任务名称"
-                        value={quickTaskTitle}
-                        onChange={(event) => setQuickTaskTitle(event.target.value)}
-                      />
-                      <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
-                        <select
-                          className="h-10 rounded-lg border border-blue-100 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-[#1d4ed8] focus:ring-2 focus:ring-blue-500/20"
-                          value={quickTaskAssigneeId || firstAssignableMemberId}
-                          onChange={(event) => setQuickTaskAssigneeId(event.target.value)}
-                        >
-                          {assignableMembers.map((member) => (
-                            <option key={member.id} value={member.id}>
-                              {member.name}
-                            </option>
-                          ))}
-                        </select>
-                        <ActionButton
-                          disabled={isSaving || !quickTaskTitle.trim()}
-                          loading={isSaving && Boolean(quickTaskTitle.trim())}
-                          loadingLabel="创建中..."
-                          onClick={() => void createQuickTask()}
-                          variant="primary"
-                        >
-                          创建
-                        </ActionButton>
-                      </div>
-                    </div>
-                  </div>
-                ) : null}
-              </article>
-            </section>
-
-            <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
               <article className={`${surfaceCardClassName} p-5`}>
                 <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                   <div>
@@ -4238,8 +4169,78 @@ export function WorkspaceDashboard({
                   ))}
                 </div>
               </article>
+            </section>
+
+            <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+              <article className={`${surfaceCardClassName} bg-[linear-gradient(180deg,#ffffff_0%,#f8fbff_100%)]`}>
+                <p className="text-sm font-semibold text-slate-900">今日工作提示</p>
+                <div className="mt-4 grid gap-3 md:grid-cols-3">
+                  {attentionCards.map((item) => (
+                    <div key={item.label} className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-sm font-medium text-slate-900">{item.label}</p>
+                        <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs text-blue-600">{item.value}</span>
+                      </div>
+                      <p className="mt-2 line-clamp-3 text-sm leading-6 text-slate-500">{item.detail}</p>
+                      <button
+                        className="mt-3 inline-flex items-center text-sm font-medium text-[#1d4ed8] transition hover:text-[#1e40af]"
+                        onClick={item.onAction}
+                        type="button"
+                      >
+                        {item.actionLabel} <span className="ml-1">→</span>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </article>
 
               <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
+                {permissions.canCreateTask ? (
+                  <article className="rounded-xl border border-blue-100 bg-blue-50/60 p-4 shadow-sm">
+                    <div className="flex items-start gap-3">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white text-lg shadow-sm">
+                        📋
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold text-slate-900">任务快速创建</p>
+                        <p className="mt-1 text-xs leading-5 text-slate-500">
+                          在首页先记下临时安排，稍后可到任务看板细化。
+                        </p>
+                      </div>
+                    </div>
+                    <div className="mt-3 grid gap-2">
+                      <input
+                        className="h-10 rounded-lg border border-blue-100 bg-white px-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#1d4ed8] focus:ring-2 focus:ring-blue-500/20"
+                        placeholder="输入任务名称"
+                        value={quickTaskTitle}
+                        onChange={(event) => setQuickTaskTitle(event.target.value)}
+                      />
+                      <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+                        <select
+                          className="h-10 rounded-lg border border-blue-100 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-[#1d4ed8] focus:ring-2 focus:ring-blue-500/20"
+                          value={quickTaskAssigneeId || firstAssignableMemberId}
+                          onChange={(event) => setQuickTaskAssigneeId(event.target.value)}
+                        >
+                          {assignableMembers.map((member) => (
+                            <option key={member.id} value={member.id}>
+                              {member.name}
+                            </option>
+                          ))}
+                        </select>
+                        <ActionButton
+                          disabled={isSaving || !quickTaskTitle.trim()}
+                          loading={isSaving && Boolean(quickTaskTitle.trim())}
+                          loadingLabel="创建中..."
+                          onClick={() => void createQuickTask()}
+                          variant="primary"
+                        >
+                          创建
+                        </ActionButton>
+                      </div>
+                    </div>
+                  </article>
+                ) : null}
+
                 <article className={surfaceCardClassName}>
                   <p className="text-sm font-semibold text-slate-900">今日推进节奏</p>
                   <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
