@@ -449,6 +449,78 @@ type SuccessToastState = {
   detail?: string;
 } | null;
 
+type NotificationDeliveryResult = {
+  notificationCount: number;
+  emailRecipientCount: number;
+  emailFailureCount: number;
+  emailSkippedReason?: "disabled" | "no-recipient-email";
+};
+
+type DirectReminderResponse = {
+  success: boolean;
+  delivery?: NotificationDeliveryResult;
+};
+
+const getReminderDeliveryDetail = (delivery?: NotificationDeliveryResult, fallbackDetail?: string) => {
+  if (!delivery) {
+    return fallbackDetail ?? "站内提醒已发送。";
+  }
+
+  if (delivery.emailRecipientCount > 0 && delivery.emailFailureCount === 0) {
+    return `站内提醒已发送，并同步发送了 ${delivery.emailRecipientCount} 封邮件。`;
+  }
+
+  if (delivery.emailRecipientCount > 0 && delivery.emailFailureCount > 0) {
+    return `站内提醒已发送；${delivery.emailFailureCount} 封邮件发送失败，请稍后重试。`;
+  }
+
+  if (delivery.emailSkippedReason === "no-recipient-email") {
+    return "站内提醒已发送；对方个人信息里还没有填写邮箱，所以没有发送邮件。";
+  }
+
+  if (delivery.emailSkippedReason === "disabled") {
+    return "站内提醒已发送；邮件服务暂未配置，所以没有发送邮件。";
+  }
+
+  return fallbackDetail ?? "站内提醒已发送。";
+};
+
+const getBatchReminderDeliveryDetail = (
+  deliveries: Array<NotificationDeliveryResult | undefined>,
+  fallbackDetail: string,
+) => {
+  const validDeliveries = deliveries.filter(
+    (delivery): delivery is NotificationDeliveryResult => Boolean(delivery),
+  );
+
+  if (validDeliveries.length === 0) {
+    return fallbackDetail;
+  }
+
+  const emailRecipientCount = validDeliveries.reduce(
+    (sum, delivery) => sum + delivery.emailRecipientCount,
+    0,
+  );
+  const emailFailureCount = validDeliveries.reduce((sum, delivery) => sum + delivery.emailFailureCount, 0);
+  const skippedNoEmailCount = validDeliveries.filter(
+    (delivery) => delivery.emailSkippedReason === "no-recipient-email",
+  ).length;
+
+  if (emailRecipientCount > 0 && emailFailureCount === 0) {
+    return `站内提醒已发送，并同步发送了 ${emailRecipientCount} 封邮件。`;
+  }
+
+  if (emailRecipientCount > 0 && emailFailureCount > 0) {
+    return `站内提醒已发送；其中 ${emailFailureCount} 封邮件发送失败，请稍后重试。`;
+  }
+
+  if (skippedNoEmailCount > 0) {
+    return "站内提醒已发送；部分成员个人信息里没有填写邮箱，所以没有发送邮件。";
+  }
+
+  return fallbackDetail;
+};
+
 const reviewActionTitles: Record<DocumentReviewActionKey, string> = {
   leaderApprove: "负责人审批通过",
   leaderRevision: "负责人打回",
@@ -2911,7 +2983,7 @@ export function WorkspaceDashboard({
     setReminderDraftErrors(defaultReminderDraftErrors());
 
     try {
-      await requestJson("/api/notifications", {
+      const payload = await requestJson<DirectReminderResponse>("/api/notifications", {
         method: "POST",
         body: JSON.stringify({
           userId: reminderTargetMember.id,
@@ -2922,7 +2994,10 @@ export function WorkspaceDashboard({
       });
       closeReminderModal();
       void loadSentReminders();
-      showSuccessToast("站内提醒已发送", `已通知 ${reminderTargetMember.name} 及时处理相关事项。`);
+      showSuccessToast(
+        "提醒已发送",
+        getReminderDeliveryDetail(payload.delivery, `已通知 ${reminderTargetMember.name} 及时处理相关事项。`),
+      );
       refreshWorkspace();
     } catch (error) {
       const message = error instanceof Error ? error.message : "提醒发送失败";
@@ -2963,9 +3038,9 @@ export function WorkspaceDashboard({
     setIsSaving(true);
 
     try {
-      await Promise.all(
+      const responses = await Promise.all(
         recipientIds.map((userId) =>
-          requestJson("/api/notifications", {
+          requestJson<DirectReminderResponse>("/api/notifications", {
             method: "POST",
             body: JSON.stringify({
               userId,
@@ -2977,7 +3052,13 @@ export function WorkspaceDashboard({
         ),
       );
       void loadSentReminders();
-      showSuccessToast(successTitle, successDetail);
+      showSuccessToast(
+        successTitle,
+        getBatchReminderDeliveryDetail(
+          responses.map((response) => response.delivery),
+          successDetail,
+        ),
+      );
       refreshWorkspace();
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "提醒发送失败");

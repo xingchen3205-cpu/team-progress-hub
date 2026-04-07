@@ -1,7 +1,14 @@
 import type { Role } from "@prisma/client";
 
-import { buildWorkspaceUrl, renderSystemEmail, sendEmail } from "@/lib/email";
+import { buildWorkspaceUrl, isEmailConfigured, renderSystemEmail, sendEmail } from "@/lib/email";
 import { prisma } from "@/lib/prisma";
+
+export type NotificationDeliveryResult = {
+  notificationCount: number;
+  emailRecipientCount: number;
+  emailFailureCount: number;
+  emailSkippedReason?: "disabled" | "no-recipient-email";
+};
 
 export async function createNotifications({
   userIds,
@@ -23,11 +30,15 @@ export async function createNotifications({
   relatedId?: string | null;
   senderId?: string | null;
   email?: boolean | { subject?: string; actionLabel?: string };
-}) {
+}): Promise<NotificationDeliveryResult> {
   const dedupedUserIds = [...new Set(userIds.filter(Boolean))];
 
   if (dedupedUserIds.length === 0) {
-    return;
+    return {
+      notificationCount: 0,
+      emailRecipientCount: 0,
+      emailFailureCount: 0,
+    };
   }
 
   await prisma.notification.createMany({
@@ -44,7 +55,20 @@ export async function createNotifications({
   });
 
   if (!email) {
-    return;
+    return {
+      notificationCount: dedupedUserIds.length,
+      emailRecipientCount: 0,
+      emailFailureCount: 0,
+    };
+  }
+
+  if (!isEmailConfigured()) {
+    return {
+      notificationCount: dedupedUserIds.length,
+      emailRecipientCount: 0,
+      emailFailureCount: 0,
+      emailSkippedReason: "disabled",
+    };
   }
 
   const recipients = await prisma.user.findMany({
@@ -62,6 +86,19 @@ export async function createNotifications({
     },
   });
 
+  const recipientEmails = recipients
+    .map((recipient) => recipient.email?.trim())
+    .filter((recipientEmail): recipientEmail is string => Boolean(recipientEmail));
+
+  if (recipientEmails.length === 0) {
+    return {
+      notificationCount: dedupedUserIds.length,
+      emailRecipientCount: 0,
+      emailFailureCount: 0,
+      emailSkippedReason: "no-recipient-email",
+    };
+  }
+
   const emailOptions = typeof email === "object" ? email : {};
   const actionUrl = buildWorkspaceUrl(targetTab);
   const html = renderSystemEmail({
@@ -72,23 +109,28 @@ export async function createNotifications({
   });
 
   const results = await Promise.allSettled(
-    recipients
-      .map((recipient) => recipient.email)
-      .filter((recipientEmail): recipientEmail is string => Boolean(recipientEmail))
-      .map((recipientEmail) =>
-        sendEmail({
-          to: recipientEmail,
-          subject: emailOptions.subject ?? title,
-          html,
-        }),
-      ),
+    recipientEmails.map((recipientEmail) =>
+      sendEmail({
+        to: recipientEmail,
+        subject: emailOptions.subject ?? title,
+        html,
+      }),
+    ),
   );
+
+  const emailFailureCount = results.filter((result) => result.status === "rejected").length;
 
   for (const result of results) {
     if (result.status === "rejected") {
       console.error("Email notification failed", result.reason);
     }
   }
+
+  return {
+    notificationCount: dedupedUserIds.length,
+    emailRecipientCount: recipientEmails.length,
+    emailFailureCount,
+  };
 }
 
 export async function getUserIdsByRoles({

@@ -136,7 +136,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: "无权限给该成员发送提醒" }, { status: 403 });
   }
 
-  await createNotifications({
+  const delivery = await createNotifications({
     userIds: [targetUser.id],
     title,
     detail,
@@ -147,5 +147,5 @@ export async function POST(request: NextRequest) {
     email: true,
   });
 
-  return NextResponse.json({ success: true }, { status: 201 });
+  return NextResponse.json({ success: true, delivery }, { status: 201 });
 }
