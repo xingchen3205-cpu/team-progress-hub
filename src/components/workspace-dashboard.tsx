@@ -1036,7 +1036,7 @@ function ActionButton({
 }) {
   const className =
     variant === "primary"
-      ? "border border-blue-600 bg-blue-600 text-white hover:bg-blue-700"
+      ? "border border-[#1d4ed8] bg-[#1d4ed8] text-white hover:bg-[#1e40af]"
       : variant === "danger"
         ? "border border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
         : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50";
@@ -1482,31 +1482,25 @@ export function WorkspaceDashboard({
   const myOpenTasks = tasks.filter((task) => task.assigneeId === currentMemberId && task.status !== "done");
   const pendingLeaderReviewCount = documents.filter((doc) => doc.statusKey === "pending").length;
   const pendingTeacherReviewCount = documents.filter((doc) => doc.statusKey === "leader_approved").length;
+  const reportableMembers = members.filter(
+    (item) => !["指导教师", "系统管理员", "评审专家"].includes(item.systemRole),
+  );
+  const completedTaskCount = tasks.filter((item) => item.status === "done").length;
+  const taskCompletionRate = tasks.length > 0 ? Math.round((completedTaskCount / tasks.length) * 100) : 0;
+  const reportSubmittedCount = todayReportEntries.length;
+  const reportExpectedCount = reportableMembers.length;
+  const reportCompletionRate =
+    reportExpectedCount > 0 ? Math.round((reportSubmittedCount / reportExpectedCount) * 100) : 0;
+  const recentDateKeys = Array.from({ length: 7 }, (_, index) =>
+    toIsoDateKey(new Date(Date.now() - index * 24 * 60 * 60 * 1000)),
+  );
+  const recentReportCount = recentDateKeys.reduce(
+    (sum, dateKey) => sum + (reportEntriesByDay[dateKey] ?? []).length,
+    0,
+  );
+  const documentVersionCount = documents.reduce((sum, item) => sum + item.versions.length, 0);
 
   const getMemberName = (memberId: string) => membersMap[memberId]?.name ?? memberId;
-
-  const dashboardHighlights = [
-    {
-      label: "团队成员",
-      value: `${members.filter((item) => item.systemRole !== "评审专家").length} 人`,
-      description: "覆盖教师、队长及核心团队成员。",
-    },
-    {
-      label: "今日待处理",
-      value: `${tasks.filter((item) => item.status !== "done").length} 项`,
-      description: "根据当前真实任务状态动态汇总。",
-    },
-    {
-      label: "本日汇报",
-      value: `${(reportEntriesByDay[reportDates[0]] ?? []).length} / ${members.filter((item) => !["指导教师", "系统管理员", "评审专家"].includes(item.systemRole)).length}`,
-      description: "按当前日期统计已提交的成员汇报数。",
-    },
-    {
-      label: "文档版本",
-      value: `${documents.reduce((sum, item) => sum + item.versions.length, 0)} 份`,
-      description: "计划书、PPT、答辩材料与证明附件持续迭代中。",
-    },
-  ];
 
   const todayTaskSummary = tasks
     .filter((item) => item.status !== "done")
@@ -1762,6 +1756,35 @@ export function WorkspaceDashboard({
 
   const visibleRoleTodoItems = roleTodoItems.filter((item) => !dismissedTodoIds.includes(item.id));
   const todoItemCount = visibleRoleTodoItems.length + todoNotifications.length;
+  const dashboardHighlights = [
+    {
+      label: "任务完成率",
+      value: `${taskCompletionRate}%`,
+      description: tasks.length > 0 ? `已完成 ${completedTaskCount}/${tasks.length} 项` : "暂无任务数据",
+      progress: taskCompletionRate,
+    },
+    {
+      label: "近7日汇报",
+      value: `${recentReportCount} 条`,
+      description:
+        reportExpectedCount > 0
+          ? `今日 ${reportSubmittedCount}/${reportExpectedCount} 人已提交`
+          : "暂无需要统计的成员",
+      progress: reportCompletionRate,
+    },
+    {
+      label: "材料迭代",
+      value: `${documentVersionCount} 版`,
+      description: documents.length > 0 ? `覆盖 ${documents.length} 份文档` : "暂无文档版本数据",
+      progress: documents.length > 0 ? 100 : 0,
+    },
+    {
+      label: "代办清理",
+      value: `${todoItemCount} 项`,
+      description: todoItemCount > 0 ? "仍有事项等待处理" : "当前没有新的代办积压",
+      progress: todoItemCount > 0 ? Math.max(10, 100 - Math.min(todoItemCount * 20, 90)) : 100,
+    },
+  ];
 
   useEffect(() => {
     if (isBooting || !dismissedTodosReady || todoAutoOpened || todoItemCount <= 0) {
@@ -2187,6 +2210,27 @@ export function WorkspaceDashboard({
       setLoadError(error instanceof Error ? error.message : "任务状态更新失败");
     } finally {
       setDraggingTaskId(null);
+    }
+  };
+
+  const completeTaskFromOverview = async (task: BoardTask) => {
+    if (!canMoveTask(task)) {
+      setLoadError("你没有权限调整这条任务状态");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      await requestJson(`/api/tasks/${task.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ status: "done" }),
+      });
+      showSuccessToast("任务已标记完成", `「${task.title}」已经同步到已完成。`);
+      refreshWorkspace();
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "任务状态更新失败");
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -3219,32 +3263,44 @@ export function WorkspaceDashboard({
   const renderOverview = () => (
     <div className="space-y-4">
       {(() => {
+        const quickCompletableTask = tasks.find((task) => task.status !== "done" && canMoveTask(task));
         const overviewMetrics = [
           {
             label: "当前身份",
             value: currentUser?.roleLabel ?? roleLabels[currentRole],
             hint: "当前登录角色",
+            progress: 100,
           },
           {
             label: "代办事项",
             value: `${todoItemCount} 项`,
             hint: todoItemCount > 0 ? "建议优先处理代办中心事项" : "当前没有新的待办堆积",
+            progress: todoItemCount > 0 ? Math.max(10, 100 - Math.min(todoItemCount * 20, 90)) : 100,
           },
           {
             label: "未读提醒",
             value: `${unreadTodoNotifications.length} 条`,
             hint: unreadTodoNotifications.length > 0 ? "含站内提醒与审批提醒" : "消息已基本处理完成",
+            progress:
+              unreadTodoNotifications.length > 0
+                ? Math.max(10, 100 - Math.min(unreadTodoNotifications.length * 20, 90))
+                : 100,
           },
           permissions.canManageTeam
             ? {
                 label: "待审核账号",
                 value: `${pendingApprovalMembers.length} 个`,
                 hint: pendingApprovalMembers.length > 0 ? "涉及新注册与待通过账号" : "当前没有待审核账号",
+                progress:
+                  pendingApprovalMembers.length > 0
+                    ? Math.max(10, 100 - Math.min(pendingApprovalMembers.length * 20, 90))
+                    : 100,
               }
             : {
                 label: "我的任务",
                 value: `${myOpenTasks.length} 项`,
                 hint: myOpenTasks.length > 0 ? "优先处理未完成任务与汇报" : "当前没有未完成任务",
+                progress: myOpenTasks.length > 0 ? Math.max(10, 100 - Math.min(myOpenTasks.length * 20, 90)) : 100,
               },
         ];
 
@@ -3254,6 +3310,14 @@ export function WorkspaceDashboard({
             value: `${todayTaskSummary.length} 项重点`,
             detail:
               todayTaskSummary[0] ?? "今天的任务重点已经基本清空，可以继续补齐材料细节。",
+            actionLabel: quickCompletableTask ? "标记完成" : "进入任务看板",
+            onAction: () => {
+              if (quickCompletableTask) {
+                void completeTaskFromOverview(quickCompletableTask);
+                return;
+              }
+              router.push("/workspace?tab=board");
+            },
           },
           {
             label: canReviewDocuments ? "待审材料" : "我的任务进度",
@@ -3267,6 +3331,10 @@ export function WorkspaceDashboard({
               : myOpenTasks.length > 0
                 ? "任务看板里还有未完成事项，适合今天继续推进。"
                 : "任务看板里当前没有你的待办阻塞。",
+            actionLabel: canReviewDocuments ? "查看文档中心" : "进入任务看板",
+            onAction: () => {
+              router.push(canReviewDocuments ? "/workspace?tab=documents" : "/workspace?tab=board");
+            },
           },
           {
             label: "最近关键节点",
@@ -3274,6 +3342,10 @@ export function WorkspaceDashboard({
             detail: nearestEvent
               ? `${formatDateTime(nearestEvent.dateTime)} · 建议提前检查材料、彩排和人员分工。`
               : "可在时间进度里补充关键节点，首页会自动同步提醒。",
+            actionLabel: "查看时间进度",
+            onAction: () => {
+              router.push("/workspace?tab=timeline");
+            },
           },
         ];
 
@@ -3306,6 +3378,15 @@ export function WorkspaceDashboard({
                   <div>
                     <p className="text-2xl font-bold tracking-[-0.02em] text-slate-900">{greetingCopy.title}</p>
                     <p className="mt-2 max-w-3xl text-sm leading-7 text-slate-500">{greetingCopy.description}</p>
+                    {todoItemCount > 0 ? (
+                      <button
+                        className="mt-3 inline-flex items-center rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-sm font-medium text-[#1d4ed8] transition hover:bg-blue-100"
+                        onClick={() => setNotificationsOpen(true)}
+                        type="button"
+                      >
+                        今日待办 {todoItemCount} 项 <span className="ml-1">→</span>
+                      </button>
+                    ) : null}
                   </div>
                   <div className="flex flex-wrap gap-2">
                     <span className="rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-500">
@@ -3323,6 +3404,12 @@ export function WorkspaceDashboard({
                       <p className="text-xs tracking-[0.08em] text-slate-400">{item.label}</p>
                       <p className="mt-2 text-2xl font-bold tracking-[-0.02em] text-slate-900">{item.value}</p>
                       <p className="mt-2 text-sm leading-6 text-slate-500">{item.hint}</p>
+                      <div className="mt-3 h-1.5 overflow-hidden rounded-full bg-slate-200">
+                        <span
+                          className="block h-full rounded-full bg-[#1d4ed8] transition-all"
+                          style={{ width: `${Math.max(0, Math.min(100, item.progress))}%` }}
+                        />
+                      </div>
                     </article>
                   ))}
                 </div>
@@ -3338,6 +3425,13 @@ export function WorkspaceDashboard({
                         <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs text-blue-600">{item.value}</span>
                       </div>
                       <p className="mt-2 text-sm leading-6 text-slate-500">{item.detail}</p>
+                      <button
+                        className="mt-3 inline-flex items-center text-sm font-medium text-[#1d4ed8] transition hover:text-[#1e40af]"
+                        onClick={item.onAction}
+                        type="button"
+                      >
+                        {item.actionLabel} <span className="ml-1">→</span>
+                      </button>
                     </div>
                   ))}
                 </div>
@@ -3374,10 +3468,11 @@ export function WorkspaceDashboard({
                       key={item.label}
                       className="rounded-xl border border-blue-100 bg-blue-50 px-5 py-5 text-center shadow-sm"
                     >
+                      <p className="text-xs font-semibold tracking-[0.18em] text-blue-500">{item.label}</p>
                       <p className="text-[32px] font-bold text-blue-600 tabular-nums">
                         {`${item.value}`.padStart(2, "0")}
                       </p>
-                      <p className="mt-2 text-sm text-slate-500">{item.label}</p>
+                      <p className="mt-2 text-xs text-slate-500">倒计时</p>
                     </article>
                   ))}
                 </div>
@@ -3478,6 +3573,13 @@ export function WorkspaceDashboard({
           <article key={item.label} className={surfaceCardClassName}>
             <p className="text-sm text-slate-500">{item.label}</p>
             <p className="mt-2 text-2xl font-bold tracking-[-0.02em] text-slate-900">{item.value}</p>
+            <p className="mt-2 text-sm leading-6 text-slate-500">{item.description}</p>
+            <div className="mt-4 h-1.5 overflow-hidden rounded-full bg-slate-200">
+              <span
+                className="block h-full rounded-full bg-[#1d4ed8] transition-all"
+                style={{ width: `${Math.max(0, Math.min(100, item.progress))}%` }}
+              />
+            </div>
           </article>
         ))}
       </section>
@@ -5048,12 +5150,12 @@ export function WorkspaceDashboard({
                       key={item.key}
                       className={`relative flex items-center gap-3 rounded-lg px-4 py-3 text-sm no-underline transition ${
                         isActive
-                          ? "bg-white/8 text-white"
+                          ? "bg-white/10 text-white"
                           : "text-white/70 hover:bg-white/6 hover:text-white"
                       }`}
                       href={href}
                     >
-                      {isActive ? <span className="absolute inset-y-2 left-0 w-[3px] rounded-full bg-white" /> : null}
+                      {isActive ? <span className="absolute inset-y-2 left-0 w-[3px] rounded-full bg-sky-300" /> : null}
                       <Icon className="h-[18px] w-[18px]" strokeWidth={2.1} />
                       <span>{item.label}</span>
                     </Link>
@@ -5116,13 +5218,13 @@ export function WorkspaceDashboard({
                       key={`mobile-${item.key}`}
                       className={`relative flex items-center gap-3 rounded-lg px-4 py-3 text-sm no-underline transition ${
                         isActive
-                          ? "bg-white/8 text-white"
+                          ? "bg-white/10 text-white"
                           : "text-white/70 hover:bg-white/6 hover:text-white"
                       }`}
                       href={href}
                       onClick={() => setMobileSidebarOpen(false)}
                     >
-                      {isActive ? <span className="absolute inset-y-2 left-0 w-[3px] rounded-full bg-white" /> : null}
+                      {isActive ? <span className="absolute inset-y-2 left-0 w-[3px] rounded-full bg-sky-300" /> : null}
                       <Icon className="h-[18px] w-[18px]" strokeWidth={2.1} />
                       <span>{item.label}</span>
                     </Link>
@@ -5159,7 +5261,7 @@ export function WorkspaceDashboard({
           <section className="min-w-0 flex-1">
             <header className="bg-white px-5 py-4 shadow-sm">
               <div className="mx-auto flex max-w-[1200px] flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                <div className="flex items-center gap-3">
+                <div className="flex min-h-10 items-center gap-3">
                   <button
                     className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-sm xl:hidden"
                     onClick={() => setMobileSidebarOpen(true)}
@@ -5167,7 +5269,11 @@ export function WorkspaceDashboard({
                   >
                     <Menu className="h-5 w-5" />
                   </button>
-                  <p className="text-lg font-semibold text-slate-900">{activeTabItem.label}</p>
+                  {safeActiveTab === "overview" ? (
+                    <span className="sr-only">{activeTabItem.label}</span>
+                  ) : (
+                    <p className="text-lg font-semibold text-slate-900">{activeTabItem.label}</p>
+                  )}
                 </div>
 
                 <div className="flex flex-wrap items-center gap-3">
