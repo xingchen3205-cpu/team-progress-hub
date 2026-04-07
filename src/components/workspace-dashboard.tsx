@@ -4219,7 +4219,7 @@ export function WorkspaceDashboard({
               currentRole === "expert"
                 ? "仅显示当前专家被指派的评审任务，材料只支持在线查看计划书、路演材料和视频；提交后截止前可继续修改，截止后自动锁定。"
                 : currentRole === "member"
-                  ? "团队成员仅可查看专家已提交的评分和综合评语，不开放评审材料预览。"
+                  ? "查看专家已提交的评分、等级和综合评语。"
                 : "评审材料与主文档中心完全独立，管理员、教师和负责人都可创建并指派评审包；教师和管理员可查看全部评分。"
             }
             title="专家评审"
@@ -4243,10 +4243,12 @@ export function WorkspaceDashboard({
               description={
                 currentRole === "expert"
                   ? "管理员、教师或负责人完成指派后，你的评审任务会显示在这里。"
+                  : currentRole === "member"
+                    ? "专家完成评分后，结果会显示在这里。"
                   : "当前还没有专家评审包，创建后即可上传计划书、路演材料和视频，并分配给指定专家。"
               }
               icon={FileCheck}
-              title="暂无专家评审包"
+              title={currentRole === "member" ? "暂无专家评分" : "暂无专家评审包"}
             />
           </section>
         ) : currentRole === "expert" ? (
@@ -4437,11 +4439,7 @@ export function WorkspaceDashboard({
                   ) : null}
                 </div>
 
-                {currentRole === "member" ? (
-                  <div className="mt-5 rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm leading-6 text-blue-700">
-                    团队成员端仅开放专家评分和综合评语，评审材料由管理员、教师、负责人和评审专家端查看。
-                  </div>
-                ) : (
+                {currentRole === "member" ? null : (
                   <div className="mt-5 grid gap-4 md:grid-cols-3">
                     {(["plan", "ppt", "video"] as const).map((kind) => {
                       const material = group.items[0]?.materials[kind];
