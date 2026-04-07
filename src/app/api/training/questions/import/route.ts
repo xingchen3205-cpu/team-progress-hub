@@ -84,12 +84,13 @@ class PdfJsNodeImageData {
 
 class PdfJsNodePath2D {}
 
-const ensurePdfJsNodePolyfills = () => {
+const ensurePdfJsNodePolyfills = async () => {
   const globalWithPdfPolyfills = globalThis as unknown as Record<string, unknown>;
 
   globalWithPdfPolyfills.DOMMatrix ??= PdfJsNodeDOMMatrix;
   globalWithPdfPolyfills.ImageData ??= PdfJsNodeImageData;
   globalWithPdfPolyfills.Path2D ??= PdfJsNodePath2D;
+  globalWithPdfPolyfills.pdfjsWorker ??= await import("pdfjs-dist/legacy/build/pdf.worker.mjs");
 };
 
 const getFileExtension = (fileName: string) => {
@@ -99,7 +100,7 @@ const getFileExtension = (fileName: string) => {
 };
 
 const extractPdfText = async (buffer: Buffer) => {
-  ensurePdfJsNodePolyfills();
+  await ensurePdfJsNodePolyfills();
 
   const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
   const loadingTask = pdfjs.getDocument({
