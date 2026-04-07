@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { getSessionUser } from "@/lib/auth";
+import { toIsoDateKey } from "@/lib/date";
 import { assertExpertFeedbackAccess, assertMainWorkspaceRole, assertRole } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { serializeExpertFeedback } from "@/lib/api-serializers";
@@ -57,7 +58,7 @@ export async function POST(request: NextRequest) {
   }
 
   const formData = await request.formData().catch(() => null);
-  const date = `${formData?.get("date") ?? ""}`.trim() || new Date().toISOString().slice(0, 10);
+  const date = `${formData?.get("date") ?? ""}`.trim() || toIsoDateKey(new Date());
   const expert = `${formData?.get("expert") ?? ""}`.trim();
   const topic = `${formData?.get("topic") ?? ""}`.trim();
   const format = `${formData?.get("format") ?? ""}`.trim() || "线上点评";

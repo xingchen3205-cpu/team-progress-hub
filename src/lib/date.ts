@@ -1,9 +1,18 @@
-export const toIsoDateKey = (value: Date) => {
-  const year = value.getFullYear();
-  const month = `${value.getMonth() + 1}`.padStart(2, "0");
-  const day = `${value.getDate()}`.padStart(2, "0");
+const beijingDateKeyFormatter = new Intl.DateTimeFormat("zh-CN", {
+  timeZone: "Asia/Shanghai",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+});
 
-  return `${year}-${month}-${day}`;
+export const toIsoDateKey = (value: Date | string) => {
+  const date = typeof value === "string" ? new Date(value) : value;
+  const parts = beijingDateKeyFormatter.formatToParts(date);
+
+  const get = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((part) => part.type === type)?.value ?? "";
+
+  return `${get("year")}-${get("month")}-${get("day")}`;
 };
 
 export const parseLocalDateTime = (value: string) => {
@@ -11,14 +20,10 @@ export const parseLocalDateTime = (value: string) => {
     return null;
   }
 
-  if (value.includes("T")) {
-    const parsed = new Date(value);
-    return Number.isNaN(parsed.getTime()) ? null : parsed;
-  }
-
   const normalized = value.replace(" ", "T");
   const withSeconds = normalized.length === 16 ? `${normalized}:00` : normalized;
-  const parsed = new Date(`${withSeconds}+08:00`);
+  const hasExplicitTimeZone = /(?:Z|[+-]\d{2}:\d{2})$/.test(withSeconds);
+  const parsed = new Date(hasExplicitTimeZone ? withSeconds : `${withSeconds}+08:00`);
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 };
 

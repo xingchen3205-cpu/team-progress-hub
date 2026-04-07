@@ -152,6 +152,10 @@ type TeamDraft = {
   responsibility: string;
 };
 
+type BatchExpertDraft = {
+  rows: string;
+};
+
 type ProfileDraft = {
   name: string;
   username: string;
@@ -556,6 +560,13 @@ const parseDateLikeValue = (value: string) => {
     return null;
   }
 
+  const normalizedValue = trimmed.replace(" ", "T");
+  const hasExplicitTimeZone = /(?:Z|[+-]\d{2}:\d{2})$/.test(normalizedValue);
+  if (hasExplicitTimeZone) {
+    const parsed = new Date(normalizedValue);
+    return Number.isNaN(parsed.getTime()) ? null : parsed;
+  }
+
   const dateTimeMatch = trimmed.match(
     /^(\d{4})-(\d{2})-(\d{2})[ T](\d{2}):(\d{2})(?::(\d{2}))?(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?$/,
   );
@@ -717,6 +728,10 @@ const defaultTeamDraft: TeamDraft = {
   password: "123456",
   role: "团队成员",
   responsibility: "",
+};
+
+const defaultBatchExpertDraft: BatchExpertDraft = {
+  rows: "",
 };
 
 const defaultProfileDraft = (user?: CurrentUser | null): ProfileDraft => ({
@@ -1117,6 +1132,7 @@ export function WorkspaceDashboard({
   const [sentRemindersLoading, setSentRemindersLoading] = useState(false);
   const [teamSearch, setTeamSearch] = useState("");
   const [teamRoleFilter, setTeamRoleFilter] = useState<"全部" | TeamRoleLabel>("全部");
+  const [teamAccountView, setTeamAccountView] = useState<"team" | "experts">("team");
   const [todoAutoOpened, setTodoAutoOpened] = useState(false);
   const [dismissedTodosReady, setDismissedTodosReady] = useState(false);
   const [dismissedTodoIds, setDismissedTodoIds] = useState<string[]>([]);
@@ -1163,6 +1179,8 @@ export function WorkspaceDashboard({
 
   const [teamModalOpen, setTeamModalOpen] = useState(false);
   const [teamDraft, setTeamDraft] = useState<TeamDraft>(defaultTeamDraft);
+  const [batchExpertModalOpen, setBatchExpertModalOpen] = useState(false);
+  const [batchExpertDraft, setBatchExpertDraft] = useState<BatchExpertDraft>(defaultBatchExpertDraft);
   const [profileDraft, setProfileDraft] = useState<ProfileDraft>(defaultProfileDraft());
   const [profileMessage, setProfileMessage] = useState<string | null>(null);
   const [isAvatarUploading, setIsAvatarUploading] = useState(false);
@@ -1425,6 +1443,10 @@ export function WorkspaceDashboard({
     setMobileSidebarOpen(false);
   }, [safeActiveTab]);
 
+  useEffect(() => {
+    setTeamRoleFilter("全部");
+  }, [teamAccountView]);
+
   const membersMap = useMemo(
     () => Object.fromEntries(members.map((item) => [item.id, item])),
     [members],
@@ -1573,12 +1595,17 @@ export function WorkspaceDashboard({
     return member.id === currentMemberId;
   });
 
+  const visibleCoreTeamMembers = visibleTeamMembers.filter((member) => member.systemRole !== "评审专家");
+  const visibleExpertAccountMembers = visibleTeamMembers.filter((member) => member.systemRole === "评审专家");
+  const activeTeamMembers =
+    teamAccountView === "experts" ? visibleExpertAccountMembers : visibleCoreTeamMembers;
+
   const teamFilterOptions = useMemo(
-    () => ["全部", ...new Set(visibleTeamMembers.map((member) => member.systemRole))] as Array<"全部" | TeamRoleLabel>,
-    [visibleTeamMembers],
+    () => ["全部", ...new Set(activeTeamMembers.map((member) => member.systemRole))] as Array<"全部" | TeamRoleLabel>,
+    [activeTeamMembers],
   );
 
-  const filteredTeamMembers = visibleTeamMembers.filter((member) => {
+  const filteredTeamMembers = activeTeamMembers.filter((member) => {
     const normalizedKeyword = teamSearch.trim().toLowerCase();
     const matchesKeyword =
       !normalizedKeyword ||
@@ -1588,6 +1615,7 @@ export function WorkspaceDashboard({
     const matchesRole = teamRoleFilter === "全部" || member.systemRole === teamRoleFilter;
     return matchesKeyword && matchesRole;
   });
+  const canBatchCreateExperts = currentRole === "admin" || currentRole === "teacher";
 
   const pendingApprovalMembers = pendingTeamMembers.filter((member) => canApprovePendingMember(member));
   const unreadTodoNotifications = notifications.filter((item) => !item.isRead);
@@ -2915,6 +2943,68 @@ export function WorkspaceDashboard({
     }
   };
 
+  const saveBatchExperts = async () => {
+    const lines = batchExpertDraft.rows
+      .split(/\r?\n/)
+      .map((line) => line.trim())
+      .filter(Boolean);
+
+    if (lines.length === 0) {
+      setLoadError("请至少填写一行专家账号数据");
+      return;
+    }
+
+    const experts = lines.map((line, index) => {
+      const columns = (line.includes(",") || line.includes("，")
+        ? line.split(/[，,]/)
+        : line.split(/\s+/)
+      ).map((item) => item.trim());
+      const [name = "", username = "", password = "", email = ""] = columns;
+
+      return {
+        lineNumber: index + 1,
+        name,
+        username,
+        password,
+        email,
+      };
+    });
+
+    const invalidRow = experts.find((expert) => {
+      if (!expert.name || !expert.username) {
+        return true;
+      }
+      return Boolean(validateUsername(expert.username));
+    });
+
+    if (invalidRow) {
+      const usernameError = invalidRow.username ? validateUsername(invalidRow.username) : null;
+      setLoadError(
+        `第 ${invalidRow.lineNumber} 行数据不完整：请填写姓名和账号名${
+          usernameError ? `，${usernameError}` : ""
+        }`,
+      );
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      const payload = await requestJson<{ createdCount: number }>("/api/team/batch-experts", {
+        method: "POST",
+        body: JSON.stringify({ experts }),
+      });
+      setBatchExpertDraft(defaultBatchExpertDraft);
+      setBatchExpertModalOpen(false);
+      setTeamAccountView("experts");
+      showSuccessToast("专家账号已批量创建", `已新增 ${payload.createdCount} 个评审专家账号。`);
+      refreshWorkspace();
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "批量添加专家失败");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const openProfilePage = () => {
     setProfileMessage(null);
     router.push("/workspace?tab=profile");
@@ -3269,7 +3359,7 @@ export function WorkspaceDashboard({
                     </p>
                   </div>
                   <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
-                    倒计时会按北京时间实时刷新
+                    倒计时会按系统时间实时刷新
                   </div>
                 </div>
 
@@ -4433,6 +4523,14 @@ export function WorkspaceDashboard({
               </span>
             </ActionButton>
           ) : null}
+          {canBatchCreateExperts ? (
+            <ActionButton onClick={() => setBatchExpertModalOpen(true)}>
+              <span className="inline-flex items-center gap-2">
+                <Users className="h-4 w-4" />
+                <span>批量添加专家</span>
+              </span>
+            </ActionButton>
+          ) : null}
           <ActionButton
             disabled={!permissions.canManageTeam}
             onClick={() => setTeamModalOpen(true)}
@@ -4515,8 +4613,14 @@ export function WorkspaceDashboard({
         <div className="border-b border-slate-200 px-5 py-4">
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
-              <h3 className="text-base font-semibold text-slate-900">账号列表</h3>
-              <p className="mt-1 text-sm text-slate-500">按账号、角色和状态快速管理团队成员与评审专家。</p>
+              <h3 className="text-base font-semibold text-slate-900">
+                {teamAccountView === "experts" ? "评审专家账号" : "团队账号"}
+              </h3>
+              <p className="mt-1 text-sm text-slate-500">
+                {teamAccountView === "experts"
+                  ? "评审专家账号单独管理，便于临时开通、批量创建和后续清理。"
+                  : "普通团队账号与评审专家分开管理，避免权限和操作混在一起。"}
+              </p>
             </div>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
               <label className="relative block min-w-[240px] text-sm text-slate-500">
@@ -4547,8 +4651,33 @@ export function WorkspaceDashboard({
             </div>
           </div>
 
+          <div className="mt-4 inline-flex rounded-xl border border-slate-200 bg-slate-50 p-1">
+            {[
+              { key: "team", label: "团队账号", count: visibleCoreTeamMembers.length },
+              { key: "experts", label: "评审专家", count: visibleExpertAccountMembers.length },
+            ].map((item) => (
+              <button
+                className={`rounded-lg px-3 py-2 text-sm font-medium transition ${
+                  teamAccountView === item.key
+                    ? "bg-white text-blue-600 shadow-sm"
+                    : "text-slate-500 hover:text-slate-800"
+                }`}
+                key={item.key}
+                onClick={() => setTeamAccountView(item.key as "team" | "experts")}
+                type="button"
+              >
+                {item.label}
+                <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">
+                  {item.count}
+                </span>
+              </button>
+            ))}
+          </div>
+
           <div className="mt-4 flex flex-wrap gap-2 text-xs text-slate-500">
-            <span className="rounded-full bg-slate-100 px-3 py-1">当前共 {visibleTeamMembers.length} 个账号</span>
+            <span className="rounded-full bg-slate-100 px-3 py-1">
+              当前共 {activeTeamMembers.length} 个账号
+            </span>
             <span className="rounded-full bg-blue-50 px-3 py-1 text-blue-600">
               已筛选 {filteredTeamMembers.length} 个结果
             </span>
@@ -6248,6 +6377,49 @@ export function WorkspaceDashboard({
               <ActionButton disabled={isSaving} onClick={() => setTeamModalOpen(false)}>取消</ActionButton>
               <ActionButton loading={isSaving} loadingLabel="保存中..." onClick={saveTeamMember} variant="primary">
                 创建账号
+              </ActionButton>
+            </ModalActions>
+          </div>
+        </Modal>
+      ) : null}
+
+      {batchExpertModalOpen ? (
+        <Modal title="批量添加评审专家" onClose={() => setBatchExpertModalOpen(false)}>
+          <div className="space-y-4">
+            <div className="rounded-lg bg-slate-50 px-4 py-3 text-sm leading-7 text-slate-500">
+              每行填写一个专家账号，格式为：
+              <span className="mx-1 font-medium text-slate-700">姓名，账号名，初始密码，邮箱</span>
+              。初始密码和邮箱可不填，未填写密码时默认使用 123456。
+            </div>
+            <label className="block text-sm text-slate-500">
+              专家账号数据
+              <textarea
+                className={`${textareaClassName} min-h-[180px] font-mono text-sm`}
+                placeholder={"王老师,expertwang,123456,wang@example.com\n李老师,expertli,123456,li@example.com"}
+                value={batchExpertDraft.rows}
+                onChange={(event) => setBatchExpertDraft({ rows: event.target.value })}
+              />
+              <span className="mt-1 block text-xs leading-6 text-slate-400">
+                账号名仅支持英文字母和数字，不允许中文；批量创建后账号会直接生效。
+              </span>
+            </label>
+            <ModalActions>
+              <ActionButton
+                disabled={isSaving}
+                onClick={() => {
+                  setBatchExpertDraft(defaultBatchExpertDraft);
+                  setBatchExpertModalOpen(false);
+                }}
+              >
+                取消
+              </ActionButton>
+              <ActionButton
+                loading={isSaving}
+                loadingLabel="创建中..."
+                onClick={() => void saveBatchExperts()}
+                variant="primary"
+              >
+                批量创建
               </ActionButton>
             </ModalActions>
           </div>
