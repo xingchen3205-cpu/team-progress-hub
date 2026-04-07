@@ -1145,6 +1145,8 @@ export function WorkspaceDashboard({
   const [taskModalOpen, setTaskModalOpen] = useState(false);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [taskDraft, setTaskDraft] = useState<TaskDraft>(defaultTaskDraft("leader-1"));
+  const [quickTaskTitle, setQuickTaskTitle] = useState("");
+  const [quickTaskAssigneeId, setQuickTaskAssigneeId] = useState("");
 
   const [announcementModalOpen, setAnnouncementModalOpen] = useState(false);
   const [announcementDraft, setAnnouncementDraft] = useState<AnnouncementDraft>(defaultAnnouncementDraft);
@@ -2165,6 +2167,42 @@ export function WorkspaceDashboard({
       refreshWorkspace();
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "任务保存失败");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const createQuickTask = async () => {
+    const title = quickTaskTitle.trim();
+    const assigneeId = quickTaskAssigneeId || firstAssignableMemberId;
+
+    if (!title) {
+      setLoadError("请先输入任务名称");
+      return;
+    }
+
+    if (!assigneeId) {
+      setLoadError("请先选择任务负责人");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      await requestJson("/api/tasks", {
+        method: "POST",
+        body: JSON.stringify({
+          title,
+          assigneeId,
+          dueDate: `${toIsoDateKey(new Date())}T18:00`,
+          priority: "高优先级",
+        }),
+      });
+      setQuickTaskTitle("");
+      setQuickTaskAssigneeId("");
+      showSuccessToast("任务已快速创建", "这条任务已经加入任务看板。");
+      refreshWorkspace();
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "任务创建失败");
     } finally {
       setIsSaving(false);
     }
@@ -3264,6 +3302,33 @@ export function WorkspaceDashboard({
     <div className="space-y-4">
       {(() => {
         const quickCompletableTask = tasks.find((task) => task.status !== "done" && canMoveTask(task));
+        const assignableMembers = members.filter(
+          (item) => !["指导教师", "系统管理员", "评审专家"].includes(item.systemRole),
+        );
+        const countdownTotalHours = countdown.days * 24 + countdown.hours;
+        const countdownStatus = !nearestEvent
+          ? {
+              label: "待配置",
+              className: "border-slate-200 bg-slate-50 text-slate-500",
+              hint: "补充节点后自动预警",
+            }
+          : countdownTotalHours <= 24
+            ? {
+                label: "紧急",
+                className: "border-red-200 bg-red-50 text-red-600",
+                hint: "进入最后 24 小时",
+              }
+            : countdown.days <= 3
+              ? {
+                  label: "临近",
+                  className: "border-amber-200 bg-amber-50 text-amber-700",
+                  hint: "建议开始集中检查",
+                }
+              : {
+                  label: "推进中",
+                  className: "border-blue-100 bg-blue-50 text-[#1d4ed8]",
+                  hint: "按计划持续推进",
+                };
         const overviewMetrics = [
           {
             label: "当前身份",
@@ -3435,6 +3500,51 @@ export function WorkspaceDashboard({
                     </div>
                   ))}
                 </div>
+                {permissions.canCreateTask ? (
+                  <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50/60 p-4">
+                    <div className="flex items-start gap-3">
+                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white text-lg shadow-sm">
+                        📋
+                      </span>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-semibold text-slate-900">任务快速创建</p>
+                        <p className="mt-1 text-xs leading-5 text-slate-500">
+                          在首页先记下临时安排，稍后可到任务看板细化。
+                        </p>
+                      </div>
+                    </div>
+                    <div className="mt-3 grid gap-2">
+                      <input
+                        className="h-10 rounded-lg border border-blue-100 bg-white px-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#1d4ed8] focus:ring-2 focus:ring-blue-500/20"
+                        placeholder="输入任务名称"
+                        value={quickTaskTitle}
+                        onChange={(event) => setQuickTaskTitle(event.target.value)}
+                      />
+                      <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
+                        <select
+                          className="h-10 rounded-lg border border-blue-100 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-[#1d4ed8] focus:ring-2 focus:ring-blue-500/20"
+                          value={quickTaskAssigneeId || firstAssignableMemberId}
+                          onChange={(event) => setQuickTaskAssigneeId(event.target.value)}
+                        >
+                          {assignableMembers.map((member) => (
+                            <option key={member.id} value={member.id}>
+                              {member.name}
+                            </option>
+                          ))}
+                        </select>
+                        <ActionButton
+                          disabled={isSaving || !quickTaskTitle.trim()}
+                          loading={isSaving && Boolean(quickTaskTitle.trim())}
+                          loadingLabel="创建中..."
+                          onClick={() => void createQuickTask()}
+                          variant="primary"
+                        >
+                          创建
+                        </ActionButton>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
               </article>
             </section>
 
@@ -3452,8 +3562,11 @@ export function WorkspaceDashboard({
                         : "请先在时间进度中创建比赛关键节点。"}
                     </p>
                   </div>
-                  <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
-                    倒计时会按系统时间实时刷新
+                  <div className={`rounded-xl border px-4 py-3 text-sm ${countdownStatus.className}`}>
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="font-semibold">{countdownStatus.label}</span>
+                      <span className="text-xs opacity-80">{countdownStatus.hint}</span>
+                    </div>
                   </div>
                 </div>
 
