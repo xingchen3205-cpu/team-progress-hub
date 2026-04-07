@@ -17,31 +17,8 @@ export function PdfPreview({ url }: PdfPreviewProps) {
   const [containerWidth, setContainerWidth] = useState(0);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [useNativePreview, setUseNativePreview] = useState(false);
 
   useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-
-    const mediaQuery = window.matchMedia("(min-width: 768px) and (pointer: fine)");
-    const updateMode = () => {
-      setUseNativePreview(mediaQuery.matches);
-    };
-
-    updateMode();
-    mediaQuery.addEventListener("change", updateMode);
-
-    return () => {
-      mediaQuery.removeEventListener("change", updateMode);
-    };
-  }, []);
-
-  useEffect(() => {
-    if (useNativePreview) {
-      return;
-    }
-
     const element = containerRef.current;
     if (!element) {
       return;
@@ -63,17 +40,9 @@ export function PdfPreview({ url }: PdfPreviewProps) {
     return () => {
       observer.disconnect();
     };
-  }, [useNativePreview]);
+  }, []);
 
   useEffect(() => {
-    if (useNativePreview) {
-      const previousDocument = pdfDocumentRef.current;
-      pdfDocumentRef.current = null;
-      canvasRefs.current = [];
-      void previousDocument?.destroy().catch(() => undefined);
-      return;
-    }
-
     let cancelled = false;
 
     const load = async () => {
@@ -109,13 +78,9 @@ export function PdfPreview({ url }: PdfPreviewProps) {
     return () => {
       cancelled = true;
     };
-  }, [url, useNativePreview]);
+  }, [url]);
 
   useEffect(() => {
-    if (useNativePreview) {
-      return;
-    }
-
     let cancelled = false;
 
     const render = async () => {
@@ -199,21 +164,7 @@ export function PdfPreview({ url }: PdfPreviewProps) {
     return () => {
       cancelled = true;
     };
-  }, [containerWidth, pageCount, useNativePreview]);
-
-  if (useNativePreview) {
-    return (
-      <div className="relative h-[78vh] min-h-[78vh] overflow-hidden rounded-lg border border-slate-200 bg-slate-100 p-3">
-        <object className="h-full w-full rounded-md border border-slate-200 bg-white shadow-sm" data={url} type="application/pdf">
-          <iframe
-            className="h-full w-full rounded-md border-0 bg-white"
-            src={`${url}#toolbar=1&navpanes=0&view=FitH`}
-            title="PDF 预览"
-          />
-        </object>
-      </div>
-    );
-  }
+  }, [containerWidth, pageCount]);
 
   return (
     <div

@@ -79,6 +79,7 @@ import {
   mapExpertReviewGradeToScore,
   expertReviewMaterialLabels,
 } from "@/lib/expert-review";
+import type { TrainingQuestionImportCandidate } from "@/lib/training-import";
 
 type BoardStatus = (typeof boardColumns)[number]["id"];
 
@@ -292,161 +293,18 @@ const normalizeTrainingCategory = (draft: Pick<TrainingQuestionDraft, "category"
 
 const createTrainingImportRow = (
   values: Partial<TrainingQuestionDraft> & Pick<TrainingQuestionDraft, "question">,
-): TrainingQuestionImportRow => ({
-  id: createTrainingImportRowId(),
-  selected: true,
-  category: values.category?.trim() || "商业模式",
-  customCategory: values.customCategory?.trim() || "",
-  question: values.question.trim(),
-  answerPoints: values.answerPoints?.trim() || "",
-});
+): TrainingQuestionImportRow => {
+  const category = values.category?.trim() || "商业模式";
+  const knownCategory = trainingQuestionCategories.includes(category as (typeof trainingQuestionCategories)[number]);
 
-const parseCsvTrainingLine = (line: string) => {
-  const columns: string[] = [];
-  let current = "";
-  let quoted = false;
-
-  for (const char of line) {
-    if (char === "\"") {
-      quoted = !quoted;
-    } else if (char === "," && !quoted) {
-      columns.push(current.trim());
-      current = "";
-    } else {
-      current += char;
-    }
-  }
-  columns.push(current.trim());
-
-  return columns.map((item) => item.replace(/^"|"$/g, "").trim()).filter(Boolean);
-};
-
-const parseTrainingQuestionText = (text: string): TrainingQuestionImportRow[] => {
-  const source = text.replace(/\r\n/g, "\n").trim();
-  if (!source) {
-    return [];
-  }
-
-  try {
-    const json = JSON.parse(source) as unknown;
-    const items = Array.isArray(json) ? json : [];
-    const rows = items
-      .map((item) => {
-        if (!item || typeof item !== "object") {
-          return null;
-        }
-        const record = item as Record<string, unknown>;
-        const question = String(record.question ?? record.title ?? record.问题 ?? "").trim();
-        const answerPoints = String(record.answerPoints ?? record.answer ?? record.回答要点 ?? record.答案 ?? "").trim();
-        const category = String(record.category ?? record.分类 ?? "商业模式").trim();
-        if (!question) {
-          return null;
-        }
-        return createTrainingImportRow({
-          category: trainingQuestionCategories.includes(category as (typeof trainingQuestionCategories)[number])
-            ? category
-            : "其他",
-          customCategory: trainingQuestionCategories.includes(category as (typeof trainingQuestionCategories)[number])
-            ? ""
-            : category,
-          question,
-          answerPoints,
-        });
-      })
-      .filter((item): item is TrainingQuestionImportRow => Boolean(item));
-    if (rows.length > 0) {
-      return rows;
-    }
-  } catch {
-    // Not JSON; continue with plain-text parsing.
-  }
-
-  const lines = source.split("\n").map((line) => line.trim());
-  const rows: TrainingQuestionImportRow[] = [];
-
-  if (lines.some((line) => parseCsvTrainingLine(line).length >= 2)) {
-    lines.forEach((line) => {
-      const columns = parseCsvTrainingLine(line);
-      if (columns.length < 2 || ["category", "分类"].includes(columns[0]?.toLowerCase())) {
-        return;
-      }
-      const [maybeCategory, maybeQuestion, ...rest] = columns;
-      const category = rest.length > 0 ? maybeCategory : "商业模式";
-      const question = rest.length > 0 ? maybeQuestion : maybeCategory;
-      const answerPoints = rest.length > 0 ? rest.join("；") : maybeQuestion;
-      rows.push(
-        createTrainingImportRow({
-          category: trainingQuestionCategories.includes(category as (typeof trainingQuestionCategories)[number])
-            ? category
-            : "其他",
-          customCategory: trainingQuestionCategories.includes(category as (typeof trainingQuestionCategories)[number])
-            ? ""
-            : category,
-          question,
-          answerPoints,
-        }),
-      );
-    });
-    if (rows.length > 0) {
-      return rows;
-    }
-  }
-
-  let currentQuestion = "";
-  let currentAnswer = "";
-  let currentCategory = "商业模式";
-
-  const flush = () => {
-    if (!currentQuestion.trim()) {
-      return;
-    }
-    rows.push(
-      createTrainingImportRow({
-        category: currentCategory,
-        question: currentQuestion,
-        answerPoints: currentAnswer || "待补充回答要点",
-      }),
-    );
-    currentQuestion = "";
-    currentAnswer = "";
-    currentCategory = "商业模式";
+  return {
+    id: createTrainingImportRowId(),
+    selected: true,
+    category: knownCategory ? category : "其他",
+    customCategory: values.customCategory?.trim() || (knownCategory ? "" : category),
+    question: values.question.trim(),
+    answerPoints: values.answerPoints?.trim() || "",
   };
-
-  lines.forEach((line) => {
-    if (!line) {
-      flush();
-      return;
-    }
-    const categoryMatch = line.match(/^(分类|类别|方向)[:：]\s*(.+)$/);
-    const questionMatch = line.match(/^(Q|问题|提问)[:：]\s*(.+)$/i);
-    const answerMatch = line.match(/^(A|答案|回答|要点|回答要点)[:：]\s*(.+)$/i);
-
-    if (categoryMatch?.[2]) {
-      currentCategory = categoryMatch[2].trim();
-      return;
-    }
-    if (questionMatch?.[2]) {
-      flush();
-      currentQuestion = questionMatch[2].trim();
-      return;
-    }
-    if (answerMatch?.[2]) {
-      currentAnswer = currentAnswer ? `${currentAnswer}\n${answerMatch[2].trim()}` : answerMatch[2].trim();
-      return;
-    }
-    if (!currentQuestion && /[?？]$/.test(line)) {
-      currentQuestion = line;
-      return;
-    }
-    if (!currentQuestion) {
-      currentQuestion = line;
-      return;
-    }
-    currentAnswer = currentAnswer ? `${currentAnswer}\n${line}` : line;
-  });
-  flush();
-
-  return rows;
 };
 
 const trainingTimerPresets: TrainingTimerPreset[] = [
@@ -2663,19 +2521,43 @@ export function WorkspaceDashboard({
     }
 
     const extension = file.name.split(".").pop()?.toLowerCase();
-    if (!extension || !["txt", "md", "csv", "json"].includes(extension)) {
-      setQuestionImportError("当前自动识别先支持 txt / md / csv / json 文档。Word 或 PDF 请先导出为文本后导入，避免识别错题。");
+    if (!extension || !["txt", "md", "csv", "json", "pdf", "docx", "doc"].includes(extension)) {
+      setQuestionImportError("暂不支持该文件格式，请上传 PDF、Word(.docx)、txt、md、csv 或 json。");
       return;
     }
 
-    const text = await file.text();
-    const rows = parseTrainingQuestionText(text);
-    if (rows.length === 0) {
-      setQuestionImportError("没有识别到可导入的问题，请检查文档是否包含“问题/回答要点”内容。");
+    if (file.size > 4 * 1024 * 1024) {
+      setQuestionImportError("题库导入文档最大 4MB，较大的 PDF 建议先拆分或压缩文字后再导入。");
       return;
     }
 
-    setQuestionImportRows(rows);
+    const formData = new FormData();
+    formData.append("file", file);
+
+    try {
+      const response = await fetch("/api/training/questions/import", {
+        method: "POST",
+        body: formData,
+        credentials: "same-origin",
+        cache: "no-store",
+      });
+      const payload = (await response.json().catch(() => null)) as
+        | { rows?: TrainingQuestionImportCandidate[]; message?: string }
+        | null;
+
+      if (!response.ok) {
+        throw new Error(payload?.message || "题库文档识别失败");
+      }
+
+      const rows = (payload?.rows ?? []).map((row) => createTrainingImportRow(row));
+      if (rows.length === 0) {
+        throw new Error("没有识别到可导入的问题，请检查文档是否包含“问题/回答要点”内容。");
+      }
+
+      setQuestionImportRows(rows);
+    } catch (error) {
+      setQuestionImportError(error instanceof Error ? error.message : "题库文档识别失败");
+    }
   };
 
   const importTrainingQuestions = async () => {
@@ -6469,13 +6351,13 @@ export function WorkspaceDashboard({
         >
           <div className="space-y-4">
             <div className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm leading-7 text-blue-700">
-              上传文档后会先自动识别问题和回答要点，导入前可以逐条校对、修改和取消选择。当前稳定支持
-              txt / md / csv / json；Word 或 PDF 建议先导出为文本后导入。
+              上传文档后会先自动识别问题和回答要点，导入前可以逐条校对、修改和取消选择。支持 PDF、Word(.docx)、
+              txt / md / csv / json；旧版 .doc 请另存为 .docx 后导入，单文件最大 4MB。
             </div>
             <label className="block text-sm text-slate-500">
               选择题库文档
               <input
-                accept=".txt,.md,.csv,.json"
+                accept=".pdf,.doc,.docx,.txt,.md,.csv,.json"
                 className={fieldClassName}
                 type="file"
                 onChange={(event) => void handleQuestionImportFile(event.target.files?.[0] ?? null)}
@@ -7461,7 +7343,7 @@ export function WorkspaceDashboard({
                 : previewAsset.mimeType?.startsWith("video/")
                 ? "视频材料支持在当前页面直接播放。"
                 : isPdfAsset(previewAsset)
-                  ? "PDF 在电脑端优先使用浏览器原生预览，手机端使用站内渲染，兼顾字体显示与移动端兼容性。"
+                  ? "PDF 使用站内渲染模式，避免浏览器原生预览层在后台页面残留。"
                   : isImageAsset(previewAsset)
                     ? "图片按原始清晰度显示，可在窗口内滚动查看细节。"
                     : "已切换为站内在线预览模式。"}
