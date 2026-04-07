@@ -9,6 +9,7 @@ const validTabs = [
   "overview",
   "timeline",
   "board",
+  "training",
   "reports",
   "experts",
   "review",
