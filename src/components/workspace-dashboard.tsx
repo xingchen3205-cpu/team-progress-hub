@@ -486,7 +486,7 @@ const rolePermissions = {
     canResetPassword: false,
   },
   member: {
-    visibleTabs: ["overview", "timeline", "board", "reports", "experts", "documents", "profile"] as TabKey[],
+    visibleTabs: ["overview", "timeline", "board", "reports", "experts", "review", "documents", "profile"] as TabKey[],
     canPublishAnnouncement: false,
     canSendDirective: false,
     canCreateTask: false,
@@ -1300,7 +1300,8 @@ export function WorkspaceDashboard({
         if (
           mePayload.user.role === "admin" ||
           mePayload.user.role === "teacher" ||
-          mePayload.user.role === "leader"
+          mePayload.user.role === "leader" ||
+          mePayload.user.role === "member"
         ) {
           requests.push(
             requestJson<{ assignments: ExpertReviewAssignmentItem[] }>(
@@ -1503,11 +1504,13 @@ export function WorkspaceDashboard({
   const documentVersionCount = documents.reduce((sum, item) => sum + item.versions.length, 0);
 
   const getMemberName = (memberId: string) => membersMap[memberId]?.name ?? memberId;
+  const getTaskAssigneeName = (task: BoardTask) =>
+    task.assignee?.name ?? membersMap[task.assigneeId]?.name ?? "未分配";
 
   const todayTaskSummary = tasks
     .filter((item) => item.status !== "done")
     .slice(0, 3)
-    .map((item) => `${item.title} · ${getMemberName(item.assigneeId)}`);
+    .map((item) => `${item.title} · ${getTaskAssigneeName(item)}`);
 
   const canManageMember = (member: TeamMember) => {
     if (!permissions.canManageTeam) {
@@ -3369,50 +3372,145 @@ export function WorkspaceDashboard({
               },
         ];
 
+        const openTasks = tasks.filter((task) => task.status !== "done");
+        const unsubmittedReportCount = reportableMembers.filter(
+          (member) => !todayReportEntryMap.has(member.id),
+        ).length;
+        const myReportSubmitted = todayReportEntryMap.has(currentMemberId);
+        const reviewScoreCount = reviewAssignments.filter((assignment) => assignment.score).length;
+        const pendingExpertReviewCount = reviewAssignments.filter((assignment) => assignment.statusKey === "pending").length;
+        const taskSummaryDetail =
+          todayTaskSummary[0] ??
+          (openTasks.length > 0
+            ? `全队任务看板还有 ${openTasks.length} 项待推进，可进入看板查看分工。`
+            : "今天的任务重点已经基本清空，可以继续补齐材料细节。");
+
         const attentionCards = [
+          currentRole === "member" || currentRole === "leader"
+            ? {
+                label: myReportSubmitted ? "今日日程已提交" : "今日日程待提交",
+                value: myReportSubmitted ? "已提交" : "未提交",
+                detail: myReportSubmitted
+                  ? "你今天的日程汇报已经提交，可以继续查看任务看板和最新反馈。"
+                  : "今天还没有提交日程汇报，建议先补齐今日完成和明日计划。",
+                actionLabel: myReportSubmitted ? "查看日程汇报" : "填写日程汇报",
+                onAction: () => {
+                  router.push("/workspace?tab=reports");
+                },
+              }
+            : {
+                label: currentRole === "admin" || currentRole === "teacher" ? "团队汇报进度" : "今日工作提示",
+                value: `${reportSubmittedCount}/${reportExpectedCount || 0}`,
+                detail:
+                  reportExpectedCount > 0
+                    ? `今日已有 ${reportSubmittedCount} 人提交汇报，还有 ${unsubmittedReportCount} 人待提交。`
+                    : "当前还没有需要统计的团队汇报对象。",
+                actionLabel: "查看日程汇报",
+                onAction: () => {
+                  router.push("/workspace?tab=reports");
+                },
+              },
           {
-            label: "今日工作提示",
-            value: `${todayTaskSummary.length} 项重点`,
+            label: currentRole === "member" ? "全队任务看板" : canReviewDocuments ? "待审材料" : "任务推进",
+            value:
+              currentRole === "member"
+                ? `${myOpenTasks.length}/${openTasks.length} 项`
+                : canReviewDocuments
+                  ? `${pendingLeaderReviewCount + pendingTeacherReviewCount} 份`
+                  : `${openTasks.length} 项`,
             detail:
-              todayTaskSummary[0] ?? "今天的任务重点已经基本清空，可以继续补齐材料细节。",
-            actionLabel: quickCompletableTask ? "标记完成" : "进入任务看板",
+              currentRole === "member"
+                ? `看板会展示全队任务，你只能更新自己负责的 ${myOpenTasks.length} 项状态。`
+                : canReviewDocuments
+                  ? pendingLeaderReviewCount + pendingTeacherReviewCount > 0
+                    ? "文档中心仍有待审批材料，建议尽快处理。"
+                    : "当前没有新的材料审批堆积。"
+                  : taskSummaryDetail,
+            actionLabel:
+              currentRole === "member" && quickCompletableTask
+                ? "标记我的任务完成"
+                : canReviewDocuments && currentRole !== "member"
+                  ? "查看文档中心"
+                  : "进入任务看板",
             onAction: () => {
-              if (quickCompletableTask) {
+              if (currentRole === "member" && quickCompletableTask) {
                 void completeTaskFromOverview(quickCompletableTask);
                 return;
               }
-              router.push("/workspace?tab=board");
+
+              router.push(canReviewDocuments && currentRole !== "member" ? "/workspace?tab=documents" : "/workspace?tab=board");
             },
           },
-          {
-            label: canReviewDocuments ? "待审材料" : "我的任务进度",
-            value: canReviewDocuments
-              ? `${pendingLeaderReviewCount + pendingTeacherReviewCount} 份`
-              : `${myOpenTasks.length} 项`,
-            detail: canReviewDocuments
-              ? pendingLeaderReviewCount + pendingTeacherReviewCount > 0
-                ? "文档中心仍有待审批材料，建议尽快处理。"
-                : "当前没有新的材料审批堆积。"
-              : myOpenTasks.length > 0
-                ? "任务看板里还有未完成事项，适合今天继续推进。"
-                : "任务看板里当前没有你的待办阻塞。",
-            actionLabel: canReviewDocuments ? "查看文档中心" : "进入任务看板",
-            onAction: () => {
-              router.push(canReviewDocuments ? "/workspace?tab=documents" : "/workspace?tab=board");
-            },
-          },
-          {
-            label: "最近关键节点",
-            value: nearestEvent ? nearestEvent.title : "暂未设置",
-            detail: nearestEvent
-              ? `${formatDateTime(nearestEvent.dateTime)} · 建议提前检查材料、彩排和人员分工。`
-              : "可在时间进度里补充关键节点，首页会自动同步提醒。",
-            actionLabel: "查看时间进度",
-            onAction: () => {
-              router.push("/workspace?tab=timeline");
-            },
-          },
+          currentRole === "member"
+            ? {
+                label: "专家评审结果",
+                value: reviewScoreCount > 0 ? `${reviewScoreCount} 条评分` : pendingExpertReviewCount > 0 ? "评审中" : "暂无",
+                detail:
+                  reviewScoreCount > 0
+                    ? "已有专家评分和综合评语可查看，适合结合反馈继续优化材料。"
+                    : pendingExpertReviewCount > 0
+                      ? "专家评审正在进行中，提交后这里会同步显示评分结果。"
+                      : "当前还没有专家评审结果。后续开放后会在这里同步。",
+                actionLabel: "查看专家评审",
+                onAction: () => {
+                  router.push("/workspace?tab=review");
+                },
+              }
+            : {
+                label: "最近关键节点",
+                value: nearestEvent ? nearestEvent.title : "暂未设置",
+                detail: nearestEvent
+                  ? `${formatDateTime(nearestEvent.dateTime)} · 建议提前检查材料、彩排和人员分工。`
+                  : "可在时间进度里补充关键节点，首页会自动同步提醒。",
+                actionLabel: "查看时间进度",
+                onAction: () => {
+                  router.push("/workspace?tab=timeline");
+                },
+              },
         ];
+
+        const priorityFocusItems =
+          currentRole === "member"
+            ? [
+                myReportSubmitted ? "今日日程汇报已提交。" : "今日日程汇报还未提交，建议先补齐。",
+                myOpenTasks.length > 0
+                  ? `你当前有 ${myOpenTasks.length} 项个人任务待推进，全队看板共有 ${openTasks.length} 项未完成任务。`
+                  : `你当前没有个人待办，全队看板仍有 ${openTasks.length} 项未完成任务可查看。`,
+                reviewScoreCount > 0
+                  ? `专家评审已有 ${reviewScoreCount} 条评分/评语可查看。`
+                  : pendingExpertReviewCount > 0
+                    ? "专家评审正在进行中，结果出来后会同步到专家评审页。"
+                    : "当前暂无专家评审结果。",
+              ]
+            : currentRole === "leader"
+              ? [
+                  unsubmittedReportCount > 0
+                    ? `今天还有 ${unsubmittedReportCount} 人未提交汇报。`
+                    : "今天团队汇报已基本收齐。",
+                  openTasks.length > 0
+                    ? `任务看板还有 ${openTasks.length} 项未完成，建议检查分派和优先级。`
+                    : "任务看板当前没有未完成事项。",
+                  reviewScoreCount > 0
+                    ? `专家评审已有 ${reviewScoreCount} 条评分/评语，可结合结果继续推进。`
+                    : "专家评审结果暂未形成。",
+                ]
+              : currentRole === "teacher" || currentRole === "admin"
+                ? [
+                    pendingApprovalMembers.length > 0
+                      ? `当前有 ${pendingApprovalMembers.length} 个账号等待审核。`
+                      : "当前没有新的账号审核积压。",
+                    pendingLeaderReviewCount + pendingTeacherReviewCount > 0
+                      ? `文档中心共有 ${pendingLeaderReviewCount + pendingTeacherReviewCount} 份材料待审批。`
+                      : "文档中心当前没有待审批材料。",
+                    reviewScoreCount > 0
+                      ? `专家评审已有 ${reviewScoreCount} 条评分/评语，可进入专家评审查看。`
+                      : "专家评审暂无已提交评分。",
+                  ]
+                : [
+                    unreadTodoNotifications.length > 0
+                      ? `仍有 ${unreadTodoNotifications.length} 条未读提醒。`
+                      : "站内提醒已基本处理完成。",
+                  ];
 
         return (
           <>
@@ -3615,21 +3713,9 @@ export function WorkspaceDashboard({
                 <article className={surfaceCardClassName}>
                   <p className="text-sm font-semibold text-slate-900">优先关注</p>
                   <div className="mt-4 space-y-3 text-sm leading-6 text-slate-500">
-                    <p>
-                      {pendingApprovalMembers.length > 0
-                        ? `当前有 ${pendingApprovalMembers.length} 个账号等待审核。`
-                        : "当前没有新的账号审核积压。"}
-                    </p>
-                    <p>
-                      {pendingLeaderReviewCount + pendingTeacherReviewCount > 0
-                        ? `文档中心共有 ${pendingLeaderReviewCount + pendingTeacherReviewCount} 份材料待审批。`
-                        : "文档中心当前没有待审批材料。"}
-                    </p>
-                    <p>
-                      {unreadTodoNotifications.length > 0
-                        ? `仍有 ${unreadTodoNotifications.length} 条未读提醒，处理后可在代办中心标记已读。`
-                        : "站内提醒已基本处理完成。"}
-                    </p>
+                    {priorityFocusItems.map((item) => (
+                      <p key={item}>{item}</p>
+                    ))}
                   </div>
                 </article>
               </div>
@@ -3824,7 +3910,6 @@ export function WorkspaceDashboard({
                 tasks
                   .filter((task) => task.status === column.id)
                   .map((task) => {
-                  const assignee = membersMap[task.assigneeId];
                   const canMove = canMoveTask(task);
 
                   return (
@@ -3844,7 +3929,7 @@ export function WorkspaceDashboard({
                             <GripVertical className="h-4 w-4 text-slate-400" />
                             <h4 className="text-base font-semibold leading-6 text-slate-900">{task.title}</h4>
                           </div>
-                          <p className="mt-2 text-sm text-slate-500">负责人：{assignee?.name}</p>
+                          <p className="mt-2 text-sm text-slate-500">负责人：{getTaskAssigneeName(task)}</p>
                         </div>
                         <span
                           className={`rounded-md px-2.5 py-1 text-xs ${
@@ -4413,57 +4498,55 @@ export function WorkspaceDashboard({
                   })}
                 </div>
 
-                {currentRole !== "leader" ? (
-                  <div className="mt-5 grid gap-4 xl:grid-cols-2">
-                    {group.items.map((assignment) => (
-                      <div key={assignment.id} className={subtleCardClassName}>
-                        <div className="flex items-start justify-between gap-4">
-                          <div>
-                            <p className="text-base font-semibold text-slate-900">{assignment.expert.name}</p>
-                            <p className="mt-2 text-sm text-slate-500">{assignment.expert.roleLabel}</p>
-                          </div>
-                          <span className={`rounded-md px-3 py-1 text-sm ${reviewStatusStyles[assignment.statusKey]}`}>
-                            {assignment.status}
-                          </span>
+                <div className="mt-5 grid gap-4 xl:grid-cols-2">
+                  {group.items.map((assignment) => (
+                    <div key={assignment.id} className={subtleCardClassName}>
+                      <div className="flex items-start justify-between gap-4">
+                        <div>
+                          <p className="text-base font-semibold text-slate-900">{assignment.expert.name}</p>
+                          <p className="mt-2 text-sm text-slate-500">{assignment.expert.roleLabel}</p>
                         </div>
-
-                        {assignment.score ? (
-                          <>
-                            <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                              {(Object.keys(expertReviewCategoryCaps) as Array<keyof typeof expertReviewCategoryCaps>).map(
-                                (fieldKey) => (
-                                  <div key={`${assignment.id}-${fieldKey}`} className="rounded-lg bg-white px-4 py-3">
-                                    <p className="text-xs text-slate-400">{expertReviewFieldLabels[fieldKey]}</p>
-                                    <p className="mt-2 text-lg font-semibold text-slate-900">
-                                      {getExpertReviewGradeFromScore(fieldKey, assignment.score?.[fieldKey])}
-                                      <span className="ml-2 text-sm font-medium text-slate-500">
-                                        {assignment.score?.[fieldKey]}分
-                                      </span>
-                                      <span className="ml-1 text-xs text-slate-400">
-                                        / {expertReviewCategoryCaps[fieldKey]}
-                                      </span>
-                                    </p>
-                                  </div>
-                                ),
-                              )}
-                            </div>
-                            <p className="mt-4 text-sm font-medium text-blue-600">
-                              总分：{assignment.score.totalScore} / 100
-                            </p>
-                            <p className="mt-3 text-sm leading-7 text-slate-600">
-                              评语：{assignment.score.commentTotal}
-                            </p>
-                            <p className="mt-3 text-xs text-slate-400">
-                              提交时间：{formatDateTime(assignment.score.updatedAt)}
-                            </p>
-                          </>
-                        ) : (
-                          <p className="mt-4 text-sm leading-7 text-slate-500">该专家尚未提交本次评分。</p>
-                        )}
+                        <span className={`rounded-md px-3 py-1 text-sm ${reviewStatusStyles[assignment.statusKey]}`}>
+                          {assignment.status}
+                        </span>
                       </div>
-                    ))}
-                  </div>
-                ) : null}
+
+                      {assignment.score ? (
+                        <>
+                          <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                            {(Object.keys(expertReviewCategoryCaps) as Array<keyof typeof expertReviewCategoryCaps>).map(
+                              (fieldKey) => (
+                                <div key={`${assignment.id}-${fieldKey}`} className="rounded-lg bg-white px-4 py-3">
+                                  <p className="text-xs text-slate-400">{expertReviewFieldLabels[fieldKey]}</p>
+                                  <p className="mt-2 text-lg font-semibold text-slate-900">
+                                    {getExpertReviewGradeFromScore(fieldKey, assignment.score?.[fieldKey])}
+                                    <span className="ml-2 text-sm font-medium text-slate-500">
+                                      {assignment.score?.[fieldKey]}分
+                                    </span>
+                                    <span className="ml-1 text-xs text-slate-400">
+                                      / {expertReviewCategoryCaps[fieldKey]}
+                                    </span>
+                                  </p>
+                                </div>
+                              ),
+                            )}
+                          </div>
+                          <p className="mt-4 text-sm font-medium text-blue-600">
+                            总分：{assignment.score.totalScore} / 100
+                          </p>
+                          <p className="mt-3 text-sm leading-7 text-slate-600">
+                            评语：{assignment.score.commentTotal}
+                          </p>
+                          <p className="mt-3 text-xs text-slate-400">
+                            提交时间：{formatDateTime(assignment.score.updatedAt)}
+                          </p>
+                        </>
+                      ) : (
+                        <p className="mt-4 text-sm leading-7 text-slate-500">该专家尚未提交本次评分。</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
               </article>
             ))}
           </section>

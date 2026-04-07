@@ -310,12 +310,6 @@ export const redactExpertReviewAssignmentForRole = (
   assignment: SerializedExpertReviewAssignment,
   role: Role,
 ) => {
-  if (role !== "leader") {
-    return assignment;
-  }
-
-  return {
-    ...assignment,
-    score: null,
-  };
+  void role;
+  return assignment;
 };
