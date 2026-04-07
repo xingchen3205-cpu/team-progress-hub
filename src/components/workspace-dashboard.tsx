@@ -1590,6 +1590,7 @@ export function WorkspaceDashboard({
 
   useEffect(() => {
     setMobileSidebarOpen(false);
+    setLoadError(null);
   }, [safeActiveTab]);
 
   useEffect(() => {

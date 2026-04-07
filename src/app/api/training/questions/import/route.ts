@@ -9,6 +9,89 @@ export const runtime = "nodejs";
 
 const importMaxBytes = 4 * 1024 * 1024;
 
+class PdfJsNodeDOMMatrix {
+  a = 1;
+  b = 0;
+  c = 0;
+  d = 1;
+  e = 0;
+  f = 0;
+  is2D = true;
+  isIdentity = true;
+
+  constructor(init?: number[] | PdfJsNodeDOMMatrix) {
+    if (Array.isArray(init) && init.length >= 6) {
+      [this.a, this.b, this.c, this.d, this.e, this.f] = init;
+      this.isIdentity = this.a === 1 && this.b === 0 && this.c === 0 && this.d === 1 && this.e === 0 && this.f === 0;
+    } else if (init instanceof PdfJsNodeDOMMatrix) {
+      this.a = init.a;
+      this.b = init.b;
+      this.c = init.c;
+      this.d = init.d;
+      this.e = init.e;
+      this.f = init.f;
+      this.isIdentity = init.isIdentity;
+    }
+  }
+
+  multiplySelf() {
+    return this;
+  }
+
+  preMultiplySelf() {
+    return this;
+  }
+
+  translateSelf(x = 0, y = 0) {
+    this.e += x;
+    this.f += y;
+    this.isIdentity = false;
+    return this;
+  }
+
+  scaleSelf(scaleX = 1, scaleY = scaleX) {
+    this.a *= scaleX;
+    this.d *= scaleY;
+    this.isIdentity = false;
+    return this;
+  }
+
+  rotateSelf() {
+    return this;
+  }
+
+  invertSelf() {
+    return this;
+  }
+
+  transformPoint(point: { x?: number; y?: number; z?: number; w?: number } = {}) {
+    return {
+      x: point.x ?? 0,
+      y: point.y ?? 0,
+      z: point.z ?? 0,
+      w: point.w ?? 1,
+    };
+  }
+}
+
+class PdfJsNodeImageData {
+  constructor(
+    public data: Uint8ClampedArray,
+    public width: number,
+    public height: number,
+  ) {}
+}
+
+class PdfJsNodePath2D {}
+
+const ensurePdfJsNodePolyfills = () => {
+  const globalWithPdfPolyfills = globalThis as unknown as Record<string, unknown>;
+
+  globalWithPdfPolyfills.DOMMatrix ??= PdfJsNodeDOMMatrix;
+  globalWithPdfPolyfills.ImageData ??= PdfJsNodeImageData;
+  globalWithPdfPolyfills.Path2D ??= PdfJsNodePath2D;
+};
+
 const getFileExtension = (fileName: string) => {
   const normalized = fileName.toLowerCase();
   const dotIndex = normalized.lastIndexOf(".");
@@ -16,6 +99,8 @@ const getFileExtension = (fileName: string) => {
 };
 
 const extractPdfText = async (buffer: Buffer) => {
+  ensurePdfJsNodePolyfills();
+
   const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
   const loadingTask = pdfjs.getDocument({
     data: new Uint8Array(buffer),
