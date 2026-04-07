@@ -110,8 +110,14 @@ type TaskDraft = {
 
 type TrainingQuestionDraft = {
   category: string;
+  customCategory: string;
   question: string;
   answerPoints: string;
+};
+
+type TrainingQuestionImportRow = TrainingQuestionDraft & {
+  id: string;
+  selected: boolean;
 };
 
 type TrainingTimerPreset = {
@@ -269,12 +275,178 @@ type TodoCenterItem = {
 
 const imagePreviewExtensions = [".png", ".jpg", ".jpeg", ".gif", ".webp"] as const;
 
-const trainingQuestionCategories = ["商业模式", "技术壁垒", "市场与竞品", "财务数据", "团队分工", "综合答辩"] as const;
+const trainingQuestionCategories = ["商业模式", "技术壁垒", "市场与竞品", "财务数据", "团队分工", "综合答辩", "其他"] as const;
 
 const defaultTrainingQuestionDraft: TrainingQuestionDraft = {
   category: "商业模式",
+  customCategory: "",
   question: "",
   answerPoints: "",
+};
+
+const createTrainingImportRowId = () =>
+  globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
+
+const normalizeTrainingCategory = (draft: Pick<TrainingQuestionDraft, "category" | "customCategory">) =>
+  draft.category === "其他" ? draft.customCategory.trim() : draft.category;
+
+const createTrainingImportRow = (
+  values: Partial<TrainingQuestionDraft> & Pick<TrainingQuestionDraft, "question">,
+): TrainingQuestionImportRow => ({
+  id: createTrainingImportRowId(),
+  selected: true,
+  category: values.category?.trim() || "商业模式",
+  customCategory: values.customCategory?.trim() || "",
+  question: values.question.trim(),
+  answerPoints: values.answerPoints?.trim() || "",
+});
+
+const parseCsvTrainingLine = (line: string) => {
+  const columns: string[] = [];
+  let current = "";
+  let quoted = false;
+
+  for (const char of line) {
+    if (char === "\"") {
+      quoted = !quoted;
+    } else if (char === "," && !quoted) {
+      columns.push(current.trim());
+      current = "";
+    } else {
+      current += char;
+    }
+  }
+  columns.push(current.trim());
+
+  return columns.map((item) => item.replace(/^"|"$/g, "").trim()).filter(Boolean);
+};
+
+const parseTrainingQuestionText = (text: string): TrainingQuestionImportRow[] => {
+  const source = text.replace(/\r\n/g, "\n").trim();
+  if (!source) {
+    return [];
+  }
+
+  try {
+    const json = JSON.parse(source) as unknown;
+    const items = Array.isArray(json) ? json : [];
+    const rows = items
+      .map((item) => {
+        if (!item || typeof item !== "object") {
+          return null;
+        }
+        const record = item as Record<string, unknown>;
+        const question = String(record.question ?? record.title ?? record.问题 ?? "").trim();
+        const answerPoints = String(record.answerPoints ?? record.answer ?? record.回答要点 ?? record.答案 ?? "").trim();
+        const category = String(record.category ?? record.分类 ?? "商业模式").trim();
+        if (!question) {
+          return null;
+        }
+        return createTrainingImportRow({
+          category: trainingQuestionCategories.includes(category as (typeof trainingQuestionCategories)[number])
+            ? category
+            : "其他",
+          customCategory: trainingQuestionCategories.includes(category as (typeof trainingQuestionCategories)[number])
+            ? ""
+            : category,
+          question,
+          answerPoints,
+        });
+      })
+      .filter((item): item is TrainingQuestionImportRow => Boolean(item));
+    if (rows.length > 0) {
+      return rows;
+    }
+  } catch {
+    // Not JSON; continue with plain-text parsing.
+  }
+
+  const lines = source.split("\n").map((line) => line.trim());
+  const rows: TrainingQuestionImportRow[] = [];
+
+  if (lines.some((line) => parseCsvTrainingLine(line).length >= 2)) {
+    lines.forEach((line) => {
+      const columns = parseCsvTrainingLine(line);
+      if (columns.length < 2 || ["category", "分类"].includes(columns[0]?.toLowerCase())) {
+        return;
+      }
+      const [maybeCategory, maybeQuestion, ...rest] = columns;
+      const category = rest.length > 0 ? maybeCategory : "商业模式";
+      const question = rest.length > 0 ? maybeQuestion : maybeCategory;
+      const answerPoints = rest.length > 0 ? rest.join("；") : maybeQuestion;
+      rows.push(
+        createTrainingImportRow({
+          category: trainingQuestionCategories.includes(category as (typeof trainingQuestionCategories)[number])
+            ? category
+            : "其他",
+          customCategory: trainingQuestionCategories.includes(category as (typeof trainingQuestionCategories)[number])
+            ? ""
+            : category,
+          question,
+          answerPoints,
+        }),
+      );
+    });
+    if (rows.length > 0) {
+      return rows;
+    }
+  }
+
+  let currentQuestion = "";
+  let currentAnswer = "";
+  let currentCategory = "商业模式";
+
+  const flush = () => {
+    if (!currentQuestion.trim()) {
+      return;
+    }
+    rows.push(
+      createTrainingImportRow({
+        category: currentCategory,
+        question: currentQuestion,
+        answerPoints: currentAnswer || "待补充回答要点",
+      }),
+    );
+    currentQuestion = "";
+    currentAnswer = "";
+    currentCategory = "商业模式";
+  };
+
+  lines.forEach((line) => {
+    if (!line) {
+      flush();
+      return;
+    }
+    const categoryMatch = line.match(/^(分类|类别|方向)[:：]\s*(.+)$/);
+    const questionMatch = line.match(/^(Q|问题|提问)[:：]\s*(.+)$/i);
+    const answerMatch = line.match(/^(A|答案|回答|要点|回答要点)[:：]\s*(.+)$/i);
+
+    if (categoryMatch?.[2]) {
+      currentCategory = categoryMatch[2].trim();
+      return;
+    }
+    if (questionMatch?.[2]) {
+      flush();
+      currentQuestion = questionMatch[2].trim();
+      return;
+    }
+    if (answerMatch?.[2]) {
+      currentAnswer = currentAnswer ? `${currentAnswer}\n${answerMatch[2].trim()}` : answerMatch[2].trim();
+      return;
+    }
+    if (!currentQuestion && /[?？]$/.test(line)) {
+      currentQuestion = line;
+      return;
+    }
+    if (!currentQuestion) {
+      currentQuestion = line;
+      return;
+    }
+    currentAnswer = currentAnswer ? `${currentAnswer}\n${line}` : line;
+  });
+  flush();
+
+  return rows;
 };
 
 const trainingTimerPresets: TrainingTimerPreset[] = [
@@ -319,8 +491,8 @@ const allTabs: TabItem[] = [
   },
   {
     key: "training",
-    label: "答辩训练",
-    description: "沉淀模拟 Q&A 题库、随机抽查和计时训练记录。",
+    label: "训练中心",
+    description: "沉淀模拟 Q&A 题库、随机抽查、路演计时和训练记录。",
     icon: HelpCircle,
   },
   {
@@ -1222,9 +1394,14 @@ export function WorkspaceDashboard({
   const [trainingQuestionDraft, setTrainingQuestionDraft] =
     useState<TrainingQuestionDraft>(defaultTrainingQuestionDraft);
   const [editingTrainingQuestionId, setEditingTrainingQuestionId] = useState<string | null>(null);
+  const [questionImportModalOpen, setQuestionImportModalOpen] = useState(false);
+  const [questionImportFileName, setQuestionImportFileName] = useState("");
+  const [questionImportRows, setQuestionImportRows] = useState<TrainingQuestionImportRow[]>([]);
+  const [questionImportError, setQuestionImportError] = useState<string | null>(null);
   const [activeDrillQuestionId, setActiveDrillQuestionId] = useState<string | null>(null);
   const [qaDrillStats, setQaDrillStats] = useState({ total: 0, hit: 0 });
   const [trainingTimerDuration, setTrainingTimerDuration] = useState(8 * 60);
+  const [trainingTimerCustomMinutes, setTrainingTimerCustomMinutes] = useState("8");
   const [trainingTimerElapsed, setTrainingTimerElapsed] = useState(0);
   const [trainingTimerRunning, setTrainingTimerRunning] = useState(false);
   const [trainingSessionTitle, setTrainingSessionTitle] = useState("完整答辩模拟");
@@ -2395,9 +2572,15 @@ export function WorkspaceDashboard({
     setEditingTrainingQuestionId(null);
   };
 
+  const getTrainingQuestionDraftCategory = (draft: TrainingQuestionDraft) => {
+    const category = normalizeTrainingCategory(draft);
+    return category || "其他";
+  };
+
   const saveTrainingQuestion = async () => {
     const question = trainingQuestionDraft.question.trim();
     const answerPoints = trainingQuestionDraft.answerPoints.trim();
+    const category = getTrainingQuestionDraftCategory(trainingQuestionDraft);
 
     if (!question) {
       setLoadError("请先填写模拟问题");
@@ -2409,13 +2592,18 @@ export function WorkspaceDashboard({
       return;
     }
 
+    if (trainingQuestionDraft.category === "其他" && !trainingQuestionDraft.customCategory.trim()) {
+      setLoadError("选择其他分类时，请填写自定义分类名称");
+      return;
+    }
+
     setIsSaving(true);
     try {
       if (editingTrainingQuestionId) {
         await requestJson(`/api/training/questions/${editingTrainingQuestionId}`, {
           method: "PATCH",
           body: JSON.stringify({
-            category: trainingQuestionDraft.category,
+            category,
             question,
             answerPoints,
           }),
@@ -2424,7 +2612,7 @@ export function WorkspaceDashboard({
         await requestJson("/api/training/questions", {
           method: "POST",
           body: JSON.stringify({
-            category: trainingQuestionDraft.category,
+            category,
             question,
             answerPoints,
           }),
@@ -2442,12 +2630,97 @@ export function WorkspaceDashboard({
   };
 
   const editTrainingQuestion = (question: TrainingQuestionItem) => {
+    const knownCategory = trainingQuestionCategories.includes(question.category as (typeof trainingQuestionCategories)[number]);
     setEditingTrainingQuestionId(question.id);
     setTrainingQuestionDraft({
-      category: question.category,
+      category: knownCategory ? question.category : "其他",
+      customCategory: knownCategory ? "" : question.category,
       question: question.question,
       answerPoints: question.answerPoints,
     });
+  };
+
+  const openQuestionImportModal = () => {
+    setQuestionImportModalOpen(true);
+    setQuestionImportError(null);
+    setQuestionImportFileName("");
+    setQuestionImportRows([]);
+  };
+
+  const updateQuestionImportRow = (rowId: string, patch: Partial<TrainingQuestionImportRow>) => {
+    setQuestionImportRows((current) =>
+      current.map((row) => (row.id === rowId ? { ...row, ...patch } : row)),
+    );
+  };
+
+  const handleQuestionImportFile = async (file: File | null) => {
+    setQuestionImportError(null);
+    setQuestionImportRows([]);
+    setQuestionImportFileName(file?.name ?? "");
+
+    if (!file) {
+      return;
+    }
+
+    const extension = file.name.split(".").pop()?.toLowerCase();
+    if (!extension || !["txt", "md", "csv", "json"].includes(extension)) {
+      setQuestionImportError("当前自动识别先支持 txt / md / csv / json 文档。Word 或 PDF 请先导出为文本后导入，避免识别错题。");
+      return;
+    }
+
+    const text = await file.text();
+    const rows = parseTrainingQuestionText(text);
+    if (rows.length === 0) {
+      setQuestionImportError("没有识别到可导入的问题，请检查文档是否包含“问题/回答要点”内容。");
+      return;
+    }
+
+    setQuestionImportRows(rows);
+  };
+
+  const importTrainingQuestions = async () => {
+    const rows = questionImportRows.filter((row) => row.selected);
+    if (rows.length === 0) {
+      setQuestionImportError("请至少选择 1 条要导入的问题");
+      return;
+    }
+
+    const invalidRow = rows.find((row) => !row.question.trim() || !row.answerPoints.trim());
+    if (invalidRow) {
+      setQuestionImportError("请先补全所有已选问题的题干和回答要点");
+      return;
+    }
+
+    const missingCustomCategory = rows.find((row) => row.category === "其他" && !row.customCategory.trim());
+    if (missingCustomCategory) {
+      setQuestionImportError("选择其他分类时，请填写自定义分类名称");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      await Promise.all(
+        rows.map((row) =>
+          requestJson("/api/training/questions", {
+            method: "POST",
+            body: JSON.stringify({
+              category: getTrainingQuestionDraftCategory(row),
+              question: row.question.trim(),
+              answerPoints: row.answerPoints.trim(),
+            }),
+          }),
+        ),
+      );
+      setQuestionImportModalOpen(false);
+      setQuestionImportRows([]);
+      setQuestionImportFileName("");
+      showSuccessToast("题库导入完成", `已导入 ${rows.length} 条 Q&A 问题。`);
+      refreshWorkspace();
+    } catch (error) {
+      setQuestionImportError(error instanceof Error ? error.message : "题库导入失败");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const deleteTrainingQuestionRequest = async (questionId: string) => {
@@ -2500,9 +2773,24 @@ export function WorkspaceDashboard({
 
   const applyTrainingTimerPreset = (preset: TrainingTimerPreset) => {
     setTrainingTimerDuration(preset.seconds);
+    setTrainingTimerCustomMinutes(String(preset.seconds / 60));
     setTrainingTimerElapsed(0);
     setTrainingTimerRunning(false);
     setTrainingSessionTitle(preset.label);
+  };
+
+  const applyCustomTrainingTimer = () => {
+    const minutes = Number(trainingTimerCustomMinutes);
+    if (!Number.isFinite(minutes) || minutes <= 0 || minutes > 180) {
+      setLoadError("自定义计时请填写 1-180 分钟之间的数字");
+      return;
+    }
+
+    const seconds = Math.round(minutes * 60);
+    setTrainingTimerDuration(seconds);
+    setTrainingTimerElapsed(0);
+    setTrainingTimerRunning(false);
+    setTrainingSessionTitle(`${minutes} 分钟自定义训练`);
   };
 
   const resetTrainingTimer = () => {
@@ -4268,8 +4556,8 @@ export function WorkspaceDashboard({
       <div className="space-y-4">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <SectionHeader
-            description="沉淀评委可能追问的问题，随机抽查训练临场反应，并记录模拟答辩节奏。"
-            title="答辩训练"
+            description="分成答辩训练和路演训练两块：前者沉淀 Q&A 题库，后者练陈述节奏和时间控制。"
+            title="训练中心"
           />
           <DemoResetNote />
         </div>
@@ -4293,14 +4581,25 @@ export function WorkspaceDashboard({
           <article className={surfaceCardClassName}>
             <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
               <div>
-                <h3 className="text-base font-semibold text-slate-900">模拟 Q&A 题库</h3>
+                <span className="rounded-md bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-600">
+                  答辩训练
+                </span>
+                <h3 className="mt-3 text-base font-semibold text-slate-900">模拟 Q&A 题库</h3>
                 <p className="mt-1 text-sm leading-6 text-slate-500">
-                  录入常见追问和标准回答要点，适合答辩前反复抽查。
+                  录入常见追问和标准回答要点，也可以先上传文档自动识别，再二次校对入库。
                 </p>
               </div>
-              {editingTrainingQuestionId ? (
-                <ActionButton onClick={resetTrainingQuestionDraft}>取消编辑</ActionButton>
-              ) : null}
+              <div className="flex flex-wrap gap-2">
+                <ActionButton onClick={openQuestionImportModal}>
+                  <span className="inline-flex items-center gap-2">
+                    <Upload className="h-4 w-4" />
+                    导入题库
+                  </span>
+                </ActionButton>
+                {editingTrainingQuestionId ? (
+                  <ActionButton onClick={resetTrainingQuestionDraft}>取消编辑</ActionButton>
+                ) : null}
+              </div>
             </div>
 
             <div className="mt-4 grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-4">
@@ -4321,7 +4620,27 @@ export function WorkspaceDashboard({
                     ))}
                   </select>
                 </label>
-                <label className="text-sm text-slate-500">
+                {trainingQuestionDraft.category === "其他" ? (
+                  <label className="text-sm text-slate-500">
+                    自定义分类 <span className="text-red-500">*</span>
+                    <input
+                      className={fieldClassName}
+                      placeholder="例如：政策合规、现场追问"
+                      value={trainingQuestionDraft.customCategory}
+                      onChange={(event) =>
+                        setTrainingQuestionDraft((current) => ({
+                          ...current,
+                          customCategory: event.target.value,
+                        }))
+                      }
+                    />
+                  </label>
+                ) : null}
+                <label
+                  className={`text-sm text-slate-500 ${
+                    trainingQuestionDraft.category === "其他" ? "md:col-span-2" : ""
+                  }`}
+                >
                   评委可能提问 <span className="text-red-500">*</span>
                   <input
                     className={fieldClassName}
@@ -4457,8 +4776,13 @@ export function WorkspaceDashboard({
             </article>
 
             <article className={surfaceCardClassName}>
-              <h3 className="text-base font-semibold text-slate-900">模拟计时器</h3>
-              <p className="mt-1 text-sm leading-6 text-slate-500">适配 5 分钟陈述 + 3 分钟问答的节奏训练。</p>
+              <span className="rounded-md bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-600">
+                路演训练
+              </span>
+              <h3 className="mt-3 text-base font-semibold text-slate-900">模拟计时器</h3>
+              <p className="mt-1 text-sm leading-6 text-slate-500">
+                可选常用路演时长，也可以自定义分钟数，适合陈述节奏和问答节奏训练。
+              </p>
 
               <div className="mt-4 grid gap-2">
                 {trainingTimerPresets.map((preset) => (
@@ -4476,6 +4800,24 @@ export function WorkspaceDashboard({
                     <span className="mt-1 block text-xs leading-5 opacity-80">{preset.description}</span>
                   </button>
                 ))}
+              </div>
+              <div className="mt-3 rounded-xl border border-dashed border-slate-200 bg-white p-3">
+                <label className="text-sm text-slate-500">
+                  自定义计时（分钟）
+                  <div className="mt-1.5 flex gap-2">
+                    <input
+                      className={fieldClassName}
+                      inputMode="decimal"
+                      min="1"
+                      max="180"
+                      placeholder="例如：6"
+                      type="number"
+                      value={trainingTimerCustomMinutes}
+                      onChange={(event) => setTrainingTimerCustomMinutes(event.target.value)}
+                    />
+                    <ActionButton onClick={applyCustomTrainingTimer}>应用</ActionButton>
+                  </div>
+                </label>
               </div>
 
               <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-950 px-5 py-6 text-center text-white">
@@ -6118,6 +6460,123 @@ export function WorkspaceDashboard({
       </main>
 
       <SuccessToast toast={successToast} />
+
+      {questionImportModalOpen ? (
+        <Modal
+          onClose={() => setQuestionImportModalOpen(false)}
+          panelClassName="max-w-[min(92vw,980px)]"
+          title="导入 Q&A 题库"
+        >
+          <div className="space-y-4">
+            <div className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm leading-7 text-blue-700">
+              上传文档后会先自动识别问题和回答要点，导入前可以逐条校对、修改和取消选择。当前稳定支持
+              txt / md / csv / json；Word 或 PDF 建议先导出为文本后导入。
+            </div>
+            <label className="block text-sm text-slate-500">
+              选择题库文档
+              <input
+                accept=".txt,.md,.csv,.json"
+                className={fieldClassName}
+                type="file"
+                onChange={(event) => void handleQuestionImportFile(event.target.files?.[0] ?? null)}
+              />
+            </label>
+            {questionImportFileName ? (
+              <p className="text-sm text-slate-500">当前文件：{questionImportFileName}</p>
+            ) : null}
+            {questionImportError ? (
+              <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+                {questionImportError}
+              </div>
+            ) : null}
+
+            {questionImportRows.length > 0 ? (
+              <div className="max-h-[52vh] space-y-3 overflow-y-auto pr-1">
+                {questionImportRows.map((row, index) => (
+                  <article className="rounded-xl border border-slate-200 bg-slate-50 p-4" key={row.id}>
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <label className="inline-flex items-center gap-2 text-sm font-medium text-slate-700">
+                        <input
+                          checked={row.selected}
+                          className="h-4 w-4 rounded border-slate-300 text-blue-600"
+                          onChange={(event) => updateQuestionImportRow(row.id, { selected: event.target.checked })}
+                          type="checkbox"
+                        />
+                        导入第 {index + 1} 题
+                      </label>
+                      <button
+                        className="text-sm text-red-500 transition hover:text-red-600"
+                        onClick={() => setQuestionImportRows((current) => current.filter((item) => item.id !== row.id))}
+                        type="button"
+                      >
+                        移除
+                      </button>
+                    </div>
+                    <div className="mt-4 grid gap-3 md:grid-cols-[180px_minmax(0,1fr)]">
+                      <label className="text-sm text-slate-500">
+                        分类
+                        <select
+                          className={fieldClassName}
+                          value={row.category}
+                          onChange={(event) => updateQuestionImportRow(row.id, { category: event.target.value })}
+                        >
+                          {trainingQuestionCategories.map((category) => (
+                            <option key={category} value={category}>
+                              {category}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      {row.category === "其他" ? (
+                        <label className="text-sm text-slate-500">
+                          自定义分类
+                          <input
+                            className={fieldClassName}
+                            placeholder="例如：政策合规、临场追问"
+                            value={row.customCategory}
+                            onChange={(event) => updateQuestionImportRow(row.id, { customCategory: event.target.value })}
+                          />
+                        </label>
+                      ) : null}
+                      <label className={`text-sm text-slate-500 ${row.category === "其他" ? "md:col-span-2" : ""}`}>
+                        问题
+                        <textarea
+                          className={`${textareaClassName} min-h-24`}
+                          value={row.question}
+                          onChange={(event) => updateQuestionImportRow(row.id, { question: event.target.value })}
+                        />
+                      </label>
+                    </div>
+                    <label className="mt-3 block text-sm text-slate-500">
+                      标准回答要点
+                      <textarea
+                        className={`${textareaClassName} min-h-24`}
+                        value={row.answerPoints}
+                        onChange={(event) => updateQuestionImportRow(row.id, { answerPoints: event.target.value })}
+                      />
+                    </label>
+                  </article>
+                ))}
+              </div>
+            ) : null}
+
+            <ModalActions>
+              <ActionButton disabled={isSaving} onClick={() => setQuestionImportModalOpen(false)}>
+                取消
+              </ActionButton>
+              <ActionButton
+                disabled={isSaving || questionImportRows.length === 0}
+                loading={isSaving}
+                loadingLabel="导入中..."
+                onClick={() => void importTrainingQuestions()}
+                variant="primary"
+              >
+                确认导入
+              </ActionButton>
+            </ModalActions>
+          </div>
+        </Modal>
+      ) : null}
 
       {taskModalOpen ? (
         <Modal title={editingTaskId ? "编辑任务" : "新建任务"} onClose={() => setTaskModalOpen(false)}>
