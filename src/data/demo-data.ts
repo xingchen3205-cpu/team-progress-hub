@@ -39,12 +39,19 @@ export type BoardTask = {
   title: string;
   status: "todo" | "doing" | "done";
   assigneeId: string;
+  creatorId?: string;
   assignee?: {
     id: string;
     name: string;
     avatar: string;
     roleLabel: TeamRoleLabel;
   };
+  creator?: {
+    id: string;
+    name: string;
+    avatar: string;
+    roleLabel: TeamRoleLabel;
+  } | null;
   dueDate: string;
   priority: "高优先级" | "中优先级" | "低优先级" | "进行中" | "已完成";
 };

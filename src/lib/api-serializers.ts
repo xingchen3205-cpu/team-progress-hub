@@ -126,12 +126,14 @@ export const serializeUser = (
 export const serializeTask = (
   task: Task & {
     assignee: Pick<User, "id" | "name" | "avatar" | "role">;
+    creator?: Pick<User, "id" | "name" | "avatar" | "role">;
   },
 ) => ({
   id: task.id,
   title: task.title,
   status: task.status,
   assigneeId: task.assigneeId,
+  creatorId: task.creatorId,
   dueDate: formatDateTime(task.dueDate),
   priority:
     task.status === "doing"
@@ -145,6 +147,14 @@ export const serializeTask = (
     avatar: task.assignee.avatar,
     roleLabel: roleLabels[task.assignee.role],
   },
+  creator: task.creator
+    ? {
+        id: task.creator.id,
+        name: task.creator.name,
+        avatar: task.creator.avatar,
+        roleLabel: roleLabels[task.creator.role],
+      }
+    : null,
   createdAt: task.createdAt.toISOString(),
 });
 

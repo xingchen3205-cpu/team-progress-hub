@@ -3,12 +3,13 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { parseLocalDateTime } from "@/lib/date";
 import { createNotifications } from "@/lib/notifications";
-import { assertMainWorkspaceRole, assertRole } from "@/lib/permissions";
+import { assertMainWorkspaceRole } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import {
   serializeTask,
   taskPriorityValueToDb,
 } from "@/lib/api-serializers";
+import { canAssignTaskToUser, getTaskVisibilityWhere } from "@/lib/task-access";
 
 export async function GET(request: NextRequest) {
   const user = await getSessionUser(request);
@@ -23,10 +24,14 @@ export async function GET(request: NextRequest) {
   }
 
   const tasks = await prisma.task.findMany({
+    where: getTaskVisibilityWhere(user),
     orderBy: [{ dueDate: "asc" }, { createdAt: "desc" }],
     include: {
       assignee: {
-        select: { id: true, name: true, avatar: true, role: true },
+        select: { id: true, name: true, avatar: true, role: true, teamGroupId: true },
+      },
+      creator: {
+        select: { id: true, name: true, avatar: true, role: true, teamGroupId: true },
       },
     },
   });
@@ -42,12 +47,6 @@ export async function POST(request: NextRequest) {
 
   try {
     assertMainWorkspaceRole(user.role);
-  } catch {
-    return NextResponse.json({ message: "无权限" }, { status: 403 });
-  }
-
-  try {
-    assertRole(user.role, ["admin", "teacher", "leader"]);
   } catch {
     return NextResponse.json({ message: "无权限" }, { status: 403 });
   }
@@ -72,6 +71,20 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: "任务信息不完整" }, { status: 400 });
   }
 
+  const assignee = await prisma.user.findUnique({
+    where: { id: assigneeId },
+    select: {
+      id: true,
+      role: true,
+      teamGroupId: true,
+      approvalStatus: true,
+    },
+  });
+
+  if (!assignee || !canAssignTaskToUser(user, assignee)) {
+    return NextResponse.json({ message: "无权限给该成员创建任务" }, { status: 403 });
+  }
+
   const task = await prisma.task.create({
     data: {
       title,
@@ -83,7 +96,10 @@ export async function POST(request: NextRequest) {
     },
     include: {
       assignee: {
-        select: { id: true, name: true, avatar: true, role: true },
+        select: { id: true, name: true, avatar: true, role: true, teamGroupId: true },
+      },
+      creator: {
+        select: { id: true, name: true, avatar: true, role: true, teamGroupId: true },
       },
     },
   });

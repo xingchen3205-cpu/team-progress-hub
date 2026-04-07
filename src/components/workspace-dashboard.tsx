@@ -587,7 +587,7 @@ const rolePermissions = {
     visibleTabs: ["overview", "timeline", "board", "training", "reports", "experts", "review", "documents", "profile"] as TabKey[],
     canPublishAnnouncement: false,
     canSendDirective: false,
-    canCreateTask: false,
+    canCreateTask: true,
     canEditTask: false,
     canDeleteTask: false,
     canMoveAnyTask: false,
@@ -1676,9 +1676,55 @@ export function WorkspaceDashboard({
     () => new Map<string, ReportEntryWithDate>(todayReportEntries.map((item) => [item.memberId, item])),
     [todayReportEntries],
   );
-  const firstAssignableMemberId =
-    members.find((item) => !["指导教师", "系统管理员", "评审专家"].includes(item.systemRole))?.id ??
-    currentMemberId;
+  const taskAssignableMembers = useMemo(() => {
+    if (!currentUser) {
+      return [];
+    }
+
+    const selfAsMember: TeamMember = {
+      id: currentUser.id,
+      slug: currentUser.username,
+      name: currentUser.profile.name,
+      account: currentUser.email || currentUser.username,
+      avatar: currentUser.avatar,
+      avatarUrl: currentUser.avatarUrl,
+      teamGroupId: currentUser.teamGroupId,
+      teamGroupName: currentUser.teamGroupName,
+      systemRole: currentUser.roleLabel,
+      role: currentUser.roleLabel,
+      responsibility: currentUser.responsibility,
+      progress: "0%",
+      approvalStatus: currentUser.approvalStatus,
+      approvalStatusLabel: currentUser.approvalStatusLabel,
+      canBeManagedByLeader: currentUser.role === "member",
+      todayFocus: "",
+      completed: "",
+      blockers: "",
+    };
+
+    const nonExpertMembers = members.filter((item) => item.systemRole !== "评审专家");
+    const scopedMembers = nonExpertMembers.some((item) => item.id === currentMemberId)
+      ? nonExpertMembers
+      : [selfAsMember, ...nonExpertMembers];
+
+    if (currentRole === "member") {
+      return scopedMembers.filter((item) => item.id === currentMemberId);
+    }
+
+    if (currentRole === "leader") {
+      return scopedMembers.filter((item) => item.id === currentMemberId || item.systemRole === "团队成员");
+    }
+
+    if (currentRole === "teacher") {
+      return scopedMembers.filter((item) =>
+        item.id === currentMemberId || item.systemRole === "项目负责人" || item.systemRole === "团队成员",
+      );
+    }
+
+    return scopedMembers;
+  }, [currentMemberId, currentRole, currentUser, members]);
+
+  const firstAssignableMemberId = taskAssignableMembers[0]?.id ?? currentMemberId;
 
   const visibleReportMembers = permissions.canViewAllReports
     ? members.filter((item) => !["指导教师", "系统管理员", "评审专家"].includes(item.systemRole))
@@ -2057,7 +2103,11 @@ export function WorkspaceDashboard({
   };
 
   const canMoveTask = (task: BoardTask) =>
-    permissions.canMoveAnyTask || (currentRole === "member" && task.assigneeId === currentMemberId);
+    permissions.canMoveAnyTask || task.assigneeId === currentMemberId || task.creatorId === currentMemberId;
+
+  const canEditTaskItem = (task: BoardTask) => permissions.canEditTask || task.creatorId === currentMemberId;
+
+  const canDeleteTaskItem = (task: BoardTask) => permissions.canDeleteTask || task.creatorId === currentMemberId;
 
   const toggleBoardTaskExpand = (taskId: string) => {
     setExpandedBoardTaskIds((current) =>
@@ -3976,9 +4026,7 @@ export function WorkspaceDashboard({
     <div className="space-y-4">
       {(() => {
         const quickCompletableTask = tasks.find((task) => task.status !== "done" && canMoveTask(task));
-        const assignableMembers = members.filter(
-          (item) => !["指导教师", "系统管理员", "评审专家"].includes(item.systemRole),
-        );
+        const assignableMembers = taskAssignableMembers;
         const countdownTotalHours = countdown.days * 24 + countdown.hours;
         const countdownStatus = !nearestEvent
           ? {
@@ -4678,14 +4726,14 @@ export function WorkspaceDashboard({
                             </ActionButton>
                           ) : null}
                           <ActionButton
-                            disabled={!permissions.canEditTask}
+                            disabled={!canEditTaskItem(task)}
                             onClick={() => openEditTaskModal(task)}
                             title="无权限"
                           >
                             编辑
                           </ActionButton>
                           <ActionButton
-                            disabled={!permissions.canDeleteTask}
+                            disabled={!canDeleteTaskItem(task)}
                             onClick={() => deleteTask(task.id, task.title)}
                             title="无权限"
                             variant="danger"
@@ -6934,13 +6982,11 @@ export function WorkspaceDashboard({
                   setTaskDraft((current) => ({ ...current, assigneeId: event.target.value }))
                 }
               >
-                {members
-                  .filter((item) => !["指导教师", "系统管理员", "评审专家"].includes(item.systemRole))
-                  .map((member) => (
-                    <option key={member.id} value={member.id}>
-                      {member.name}
-                    </option>
-                  ))}
+                {taskAssignableMembers.map((member) => (
+                  <option key={member.id} value={member.id}>
+                    {member.name}
+                  </option>
+                ))}
               </select>
             </label>
             <div className="grid gap-4 md:grid-cols-2">
