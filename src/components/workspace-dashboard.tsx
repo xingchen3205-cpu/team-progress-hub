@@ -1357,6 +1357,11 @@ export function WorkspaceDashboard({
     currentRole === "admin" || permissions.canLeaderReviewDocument || permissions.canTeacherReviewDocument;
 
   useEffect(() => {
+    setLoadError(null);
+    setPreviewAsset(null);
+  }, [safeActiveTab]);
+
+  useEffect(() => {
     if (!successToast) {
       return;
     }
@@ -1662,20 +1667,8 @@ export function WorkspaceDashboard({
   const reportableMembers = members.filter(
     (item) => !["指导教师", "系统管理员", "评审专家"].includes(item.systemRole),
   );
-  const completedTaskCount = tasks.filter((item) => item.status === "done").length;
-  const taskCompletionRate = tasks.length > 0 ? Math.round((completedTaskCount / tasks.length) * 100) : 0;
   const reportSubmittedCount = todayReportEntries.length;
   const reportExpectedCount = reportableMembers.length;
-  const reportCompletionRate =
-    reportExpectedCount > 0 ? Math.round((reportSubmittedCount / reportExpectedCount) * 100) : 0;
-  const recentDateKeys = Array.from({ length: 7 }, (_, index) =>
-    toIsoDateKey(new Date(Date.now() - index * 24 * 60 * 60 * 1000)),
-  );
-  const recentReportCount = recentDateKeys.reduce(
-    (sum, dateKey) => sum + (reportEntriesByDay[dateKey] ?? []).length,
-    0,
-  );
-  const documentVersionCount = documents.reduce((sum, item) => sum + item.versions.length, 0);
 
   const getMemberName = (memberId: string) => membersMap[memberId]?.name ?? memberId;
   const getTaskAssigneeName = (task: BoardTask) =>
@@ -1944,35 +1937,6 @@ export function WorkspaceDashboard({
 
   const visibleRoleTodoItems = roleTodoItems.filter((item) => !dismissedTodoIds.includes(item.id));
   const todoItemCount = visibleRoleTodoItems.length + todoNotifications.length;
-  const dashboardHighlights = [
-    {
-      label: "任务完成率",
-      value: `${taskCompletionRate}%`,
-      description: tasks.length > 0 ? `已完成 ${completedTaskCount}/${tasks.length} 项` : "暂无任务数据",
-      progress: taskCompletionRate,
-    },
-    {
-      label: "近7日汇报",
-      value: `${recentReportCount} 条`,
-      description:
-        reportExpectedCount > 0
-          ? `今日 ${reportSubmittedCount}/${reportExpectedCount} 人已提交`
-          : "暂无需要统计的成员",
-      progress: reportCompletionRate,
-    },
-    {
-      label: "材料迭代",
-      value: `${documentVersionCount} 版`,
-      description: documents.length > 0 ? `覆盖 ${documents.length} 份文档` : "暂无文档版本数据",
-      progress: documents.length > 0 ? 100 : 0,
-    },
-    {
-      label: "待办清理",
-      value: `${todoItemCount} 项`,
-      description: todoItemCount > 0 ? "仍有事项等待处理" : "当前没有新的待办积压",
-      progress: todoItemCount > 0 ? Math.max(10, 100 - Math.min(todoItemCount * 20, 90)) : 100,
-    },
-  ];
 
   useEffect(() => {
     if (isBooting || !dismissedTodosReady || todoAutoOpened || todoItemCount <= 0) {
@@ -4127,7 +4091,7 @@ export function WorkspaceDashboard({
               </div>
             </div>
 
-            <section className="grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_340px]">
+            <section className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_360px]">
               <article className={surfaceCardClassName}>
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                   <div>
@@ -4153,12 +4117,12 @@ export function WorkspaceDashboard({
                   </div>
                 </div>
 
-                <div className="mt-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                   {overviewMetrics.map((item) => (
-                    <article key={item.label} className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4">
+                    <article key={item.label} className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
                       <p className="text-xs tracking-[0.08em] text-slate-400">{item.label}</p>
-                      <p className="mt-2 text-2xl font-bold tracking-[-0.02em] text-slate-900">{item.value}</p>
-                      <p className="mt-2 text-sm leading-6 text-slate-500">{item.hint}</p>
+                      <p className="mt-1.5 text-xl font-bold tracking-[-0.02em] text-slate-900">{item.value}</p>
+                      <p className="mt-1.5 line-clamp-2 text-xs leading-5 text-slate-500">{item.hint}</p>
                     </article>
                   ))}
                 </div>
@@ -4166,14 +4130,14 @@ export function WorkspaceDashboard({
 
               <article className={`${surfaceCardClassName} bg-[linear-gradient(180deg,#ffffff_0%,#f8fbff_100%)]`}>
                 <p className="text-sm font-semibold text-slate-900">今日工作提示</p>
-                <div className="mt-4 space-y-3">
+                <div className="mt-4 space-y-2.5">
                   {attentionCards.map((item) => (
-                    <div key={item.label} className="rounded-xl border border-slate-200 bg-white px-4 py-4">
+                    <div key={item.label} className="rounded-xl border border-slate-200 bg-white px-4 py-3">
                       <div className="flex items-center justify-between gap-3">
                         <p className="text-sm font-medium text-slate-900">{item.label}</p>
                         <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs text-blue-600">{item.value}</span>
                       </div>
-                      <p className="mt-2 text-sm leading-6 text-slate-500">{item.detail}</p>
+                      <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-500">{item.detail}</p>
                       <button
                         className="mt-3 inline-flex items-center text-sm font-medium text-[#1d4ed8] transition hover:text-[#1e40af]"
                         onClick={item.onAction}
@@ -4232,15 +4196,15 @@ export function WorkspaceDashboard({
               </article>
             </section>
 
-            <section className="grid gap-4 xl:grid-cols-[minmax(0,1.5fr)_320px]">
-              <article className={`${surfaceCardClassName} p-6`}>
+            <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+              <article className={`${surfaceCardClassName} p-5`}>
                 <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                   <div>
                     <p className="text-sm font-medium tracking-[0.16em] text-blue-600">最近关键节点</p>
-                    <h3 className="mt-3 text-[30px] font-bold tracking-[-0.03em] text-slate-900">
+                    <h3 className="mt-2 text-2xl font-bold tracking-[-0.03em] text-slate-900">
                       {nearestEvent?.title ?? "暂未设置关键节点"}
                     </h3>
-                    <p className="mt-3 text-sm leading-7 text-slate-500">
+                    <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-500">
                       {nearestEvent
                         ? `${formatDateTime(nearestEvent.dateTime)} · ${nearestEvent.description}`
                         : "请先在时间进度中创建比赛关键节点。"}
@@ -4254,7 +4218,7 @@ export function WorkspaceDashboard({
                   </div>
                 </div>
 
-                <div className="mt-6 grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+                <div className="mt-4 grid gap-3 sm:grid-cols-4">
                   {[
                     { label: "天", value: countdown.days },
                     { label: "时", value: countdown.hours },
@@ -4263,13 +4227,13 @@ export function WorkspaceDashboard({
                   ].map((item) => (
                     <article
                       key={item.label}
-                      className="rounded-xl border border-blue-100 bg-blue-50 px-5 py-5 text-center shadow-sm"
+                      className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-center shadow-sm"
                     >
                       <p className="text-xs font-semibold tracking-[0.18em] text-blue-500">{item.label}</p>
-                      <p className="text-[32px] font-bold text-blue-600 tabular-nums">
+                      <p className="text-2xl font-bold text-blue-600 tabular-nums">
                         {`${item.value}`.padStart(2, "0")}
                       </p>
-                      <p className="mt-2 text-xs text-slate-500">倒计时</p>
+                      <p className="mt-1 text-xs text-slate-500">倒计时</p>
                     </article>
                   ))}
                 </div>
@@ -4278,7 +4242,7 @@ export function WorkspaceDashboard({
               <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
                 <article className={surfaceCardClassName}>
                   <p className="text-sm font-semibold text-slate-900">今日推进节奏</p>
-                  <div className="mt-4 space-y-3">
+                  <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
                     <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
                       <p className="text-xs text-slate-400">待完成任务</p>
                       <p className="mt-1 text-xl font-bold text-slate-900">
@@ -4298,9 +4262,9 @@ export function WorkspaceDashboard({
 
                 <article className={surfaceCardClassName}>
                   <p className="text-sm font-semibold text-slate-900">优先关注</p>
-                  <div className="mt-4 space-y-3 text-sm leading-6 text-slate-500">
+                  <div className="mt-3 space-y-2 text-sm leading-6 text-slate-500">
                     {priorityFocusItems.map((item) => (
-                      <p key={item}>{item}</p>
+                      <p className="line-clamp-2" key={item}>{item}</p>
                     ))}
                   </div>
                 </article>
@@ -4373,16 +4337,6 @@ export function WorkspaceDashboard({
           </div>
         </section>
       </div>
-
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        {dashboardHighlights.map((item) => (
-          <article key={item.label} className={surfaceCardClassName}>
-            <p className="text-sm text-slate-500">{item.label}</p>
-            <p className="mt-2 text-2xl font-bold tracking-[-0.02em] text-slate-900">{item.value}</p>
-            <p className="mt-2 text-sm leading-6 text-slate-500">{item.description}</p>
-          </article>
-        ))}
-      </section>
     </div>
   );
 
