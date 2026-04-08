@@ -7,6 +7,7 @@ import { assertMainWorkspaceRole } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { serializeReport } from "@/lib/api-serializers";
 import { createNotifications } from "@/lib/notifications";
+import { getAdminReportDeleteFilter } from "@/lib/report-history";
 
 const getReportNotificationRecipientIds = async ({
   role,
@@ -77,7 +78,16 @@ export async function GET(request: NextRequest) {
     orderBy: [{ date: "desc" }, { submittedAt: "desc" }],
     include: {
       user: {
-        select: { id: true, name: true, avatar: true, role: true },
+        select: {
+          id: true,
+          name: true,
+          avatar: true,
+          role: true,
+          teamGroupId: true,
+          teamGroup: {
+            select: { id: true, name: true },
+          },
+        },
       },
     },
   });
@@ -158,7 +168,16 @@ export async function POST(request: NextRequest) {
     },
     include: {
       user: {
-        select: { id: true, name: true, avatar: true, role: true },
+        select: {
+          id: true,
+          name: true,
+          avatar: true,
+          role: true,
+          teamGroupId: true,
+          teamGroup: {
+            select: { id: true, name: true },
+          },
+        },
       },
     },
   });
@@ -177,6 +196,7 @@ export async function POST(request: NextRequest) {
       type: "report_submit",
       targetTab: "reports",
       relatedId: report.id,
+      email: { noticeType: "日程汇报提醒" },
     });
   }
 
@@ -198,13 +218,25 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ message: "无权限" }, { status: 403 });
   }
 
-  if (user.role !== "leader" && user.role !== "member") {
-    return NextResponse.json({ message: "当前角色无需撤回汇报" }, { status: 403 });
-  }
-
   const date = request.nextUrl.searchParams.get("date")?.trim();
   if (!date) {
     return NextResponse.json({ message: "缺少汇报日期" }, { status: 400 });
+  }
+
+  if (user.role === "admin") {
+    const teamGroupId = request.nextUrl.searchParams.get("teamGroupId")?.trim();
+    const where = getAdminReportDeleteFilter({ date, teamGroupId });
+
+    if (!where) {
+      return NextResponse.json({ message: "请选择要删除的项目组和日期" }, { status: 400 });
+    }
+
+    const result = await prisma.report.deleteMany({ where });
+    return NextResponse.json({ success: true, deletedCount: result.count });
+  }
+
+  if (user.role !== "leader" && user.role !== "member") {
+    return NextResponse.json({ message: "当前角色无需撤回汇报" }, { status: 403 });
   }
 
   const existingReport = await prisma.report.findUnique({

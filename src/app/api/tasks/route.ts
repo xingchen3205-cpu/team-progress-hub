@@ -177,7 +177,7 @@ export async function POST(request: NextRequest) {
       targetTab: "board",
       relatedId: task.id,
       senderId: user.id,
-      email: true,
+      email: { noticeType: "工单处理", actionLabel: "进入系统处理" },
     });
   }
 
@@ -199,7 +199,7 @@ export async function POST(request: NextRequest) {
         targetTab: "board",
         relatedId: task.id,
         senderId: user.id,
-        email: true,
+        email: { noticeType: "工单处理", actionLabel: "进入系统处理" },
       });
     }
   }

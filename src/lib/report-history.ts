@@ -46,3 +46,25 @@ export const getReportAttachmentNote = (attachment?: string | null) => {
   const trimmed = attachment?.trim() ?? "";
   return trimmed && trimmed !== "未上传附件" ? trimmed : null;
 };
+
+export const getAdminReportDeleteFilter = ({
+  date,
+  teamGroupId,
+}: {
+  date?: string | null;
+  teamGroupId?: string | null;
+}) => {
+  const nextDate = date?.trim() ?? "";
+  const nextTeamGroupId = teamGroupId?.trim() ?? "";
+
+  if (!isReportDateKey(nextDate) || !nextTeamGroupId) {
+    return null;
+  }
+
+  return {
+    date: nextDate,
+    user: {
+      teamGroupId: nextTeamGroupId,
+    },
+  };
+};

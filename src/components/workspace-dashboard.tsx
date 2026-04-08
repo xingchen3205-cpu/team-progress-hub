@@ -1432,6 +1432,7 @@ export function WorkspaceDashboard({
   const [reportEntriesByDay, setReportEntriesByDay] = useState<Record<string, ReportEntryWithDate[]>>({});
   const [reportDates, setReportDates] = useState<string[]>([getDefaultDateKey()]);
   const [selectedDate, setSelectedDate] = useState(getDefaultDateKey());
+  const [reportDeleteTeamGroupId, setReportDeleteTeamGroupId] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [expandedDocs, setExpandedDocs] = useState<string[]>([]);
   const [expandedBoardTaskIds, setExpandedBoardTaskIds] = useState<string[]>([]);
@@ -3582,6 +3583,37 @@ export function WorkspaceDashboard({
     });
   };
 
+  const removeTeamReportsRequest = async (date: string, teamGroupId: string) => {
+    const result = await requestJson<{ deletedCount?: number }>(
+      `/api/reports?date=${encodeURIComponent(date)}&teamGroupId=${encodeURIComponent(teamGroupId)}`,
+      {
+        method: "DELETE",
+      },
+    );
+    refreshWorkspace();
+    return result.deletedCount ?? 0;
+  };
+
+  const removeTeamReports = () => {
+    const group = teamGroups.find((item) => item.id === reportDeleteTeamGroupId);
+    if (!group) {
+      setLoadError("请选择要清理的项目组");
+      return;
+    }
+
+    setConfirmDialog({
+      open: true,
+      title: "删除队伍汇报",
+      message: `确认删除「${group.name}」在 ${formatShortDate(selectedDate)} 的全部日程汇报？该操作不可恢复。`,
+      confirmLabel: "确认删除",
+      successTitle: "队伍汇报已删除",
+      successDetail: `「${group.name}」该日期的汇报记录已经清理。`,
+      onConfirm: async () => {
+        await removeTeamReportsRequest(selectedDate, group.id);
+      },
+    });
+  };
+
   const saveEvent = async () => {
     if (!eventDraft.title.trim() || !eventDraft.description.trim()) {
       return;
@@ -5332,17 +5364,35 @@ export function WorkspaceDashboard({
                     currentRole === "admin" ||
                     currentRole === "teacher" ||
                     currentRole === "leader");
-                const taskPeople = [
-                  { label: "处理人", value: getTaskAssigneeName(task) },
-                  { label: "验收人", value: task.reviewer?.name ?? "待教师/负责人确认" },
-                  { label: "所属队伍", value: task.teamGroupName ?? "未分组" },
-                ];
                 const workflowSteps = buildTaskWorkflowSteps({
                   status: task.status,
                   assigneeId: task.assigneeId,
                   assigneeName: task.assigneeId ? getTaskAssigneeName(task) : null,
                   reviewerName: task.reviewer?.name ?? null,
                 });
+                const nextStepLabel = isUnassignedTask
+                  ? "等待项目负责人 / 指导教师分配处理人"
+                  : task.status === "todo"
+                    ? "等待处理人接取工单"
+                    : task.status === "doing"
+                      ? "补充完成凭证并提交验收"
+                      : task.status === "review"
+                        ? "等待验收人确认闭环"
+                        : "已归档，可后续备查";
+                const taskPeople = [
+                  { label: "提报人", value: task.creator?.name ?? "系统记录" },
+                  { label: "发布人", value: task.creator?.name ?? "系统记录" },
+                  { label: "处理人", value: getTaskAssigneeName(task) },
+                  { label: "审批人", value: task.reviewer?.name ?? "待本队教师/负责人确认" },
+                  { label: "所属队伍", value: task.teamGroupName ?? "未分组" },
+                ];
+                const taskTimeItems = [
+                  { label: "提报时间", value: task.createdAt ?? "未记录" },
+                  { label: "截止时间", value: task.dueDate },
+                  { label: "接取时间", value: task.acceptedAt ?? "未接取" },
+                  { label: "提交验收", value: task.submittedAt ?? "未提交" },
+                  { label: "归档时间", value: task.archivedAt ?? "未归档" },
+                ];
 
                 return (
                   <article
@@ -5350,7 +5400,7 @@ export function WorkspaceDashboard({
                     key={task.id}
                   >
                     <span className={`absolute inset-y-0 left-0 w-1 ${statusMeta.rowAccentClassName}`} />
-                    <div className="grid gap-4 p-4 pl-5 lg:grid-cols-[minmax(0,1fr)_240px]">
+                    <div className="p-4 pl-5">
                       <div className="min-w-0">
                         <div className="flex flex-wrap items-center gap-2">
                           <span
@@ -5398,16 +5448,27 @@ export function WorkspaceDashboard({
                           </button>
                         ) : null}
 
-                        <div className="mt-3 grid gap-2 text-sm text-slate-500 md:grid-cols-3">
-                          {taskPeople.map((item) => (
-                            <div className="rounded-lg bg-slate-50 px-3 py-2" key={item.label}>
-                              <span className="block text-xs text-slate-400">{item.label}</span>
-                              <span className="mt-1 block font-medium text-slate-700">{item.value}</span>
-                            </div>
-                          ))}
+                        <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+                          <p className="text-xs font-semibold text-slate-400">工单台账信息</p>
+                          <div className="mt-3 grid gap-2 text-sm text-slate-500 sm:grid-cols-2 xl:grid-cols-5">
+                            {taskPeople.map((item) => (
+                              <div className="rounded-lg bg-white px-3 py-2 ring-1 ring-slate-200" key={item.label}>
+                                <span className="block text-xs text-slate-400">{item.label}</span>
+                                <span className="mt-1 block font-medium text-slate-700">{item.value}</span>
+                              </div>
+                            ))}
+                          </div>
+                          <div className="mt-2 grid gap-2 text-sm text-slate-500 sm:grid-cols-2 xl:grid-cols-5">
+                            {taskTimeItems.map((item) => (
+                              <div className="rounded-lg bg-white px-3 py-2 ring-1 ring-slate-200" key={item.label}>
+                                <span className="block text-xs text-slate-400">{item.label}</span>
+                                <span className="mt-1 block font-medium text-slate-700">{item.value}</span>
+                              </div>
+                            ))}
+                          </div>
                         </div>
 
-                        <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+                        <div className="mt-4 rounded-xl border border-slate-200 bg-white p-3">
                           <div className="flex items-center justify-between gap-2">
                             {workflowSteps.map((step, index) => (
                               <div className="flex min-w-0 flex-1 items-center gap-2" key={step.key}>
@@ -5434,9 +5495,63 @@ export function WorkspaceDashboard({
                           </div>
                         </div>
 
-                        <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-slate-500">
-                          <span>截止：{task.dueDate}</span>
-                          {task.creator?.name ? <span>提报：{task.creator.name}</span> : null}
+                        <div className="mt-4 flex flex-col gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
+                          <div className="min-w-0">
+                            <p className="text-xs font-semibold text-slate-400">下一步</p>
+                            <p className="mt-1 text-sm font-semibold text-slate-800">{nextStepLabel}</p>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+                            {isUnassignedTask && canEditTaskItem(task) ? (
+                              <ActionButton disabled={isSaving} onClick={() => openEditTaskModal(task)} variant="primary">
+                                分配处理人
+                              </ActionButton>
+                            ) : null}
+                            {canPromptDispatch ? (
+                              <ActionButton disabled={isSaving} onClick={() => void remindTaskDispatch(task)}>
+                                提醒分配
+                              </ActionButton>
+                            ) : null}
+                            {task.status === "todo" && task.assigneeId === currentMemberId ? (
+                              <ActionButton disabled={isSaving} onClick={() => void acceptTask(task)} variant="secondary">
+                                接取
+                              </ActionButton>
+                            ) : null}
+                            {task.status === "doing" && task.assigneeId === currentMemberId ? (
+                              <ActionButton disabled={isSaving} onClick={() => openTaskCompletionModal(task)} variant="primary">
+                                提交验收
+                              </ActionButton>
+                            ) : null}
+                            {task.status === "review" && canReviewTaskItem(task) ? (
+                              <>
+                                <ActionButton disabled={isSaving} onClick={() => confirmTaskArchive(task)} variant="secondary">
+                                  确认归档
+                                </ActionButton>
+                                <ActionButton disabled={isSaving} onClick={() => openTaskRejectModal(task)} variant="danger">
+                                  驳回
+                                </ActionButton>
+                              </>
+                            ) : null}
+                            {permissions.canSendDirective && task.assigneeId && task.assigneeId !== currentMemberId ? (
+                              <ActionButton disabled={isSaving} onClick={() => sendTaskReminder(task)}>
+                                提醒
+                              </ActionButton>
+                            ) : null}
+                            <ActionButton
+                              disabled={!canEditTaskItem(task)}
+                              onClick={() => openEditTaskModal(task)}
+                              title="无权限"
+                            >
+                              {isUnassignedTask ? "编辑内容" : "编辑"}
+                            </ActionButton>
+                            <ActionButton
+                              disabled={!canDeleteTaskItem(task)}
+                              onClick={() => deleteTask(task.id, task.title)}
+                              title="无权限"
+                              variant="danger"
+                            >
+                              删除
+                            </ActionButton>
+                          </div>
                         </div>
 
                         {task.rejectionReason ? (
@@ -5475,75 +5590,6 @@ export function WorkspaceDashboard({
                             ) : null}
                           </div>
                         ) : null}
-                      </div>
-
-                      <div className="flex flex-col justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50 p-3">
-                        <div>
-                          <p className="text-xs font-medium text-slate-400">下一步</p>
-                          <p className="mt-1 text-sm font-semibold text-slate-800">
-                            {isUnassignedTask
-                              ? "等待分配处理人"
-                              : task.status === "todo"
-                                ? "等待处理人接取"
-                                : task.status === "doing"
-                                  ? "补充凭证并提交验收"
-                                  : task.status === "review"
-                                    ? "等待验收确认"
-                                    : "已完成闭环"}
-                          </p>
-                        </div>
-                        <div className="flex flex-wrap items-center justify-end gap-2">
-                          {isUnassignedTask && canEditTaskItem(task) ? (
-                            <ActionButton disabled={isSaving} onClick={() => openEditTaskModal(task)} variant="primary">
-                              分配处理人
-                            </ActionButton>
-                          ) : null}
-                          {canPromptDispatch ? (
-                            <ActionButton disabled={isSaving} onClick={() => void remindTaskDispatch(task)}>
-                              提醒分配
-                            </ActionButton>
-                          ) : null}
-                          {task.status === "todo" && task.assigneeId === currentMemberId ? (
-                            <ActionButton disabled={isSaving} onClick={() => void acceptTask(task)} variant="secondary">
-                              接取
-                            </ActionButton>
-                          ) : null}
-                          {task.status === "doing" && task.assigneeId === currentMemberId ? (
-                            <ActionButton disabled={isSaving} onClick={() => openTaskCompletionModal(task)} variant="primary">
-                              提交验收
-                            </ActionButton>
-                          ) : null}
-                          {task.status === "review" && canReviewTaskItem(task) ? (
-                            <>
-                              <ActionButton disabled={isSaving} onClick={() => confirmTaskArchive(task)} variant="secondary">
-                                确认归档
-                              </ActionButton>
-                              <ActionButton disabled={isSaving} onClick={() => openTaskRejectModal(task)} variant="danger">
-                                驳回
-                              </ActionButton>
-                            </>
-                          ) : null}
-                          {permissions.canSendDirective && task.assigneeId && task.assigneeId !== currentMemberId ? (
-                            <ActionButton disabled={isSaving} onClick={() => sendTaskReminder(task)}>
-                              提醒
-                            </ActionButton>
-                          ) : null}
-                          <ActionButton
-                            disabled={!canEditTaskItem(task)}
-                            onClick={() => openEditTaskModal(task)}
-                            title="无权限"
-                          >
-                            {isUnassignedTask ? "编辑内容" : "编辑"}
-                          </ActionButton>
-                          <ActionButton
-                            disabled={!canDeleteTaskItem(task)}
-                            onClick={() => deleteTask(task.id, task.title)}
-                            title="无权限"
-                            variant="danger"
-                          >
-                            删除
-                          </ActionButton>
-                        </div>
                       </div>
                     </div>
                   </article>
@@ -5667,7 +5713,7 @@ export function WorkspaceDashboard({
         <section className={`grid gap-4 ${trainingPanel === "qa" ? "xl:grid-cols-[minmax(0,1fr)_420px]" : "xl:grid-cols-1"}`}>
           <article className={`${surfaceCardClassName} ${trainingPanel === "qa" ? "" : "hidden"}`}>
             <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-              <div>
+              <div className="min-w-0 flex-1">
                 <span className="rounded-md bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-600">
                   答辩训练
                 </span>
@@ -6040,7 +6086,7 @@ export function WorkspaceDashboard({
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px] xl:items-stretch">
           <div className="space-y-4">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-              <div>
+              <div className="min-w-0 flex-1">
                 <p className="text-sm font-semibold text-slate-900">选择查看日期</p>
                 <p className="mt-1 text-sm text-slate-500">
                   可以直接选择过去任意一天；有保存记录的日期会在下方显示。
@@ -6135,6 +6181,34 @@ export function WorkspaceDashboard({
                 当前角色只查看归档，不需要提交汇报。
               </p>
             )}
+            {currentRole === "admin" ? (
+              <div className="mt-4 rounded-lg border border-rose-100 bg-white p-3">
+                <p className="text-xs font-semibold text-rose-600">管理员清理</p>
+                <p className="mt-1 text-xs leading-5 text-slate-500">
+                  只删除指定项目组在当前日期的汇报记录。
+                </p>
+                <select
+                  className={`${fieldClassName} mt-2`}
+                  value={reportDeleteTeamGroupId}
+                  onChange={(event) => setReportDeleteTeamGroupId(event.target.value)}
+                >
+                  <option value="">选择项目组</option>
+                  {teamGroups.map((group) => (
+                    <option key={group.id} value={group.id}>
+                      {group.name}
+                    </option>
+                  ))}
+                </select>
+                <ActionButton
+                  className="mt-2 w-full justify-center"
+                  disabled={!reportDeleteTeamGroupId}
+                  onClick={removeTeamReports}
+                  variant="danger"
+                >
+                  删除该组本日汇报
+                </ActionButton>
+              </div>
+            ) : null}
           </aside>
         </div>
       </section>
@@ -6157,8 +6231,15 @@ export function WorkspaceDashboard({
                       <span className="rounded-md bg-white px-2 py-1 text-xs text-slate-500 ring-1 ring-slate-200">
                         {member.systemRole}
                       </span>
+                      {member.teamGroupName ? (
+                        <span className="rounded-md bg-white px-2 py-1 text-xs text-slate-500 ring-1 ring-slate-200">
+                          {member.teamGroupName}
+                        </span>
+                      ) : null}
                     </div>
-                    <p className="mt-2 text-sm text-slate-500">{formatShortDate(selectedDate)} 汇报记录</p>
+                    <p className="mt-2 text-sm text-slate-500">
+                      {formatShortDate(selectedDate)} 汇报记录 · 提交人 {member.name}
+                    </p>
                   </div>
                   {report ? (
                     <span className="shrink-0 rounded-md bg-blue-50 px-3 py-1 text-sm text-blue-600">
@@ -6816,11 +6897,21 @@ export function WorkspaceDashboard({
             </div>
 
             <div className="mt-4 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-              <div>
+              <div className="min-w-0 flex-1">
                 <h3 className="text-base font-semibold text-slate-900">{doc.name}</h3>
-                <p className="mt-2 text-sm text-slate-500">
-                  {doc.category} · 当前版本 {doc.currentVersion} · 上传人 {getMemberName(doc.ownerId)}
-                </p>
+                <div className="mt-3 grid gap-2 text-sm text-slate-500 sm:grid-cols-2 xl:grid-cols-4">
+                  {[
+                    { label: "文档分类", value: doc.category },
+                    { label: "当前版本", value: doc.currentVersion },
+                    { label: "上传人", value: doc.ownerName ?? getMemberName(doc.ownerId) },
+                    { label: "上传时间", value: doc.createdAt ?? "未记录" },
+                  ].map((item) => (
+                    <div className="rounded-lg bg-slate-50 px-3 py-2 ring-1 ring-slate-200" key={item.label}>
+                      <span className="block text-xs text-slate-400">{item.label}</span>
+                      <span className="mt-1 block font-medium text-slate-700">{item.value}</span>
+                    </div>
+                  ))}
+                </div>
                 <p className="mt-2 text-sm leading-7 text-slate-500">批注：{doc.comment}</p>
               </div>
               <div className="flex flex-wrap items-center gap-3">

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { buildReportDateOptions, getReportAttachmentNote } from "../src/lib/report-history";
+import { buildReportDateOptions, getAdminReportDeleteFilter, getReportAttachmentNote } from "../src/lib/report-history";
 
 describe("report history date options", () => {
   it("keeps saved report dates while allowing the currently selected date", () => {
@@ -32,5 +32,26 @@ describe("report history date options", () => {
     assert.equal(getReportAttachmentNote("未上传附件"), null);
     assert.equal(getReportAttachmentNote("   "), null);
     assert.equal(getReportAttachmentNote("日报截图.png"), "日报截图.png");
+  });
+
+  it("builds a safe admin report deletion filter scoped to one team group and date", () => {
+    assert.deepEqual(
+      getAdminReportDeleteFilter({
+        date: "2026-04-08",
+        teamGroupId: "group-1",
+      }),
+      {
+        date: "2026-04-08",
+        user: {
+          teamGroupId: "group-1",
+        },
+      },
+    );
+  });
+
+  it("refuses admin report deletion without a valid team group or date", () => {
+    assert.equal(getAdminReportDeleteFilter({ date: "", teamGroupId: "group-1" }), null);
+    assert.equal(getAdminReportDeleteFilter({ date: "2026-04-08", teamGroupId: "" }), null);
+    assert.equal(getAdminReportDeleteFilter({ date: "not-a-date", teamGroupId: "group-1" }), null);
   });
 });

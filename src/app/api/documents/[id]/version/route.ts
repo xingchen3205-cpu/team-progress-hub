@@ -144,7 +144,7 @@ export async function POST(
           type: "document_review",
           targetTab: "documents",
           relatedId: document.id,
-          email: true,
+          email: { noticeType: "文档审批", actionLabel: "进入系统处理" },
         });
       }
     } catch (error) {

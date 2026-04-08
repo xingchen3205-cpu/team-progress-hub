@@ -40,7 +40,7 @@ export async function createNotifications({
   documentId?: string | null;
   relatedId?: string | null;
   senderId?: string | null;
-  email?: boolean | { subject?: string; actionLabel?: string };
+  email?: boolean | { subject?: string; actionLabel?: string; noticeType?: string };
 }): Promise<NotificationDeliveryResult> {
   const dedupedUserIds = [...new Set(userIds.filter(Boolean))];
 
@@ -94,12 +94,16 @@ export async function createNotifications({
     },
     select: {
       email: true,
+      name: true,
     },
   });
 
   const recipientEmails = recipients
-    .map((recipient) => recipient.email?.trim())
-    .filter((recipientEmail): recipientEmail is string => Boolean(recipientEmail));
+    .map((recipient) => ({
+      email: recipient.email?.trim(),
+      name: recipient.name,
+    }))
+    .filter((recipient): recipient is { email: string; name: string } => Boolean(recipient.email));
 
   if (recipientEmails.length === 0) {
     return {
@@ -112,19 +116,20 @@ export async function createNotifications({
 
   const emailOptions = typeof email === "object" ? email : {};
   const actionUrl = buildWorkspaceUrl(targetTab);
-  const html = renderSystemEmail({
-    title,
-    detail,
-    actionUrl,
-    actionLabel: emailOptions.actionLabel,
-  });
 
   const results = await Promise.allSettled(
-    recipientEmails.map((recipientEmail) =>
+    recipientEmails.map((recipient) =>
       sendEmail({
-        to: recipientEmail,
+        to: recipient.email,
         subject: emailOptions.subject ?? title,
-        html,
+        html: renderSystemEmail({
+          title,
+          detail,
+          actionUrl,
+          actionLabel: emailOptions.actionLabel ?? "进入系统处理",
+          recipientName: recipient.name,
+          noticeType: emailOptions.noticeType,
+        }),
       }),
     ),
   );

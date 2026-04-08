@@ -193,12 +193,15 @@ export const serializeTask = (
       uploaderName: attachment.uploader?.name ?? "团队成员",
       downloadUrl: `/api/tasks/${task.id}/attachments/${attachment.id}`,
     })) ?? [],
-  createdAt: task.createdAt.toISOString(),
+  createdAt: formatDateTime(task.createdAt),
 });
 
 export const serializeReport = (
   report: Report & {
-    user: Pick<User, "id" | "name" | "avatar" | "role">;
+    user: Pick<User, "id" | "name" | "avatar" | "role"> & {
+      teamGroupId?: string | null;
+      teamGroup?: { id: string; name: string } | null;
+    };
   },
 ) => ({
   id: report.id,
@@ -209,11 +212,14 @@ export const serializeReport = (
   summary: report.summary,
   nextPlan: report.nextPlan,
   attachment: report.attachment || "未上传附件",
+  teamGroupId: report.user.teamGroup?.id ?? report.user.teamGroupId ?? null,
+  teamGroupName: report.user.teamGroup?.name ?? null,
   user: {
     id: report.user.id,
     name: report.user.name,
     avatar: report.user.avatar,
     roleLabel: roleLabels[report.user.role],
+    teamGroupName: report.user.teamGroup?.name ?? null,
   },
 });
 
@@ -375,7 +381,7 @@ export const serializeDocument = (
     currentFileSize: currentVersionEntry?.fileSize,
     currentMimeType: currentVersionEntry?.mimeType,
     downloadUrl: currentVersionEntry?.downloadUrl ?? null,
-    createdAt: document.createdAt.toISOString(),
+    createdAt: formatDateTime(document.createdAt),
     versions: serializedVersions,
   };
 };

@@ -169,7 +169,7 @@ export async function PATCH(
       targetTab: "board",
       relatedId: currentTask.id,
       senderId: user.id,
-      email: true,
+      email: { noticeType: "工单处理", actionLabel: "进入系统处理" },
     });
 
     return NextResponse.json({ success: true, delivery });
@@ -227,7 +227,7 @@ export async function PATCH(
         targetTab: "board",
         relatedId: currentTask.id,
         senderId: user.id,
-        email: true,
+        email: { noticeType: "工单处理", actionLabel: "进入系统处理" },
       });
     }
 
@@ -257,7 +257,7 @@ export async function PATCH(
         targetTab: "board",
         relatedId: currentTask.id,
         senderId: user.id,
-        email: true,
+        email: { noticeType: "工单处理", actionLabel: "进入系统处理" },
       });
     }
 
@@ -293,7 +293,7 @@ export async function PATCH(
         targetTab: "board",
         relatedId: currentTask.id,
         senderId: user.id,
-        email: true,
+        email: { noticeType: "工单处理", actionLabel: "进入系统处理" },
       });
     }
 
@@ -426,7 +426,7 @@ export async function PATCH(
       targetTab: "board",
       relatedId: task.id,
       senderId: user.id,
-      email: true,
+      email: { noticeType: "工单处理", actionLabel: "进入系统处理" },
     });
   }
 

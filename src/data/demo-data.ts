@@ -67,6 +67,7 @@ export type BoardTask = {
   priority: "高优先级" | "中优先级" | "低优先级" | "进行中" | "待验收" | "已归档";
   completionNote?: string;
   rejectionReason?: string;
+  createdAt?: string;
   acceptedAt?: string | null;
   submittedAt?: string | null;
   archivedAt?: string | null;
@@ -84,11 +85,23 @@ export type BoardTask = {
 
 export type ReportEntry = {
   memberId: string;
+  id?: string;
+  userId?: string;
   date?: string;
   submittedAt: string;
   summary: string;
   nextPlan: string;
   attachment: string;
+  teamGroupId?: string | null;
+  teamGroupName?: string | null;
+  user?: {
+    id: string;
+    name: string;
+    avatar: string;
+    avatarUrl?: string | null;
+    roleLabel: TeamRoleLabel;
+    teamGroupName?: string | null;
+  };
 };
 
 export type DocumentVersion = {
@@ -110,6 +123,7 @@ export type DocumentItem = {
   name: string;
   category: string;
   ownerId: string;
+  ownerName?: string;
   status:
     | "待负责人审批"
     | "待教师终审"
@@ -124,6 +138,7 @@ export type DocumentItem = {
   currentFileSize?: number;
   currentMimeType?: string;
   downloadUrl?: string;
+  createdAt?: string;
   versions: DocumentVersion[];
 };
 
