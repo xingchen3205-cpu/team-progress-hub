@@ -14,7 +14,6 @@ import {
   Eye,
   FileCheck,
   FolderOpen,
-  GripVertical,
   HelpCircle,
   Home,
   KanbanSquare,
@@ -83,6 +82,7 @@ import {
 import type { TrainingQuestionImportCandidate } from "@/lib/training-import";
 
 type BoardStatus = (typeof boardColumns)[number]["id"];
+type BoardStatusFilter = BoardStatus | "all";
 
 type TabKey =
   | "overview"
@@ -408,18 +408,63 @@ const allTabs: TabItem[] = [
   },
 ];
 
-const boardColumnStyles: Record<BoardStatus, string> = {
-  todo: "border-[#ead7bf] bg-[#fbf7f2]/80",
-  doing: "border-[#d8e6f5] bg-[#f7fbff]/80",
-  review: "border-[#f3d7bf] bg-[#fff8f1]/80",
-  archived: "border-[#d6e7dc] bg-[#f7fbf8]/80",
+const boardStatusMeta: Record<
+  BoardStatus,
+  {
+    label: string;
+    description: string;
+    dotClassName: string;
+    badgeClassName: string;
+    rowAccentClassName: string;
+  }
+> = {
+  todo: {
+    label: "待分配 / 待接取",
+    description: "等待明确处理人或处理人接取",
+    dotClassName: "bg-amber-500",
+    badgeClassName: "border-amber-200 bg-amber-50 text-amber-700",
+    rowAccentClassName: "bg-amber-500",
+  },
+  doing: {
+    label: "处理中",
+    description: "处理人正在推进并补充凭证",
+    dotClassName: "bg-blue-600",
+    badgeClassName: "border-blue-200 bg-blue-50 text-blue-700",
+    rowAccentClassName: "bg-blue-600",
+  },
+  review: {
+    label: "待验收",
+    description: "等待负责人或教师确认闭环",
+    dotClassName: "bg-orange-500",
+    badgeClassName: "border-orange-200 bg-orange-50 text-orange-700",
+    rowAccentClassName: "bg-orange-500",
+  },
+  archived: {
+    label: "已归档",
+    description: "已完成闭环，保留备查",
+    dotClassName: "bg-emerald-600",
+    badgeClassName: "border-emerald-200 bg-emerald-50 text-emerald-700",
+    rowAccentClassName: "bg-emerald-600",
+  },
 };
 
-const boardBadgeStyles: Record<BoardStatus, string> = {
-  todo: "bg-[#f5ead9] text-[#9f6222]",
-  doing: "bg-[#e9f2fb] text-[#125e9a]",
-  review: "bg-[#fff1e6] text-[#b45309]",
-  archived: "bg-[#e7f4eb] text-[#32734c]",
+const boardStatusOrder: Record<BoardStatus, number> = {
+  review: 0,
+  doing: 1,
+  todo: 2,
+  archived: 3,
+};
+
+const getBoardStatusLabel = (task: BoardTask) => {
+  if (task.status === "todo" && !task.assigneeId) {
+    return "待分配";
+  }
+
+  if (task.status === "todo") {
+    return "待接取";
+  }
+
+  return boardStatusMeta[task.status].label;
 };
 
 const docStatusStyles: Record<DocumentItem["status"], string> = {
@@ -1363,7 +1408,8 @@ export function WorkspaceDashboard({
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [expandedDocs, setExpandedDocs] = useState<string[]>([]);
   const [expandedBoardTaskIds, setExpandedBoardTaskIds] = useState<string[]>([]);
-  const [draggingTaskId, setDraggingTaskId] = useState<string | null>(null);
+  const [boardStatusFilter, setBoardStatusFilter] = useState<BoardStatusFilter>("all");
+  const [boardSearch, setBoardSearch] = useState("");
   const [countdown, setCountdown] = useState({ days: 0, hours: 0, minutes: 0, seconds: 0 });
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [sentRemindersOpen, setSentRemindersOpen] = useState(false);
@@ -2737,30 +2783,6 @@ export function WorkspaceDashboard({
       setLoadError(error instanceof Error ? error.message : "工单驳回失败");
     } finally {
       setIsSaving(false);
-    }
-  };
-
-  const handleDrop = async (status: BoardStatus) => {
-    if (!draggingTaskId) {
-      return;
-    }
-
-    const task = tasks.find((item) => item.id === draggingTaskId);
-    if (!task || !canMoveTask(task)) {
-      setDraggingTaskId(null);
-      return;
-    }
-
-    try {
-      await requestJson(`/api/tasks/${draggingTaskId}`, {
-        method: "PATCH",
-        body: JSON.stringify({ status }),
-      });
-      refreshWorkspace();
-    } catch (error) {
-      setLoadError(error instanceof Error ? error.message : "任务状态更新失败");
-    } finally {
-      setDraggingTaskId(null);
     }
   };
 
@@ -4905,149 +4927,268 @@ export function WorkspaceDashboard({
     </div>
   );
 
-  const renderBoard = () => (
-    <div className="space-y-4">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <SectionHeader
-          description="按工单闭环推进：提报、分配、接取、提交凭证、验收归档都会记录在看板里。"
-          title="任务工单"
-        />
-        <div className="flex flex-wrap items-center gap-3">
-          <DemoResetNote />
-          <ActionButton
-            disabled={!permissions.canCreateTask}
-            onClick={openCreateTaskModal}
-            title="无权限"
-            variant="primary"
-          >
-            <span className="inline-flex items-center gap-2">
-              <Plus className="h-4 w-4" />
-              <span>发布工单</span>
-            </span>
-          </ActionButton>
-        </div>
-      </div>
+  const renderBoard = () => {
+    const normalizedBoardSearch = boardSearch.trim().toLowerCase();
+    const taskStatusCounts = boardColumns.reduce(
+      (result, column) => ({
+        ...result,
+        [column.id]: tasks.filter((task) => task.status === column.id).length,
+      }),
+      {} as Record<BoardStatus, number>,
+    );
+    const filteredTasks = tasks
+      .filter((task) => boardStatusFilter === "all" || task.status === boardStatusFilter)
+      .filter((task) => {
+        if (!normalizedBoardSearch) {
+          return true;
+        }
 
-      <section className="grid items-stretch gap-4 xl:grid-cols-4">
-        {boardColumns.map((column) => (
-          <div
-            key={column.id}
-            className={`flex h-[min(720px,calc(100vh-260px))] min-h-[520px] flex-col overflow-hidden rounded-xl border p-4 shadow-sm ${boardColumnStyles[column.id]}`}
-            onDragOver={(event) => event.preventDefault()}
-            onDrop={() => handleDrop(column.id)}
-          >
-            <div className="flex shrink-0 items-center justify-between border-b border-white/70 pb-3">
-              <div>
-                <h3 className="text-base font-semibold text-slate-900">{column.title}</h3>
-                <p className="mt-1 text-xs text-slate-500">列内滚动，闭环留痕</p>
-              </div>
-              <span className="rounded-lg bg-white px-3 py-1 text-sm font-semibold text-slate-600 shadow-sm">
-                {tasks.filter((task) => task.status === column.id).length}
+        return [
+          task.title,
+          task.priority,
+          getTaskAssigneeName(task),
+          task.reviewer?.name,
+          task.teamGroupName,
+          task.creator?.name,
+        ]
+          .filter(Boolean)
+          .some((value) => `${value}`.toLowerCase().includes(normalizedBoardSearch));
+      })
+      .sort((first, second) => {
+        const statusDifference = boardStatusOrder[first.status] - boardStatusOrder[second.status];
+        if (statusDifference !== 0) {
+          return statusDifference;
+        }
+
+        return new Date(first.dueDate).getTime() - new Date(second.dueDate).getTime();
+      });
+
+    const activeTaskCount = tasks.filter((task) => task.status !== "archived").length;
+    const reviewTaskCount = taskStatusCounts.review ?? 0;
+
+    return (
+      <div className="space-y-4">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+          <SectionHeader
+            description="以工单台账方式管理提报、分配、接取、验收和归档，状态清楚，责任到人。"
+            title="任务工单"
+          />
+          <div className="flex flex-wrap items-center gap-3">
+            <DemoResetNote />
+            <ActionButton
+              disabled={!permissions.canCreateTask}
+              onClick={openCreateTaskModal}
+              title="无权限"
+              variant="primary"
+            >
+              <span className="inline-flex items-center gap-2">
+                <Plus className="h-4 w-4" />
+                <span>发布工单</span>
               </span>
+            </ActionButton>
+          </div>
+        </div>
+
+        <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
+          <div className="border-b border-slate-200 bg-slate-50/80 p-4">
+            <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+              <div className="grid gap-3 sm:grid-cols-3">
+                {[
+                  { label: "待推进工单", value: `${activeTaskCount} 项`, hint: "未归档总量" },
+                  { label: "待验收", value: `${reviewTaskCount} 项`, hint: "需要确认闭环" },
+                  { label: "已归档", value: `${taskStatusCounts.archived ?? 0} 项`, hint: "完成留痕" },
+                ].map((item) => (
+                  <div className="rounded-lg border border-slate-200 bg-white px-4 py-3" key={item.label}>
+                    <p className="text-xs text-slate-500">{item.label}</p>
+                    <p className="mt-1 text-xl font-bold text-slate-900">{item.value}</p>
+                    <p className="mt-1 text-xs text-slate-400">{item.hint}</p>
+                  </div>
+                ))}
+              </div>
+
+              <label className="relative block w-full xl:w-80">
+                <Search className="pointer-events-none absolute top-1/2 left-3 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                <input
+                  className="h-11 w-full rounded-lg border border-slate-200 bg-white pr-3 pl-10 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                  onChange={(event) => setBoardSearch(event.target.value)}
+                  placeholder="搜索工单、处理人、队伍"
+                  value={boardSearch}
+                />
+              </label>
             </div>
 
-            <div className="mt-4 flex-1 space-y-3 overflow-y-auto pr-1">
-              {tasks.filter((task) => task.status === column.id).length > 0 ? (
-                tasks
-                  .filter((task) => task.status === column.id)
-                  .map((task) => {
-                  const canMove = canMoveTask(task);
-                  const isTaskExpanded = expandedBoardTaskIds.includes(task.id);
-                  const canExpandTask = task.title.length > 24;
+            <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
+              {[
+                { id: "all" as BoardStatusFilter, label: "全部", count: tasks.length, description: "全部工单" },
+                ...boardColumns.map((column) => ({
+                  id: column.id as BoardStatusFilter,
+                  label: boardStatusMeta[column.id].label,
+                  count: taskStatusCounts[column.id] ?? 0,
+                  description: boardStatusMeta[column.id].description,
+                })),
+              ].map((item) => {
+                const active = boardStatusFilter === item.id;
+                const dotClassName =
+                  item.id === "all" ? "bg-slate-500" : boardStatusMeta[item.id as BoardStatus].dotClassName;
 
-                  return (
-                    <article
-                      key={task.id}
-                      draggable={canMove}
-                      className={`rounded-xl border border-slate-200 bg-white p-3 shadow-sm transition ${
-                        canMove ? "cursor-grab hover:-translate-y-0.5 hover:border-slate-300 hover:shadow-md" : ""
-                      }`}
-                      onDragStart={() => setDraggingTaskId(canMove ? task.id : null)}
-                      onDragEnd={() => setDraggingTaskId(null)}
-                      title="请使用卡片按钮推进工单状态"
-                    >
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0">
-                          <div className="flex items-center gap-2">
-                            <GripVertical className="h-4 w-4 shrink-0 text-slate-400" />
-                            <button
-                              className="min-w-0 text-left"
-                              onClick={() => toggleBoardTaskExpand(task.id)}
-                              title={canExpandTask ? "点击查看完整任务" : task.title}
-                              type="button"
-                            >
-                              <h4
-                                className={`text-sm font-semibold leading-6 text-slate-900 ${
-                                  isTaskExpanded ? "" : "line-clamp-2"
-                                }`}
-                              >
-                                {task.title}
-                              </h4>
-                            </button>
-                          </div>
-                          {canExpandTask ? (
-                            <button
-                              className="mt-1 text-xs font-medium text-blue-600 transition hover:text-blue-700"
-                              onClick={() => toggleBoardTaskExpand(task.id)}
-                              type="button"
-                            >
-                              {isTaskExpanded ? "收起内容" : "查看完整"}
-                            </button>
-                          ) : null}
-                          <p className="mt-1.5 text-sm text-slate-500">处理人：{getTaskAssigneeName(task)}</p>
-                          <p className="mt-1 text-xs text-slate-400">
-                            验收人：{task.reviewer?.name ?? "待教师/负责人确认"}
-                          </p>
-                        </div>
-                        <span
-                          className={`shrink-0 rounded-lg border px-2.5 py-1 text-xs font-medium ${
-                            task.priority in taskPriorityStyles
-                              ? taskPriorityStyles[task.priority as TaskDraft["priority"]]
-                              : `${boardBadgeStyles[task.status]} border-transparent`
-                          }`}
-                        >
-                          {task.priority}
-                        </span>
-                      </div>
-                      {task.rejectionReason ? (
-                        <p className="mt-3 rounded-lg border border-rose-100 bg-rose-50 px-3 py-2 text-xs leading-5 text-rose-700">
-                          驳回原因：{task.rejectionReason}
-                        </p>
-                      ) : null}
-                      {task.completionNote ? (
-                        <p className="mt-3 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs leading-5 text-blue-700">
-                          完成说明：{task.completionNote}
-                        </p>
-                      ) : null}
-                      {task.attachments && task.attachments.length > 0 ? (
-                        <div className="mt-3 flex flex-wrap gap-2">
-                          {task.attachments.slice(0, 3).map((attachment) => (
-                            <button
-                              className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs text-slate-600 transition hover:border-blue-200 hover:text-blue-600"
-                              key={attachment.id}
-                              onClick={() =>
-                                handlePreviewDocument({
-                                  downloadUrl: attachment.downloadUrl,
-                                  fileName: attachment.fileName,
-                                  mimeType: attachment.mimeType,
-                                  title: "完成凭证预览",
-                                })
-                              }
-                              type="button"
-                            >
-                              {attachment.fileName}
-                            </button>
-                          ))}
-                          {task.attachments.length > 3 ? (
-                            <span className="rounded-lg bg-slate-100 px-2.5 py-1 text-xs text-slate-500">
-                              +{task.attachments.length - 3}
+                return (
+                  <button
+                    className={`shrink-0 rounded-lg border px-3.5 py-2 text-left transition ${
+                      active
+                        ? "border-blue-200 bg-blue-50 text-blue-700 shadow-sm"
+                        : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50"
+                    }`}
+                    key={item.id}
+                    onClick={() => setBoardStatusFilter(item.id)}
+                    title={item.description}
+                    type="button"
+                  >
+                    <span className="inline-flex items-center gap-2 text-sm font-semibold">
+                      <span className={`h-2 w-2 rounded-full ${dotClassName}`} />
+                      {item.label}
+                      <span className="rounded-md bg-white/80 px-2 py-0.5 text-xs text-slate-500">{item.count}</span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="max-h-[min(780px,calc(100vh-300px))] min-h-[420px] space-y-3 overflow-y-auto bg-slate-50/40 p-4">
+            {filteredTasks.length > 0 ? (
+              filteredTasks.map((task) => {
+                const isTaskExpanded = expandedBoardTaskIds.includes(task.id);
+                const canExpandTask = task.title.length > 32;
+                const statusMeta = boardStatusMeta[task.status];
+                const attachmentCount = task.attachments?.length ?? 0;
+                const taskPeople = [
+                  { label: "处理人", value: getTaskAssigneeName(task) },
+                  { label: "验收人", value: task.reviewer?.name ?? "待教师/负责人确认" },
+                  { label: "所属队伍", value: task.teamGroupName ?? "未分组" },
+                ];
+
+                return (
+                  <article
+                    className="group relative overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition hover:border-blue-200 hover:shadow-md"
+                    key={task.id}
+                  >
+                    <span className={`absolute inset-y-0 left-0 w-1 ${statusMeta.rowAccentClassName}`} />
+                    <div className="grid gap-4 p-4 pl-5 lg:grid-cols-[minmax(0,1fr)_240px]">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span
+                            className={`rounded-lg border px-2.5 py-1 text-xs font-semibold ${statusMeta.badgeClassName}`}
+                          >
+                            {getBoardStatusLabel(task)}
+                          </span>
+                          <span
+                            className={`rounded-lg border px-2.5 py-1 text-xs font-medium ${
+                              task.priority in taskPriorityStyles
+                                ? taskPriorityStyles[task.priority as TaskDraft["priority"]]
+                                : "border-slate-200 bg-slate-50 text-slate-600"
+                            }`}
+                          >
+                            {task.priority}
+                          </span>
+                          {attachmentCount > 0 ? (
+                            <span className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs text-slate-500">
+                              凭证 {attachmentCount} 个
                             </span>
                           ) : null}
                         </div>
-                      ) : null}
-                      <div className="mt-3 flex flex-col gap-3 border-t border-slate-100 pt-3 text-sm text-slate-500 sm:flex-row sm:items-center sm:justify-between">
-                        <span>{task.dueDate}</span>
-                        <div className="flex flex-wrap items-center gap-2">
+
+                        <button
+                          className="mt-3 block w-full text-left"
+                          onClick={() => (canExpandTask ? toggleBoardTaskExpand(task.id) : undefined)}
+                          title={canExpandTask ? "点击展开完整工单标题" : task.title}
+                          type="button"
+                        >
+                          <h3
+                            className={`text-base font-semibold leading-7 text-slate-900 ${
+                              isTaskExpanded ? "" : "line-clamp-2"
+                            }`}
+                          >
+                            {task.title}
+                          </h3>
+                        </button>
+                        {canExpandTask ? (
+                          <button
+                            className="mt-1 text-xs font-medium text-blue-600 transition hover:text-blue-700"
+                            onClick={() => toggleBoardTaskExpand(task.id)}
+                            type="button"
+                          >
+                            {isTaskExpanded ? "收起标题" : "展开标题"}
+                          </button>
+                        ) : null}
+
+                        <div className="mt-3 grid gap-2 text-sm text-slate-500 md:grid-cols-3">
+                          {taskPeople.map((item) => (
+                            <div className="rounded-lg bg-slate-50 px-3 py-2" key={item.label}>
+                              <span className="block text-xs text-slate-400">{item.label}</span>
+                              <span className="mt-1 block font-medium text-slate-700">{item.value}</span>
+                            </div>
+                          ))}
+                        </div>
+
+                        <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-slate-500">
+                          <span>截止：{task.dueDate}</span>
+                          {task.creator?.name ? <span>提报：{task.creator.name}</span> : null}
+                        </div>
+
+                        {task.rejectionReason ? (
+                          <p className="mt-3 rounded-lg border border-rose-100 bg-rose-50 px-3 py-2 text-xs leading-5 text-rose-700">
+                            驳回原因：{task.rejectionReason}
+                          </p>
+                        ) : null}
+                        {task.completionNote ? (
+                          <p className="mt-3 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs leading-5 text-blue-700">
+                            完成说明：{task.completionNote}
+                          </p>
+                        ) : null}
+                        {attachmentCount > 0 ? (
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            {task.attachments?.slice(0, 4).map((attachment) => (
+                              <button
+                                className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-600 transition hover:border-blue-200 hover:text-blue-600"
+                                key={attachment.id}
+                                onClick={() =>
+                                  handlePreviewDocument({
+                                    downloadUrl: attachment.downloadUrl,
+                                    fileName: attachment.fileName,
+                                    mimeType: attachment.mimeType,
+                                    title: "完成凭证预览",
+                                  })
+                                }
+                                type="button"
+                              >
+                                {attachment.fileName}
+                              </button>
+                            ))}
+                            {attachmentCount > 4 ? (
+                              <span className="rounded-lg bg-slate-100 px-2.5 py-1 text-xs text-slate-500">
+                                +{attachmentCount - 4}
+                              </span>
+                            ) : null}
+                          </div>
+                        ) : null}
+                      </div>
+
+                      <div className="flex flex-col justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50 p-3">
+                        <div>
+                          <p className="text-xs font-medium text-slate-400">下一步</p>
+                          <p className="mt-1 text-sm font-semibold text-slate-800">
+                            {task.status === "todo" && !task.assigneeId
+                              ? "等待分配处理人"
+                              : task.status === "todo"
+                                ? "等待处理人接取"
+                                : task.status === "doing"
+                                  ? "补充凭证并提交验收"
+                                  : task.status === "review"
+                                    ? "等待验收确认"
+                                    : "已完成闭环"}
+                          </p>
+                        </div>
+                        <div className="flex flex-wrap items-center justify-end gap-2">
                           {task.status === "todo" && task.assigneeId === currentMemberId ? (
                             <ActionButton disabled={isSaving} onClick={() => void acceptTask(task)} variant="secondary">
                               接取
@@ -5090,24 +5231,24 @@ export function WorkspaceDashboard({
                           </ActionButton>
                         </div>
                       </div>
-                    </article>
-                  );
-                  })
-              ) : (
-                <div className="flex h-full min-h-[360px] items-center justify-center">
-                  <EmptyState
-                    description="当前列还没有任务，创建任务后会显示在这里。"
-                    icon={KanbanSquare}
-                    title="暂无任务"
-                  />
-                </div>
-              )}
-            </div>
+                    </div>
+                  </article>
+                );
+              })
+            ) : (
+              <div className="flex min-h-[360px] items-center justify-center rounded-xl border border-dashed border-slate-200 bg-white">
+                <EmptyState
+                  description="当前筛选条件下没有工单，可以切换状态或重新搜索。"
+                  icon={KanbanSquare}
+                  title="暂无工单"
+                />
+              </div>
+            )}
           </div>
-        ))}
-      </section>
-    </div>
-  );
+        </section>
+      </div>
+    );
+  };
 
   const renderTraining = () => {
     const remainingSeconds = Math.max(trainingTimerDuration - trainingTimerElapsed, 0);
