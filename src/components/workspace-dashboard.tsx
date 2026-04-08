@@ -67,6 +67,7 @@ import {
 } from "@/lib/date";
 import { buildReportDateOptions, getReportAttachmentNote, isReportDateKey } from "@/lib/report-history";
 import { EMAIL_RULE_HINT, USERNAME_RULE_HINT, validateRequiredEmail, validateUsername } from "@/lib/account-policy";
+import { buildTeamManagementConfirmation } from "@/lib/team-confirmation";
 import {
   documentCenterAcceptAttribute,
   documentAcceptAttribute,
@@ -498,6 +499,7 @@ type ConfirmDialogState = {
   title: string;
   message: string;
   confirmLabel: string;
+  confirmVariant?: "primary" | "danger";
   successTitle?: string;
   successDetail?: string;
   onConfirm: () => Promise<void> | void;
@@ -1247,6 +1249,7 @@ function ConfirmDialog({
   title,
   message,
   confirmLabel,
+  confirmVariant = "danger",
   onConfirm,
   onCancel,
   isLoading = false,
@@ -1255,6 +1258,7 @@ function ConfirmDialog({
   title: string;
   message: string;
   confirmLabel: string;
+  confirmVariant?: "primary" | "danger";
   onConfirm: () => void;
   onCancel: () => void;
   isLoading?: boolean;
@@ -1276,7 +1280,7 @@ function ConfirmDialog({
             loading={isLoading}
             loadingLabel="提交中..."
             onClick={onConfirm}
-            variant="danger"
+            variant={confirmVariant}
           >
             {confirmLabel}
           </ActionButton>
@@ -4333,13 +4337,14 @@ export function WorkspaceDashboard({
   };
 
   const deleteTeamGroup = (group: TeamGroupItem) => {
+    const copy = buildTeamManagementConfirmation({
+      type: "deleteGroup",
+      groupName: group.name,
+    });
+
     setConfirmDialog({
       open: true,
-      title: "删除分组",
-      message: `确认删除分组「${group.name}」？组内账号会自动变为未分组，账号本身不会被删除。`,
-      confirmLabel: "确认删除",
-      successTitle: "分组已删除",
-      successDetail: "组内账号已转为未分组。",
+      ...copy,
       onConfirm: () => deleteTeamGroupRequest(group.id),
     });
   };
@@ -4524,20 +4529,26 @@ export function WorkspaceDashboard({
     }
   };
 
-  const approveMemberRegistration = async (memberId: string) => {
-    setIsSaving(true);
-    try {
-      await requestJson(`/api/team/${memberId}`, {
-        method: "PATCH",
-        body: JSON.stringify({ action: "approve" }),
-      });
-      showSuccessToast("审核已通过", "该账号现在可以正常登录系统。");
-      refreshWorkspace();
-    } catch (error) {
-      setLoadError(error instanceof Error ? error.message : "账号审核失败");
-    } finally {
-      setIsSaving(false);
-    }
+  const approveMemberRegistrationRequest = async (memberId: string) => {
+    await requestJson(`/api/team/${memberId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ action: "approve" }),
+    });
+    refreshWorkspace();
+  };
+
+  const confirmApproveMemberRegistration = (member: TeamMember) => {
+    const copy = buildTeamManagementConfirmation({
+      type: "approveRegistration",
+      memberName: member.name,
+      roleLabel: member.systemRole,
+    });
+
+    setConfirmDialog({
+      open: true,
+      ...copy,
+      onConfirm: () => approveMemberRegistrationRequest(member.id),
+    });
   };
 
   const updateMemberRole = async (memberId: string, roleLabel: TeamRoleLabel) => {
@@ -4552,6 +4563,25 @@ export function WorkspaceDashboard({
     }
   };
 
+  const confirmUpdateMemberRole = (member: TeamMember, roleLabel: TeamRoleLabel) => {
+    if (member.systemRole === roleLabel) {
+      return;
+    }
+
+    const copy = buildTeamManagementConfirmation({
+      type: "roleChange",
+      memberName: member.name,
+      fromRole: member.systemRole,
+      toRole: roleLabel,
+    });
+
+    setConfirmDialog({
+      open: true,
+      ...copy,
+      onConfirm: () => updateMemberRole(member.id, roleLabel),
+    });
+  };
+
   const updateMemberGroup = async (memberId: string, teamGroupId: string) => {
     try {
       await requestJson(`/api/team/${memberId}`, {
@@ -4562,6 +4592,34 @@ export function WorkspaceDashboard({
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "分组更新失败");
     }
+  };
+
+  const getTeamGroupDisplayName = (teamGroupId?: string | null) => {
+    if (!teamGroupId) {
+      return "未分组";
+    }
+
+    return teamGroups.find((group) => group.id === teamGroupId)?.name ?? "未知分组";
+  };
+
+  const confirmUpdateMemberGroup = (member: TeamMember, teamGroupId: string) => {
+    const normalizedTeamGroupId = teamGroupId || null;
+    if ((member.teamGroupId ?? null) === normalizedTeamGroupId) {
+      return;
+    }
+
+    const copy = buildTeamManagementConfirmation({
+      type: "groupChange",
+      memberName: member.name,
+      fromGroupName: getTeamGroupDisplayName(member.teamGroupId),
+      toGroupName: getTeamGroupDisplayName(normalizedTeamGroupId),
+    });
+
+    setConfirmDialog({
+      open: true,
+      ...copy,
+      onConfirm: () => updateMemberGroup(member.id, teamGroupId),
+    });
   };
 
   const openPasswordModal = (member: TeamMember) => {
@@ -4603,14 +4661,28 @@ export function WorkspaceDashboard({
   };
 
   const removeMember = (memberId: string, memberName: string) => {
+    const copy = buildTeamManagementConfirmation({
+      type: "deleteAccount",
+      memberName,
+    });
+
     setConfirmDialog({
       open: true,
-      title: "删除账号",
-      message: `确认删除账号「${memberName}」？`,
-      confirmLabel: "确认删除",
-      successTitle: "账号已删除",
-      successDetail: "该账号和相关关联数据已经清理。",
+      ...copy,
       onConfirm: () => removeMemberRequest(memberId),
+    });
+  };
+
+  const rejectMemberRegistration = (member: TeamMember) => {
+    const copy = buildTeamManagementConfirmation({
+      type: "rejectRegistration",
+      memberName: member.name,
+    });
+
+    setConfirmDialog({
+      open: true,
+      ...copy,
+      onConfirm: () => removeMemberRequest(member.id),
     });
   };
 
@@ -7241,14 +7313,14 @@ export function WorkspaceDashboard({
                       <ActionButton
                         loading={isSaving}
                         loadingLabel="审核中..."
-                        onClick={() => void approveMemberRegistration(member.id)}
+                        onClick={() => confirmApproveMemberRegistration(member)}
                         variant="primary"
                       >
                         审核通过
                       </ActionButton>
                       <ActionButton
                         disabled={isSaving}
-                        onClick={() => removeMember(member.id, member.name)}
+                        onClick={() => rejectMemberRegistration(member)}
                         variant="danger"
                       >
                         驳回删除
@@ -7494,7 +7566,7 @@ export function WorkspaceDashboard({
                       <select
                         className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
                         value={member.systemRole}
-                        onChange={(event) => updateMemberRole(member.id, event.target.value as TeamRoleLabel)}
+                        onChange={(event) => confirmUpdateMemberRole(member, event.target.value as TeamRoleLabel)}
                       >
                         {availableRoleOptions.map((roleOption) => (
                           <option key={roleOption} value={roleOption}>
@@ -7516,7 +7588,7 @@ export function WorkspaceDashboard({
                         className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
                         disabled={member.systemRole === "系统管理员"}
                         value={member.teamGroupId ?? ""}
-                        onChange={(event) => updateMemberGroup(member.id, event.target.value)}
+                        onChange={(event) => confirmUpdateMemberGroup(member, event.target.value)}
                       >
                         <option value="">未分组</option>
                         {teamGroups.map((group) => (
@@ -9579,6 +9651,7 @@ export function WorkspaceDashboard({
 
       <ConfirmDialog
         confirmLabel={confirmDialog?.confirmLabel ?? "确认"}
+        confirmVariant={confirmDialog?.confirmVariant}
         isLoading={isSaving}
         message={confirmDialog?.message ?? ""}
         onCancel={() => setConfirmDialog(null)}
