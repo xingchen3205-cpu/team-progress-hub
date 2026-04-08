@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { pickTaskDispatchRecipientIds } from "../src/lib/task-workflow";
+import { canRemindTaskDispatch, pickTaskDispatchRecipientIds } from "../src/lib/task-workflow";
 
 describe("task workflow recipients", () => {
   it("prefers project leaders for unassigned work order dispatch reminders", () => {
@@ -41,5 +41,11 @@ describe("task workflow recipients", () => {
       }),
       ["leader-2"],
     );
+  });
+
+  it("allows dispatch reminders only for unassigned todo work orders", () => {
+    assert.equal(canRemindTaskDispatch({ status: "todo", assigneeId: null }), true);
+    assert.equal(canRemindTaskDispatch({ status: "todo", assigneeId: "member-1" }), false);
+    assert.equal(canRemindTaskDispatch({ status: "doing", assigneeId: null }), false);
   });
 });

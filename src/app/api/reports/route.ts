@@ -1,11 +1,48 @@
 import { NextRequest, NextResponse } from "next/server";
+import type { Role } from "@prisma/client";
 
 import { getSessionUser } from "@/lib/auth";
 import { toIsoDateKey } from "@/lib/date";
 import { assertMainWorkspaceRole } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { serializeReport } from "@/lib/api-serializers";
-import { createNotifications, getUserIdsByRoles } from "@/lib/notifications";
+import { createNotifications } from "@/lib/notifications";
+
+const getReportNotificationRecipientIds = async ({
+  role,
+  teamGroupId,
+  excludeUserId,
+}: {
+  role: "leader" | "member";
+  teamGroupId?: string | null;
+  excludeUserId: string;
+}) => {
+  const teamRoles: Role[] = role === "member" ? ["leader", "teacher"] : ["teacher"];
+  const users = await prisma.user.findMany({
+    where: {
+      approvalStatus: "approved",
+      id: {
+        not: excludeUserId,
+      },
+      OR: [
+        { role: "admin" },
+        ...(teamGroupId
+          ? [
+              {
+                teamGroupId,
+                role: {
+                  in: [...teamRoles],
+                },
+              },
+            ]
+          : []),
+      ],
+    },
+    select: { id: true },
+  });
+
+  return users.map((user) => user.id);
+};
 
 export async function GET(request: NextRequest) {
   const user = await getSessionUser(request);
@@ -19,8 +56,24 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ message: "无权限" }, { status: 403 });
   }
 
+  const reportWhere =
+    user.role === "admin"
+      ? undefined
+      : user.role === "member"
+        ? { userId: user.id }
+        : user.teamGroupId
+          ? {
+              user: {
+                teamGroupId: user.teamGroupId,
+                role: {
+                  in: ["leader", "member"] satisfies Role[],
+                },
+              },
+            }
+          : { userId: user.id };
+
   const reports = await prisma.report.findMany({
-    where: user.role === "member" ? { userId: user.id } : undefined,
+    where: reportWhere,
     orderBy: [{ date: "desc" }, { submittedAt: "desc" }],
     include: {
       user: {
@@ -110,14 +163,10 @@ export async function POST(request: NextRequest) {
     },
   });
 
-  const notificationTargetRoles =
-    user.role === "member"
-      ? ["leader", "teacher", "admin"] as const
-      : ["teacher", "admin"] as const;
-
-  const recipientIds = await getUserIdsByRoles({
-    roles: [...notificationTargetRoles],
-    excludeUserIds: [user.id],
+  const recipientIds = await getReportNotificationRecipientIds({
+    role: user.role,
+    teamGroupId: user.teamGroupId,
+    excludeUserId: user.id,
   });
 
   if (!existingReport) {

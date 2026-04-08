@@ -8,6 +8,7 @@ import { assertMainWorkspaceRole } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { serializeTask, taskPriorityValueToDb } from "@/lib/api-serializers";
 import { canAccessTask, canAssignTaskToUser, canReviewTask } from "@/lib/task-access";
+import { canRemindTaskDispatch, pickTaskDispatchRecipientIds } from "@/lib/task-workflow";
 import { deleteStoredFile } from "@/lib/uploads";
 
 const taskInclude = {
@@ -39,7 +40,7 @@ const getTask = (id: string) =>
     include: taskInclude,
   });
 
-const getTeamReviewerIds = async ({
+const getTeamReviewerCandidates = async ({
   teamGroupId,
   excludeUserIds = [],
 }: {
@@ -61,10 +62,21 @@ const getTeamReviewerIds = async ({
         notIn: excludeUserIds,
       },
     },
-    select: { id: true },
+    select: { id: true, role: true },
   });
 
-  return reviewers.map((reviewer) => reviewer.id);
+  return reviewers;
+};
+
+const getTeamReviewerIds = async ({
+  teamGroupId,
+  excludeUserIds = [],
+}: {
+  teamGroupId?: string | null;
+  excludeUserIds?: string[];
+}) => {
+  const candidates = await getTeamReviewerCandidates({ teamGroupId, excludeUserIds });
+  return pickTaskDispatchRecipientIds({ candidates });
 };
 
 const normalizeStatus = (status?: string | null): TaskStatus | undefined => {
@@ -111,7 +123,7 @@ export async function PATCH(
 
   const body = (await request.json().catch(() => null)) as
     | {
-        action?: "accept" | "submit" | "confirm" | "reject";
+        action?: "accept" | "submit" | "confirm" | "reject" | "remind_dispatch";
         title?: string;
         assigneeId?: string | null;
         dueDate?: string;
@@ -130,6 +142,38 @@ export async function PATCH(
   const isAssignee = currentTask.assigneeId === user.id;
   const isCreator = currentTask.creatorId === user.id;
   const editableByRole = user.role === "admin" || user.role === "teacher" || user.role === "leader";
+
+  if (body.action === "remind_dispatch") {
+    if (!canRemindTaskDispatch(currentTask)) {
+      return NextResponse.json({ message: "只有待分配工单可以提醒分配" }, { status: 400 });
+    }
+
+    if (!isCreator && user.role !== "admin" && user.role !== "teacher" && user.role !== "leader") {
+      return NextResponse.json({ message: "只有提报人或本队教师/负责人可以提醒分配" }, { status: 403 });
+    }
+
+    const reviewerIds = await getTeamReviewerIds({
+      teamGroupId: currentTask.teamGroupId,
+      excludeUserIds: [user.id],
+    });
+
+    if (reviewerIds.length === 0) {
+      return NextResponse.json({ message: "当前队伍暂无可提醒的项目负责人或指导教师" }, { status: 404 });
+    }
+
+    const delivery = await createNotifications({
+      userIds: reviewerIds,
+      title: `待分配工单：${currentTask.title}`,
+      detail: `${user.name} 提醒你分配工单「${currentTask.title}」，请进入任务看板选择处理人。`,
+      type: "task_submit",
+      targetTab: "board",
+      relatedId: currentTask.id,
+      senderId: user.id,
+      email: true,
+    });
+
+    return NextResponse.json({ success: true, delivery });
+  }
 
   if (body.action === "accept") {
     if (!isAssignee || currentTask.status !== "todo") {

@@ -5,6 +5,11 @@ export type TaskReviewerCandidate = {
   role: Role;
 };
 
+export type TaskDispatchReminderTarget = {
+  status: "todo" | "doing" | "review" | "archived" | "done";
+  assigneeId?: string | null;
+};
+
 export const pickTaskDispatchRecipientIds = ({
   candidates,
   excludeUserIds = [],
@@ -24,3 +29,6 @@ export const pickTaskDispatchRecipientIds = ({
     .filter((candidate) => candidate.role === "teacher")
     .map((teacher) => teacher.id);
 };
+
+export const canRemindTaskDispatch = (task: TaskDispatchReminderTarget) =>
+  task.status === "todo" && !task.assigneeId;

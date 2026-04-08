@@ -64,6 +64,7 @@ import {
   getBeijingHour,
   toIsoDateKey,
 } from "@/lib/date";
+import { buildReportDateOptions, isReportDateKey } from "@/lib/report-history";
 import { EMAIL_RULE_HINT, USERNAME_RULE_HINT, validateRequiredEmail, validateUsername } from "@/lib/account-policy";
 import {
   documentCenterAcceptAttribute,
@@ -1296,6 +1297,7 @@ function SuccessToast({ toast }: { toast: SuccessToastState }) {
 function ActionButton({
   children,
   onClick,
+  className: extraClassName,
   disabled,
   loading,
   loadingLabel,
@@ -1304,13 +1306,14 @@ function ActionButton({
 }: {
   children: React.ReactNode;
   onClick?: () => void;
+  className?: string;
   disabled?: boolean;
   loading?: boolean;
   loadingLabel?: string;
   title?: string;
   variant?: "primary" | "secondary" | "danger";
 }) {
-  const className =
+  const variantClassName =
     variant === "primary"
       ? "border border-[#1d4ed8] bg-[#1d4ed8] text-white hover:bg-[#1e40af]"
       : variant === "danger"
@@ -1319,11 +1322,11 @@ function ActionButton({
 
   return (
     <button
-      className={`inline-flex h-10 shrink-0 items-center justify-center whitespace-nowrap rounded-lg px-4 text-sm shadow-sm transition duration-200 focus-visible:ring-2 focus-visible:ring-blue-200 focus-visible:outline-none ${className} ${
+      className={`inline-flex h-10 shrink-0 items-center justify-center whitespace-nowrap rounded-lg px-4 text-sm shadow-sm transition duration-200 focus-visible:ring-2 focus-visible:ring-blue-200 focus-visible:outline-none ${variantClassName} ${
         disabled || loading
           ? "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400 hover:bg-slate-100"
           : "hover:-translate-y-px active:translate-y-0 active:scale-[0.98]"
-      }`}
+      } ${extraClassName ?? ""}`}
       disabled={disabled || loading}
       onClick={onClick}
       title={disabled && !loading ? title ?? "无权限" : undefined}
@@ -1705,7 +1708,7 @@ export function WorkspaceDashboard({
         setTeamGroups(teamPayload.groups ?? []);
         setReportEntriesByDay(groupedReports);
         setReportDates(nextDates);
-        setSelectedDate((current) => (nextDates.includes(current) ? current : nextDates[0]));
+        setSelectedDate((current) => (isReportDateKey(current) ? current : nextDates[0]));
         applyReviewAssignments(reviewPayload?.assignments ?? []);
         setReviewAssignmentDraft((current) =>
           current.expertUserId
@@ -1892,6 +1895,21 @@ export function WorkspaceDashboard({
   const visibleReportMembers = permissions.canViewAllReports
     ? members.filter((item) => !["指导教师", "系统管理员", "评审专家"].includes(item.systemRole))
     : members.filter((item) => item.id === currentMemberId);
+  const reportDateOptions = useMemo(
+    () =>
+      buildReportDateOptions({
+        reportDates,
+        selectedDate,
+        todayDateKey,
+        daysBack: 14,
+      }),
+    [reportDates, selectedDate, todayDateKey],
+  );
+  const selectedReportSubmittedCount = reportEntries.length;
+  const selectedReportExpectedCount = visibleReportMembers.length;
+  const selectedReportMissingCount = Math.max(0, selectedReportExpectedCount - selectedReportSubmittedCount);
+  const currentUserSelectedReport = reportEntryMap.get(currentMemberId);
+  const selectedDateHasSavedReports = selectedReportSubmittedCount > 0;
 
   const filteredDocuments = selectedCategory
     ? documents.filter((item) => item.category === selectedCategory)
@@ -3333,6 +3351,25 @@ export function WorkspaceDashboard({
       successTitle: "工单提醒已发送",
       successDetail: `已提醒 ${getTaskAssigneeName(task)} 查看任务看板。`,
     });
+  };
+
+  const remindTaskDispatch = async (task: BoardTask) => {
+    setIsSaving(true);
+    try {
+      const payload = await requestJson<DirectReminderResponse>(`/api/tasks/${task.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ action: "remind_dispatch" }),
+      });
+      showSuccessToast(
+        "分配提醒已发送",
+        getReminderDeliveryDetail(payload.delivery, "已提醒本队项目负责人/指导教师处理待分配工单。"),
+      );
+      refreshWorkspace();
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "分配提醒发送失败");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const sendAnnouncementReminder = (announcement: Announcement) => {
@@ -5087,6 +5124,14 @@ export function WorkspaceDashboard({
                 const canExpandTask = task.title.length > 32;
                 const statusMeta = boardStatusMeta[task.status];
                 const attachmentCount = task.attachments?.length ?? 0;
+                const isUnassignedTask = task.status === "todo" && !task.assigneeId;
+                const canPromptDispatch =
+                  isUnassignedTask &&
+                  Boolean(task.teamGroupId) &&
+                  (task.creatorId === currentMemberId ||
+                    currentRole === "admin" ||
+                    currentRole === "teacher" ||
+                    currentRole === "leader");
                 const taskPeople = [
                   { label: "处理人", value: getTaskAssigneeName(task) },
                   { label: "验收人", value: task.reviewer?.name ?? "待教师/负责人确认" },
@@ -5203,7 +5248,7 @@ export function WorkspaceDashboard({
                         <div>
                           <p className="text-xs font-medium text-slate-400">下一步</p>
                           <p className="mt-1 text-sm font-semibold text-slate-800">
-                            {task.status === "todo" && !task.assigneeId
+                            {isUnassignedTask
                               ? "等待分配处理人"
                               : task.status === "todo"
                                 ? "等待处理人接取"
@@ -5215,6 +5260,16 @@ export function WorkspaceDashboard({
                           </p>
                         </div>
                         <div className="flex flex-wrap items-center justify-end gap-2">
+                          {isUnassignedTask && canEditTaskItem(task) ? (
+                            <ActionButton disabled={isSaving} onClick={() => openEditTaskModal(task)} variant="primary">
+                              分配处理人
+                            </ActionButton>
+                          ) : null}
+                          {canPromptDispatch ? (
+                            <ActionButton disabled={isSaving} onClick={() => void remindTaskDispatch(task)}>
+                              提醒分配
+                            </ActionButton>
+                          ) : null}
                           {task.status === "todo" && task.assigneeId === currentMemberId ? (
                             <ActionButton disabled={isSaving} onClick={() => void acceptTask(task)} variant="secondary">
                               接取
@@ -5245,7 +5300,7 @@ export function WorkspaceDashboard({
                             onClick={() => openEditTaskModal(task)}
                             title="无权限"
                           >
-                            编辑
+                            {isUnassignedTask ? "编辑内容" : "编辑"}
                           </ActionButton>
                           <ActionButton
                             disabled={!canDeleteTaskItem(task)}
@@ -5738,37 +5793,113 @@ export function WorkspaceDashboard({
         <SectionHeader
           description={
             permissions.canViewAllReports
-              ? "教师和项目负责人可以查看全部成员汇报，未提交成员会被明确标记。"
-              : "团队成员只能查看自己的历史汇报，并需按日提交。"
+              ? "按日期查看团队汇报归档，历史记录会一直保留，可随时回看。"
+              : "按日期查看自己的历史汇报，已提交内容会持续保存。"
           }
           title="日程汇报"
         />
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3 text-right">
           <DemoResetNote />
-          <label className="text-sm text-slate-500">
-            日期：
-            <select
-              className="ml-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
-              value={selectedDate}
-              onChange={(event) => setSelectedDate(event.target.value)}
-            >
-              {reportDates.map((date) => (
-                <option key={date} value={date}>
-                  {formatShortDate(date)}
-                </option>
-              ))}
-            </select>
-          </label>
-          <ActionButton
-            disabled={!permissions.canSubmitReport}
-            onClick={openCreateReportModal}
-            title="无权限"
-            variant="primary"
-          >
-            <span>提交汇报</span>
-          </ActionButton>
         </div>
       </div>
+
+      <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
+        <article className={`${surfaceCardClassName} space-y-4`}>
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+            <div>
+              <p className="text-sm font-semibold text-slate-900">选择查看日期</p>
+              <p className="mt-1 text-sm text-slate-500">
+                可以直接选择过去任意一天；有保存记录的日期会在下方显示。
+              </p>
+            </div>
+            <label className="block min-w-56 text-sm font-medium text-slate-600">
+              日期
+              <input
+                className={`${fieldClassName} mt-1.5`}
+                max={todayDateKey}
+                type="date"
+                value={selectedDate}
+                onChange={(event) => {
+                  if (event.target.value) {
+                    setSelectedDate(event.target.value);
+                  }
+                }}
+              />
+            </label>
+          </div>
+
+          <div className="flex flex-wrap gap-2">
+            {reportDateOptions.slice(0, 10).map((date) => {
+              const hasReport = (reportEntriesByDay[date] ?? []).length > 0;
+              const isSelected = date === selectedDate;
+
+              return (
+                <button
+                  className={`rounded-lg border px-3 py-2 text-sm transition ${
+                    isSelected
+                      ? "border-blue-600 bg-blue-600 text-white shadow-sm"
+                      : hasReport
+                        ? "border-blue-100 bg-blue-50 text-blue-700 hover:border-blue-200"
+                        : "border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:text-slate-700"
+                  }`}
+                  key={date}
+                  onClick={() => setSelectedDate(date)}
+                  type="button"
+                >
+                  {date === todayDateKey ? "今天" : formatShortDate(date)}
+                  {hasReport ? <span className="ml-1 text-xs opacity-75">有记录</span> : null}
+                </button>
+              );
+            })}
+          </div>
+        </article>
+
+        <aside className={`${surfaceCardClassName} bg-slate-950 text-white`}>
+          <p className="text-sm text-white/60">当前日期</p>
+          <h3 className="mt-2 text-2xl font-bold">{formatShortDate(selectedDate)}</h3>
+          <div className="mt-5 grid grid-cols-3 gap-3">
+            <div className="rounded-lg bg-white/10 p-3">
+              <p className="text-xs text-white/50">应提交</p>
+              <p className="mt-2 text-xl font-semibold">{selectedReportExpectedCount}</p>
+            </div>
+            <div className="rounded-lg bg-white/10 p-3">
+              <p className="text-xs text-white/50">已提交</p>
+              <p className="mt-2 text-xl font-semibold">{selectedReportSubmittedCount}</p>
+            </div>
+            <div className="rounded-lg bg-white/10 p-3">
+              <p className="text-xs text-white/50">未提交</p>
+              <p className="mt-2 text-xl font-semibold">{selectedReportMissingCount}</p>
+            </div>
+          </div>
+          <div className="mt-5 h-2 overflow-hidden rounded-full bg-white/10">
+            <div
+              className="h-full rounded-full bg-blue-400 transition-all"
+              style={{
+                width:
+                  selectedReportExpectedCount > 0
+                    ? `${Math.round((selectedReportSubmittedCount / selectedReportExpectedCount) * 100)}%`
+                    : "0%",
+              }}
+            />
+          </div>
+          {permissions.canSubmitReport ? (
+            <ActionButton
+              className="mt-5 w-full justify-center border-white/20 bg-white text-slate-900 hover:bg-slate-100"
+              onClick={() =>
+                currentUserSelectedReport
+                  ? openEditReportModal(currentUserSelectedReport)
+                  : openCreateReportModal()
+              }
+            >
+              {currentUserSelectedReport ? "修改我的汇报" : "提交这天汇报"}
+            </ActionButton>
+          ) : (
+            <p className="mt-5 rounded-lg bg-white/10 px-3 py-2 text-sm text-white/70">
+              当前角色只查看归档，不需要提交汇报。
+            </p>
+          )}
+        </aside>
+      </section>
 
       <section className="grid gap-4 xl:grid-cols-2">
         {visibleReportMembers.length > 0 ? (
@@ -5778,43 +5909,65 @@ export function WorkspaceDashboard({
             return (
               <article
                 key={member.id}
-                className={surfaceCardClassName}
+                className={`${surfaceCardClassName} overflow-hidden p-0`}
               >
-                <div className="flex items-start justify-between gap-4">
-                  <div>
-                    <h3 className="text-base font-semibold text-slate-900">{member.name}</h3>
-                    <p className="mt-2 text-sm text-slate-500">{member.systemRole}</p>
+                <div className="flex items-start justify-between gap-4 border-b border-slate-100 bg-slate-50/80 px-5 py-4">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h3 className="text-base font-semibold text-slate-900">{member.name}</h3>
+                      <span className="rounded-md bg-white px-2 py-1 text-xs text-slate-500 ring-1 ring-slate-200">
+                        {member.systemRole}
+                      </span>
+                    </div>
+                    <p className="mt-2 text-sm text-slate-500">{formatShortDate(selectedDate)} 汇报记录</p>
                   </div>
                   {report ? (
-                    <span className="rounded-md bg-blue-50 px-3 py-1 text-sm text-blue-600">
+                    <span className="shrink-0 rounded-md bg-blue-50 px-3 py-1 text-sm text-blue-600">
                       已提交 {report.submittedAt}
                     </span>
                   ) : (
-                    <span className="rounded-md bg-red-50 px-3 py-1 text-sm text-red-700">
+                    <span className="shrink-0 rounded-md bg-red-50 px-3 py-1 text-sm text-red-700">
                       未提交
                     </span>
                   )}
                 </div>
 
-                {report ? (
-                  <>
-                    <p className="mt-4 text-sm leading-7 text-slate-600">今日完成：{report.summary}</p>
-                    <p className="mt-2 text-sm leading-7 text-slate-600">明日计划：{report.nextPlan}</p>
-                    <p className="mt-4 text-sm text-slate-400">附件：{report.attachment}</p>
-                    {member.id === currentMemberId && permissions.canSubmitReport ? (
-                      <div className="mt-4 flex flex-wrap gap-3">
-                        <ActionButton onClick={() => openEditReportModal(report)}>修改汇报</ActionButton>
-                        <ActionButton onClick={() => removeReport(report.date)} variant="danger">
-                          撤回汇报
-                        </ActionButton>
+                <div className="p-5">
+                  {report ? (
+                    <>
+                      <div className="grid gap-3 lg:grid-cols-2">
+                        <div className="rounded-xl border border-slate-200 bg-white p-4">
+                          <p className="text-xs font-semibold text-slate-400">今日完成</p>
+                          <p className="mt-2 text-sm leading-7 text-slate-700">{report.summary}</p>
+                        </div>
+                        <div className="rounded-xl border border-slate-200 bg-white p-4">
+                          <p className="text-xs font-semibold text-slate-400">明日计划</p>
+                          <p className="mt-2 text-sm leading-7 text-slate-700">{report.nextPlan}</p>
+                        </div>
                       </div>
-                    ) : null}
-                  </>
-                ) : (
-                  <p className="mt-4 text-sm leading-7 text-slate-500">
-                    该成员在 {formatShortDate(selectedDate)} 尚未提交当日汇报，请及时提醒。
-                  </p>
-                )}
+                      <p className="mt-4 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-500">
+                        附件备注：{report.attachment}
+                      </p>
+                      {member.id === currentMemberId && permissions.canSubmitReport ? (
+                        <div className="mt-4 flex flex-wrap gap-3">
+                          <ActionButton onClick={() => openEditReportModal(report)}>修改汇报</ActionButton>
+                          <ActionButton onClick={() => removeReport(report.date)} variant="danger">
+                            撤回汇报
+                          </ActionButton>
+                        </div>
+                      ) : null}
+                    </>
+                  ) : (
+                    <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-5">
+                      <p className="text-sm font-semibold text-slate-700">这一天还没有汇报</p>
+                      <p className="mt-2 text-sm leading-7 text-slate-500">
+                        {member.id === currentMemberId && permissions.canSubmitReport
+                          ? "可以补交这一天的工作汇报，保存后会进入历史记录。"
+                          : `该成员在 ${formatShortDate(selectedDate)} 尚未提交当日汇报。`}
+                      </p>
+                    </div>
+                  )}
+                </div>
               </article>
             );
           })
@@ -5828,6 +5981,12 @@ export function WorkspaceDashboard({
           </div>
         )}
       </section>
+
+      {!selectedDateHasSavedReports && visibleReportMembers.length > 0 ? (
+        <p className="rounded-xl border border-slate-200 bg-white px-5 py-4 text-sm text-slate-500 shadow-sm">
+          {formatShortDate(selectedDate)} 暂无保存记录。选择其他历史日期，或点击“提交这天汇报”补录保存。
+        </p>
+      ) : null}
     </div>
   );
 
