@@ -83,7 +83,7 @@ import {
   expertReviewMaterialLabels,
 } from "@/lib/expert-review";
 import type { TrainingQuestionImportCandidate } from "@/lib/training-import";
-import { buildTaskWorkflowSteps, getTaskAcceptedTimeLabel } from "@/lib/task-workflow";
+import { buildTaskWorkflowSteps, getTaskAcceptedTimeLabel, getTaskReviewerLabel } from "@/lib/task-workflow";
 
 type BoardStatus = (typeof boardColumns)[number]["id"];
 type BoardStatusFilter = BoardStatus | "all";
@@ -5383,7 +5383,7 @@ export function WorkspaceDashboard({
                   { label: "提报人", value: task.creator?.name ?? "系统记录" },
                   { label: "发布人", value: task.creator?.name ?? "系统记录" },
                   { label: "处理人", value: getTaskAssigneeName(task) },
-                  { label: "审批人", value: task.reviewer?.name ?? "待本队教师/负责人确认" },
+                  { label: "审批人", value: getTaskReviewerLabel({ status: task.status, reviewerName: task.reviewer?.name }) },
                   { label: "所属队伍", value: task.teamGroupName ?? "未分组" },
                 ];
                 const taskTimeItems = [

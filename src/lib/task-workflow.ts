@@ -63,6 +63,20 @@ export const getTaskAcceptedTimeLabel = ({
   return status === "todo" ? "待接取" : "已接取（时间未记录）";
 };
 
+export const getTaskReviewerLabel = ({
+  status,
+  reviewerName,
+}: Pick<TaskDispatchReminderTarget, "status"> & {
+  reviewerName?: string | null;
+}) => {
+  const nextReviewerName = reviewerName?.trim();
+  if (nextReviewerName) {
+    return nextReviewerName;
+  }
+
+  return status === "archived" || status === "done" ? "已归档（验收人未记录）" : "待本队教师/负责人确认";
+};
+
 export const buildTaskWorkflowSteps = (task: TaskWorkflowTarget): TaskWorkflowStep[] => {
   const hasAssignee = Boolean(task.assigneeId);
   const assigneeName = task.assigneeName?.trim() || "处理人";

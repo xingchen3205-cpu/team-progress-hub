@@ -5,6 +5,7 @@ import {
   buildTaskWorkflowSteps,
   canRemindTaskDispatch,
   getTaskAcceptedTimeLabel,
+  getTaskReviewerLabel,
   pickTaskDispatchRecipientIds,
 } from "../src/lib/task-workflow";
 
@@ -95,6 +96,30 @@ describe("task workflow recipients", () => {
         acceptedAt: null,
       }),
       "待接取",
+    );
+  });
+
+  it("does not show pending reviewer wording for archived work orders without a recorded reviewer", () => {
+    assert.equal(
+      getTaskReviewerLabel({
+        status: "archived",
+        reviewerName: null,
+      }),
+      "已归档（验收人未记录）",
+    );
+    assert.equal(
+      getTaskReviewerLabel({
+        status: "review",
+        reviewerName: null,
+      }),
+      "待本队教师/负责人确认",
+    );
+    assert.equal(
+      getTaskReviewerLabel({
+        status: "done",
+        reviewerName: "李老师",
+      }),
+      "李老师",
     );
   });
 });
