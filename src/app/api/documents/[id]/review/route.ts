@@ -15,6 +15,7 @@ import {
 import { createNotifications, getUserIdsByRoles } from "@/lib/notifications";
 import { assertMainWorkspaceRole } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import { canAccessTeamScopedResource } from "@/lib/team-scope";
 
 export async function PATCH(
   request: NextRequest,
@@ -60,6 +61,15 @@ export async function PATCH(
 
   if (!currentDocument) {
     return NextResponse.json({ message: "文档不存在" }, { status: 404 });
+  }
+
+  if (
+    !canAccessTeamScopedResource(user, {
+      ownerId: currentDocument.ownerId,
+      teamGroupId: currentDocument.owner.teamGroupId,
+    })
+  ) {
+    return NextResponse.json({ message: "无权限访问该文档" }, { status: 403 });
   }
 
   const transition = getDocumentReviewTransition({
@@ -147,6 +157,7 @@ export async function PATCH(
     const recipientIds = await getUserIdsByRoles({
       roles: transition.notificationTargetRoles,
       excludeUserIds: [user.id],
+      teamGroupId: document.owner.teamGroupId,
     });
 
     await createNotifications({
@@ -165,6 +176,7 @@ export async function PATCH(
     const recipientIds = await getUserIdsByRoles({
       roles: ["leader", "admin"],
       excludeUserIds: [user.id],
+      teamGroupId: document.owner.teamGroupId,
     });
 
     await createNotifications({

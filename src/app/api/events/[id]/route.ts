@@ -5,6 +5,7 @@ import { parseLocalDateTime } from "@/lib/date";
 import { assertMainWorkspaceRole } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { serializeEvent } from "@/lib/api-serializers";
+import { canAccessTeamScopedResource } from "@/lib/team-scope";
 
 export async function PATCH(
   request: NextRequest,
@@ -34,6 +35,19 @@ export async function PATCH(
         description?: string;
       }
     | null;
+
+  const currentEvent = await prisma.event.findUnique({
+    where: { id },
+    select: { id: true, creatorId: true, teamGroupId: true },
+  });
+
+  if (!currentEvent) {
+    return NextResponse.json({ message: "节点不存在" }, { status: 404 });
+  }
+
+  if (!canAccessTeamScopedResource(user, { ownerId: currentEvent.creatorId, teamGroupId: currentEvent.teamGroupId })) {
+    return NextResponse.json({ message: "无权限编辑该节点" }, { status: 403 });
+  }
 
   const event = await prisma.event.update({
     where: { id },

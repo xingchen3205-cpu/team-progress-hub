@@ -5,6 +5,7 @@ import { toIsoDateKey } from "@/lib/date";
 import { assertExpertFeedbackAccess, assertMainWorkspaceRole, assertRole } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { serializeExpertFeedback } from "@/lib/api-serializers";
+import { buildTeamScopedResourceWhere } from "@/lib/team-scope";
 import { deleteStoredFile, saveUploadedFile } from "@/lib/uploads";
 
 export const runtime = "nodejs";
@@ -28,6 +29,10 @@ export async function GET(request: NextRequest) {
   }
 
   const experts = await prisma.expertFeedback.findMany({
+    where: buildTeamScopedResourceWhere({
+      actor: user,
+      ownerField: "createdById",
+    }),
     orderBy: [{ date: "desc" }, { createdAt: "desc" }],
     include: {
       attachmentFiles: {
@@ -91,6 +96,8 @@ export async function POST(request: NextRequest) {
         summary,
         nextAction,
         attachments: JSON.stringify(storedFiles.map((item) => item.fileName)),
+        createdById: user.id,
+        teamGroupId: user.role === "admin" ? null : user.teamGroupId,
         attachmentFiles: {
           create: storedFiles.map((item) => ({
             fileName: item.fileName,

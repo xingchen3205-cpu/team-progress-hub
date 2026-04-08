@@ -4,6 +4,7 @@ import { getSessionUser } from "@/lib/auth";
 import { buildAttachmentDisposition, buildInlineDisposition } from "@/lib/downloads";
 import { assertExpertFeedbackAccess } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import { canAccessTeamScopedResource } from "@/lib/team-scope";
 import { readStoredFile } from "@/lib/uploads";
 
 export const runtime = "nodejs";
@@ -40,6 +41,10 @@ export async function GET(
 
   if (!feedback) {
     return NextResponse.json({ message: "专家意见不存在" }, { status: 404 });
+  }
+
+  if (!canAccessTeamScopedResource(user, { ownerId: feedback.createdById, teamGroupId: feedback.teamGroupId })) {
+    return NextResponse.json({ message: "无权限查看该专家意见" }, { status: 403 });
   }
 
   const attachment = feedback.attachmentFiles.find((item) => item.id === attachmentId);

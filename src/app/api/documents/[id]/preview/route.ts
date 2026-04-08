@@ -4,6 +4,7 @@ import mammoth from "mammoth";
 import { getSessionUser } from "@/lib/auth";
 import { assertMainWorkspaceRole } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import { canAccessTeamScopedResource } from "@/lib/team-scope";
 import { readStoredFile } from "@/lib/uploads";
 
 export const runtime = "nodejs";
@@ -92,6 +93,9 @@ export async function GET(
   const document = await prisma.document.findUnique({
     where: { id },
     include: {
+      owner: {
+        select: { teamGroupId: true },
+      },
       versions: {
         orderBy: { uploadedAt: "desc" },
       },
@@ -100,6 +104,10 @@ export async function GET(
 
   if (!document) {
     return NextResponse.json({ message: "文档不存在" }, { status: 404 });
+  }
+
+  if (!canAccessTeamScopedResource(user, { ownerId: document.ownerId, teamGroupId: document.owner.teamGroupId })) {
+    return NextResponse.json({ message: "无权限访问该文档" }, { status: 403 });
   }
 
   const version =

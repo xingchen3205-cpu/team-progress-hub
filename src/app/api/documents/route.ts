@@ -10,6 +10,7 @@ import { getUploadWorkflow } from "@/lib/document-workflow";
 import { validateDocumentCenterUploadMeta } from "@/lib/file-policy";
 import { createNotifications, getUserIdsByRoles } from "@/lib/notifications";
 import { assertMainWorkspaceRole } from "@/lib/permissions";
+import { buildDocumentVisibilityWhere } from "@/lib/team-scope";
 import { deleteStoredFile, getUploadFolderByCategory, saveUploadedFile } from "@/lib/uploads";
 
 export const runtime = "nodejs";
@@ -27,6 +28,7 @@ export async function GET(request: NextRequest) {
   }
 
   const documents = await prisma.document.findMany({
+    where: buildDocumentVisibilityWhere(user),
     orderBy: { createdAt: "desc" },
     include: {
       owner: {
@@ -159,6 +161,7 @@ export async function POST(request: NextRequest) {
         const recipientIds = await getUserIdsByRoles({
           roles: workflow.notificationTargetRoles,
           excludeUserIds: [user.id],
+          teamGroupId: user.teamGroupId,
         });
 
         await createNotifications({

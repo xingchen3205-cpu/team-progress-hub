@@ -4,6 +4,7 @@ import { getSessionUser } from "@/lib/auth";
 import { buildInlineDisposition } from "@/lib/downloads";
 import { assertRole } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import { canAccessTeamScopedResource } from "@/lib/team-scope";
 import { readStoredFile } from "@/lib/uploads";
 
 export const runtime = "nodejs";
@@ -49,6 +50,16 @@ export async function GET(
   }
 
   if (user.role === "expert" && assignment.expertUserId !== user.id) {
+    return NextResponse.json({ message: "无权限查看该材料" }, { status: 403 });
+  }
+
+  if (
+    user.role !== "expert" &&
+    !canAccessTeamScopedResource(user, {
+      ownerId: assignment.reviewPackage.createdById,
+      teamGroupId: assignment.reviewPackage.teamGroupId,
+    })
+  ) {
     return NextResponse.json({ message: "无权限查看该材料" }, { status: 403 });
   }
 

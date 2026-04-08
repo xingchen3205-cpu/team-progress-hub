@@ -85,6 +85,8 @@ model User {
   taskAttachments      TaskAttachment[]         @relation("TaskAttachmentUploader")
   reports              Report[]
   announcements        Announcement[]
+  events               Event[]                   @relation("EventCreator")
+  expertFeedbacks      ExpertFeedback[]          @relation("ExpertFeedbackCreator")
   documents            Document[]               @relation("DocumentOwner")
   documentEdits        DocumentVersion[]        @relation("DocumentVersionUploader")
   notifications        Notification[]           @relation("NotificationRecipient")
@@ -103,6 +105,12 @@ model TeamGroup {
   createdAt   DateTime @default(now())
   members     User[]
   tasks       Task[]
+  announcements Announcement[]
+  events      Event[]
+  expertFeedbacks ExpertFeedback[]
+  expertReviewPackages ExpertReviewPackage[]
+  trainingQuestions TrainingQuestion[]
+  trainingSessions TrainingSession[]
 }
 
 model Task {
@@ -164,21 +172,31 @@ model Report {
 }
 
 model Announcement {
-  id        String   @id @default(cuid())
-  title     String
-  detail    String
-  authorId  String
-  createdAt DateTime @default(now())
-  author    User     @relation(fields: [authorId], references: [id])
+  id          String     @id @default(cuid())
+  title       String
+  detail      String
+  authorId    String
+  teamGroupId String?
+  createdAt   DateTime   @default(now())
+  author      User       @relation(fields: [authorId], references: [id])
+  teamGroup   TeamGroup? @relation(fields: [teamGroupId], references: [id], onDelete: SetNull)
+
+  @@index([teamGroupId, createdAt])
 }
 
 model Event {
-  id          String   @id @default(cuid())
+  id          String     @id @default(cuid())
   title       String
   dateTime    DateTime
   type        String
   description String
-  createdAt   DateTime @default(now())
+  creatorId   String?
+  teamGroupId String?
+  createdAt   DateTime   @default(now())
+  creator     User?      @relation("EventCreator", fields: [creatorId], references: [id], onDelete: SetNull)
+  teamGroup   TeamGroup? @relation(fields: [teamGroupId], references: [id], onDelete: SetNull)
+
+  @@index([teamGroupId, dateTime])
 }
 
 model ExpertFeedback {
@@ -190,8 +208,14 @@ model ExpertFeedback {
   summary         String
   nextAction      String
   attachments     String
+  createdById     String?
+  teamGroupId     String?
   createdAt       DateTime           @default(now())
+  createdBy       User?              @relation("ExpertFeedbackCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  teamGroup       TeamGroup?         @relation(fields: [teamGroupId], references: [id], onDelete: SetNull)
   attachmentFiles ExpertAttachment[]
+
+  @@index([teamGroupId, date, createdAt])
 }
 
 model ExpertAttachment {
@@ -260,12 +284,14 @@ model ExpertReviewPackage {
   overview    String?
   deadline    DateTime?
   createdById String
+  teamGroupId String?
   createdAt   DateTime                 @default(now())
   creator     User                     @relation("ExpertReviewPackageCreator", fields: [createdById], references: [id])
+  teamGroup   TeamGroup?               @relation(fields: [teamGroupId], references: [id], onDelete: SetNull)
   materials   ExpertReviewMaterial[]
   assignments ExpertReviewAssignment[]
 
-  @@index([createdAt])
+  @@index([teamGroupId, createdAt])
 }
 
 model ExpertReviewAssignment {
@@ -321,12 +347,15 @@ model TrainingQuestion {
   question     String
   answerPoints String
   createdById  String
+  teamGroupId  String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
   createdBy    User     @relation("TrainingQuestionCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  teamGroup    TeamGroup? @relation(fields: [teamGroupId], references: [id], onDelete: SetNull)
 
   @@index([category, createdAt])
   @@index([createdById, createdAt])
+  @@index([teamGroupId, createdAt])
 }
 
 model TrainingSession {
@@ -338,9 +367,12 @@ model TrainingSession {
   qaHit           Int      @default(0)
   notes           String?
   createdById     String
+  teamGroupId     String?
   createdAt       DateTime @default(now())
   createdBy       User     @relation("TrainingSessionCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  teamGroup       TeamGroup? @relation(fields: [teamGroupId], references: [id], onDelete: SetNull)
 
   @@index([createdAt])
   @@index([createdById, createdAt])
+  @@index([teamGroupId, createdAt])
 }

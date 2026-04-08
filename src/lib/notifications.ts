@@ -155,9 +155,11 @@ export async function createNotifications({
 export async function getUserIdsByRoles({
   roles,
   excludeUserIds = [],
+  teamGroupId,
 }: {
   roles: Role[];
   excludeUserIds?: string[];
+  teamGroupId?: string | null;
 }) {
   if (roles.length === 0) {
     return [];
@@ -171,6 +173,11 @@ export async function getUserIdsByRoles({
       id: {
         notIn: excludeUserIds,
       },
+      ...(teamGroupId === undefined
+        ? {}
+        : teamGroupId
+          ? { teamGroupId }
+          : { id: "__no_team_group_recipients__" }),
     },
     select: {
       id: true,

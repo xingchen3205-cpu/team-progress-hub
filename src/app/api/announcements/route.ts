@@ -5,6 +5,7 @@ import { createNotifications } from "@/lib/notifications";
 import { assertMainWorkspaceRole, assertRole } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { serializeAnnouncement } from "@/lib/api-serializers";
+import { buildTeamScopedResourceWhere } from "@/lib/team-scope";
 
 export async function GET(request: NextRequest) {
   const user = await getSessionUser(request);
@@ -19,6 +20,10 @@ export async function GET(request: NextRequest) {
   }
 
   const announcements = await prisma.announcement.findMany({
+    where: buildTeamScopedResourceWhere({
+      actor: user,
+      ownerField: "authorId",
+    }),
     orderBy: { createdAt: "desc" },
     include: {
       author: {
@@ -67,6 +72,7 @@ export async function POST(request: NextRequest) {
       title,
       detail,
       authorId: user.id,
+      teamGroupId: user.role === "admin" ? null : user.teamGroupId,
     },
     include: {
       author: {
@@ -92,7 +98,11 @@ export async function POST(request: NextRequest) {
         id: {
           not: user.id,
         },
-        ...(user.role !== "admin" && user.teamGroupId ? { teamGroupId: user.teamGroupId } : {}),
+        ...(user.role === "admin"
+          ? {}
+          : user.teamGroupId
+            ? { teamGroupId: user.teamGroupId }
+            : { id: "__no_team_group_recipients__" }),
       },
       select: {
         id: true,

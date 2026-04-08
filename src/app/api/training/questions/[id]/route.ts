@@ -7,13 +7,16 @@ import { serializeTrainingQuestion } from "@/lib/api-serializers";
 
 const canManageTrainingQuestion = (
   user: NonNullable<Awaited<ReturnType<typeof getSessionUser>>>,
-  createdById: string,
+  question: { createdById: string; teamGroupId?: string | null },
 ) => {
-  if (["admin", "teacher", "leader"].includes(user.role)) {
+  if (user.role === "admin" || user.id === question.createdById) {
     return true;
   }
 
-  return user.id === createdById;
+  return (
+    ["teacher", "leader"].includes(user.role) &&
+    Boolean(user.teamGroupId && question.teamGroupId === user.teamGroupId)
+  );
 };
 
 export async function PATCH(
@@ -34,14 +37,14 @@ export async function PATCH(
   const { id } = await params;
   const existingQuestion = await prisma.trainingQuestion.findUnique({
     where: { id },
-    select: { createdById: true },
+    select: { createdById: true, teamGroupId: true },
   });
 
   if (!existingQuestion) {
     return NextResponse.json({ message: "题目不存在" }, { status: 404 });
   }
 
-  if (!canManageTrainingQuestion(user, existingQuestion.createdById)) {
+  if (!canManageTrainingQuestion(user, existingQuestion)) {
     return NextResponse.json({ message: "无权限" }, { status: 403 });
   }
 
@@ -92,14 +95,14 @@ export async function DELETE(
   const { id } = await params;
   const existingQuestion = await prisma.trainingQuestion.findUnique({
     where: { id },
-    select: { createdById: true },
+    select: { createdById: true, teamGroupId: true },
   });
 
   if (!existingQuestion) {
     return NextResponse.json({ message: "题目不存在" }, { status: 404 });
   }
 
-  if (user.role === "member" && user.id !== existingQuestion.createdById) {
+  if (!canManageTrainingQuestion(user, existingQuestion)) {
     return NextResponse.json({ message: "无权限" }, { status: 403 });
   }
 

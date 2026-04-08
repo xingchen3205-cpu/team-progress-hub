@@ -190,6 +190,7 @@ async function main() {
       dateTime: new Date(item.dateTime),
       type: item.type,
       description: item.description,
+      creatorId: "teacher-1",
     })),
   });
 
@@ -230,6 +231,7 @@ async function main() {
       summary: item.summary,
       nextAction: item.nextAction,
       attachments: JSON.stringify(item.attachments),
+      createdById: "teacher-1",
     })),
   });
 

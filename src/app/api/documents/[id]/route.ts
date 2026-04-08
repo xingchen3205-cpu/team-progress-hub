@@ -5,6 +5,7 @@ import { serializeDocument } from "@/lib/api-serializers";
 import { canDeleteDocument, isPrivilegedReviewer } from "@/lib/document-workflow";
 import { assertMainWorkspaceRole } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import { canAccessTeamScopedResource } from "@/lib/team-scope";
 import { deleteStoredFile } from "@/lib/uploads";
 
 export const runtime = "nodejs";
@@ -29,7 +30,7 @@ export async function DELETE(
     where: { id },
     include: {
       owner: {
-        select: { id: true, name: true },
+        select: { id: true, name: true, teamGroupId: true },
       },
       versions: {
         orderBy: { uploadedAt: "desc" },
@@ -44,6 +45,10 @@ export async function DELETE(
 
   if (!document) {
     return NextResponse.json({ message: "文档不存在" }, { status: 404 });
+  }
+
+  if (!canAccessTeamScopedResource(user, { ownerId: document.ownerId, teamGroupId: document.owner.teamGroupId })) {
+    return NextResponse.json({ message: "无权限访问该文档" }, { status: 403 });
   }
 
   if (

@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { assertMainWorkspaceRole, assertRole } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import { canAccessTeamScopedResource } from "@/lib/team-scope";
 import { deleteStoredFile } from "@/lib/uploads";
 
 export const runtime = "nodejs";
@@ -37,6 +38,10 @@ export async function DELETE(
 
   if (!feedback) {
     return NextResponse.json({ message: "专家意见不存在" }, { status: 404 });
+  }
+
+  if (!canAccessTeamScopedResource(user, { ownerId: feedback.createdById, teamGroupId: feedback.teamGroupId })) {
+    return NextResponse.json({ message: "无权限删除该专家意见" }, { status: 403 });
   }
 
   try {

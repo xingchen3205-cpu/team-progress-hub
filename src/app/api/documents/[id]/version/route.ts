@@ -11,6 +11,7 @@ import {
 import { validateDocumentCenterUploadMeta } from "@/lib/file-policy";
 import { createNotifications, getUserIdsByRoles } from "@/lib/notifications";
 import { assertMainWorkspaceRole } from "@/lib/permissions";
+import { canAccessTeamScopedResource } from "@/lib/team-scope";
 import { deleteStoredFile, getUploadFolderByCategory, saveUploadedFile } from "@/lib/uploads";
 
 export const runtime = "nodejs";
@@ -61,9 +62,25 @@ export async function POST(
       }
     : null;
 
-  const currentDocument = await prisma.document.findUnique({ where: { id } });
+  const currentDocument = await prisma.document.findUnique({
+    where: { id },
+    include: {
+      owner: {
+        select: { teamGroupId: true },
+      },
+    },
+  });
   if (!currentDocument) {
     return NextResponse.json({ message: "文档不存在" }, { status: 404 });
+  }
+
+  if (
+    !canAccessTeamScopedResource(user, {
+      ownerId: currentDocument.ownerId,
+      teamGroupId: currentDocument.owner.teamGroupId,
+    })
+  ) {
+    return NextResponse.json({ message: "无权限访问该文档" }, { status: 403 });
   }
 
   if (!(file instanceof File) && !directFile) {
@@ -133,6 +150,7 @@ export async function POST(
         const recipientIds = await getUserIdsByRoles({
           roles: workflow.notificationTargetRoles,
           excludeUserIds: [user.id],
+          teamGroupId: currentDocument.owner.teamGroupId,
         });
 
         await createNotifications({
@@ -195,7 +213,7 @@ export async function DELETE(
     where: { id },
     include: {
       owner: {
-        select: { id: true, name: true },
+        select: { id: true, name: true, teamGroupId: true },
       },
       versions: {
         orderBy: { uploadedAt: "desc" },
@@ -210,6 +228,10 @@ export async function DELETE(
 
   if (!document) {
     return NextResponse.json({ message: "文档不存在" }, { status: 404 });
+  }
+
+  if (!canAccessTeamScopedResource(user, { ownerId: document.ownerId, teamGroupId: document.owner.teamGroupId })) {
+    return NextResponse.json({ message: "无权限访问该文档" }, { status: 403 });
   }
 
   const version = document.versions.find((item) => item.id === versionId);

@@ -8,6 +8,7 @@ import {
 } from "@/lib/expert-review";
 import { assertRole } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import { canAccessTeamScopedResource } from "@/lib/team-scope";
 import { deleteStoredFile, readStoredFileRange, saveUploadedFile } from "@/lib/uploads";
 
 export const runtime = "nodejs";
@@ -107,6 +108,15 @@ export async function POST(
 
   if (!assignment) {
     return NextResponse.json({ message: "评审任务不存在" }, { status: 404 });
+  }
+
+  if (
+    !canAccessTeamScopedResource(user, {
+      ownerId: assignment.reviewPackage.createdById,
+      teamGroupId: assignment.reviewPackage.teamGroupId,
+    })
+  ) {
+    return NextResponse.json({ message: "无权限维护该评审材料" }, { status: 403 });
   }
 
   let storedFile: Awaited<ReturnType<typeof saveUploadedFile>> | null = null;
@@ -334,11 +344,26 @@ export async function DELETE(
     where: { id },
     select: {
       packageId: true,
+      reviewPackage: {
+        select: {
+          createdById: true,
+          teamGroupId: true,
+        },
+      },
     },
   });
 
   if (!assignment) {
     return NextResponse.json({ message: "评审任务不存在" }, { status: 404 });
+  }
+
+  if (
+    !canAccessTeamScopedResource(user, {
+      ownerId: assignment.reviewPackage.createdById,
+      teamGroupId: assignment.reviewPackage.teamGroupId,
+    })
+  ) {
+    return NextResponse.json({ message: "无权限删除该评审材料" }, { status: 403 });
   }
 
   const material = await prisma.expertReviewMaterial.findUnique({

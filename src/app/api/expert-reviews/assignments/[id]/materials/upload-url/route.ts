@@ -7,6 +7,7 @@ import { validateExpertReviewMaterial } from "@/lib/expert-review";
 import { assertRole } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { PutObjectCommand, R2_BUCKET, r2Client } from "@/lib/r2";
+import { canAccessTeamScopedResource } from "@/lib/team-scope";
 import { buildStoredObjectKey } from "@/lib/uploads";
 
 export const runtime = "nodejs";
@@ -29,11 +30,28 @@ export async function POST(
   const { id } = await params;
   const assignment = await prisma.expertReviewAssignment.findUnique({
     where: { id },
-    select: { id: true },
+    select: {
+      id: true,
+      reviewPackage: {
+        select: {
+          createdById: true,
+          teamGroupId: true,
+        },
+      },
+    },
   });
 
   if (!assignment) {
     return NextResponse.json({ message: "评审任务不存在" }, { status: 404 });
+  }
+
+  if (
+    !canAccessTeamScopedResource(user, {
+      ownerId: assignment.reviewPackage.createdById,
+      teamGroupId: assignment.reviewPackage.teamGroupId,
+    })
+  ) {
+    return NextResponse.json({ message: "无权限上传该评审材料" }, { status: 403 });
   }
 
   const body = (await request.json().catch(() => null)) as

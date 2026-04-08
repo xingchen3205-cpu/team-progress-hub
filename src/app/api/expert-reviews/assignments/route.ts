@@ -7,6 +7,7 @@ import {
 } from "@/lib/expert-review";
 import { assertRole } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import { buildExpertReviewAssignmentVisibilityWhere } from "@/lib/team-scope";
 
 const assignmentInclude = {
   expertUser: {
@@ -67,7 +68,7 @@ export async function GET(request: NextRequest) {
   }
 
   const assignments = await prisma.expertReviewAssignment.findMany({
-    where: user.role === "expert" ? { expertUserId: user.id } : undefined,
+    where: buildExpertReviewAssignmentVisibilityWhere(user),
     orderBy: [{ createdAt: "desc" }],
     include: assignmentInclude,
   });
@@ -132,6 +133,7 @@ export async function POST(request: NextRequest) {
         overview,
         deadline,
         createdById: user.id,
+        teamGroupId: user.role === "admin" ? null : user.teamGroupId,
       },
       select: { id: true },
     });

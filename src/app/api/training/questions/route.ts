@@ -4,6 +4,7 @@ import { getSessionUser } from "@/lib/auth";
 import { assertMainWorkspaceRole } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { serializeTrainingQuestion } from "@/lib/api-serializers";
+import { buildTeamScopedResourceWhere } from "@/lib/team-scope";
 
 export async function GET(request: NextRequest) {
   const user = await getSessionUser(request);
@@ -18,6 +19,10 @@ export async function GET(request: NextRequest) {
   }
 
   const questions = await prisma.trainingQuestion.findMany({
+    where: buildTeamScopedResourceWhere({
+      actor: user,
+      ownerField: "createdById",
+    }),
     orderBy: [{ createdAt: "desc" }],
     include: {
       createdBy: {
@@ -63,6 +68,7 @@ export async function POST(request: NextRequest) {
       question,
       answerPoints,
       createdById: user.id,
+      teamGroupId: user.role === "admin" ? null : user.teamGroupId,
     },
     include: {
       createdBy: {

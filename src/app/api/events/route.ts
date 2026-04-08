@@ -5,6 +5,7 @@ import { parseLocalDateTime } from "@/lib/date";
 import { assertMainWorkspaceRole, assertRole } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { serializeEvent } from "@/lib/api-serializers";
+import { buildTeamScopedResourceWhere } from "@/lib/team-scope";
 
 export async function GET(request: NextRequest) {
   const user = await getSessionUser(request);
@@ -19,6 +20,10 @@ export async function GET(request: NextRequest) {
   }
 
   const events = await prisma.event.findMany({
+    where: buildTeamScopedResourceWhere({
+      actor: user,
+      ownerField: "creatorId",
+    }),
     orderBy: { dateTime: "asc" },
   });
 
@@ -67,6 +72,8 @@ export async function POST(request: NextRequest) {
       dateTime,
       type,
       description,
+      creatorId: user.id,
+      teamGroupId: user.role === "admin" ? null : user.teamGroupId,
     },
   });
 

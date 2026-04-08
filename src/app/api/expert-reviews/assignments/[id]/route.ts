@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { assertRole } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import { canAccessTeamScopedResource } from "@/lib/team-scope";
 import { deleteStoredFile } from "@/lib/uploads";
 
 export async function DELETE(
@@ -34,6 +35,15 @@ export async function DELETE(
 
   if (!assignment) {
     return NextResponse.json({ message: "评审任务不存在" }, { status: 404 });
+  }
+
+  if (
+    !canAccessTeamScopedResource(user, {
+      ownerId: assignment.reviewPackage.createdById,
+      teamGroupId: assignment.reviewPackage.teamGroupId,
+    })
+  ) {
+    return NextResponse.json({ message: "无权限删除该评审任务" }, { status: 403 });
   }
 
   const fileKeys = assignment.reviewPackage.materials.map((item) => item.filePath);

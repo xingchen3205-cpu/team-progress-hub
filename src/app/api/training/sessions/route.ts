@@ -4,6 +4,7 @@ import { getSessionUser } from "@/lib/auth";
 import { assertMainWorkspaceRole } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { serializeTrainingSession } from "@/lib/api-serializers";
+import { buildTeamScopedResourceWhere } from "@/lib/team-scope";
 
 const toSafeInteger = (value: unknown, fallback = 0) => {
   const numberValue = Number(value);
@@ -26,8 +27,14 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ message: "无权限" }, { status: 403 });
   }
 
+  const visibilityWhere = buildTeamScopedResourceWhere({
+    actor: user,
+    ownerField: "createdById",
+  });
+
   const [sessions, questionCount, aggregate] = await Promise.all([
     prisma.trainingSession.findMany({
+      where: visibilityWhere,
       orderBy: { createdAt: "desc" },
       take: 20,
       include: {
@@ -36,8 +43,11 @@ export async function GET(request: NextRequest) {
         },
       },
     }),
-    prisma.trainingQuestion.count(),
+    prisma.trainingQuestion.count({
+      where: visibilityWhere,
+    }),
     prisma.trainingSession.aggregate({
+      where: visibilityWhere,
       _count: { id: true },
       _sum: {
         overtimeSeconds: true,
@@ -110,6 +120,7 @@ export async function POST(request: NextRequest) {
       qaHit,
       notes,
       createdById: user.id,
+      teamGroupId: user.role === "admin" ? null : user.teamGroupId,
     },
     include: {
       createdBy: {
