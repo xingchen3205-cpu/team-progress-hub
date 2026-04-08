@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { canRemindTaskDispatch, pickTaskDispatchRecipientIds } from "../src/lib/task-workflow";
+import { buildTaskWorkflowSteps, canRemindTaskDispatch, pickTaskDispatchRecipientIds } from "../src/lib/task-workflow";
 
 describe("task workflow recipients", () => {
   it("prefers project leaders for unassigned work order dispatch reminders", () => {
@@ -47,5 +47,22 @@ describe("task workflow recipients", () => {
     assert.equal(canRemindTaskDispatch({ status: "todo", assigneeId: null }), true);
     assert.equal(canRemindTaskDispatch({ status: "todo", assigneeId: "member-1" }), false);
     assert.equal(canRemindTaskDispatch({ status: "doing", assigneeId: null }), false);
+  });
+
+  it("describes the current workflow step and reviewer clearly", () => {
+    assert.deepEqual(
+      buildTaskWorkflowSteps({
+        status: "review",
+        assigneeId: "member-1",
+        assigneeName: "张星云",
+        reviewerName: "李老师",
+      }),
+      [
+        { key: "submitted", label: "提报", state: "done", helper: "工单已创建" },
+        { key: "assigned", label: "接取", state: "done", helper: "张星云已接取" },
+        { key: "processing", label: "处理", state: "done", helper: "张星云已提交验收" },
+        { key: "review", label: "验收", state: "current", helper: "李老师确认闭环" },
+      ],
+    );
   });
 });

@@ -109,7 +109,6 @@ export async function POST(
     return NextResponse.json({ message: "评审任务不存在" }, { status: 404 });
   }
 
-  const existingMaterial = assignment.reviewPackage.materials.find((item) => item.kind === kind) ?? null;
   let storedFile: Awaited<ReturnType<typeof saveUploadedFile>> | null = null;
   let uploadedFilePath: string | null = null;
 
@@ -137,6 +136,7 @@ export async function POST(
     if (!kind || !["plan", "ppt", "video"].includes(kind) || !fileName || !filePath || !fileSize) {
       return NextResponse.json({ message: "评审材料信息不完整" }, { status: 400 });
     }
+    const existingMaterial = assignment.reviewPackage.materials.find((item) => item.kind === kind) ?? null;
 
     const validationError = validateExpertReviewMaterial({
       kind,
@@ -228,6 +228,7 @@ export async function POST(
   if (!["plan", "ppt", "video"].includes(kind) || !(file instanceof File)) {
     return NextResponse.json({ message: "评审材料信息不完整" }, { status: 400 });
   }
+  const existingMaterial = assignment.reviewPackage.materials.find((item) => item.kind === kind) ?? null;
 
   const validationError = validateExpertReviewMaterial({
     kind,

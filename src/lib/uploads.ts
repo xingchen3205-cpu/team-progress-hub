@@ -18,6 +18,8 @@ const uploadFolderByCategory: Record<DocumentCategory, string> = {
   proof: "proof",
 };
 
+export const getUploadFolderByCategory = (category: DocumentCategory) => uploadFolderByCategory[category];
+
 export const sanitizeUploadFileName = (fileName: string) =>
   path
     .basename(fileName)

@@ -1,6 +1,7 @@
 import path from "node:path";
 
 export const MAX_UPLOAD_SIZE = 20 * 1024 * 1024;
+export const MAX_DOCUMENT_CENTER_UPLOAD_SIZE = 100 * 1024 * 1024;
 
 export const allowedFileExtensions = [
   ".doc",
@@ -63,9 +64,13 @@ export const validateUploadMeta = (
   },
   options: {
     allowArchives?: boolean;
+    maxSizeBytes?: number;
+    maxSizeLabel?: string;
   } = {},
 ) => {
   const archiveAllowed = Boolean(options.allowArchives && isDocumentArchiveExtension(fileName));
+  const maxSizeBytes = options.maxSizeBytes ?? MAX_UPLOAD_SIZE;
+  const maxSizeLabel = options.maxSizeLabel ?? "20MB";
 
   if (
     !fileName ||
@@ -75,12 +80,16 @@ export const validateUploadMeta = (
     return "不支持该文件格式";
   }
 
-  if (fileSize > MAX_UPLOAD_SIZE) {
-    return "文件大小不能超过 20MB";
+  if (fileSize > maxSizeBytes) {
+    return `文件大小不能超过 ${maxSizeLabel}`;
   }
 
   return null;
 };
 
 export const validateDocumentCenterUploadMeta = (meta: { fileName: string; fileSize: number }) =>
-  validateUploadMeta(meta, { allowArchives: true });
+  validateUploadMeta(meta, {
+    allowArchives: true,
+    maxSizeBytes: MAX_DOCUMENT_CENTER_UPLOAD_SIZE,
+    maxSizeLabel: "100MB",
+  });

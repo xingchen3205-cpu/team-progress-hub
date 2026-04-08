@@ -69,6 +69,7 @@ import { EMAIL_RULE_HINT, USERNAME_RULE_HINT, validateRequiredEmail, validateUse
 import {
   documentCenterAcceptAttribute,
   documentAcceptAttribute,
+  MAX_DOCUMENT_CENTER_UPLOAD_SIZE,
   validateUploadMeta,
 } from "@/lib/file-policy";
 import {
@@ -82,6 +83,7 @@ import {
   expertReviewMaterialLabels,
 } from "@/lib/expert-review";
 import type { TrainingQuestionImportCandidate } from "@/lib/training-import";
+import { buildTaskWorkflowSteps } from "@/lib/task-workflow";
 
 type BoardStatus = (typeof boardColumns)[number]["id"];
 type BoardStatusFilter = BoardStatus | "all";
@@ -646,6 +648,24 @@ const taskPriorityStyles: Record<TaskDraft["priority"], string> = {
   高优先级: "border-rose-200 bg-rose-50 text-rose-700",
   中优先级: "border-amber-200 bg-amber-50 text-amber-700",
   低优先级: "border-slate-200 bg-slate-100 text-slate-600",
+};
+
+const taskWorkflowStepClassNames: Record<"done" | "current" | "pending", string> = {
+  done: "border-emerald-200 bg-emerald-50 text-emerald-700",
+  current: "border-blue-200 bg-blue-50 text-blue-700 ring-2 ring-blue-500/10",
+  pending: "border-slate-200 bg-white text-slate-500",
+};
+
+const taskWorkflowDotClassNames: Record<"done" | "current" | "pending", string> = {
+  done: "bg-emerald-500 text-white",
+  current: "bg-blue-600 text-white shadow-sm shadow-blue-500/30",
+  pending: "bg-slate-100 text-slate-400 ring-1 ring-slate-200",
+};
+
+const taskWorkflowConnectorClassNames: Record<"done" | "current" | "pending", string> = {
+  done: "bg-emerald-300",
+  current: "bg-blue-200",
+  pending: "bg-slate-200",
 };
 
 const surfaceCardClassName = "rounded-xl border border-slate-200 bg-white p-5 shadow-sm";
@@ -1511,10 +1531,14 @@ export function WorkspaceDashboard({
   const [reportDraft, setReportDraft] = useState<ReportDraft>(defaultReportDraft);
   const [documentModalOpen, setDocumentModalOpen] = useState(false);
   const [documentDraft, setDocumentDraft] = useState<DocumentDraft>(defaultDocumentDraft);
+  const [documentSavingLabel, setDocumentSavingLabel] = useState("上传中...");
+  const [documentUploadProgress, setDocumentUploadProgress] = useState<number | null>(null);
   const [versionModalOpen, setVersionModalOpen] = useState(false);
   const [versionTargetDocId, setVersionTargetDocId] = useState<string | null>(null);
   const [versionUploadNote, setVersionUploadNote] = useState("");
   const [versionUploadFile, setVersionUploadFile] = useState<File | null>(null);
+  const [versionSavingLabel, setVersionSavingLabel] = useState("上传中...");
+  const [versionUploadProgress, setVersionUploadProgress] = useState<number | null>(null);
   const [reviewModalOpen, setReviewModalOpen] = useState(false);
   const [reviewTargetDocId, setReviewTargetDocId] = useState<string | null>(null);
   const [reviewAction, setReviewAction] = useState<DocumentReviewActionKey | null>(null);
@@ -1538,6 +1562,25 @@ export function WorkspaceDashboard({
   const greetingCopy = getGreetingCopy(currentUser?.profile.name ?? "你好", currentDateTime);
   const canReviewDocuments =
     currentRole === "admin" || permissions.canLeaderReviewDocument || permissions.canTeacherReviewDocument;
+  const hasBlockingOverlay =
+    taskModalOpen ||
+    taskCompletionModalOpen ||
+    taskRejectModalOpen ||
+    questionImportModalOpen ||
+    announcementModalOpen ||
+    reminderModalOpen ||
+    eventModalOpen ||
+    expertModalOpen ||
+    reviewAssignmentModalOpen ||
+    reviewMaterialModalOpen ||
+    teamModalOpen ||
+    batchExpertModalOpen ||
+    passwordModalOpen ||
+    reportModalOpen ||
+    documentModalOpen ||
+    versionModalOpen ||
+    reviewModalOpen ||
+    Boolean(previewAsset);
 
   useEffect(() => {
     setLoadError(null);
@@ -1742,6 +1785,34 @@ export function WorkspaceDashboard({
       isMounted = false;
     };
   }, [reloadToken, router]);
+
+  useEffect(() => {
+    if (!currentMemberId || requiresEmailCompletion || hasBlockingOverlay) {
+      return undefined;
+    }
+
+    const refreshIfVisible = () => {
+      if (document.visibilityState === "visible") {
+        setReloadToken((current) => current + 1);
+      }
+    };
+
+    const interval = window.setInterval(refreshIfVisible, 20 * 1000);
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        refreshIfVisible();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.addEventListener("focus", refreshIfVisible);
+
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+      window.removeEventListener("focus", refreshIfVisible);
+    };
+  }, [currentMemberId, hasBlockingOverlay, requiresEmailCompletion]);
 
   useEffect(() => {
     if (!nearestEvent) {
@@ -2352,10 +2423,61 @@ export function WorkspaceDashboard({
     setReloadToken((current) => current + 1);
   };
 
+  const getReportDraftStorageKey = (date: string) =>
+    currentMemberId ? `workspace-report-draft:${currentMemberId}:${date}` : null;
+
+  const readStoredReportDraft = (date: string): ReportDraft | null => {
+    const storageKey = getReportDraftStorageKey(date);
+    if (!storageKey) {
+      return null;
+    }
+
+    try {
+      const rawValue = window.localStorage.getItem(storageKey);
+      if (!rawValue) {
+        return null;
+      }
+
+      const parsedValue = JSON.parse(rawValue) as Partial<ReportDraft>;
+      return {
+        summary: typeof parsedValue.summary === "string" ? parsedValue.summary : "",
+        nextPlan: typeof parsedValue.nextPlan === "string" ? parsedValue.nextPlan : "",
+        attachment: typeof parsedValue.attachment === "string" ? parsedValue.attachment : "",
+      };
+    } catch {
+      return null;
+    }
+  };
+
+  const removeStoredReportDraft = (date: string) => {
+    const storageKey = getReportDraftStorageKey(date);
+    if (!storageKey) {
+      return;
+    }
+
+    window.localStorage.removeItem(storageKey);
+  };
+
+  useEffect(() => {
+    if (!reportModalOpen || !currentMemberId) {
+      return;
+    }
+
+    const draftDate = editingReportDate || selectedDate;
+    const storageKey = currentMemberId ? `workspace-report-draft:${currentMemberId}:${draftDate}` : null;
+    if (!storageKey) {
+      return;
+    }
+
+    window.localStorage.setItem(storageKey, JSON.stringify(reportDraft));
+  }, [currentMemberId, editingReportDate, reportDraft, reportModalOpen, selectedDate]);
+
   const validateClientFile = (
     file: File | null,
     options: {
       allowArchives?: boolean;
+      maxSizeBytes?: number;
+      maxSizeLabel?: string;
     } = {},
   ) => {
     if (!file) {
@@ -3389,18 +3511,22 @@ export function WorkspaceDashboard({
   };
 
   const openCreateReportModal = () => {
+    const storedDraft = readStoredReportDraft(selectedDate);
     setEditingReportDate(null);
-    setReportDraft(defaultReportDraft);
+    setReportDraft(storedDraft ?? defaultReportDraft);
     setReportModalOpen(true);
   };
 
   const openEditReportModal = (report: ReportEntryWithDate) => {
+    const storedDraft = readStoredReportDraft(report.date);
     setEditingReportDate(report.date);
-    setReportDraft({
-      summary: report.summary,
-      nextPlan: report.nextPlan,
-      attachment: report.attachment === "未上传附件" ? "" : report.attachment,
-    });
+    setReportDraft(
+      storedDraft ?? {
+        summary: report.summary,
+        nextPlan: report.nextPlan,
+        attachment: report.attachment === "未上传附件" ? "" : report.attachment,
+      },
+    );
     setReportModalOpen(true);
   };
 
@@ -3417,13 +3543,15 @@ export function WorkspaceDashboard({
 
     setIsSaving(true);
     try {
+      const reportDate = editingReportDate || selectedDate;
       await requestJson("/api/reports", {
         method: "POST",
         body: JSON.stringify({
-          date: editingReportDate || selectedDate,
+          date: reportDate,
           ...reportDraft,
         }),
       });
+      removeStoredReportDraft(reportDate);
       closeReportModal();
       showSuccessToast(editingReportDate ? "汇报已更新" : "汇报已提交", "当前日期的工作汇报已保存。");
       refreshWorkspace();
@@ -3438,6 +3566,7 @@ export function WorkspaceDashboard({
     await requestJson(`/api/reports?date=${encodeURIComponent(date)}`, {
       method: "DELETE",
     });
+    removeStoredReportDraft(date);
     refreshWorkspace();
   };
 
@@ -3600,7 +3729,11 @@ export function WorkspaceDashboard({
   };
 
   const saveDocument = async () => {
-    const validationError = validateClientFile(documentDraft.file, { allowArchives: true });
+    const validationError = validateClientFile(documentDraft.file, {
+      allowArchives: true,
+      maxSizeBytes: MAX_DOCUMENT_CENTER_UPLOAD_SIZE,
+      maxSizeLabel: "100MB",
+    });
     if (validationError) {
       setLoadError(validationError);
       return;
@@ -3611,33 +3744,64 @@ export function WorkspaceDashboard({
       return;
     }
 
-    const formData = new FormData();
-    formData.set("name", documentDraft.name.trim());
-    formData.set("category", documentDraft.category);
-    formData.set("note", documentDraft.note.trim());
-    formData.set("file", documentDraft.file as File);
-
     setIsSaving(true);
     try {
-      const response = await fetch("/api/documents", {
+      const file = documentDraft.file as File;
+      setDocumentSavingLabel("准备上传...");
+      setDocumentUploadProgress(null);
+
+      const uploadTicket = await requestJson<{
+        uploadUrl: string;
+        objectKey: string;
+        contentType: string;
+      }>("/api/documents/upload-url", {
         method: "POST",
-        body: formData,
-        credentials: "same-origin",
+        body: JSON.stringify({
+          category: documentDraft.category,
+          fileName: file.name,
+          fileSize: file.size,
+          mimeType: file.type,
+        }),
       });
 
-      const payload = (await response.json().catch(() => null)) as { message?: string } | null;
-      if (!response.ok) {
-        throw new Error(payload?.message || "文件上传失败");
-      }
+      setDocumentSavingLabel("直传中... 0%");
+      await uploadFileDirectly({
+        url: uploadTicket.uploadUrl,
+        file,
+        contentType: uploadTicket.contentType,
+        onProgress: (percent) => {
+          setDocumentUploadProgress(percent);
+          setDocumentSavingLabel(`直传中... ${percent}%`);
+        },
+      });
+
+      setDocumentSavingLabel("保存中...");
+      setDocumentUploadProgress(100);
+      await requestJson<{ document: DocumentItem }>("/api/documents", {
+        method: "POST",
+        body: JSON.stringify({
+          name: documentDraft.name.trim(),
+          category: documentDraft.category,
+          note: documentDraft.note.trim(),
+          fileName: file.name,
+          filePath: uploadTicket.objectKey,
+          fileSize: file.size,
+          mimeType: uploadTicket.contentType,
+        }),
+      });
 
       setDocumentDraft(defaultDocumentDraft);
       setDocumentModalOpen(false);
+      setDocumentSavingLabel("上传中...");
+      setDocumentUploadProgress(null);
       showSuccessToast("文档已上传", "文档中心已经记录了新的材料版本。");
       refreshWorkspace();
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "文件上传失败");
     } finally {
       setIsSaving(false);
+      setDocumentSavingLabel("上传中...");
+      setDocumentUploadProgress(null);
     }
   };
 
@@ -3660,7 +3824,11 @@ export function WorkspaceDashboard({
       return;
     }
 
-    const validationError = validateClientFile(versionUploadFile, { allowArchives: true });
+    const validationError = validateClientFile(versionUploadFile, {
+      allowArchives: true,
+      maxSizeBytes: MAX_DOCUMENT_CENTER_UPLOAD_SIZE,
+      maxSizeLabel: "100MB",
+    });
     if (validationError) {
       setLoadError(validationError);
       return;
@@ -3671,33 +3839,65 @@ export function WorkspaceDashboard({
       return;
     }
 
-    const formData = new FormData();
-    formData.set("note", versionUploadNote.trim());
-    formData.set("file", versionUploadFile as File);
-
     setIsSaving(true);
     try {
-      const response = await fetch(`/api/documents/${versionTargetDocId}/version`, {
+      const file = versionUploadFile as File;
+      const documentCategory = documents.find((item) => item.id === versionTargetDocId)?.category ?? "计划书";
+      setVersionSavingLabel("准备上传...");
+      setVersionUploadProgress(null);
+
+      const uploadTicket = await requestJson<{
+        uploadUrl: string;
+        objectKey: string;
+        contentType: string;
+      }>("/api/documents/upload-url", {
         method: "POST",
-        body: formData,
-        credentials: "same-origin",
+        body: JSON.stringify({
+          category: documentCategory,
+          fileName: file.name,
+          fileSize: file.size,
+          mimeType: file.type,
+        }),
       });
 
-      const payload = (await response.json().catch(() => null)) as { message?: string } | null;
-      if (!response.ok) {
-        throw new Error(payload?.message || "文档版本上传失败");
-      }
+      setVersionSavingLabel("直传中... 0%");
+      await uploadFileDirectly({
+        url: uploadTicket.uploadUrl,
+        file,
+        contentType: uploadTicket.contentType,
+        onProgress: (percent) => {
+          setVersionUploadProgress(percent);
+          setVersionSavingLabel(`直传中... ${percent}%`);
+        },
+      });
+
+      setVersionSavingLabel("保存中...");
+      setVersionUploadProgress(100);
+      await requestJson<{ document: DocumentItem }>(`/api/documents/${versionTargetDocId}/version`, {
+        method: "POST",
+        body: JSON.stringify({
+          note: versionUploadNote.trim(),
+          fileName: file.name,
+          filePath: uploadTicket.objectKey,
+          fileSize: file.size,
+          mimeType: uploadTicket.contentType,
+        }),
+      });
 
       setVersionUploadFile(null);
       setVersionUploadNote("");
       setVersionTargetDocId(null);
       setVersionModalOpen(false);
+      setVersionSavingLabel("上传中...");
+      setVersionUploadProgress(null);
       showSuccessToast("新版本已上传", "历史版本列表已经同步更新。");
       refreshWorkspace();
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "文档版本上传失败");
     } finally {
       setIsSaving(false);
+      setVersionSavingLabel("上传中...");
+      setVersionUploadProgress(null);
     }
   };
 
@@ -5137,6 +5337,12 @@ export function WorkspaceDashboard({
                   { label: "验收人", value: task.reviewer?.name ?? "待教师/负责人确认" },
                   { label: "所属队伍", value: task.teamGroupName ?? "未分组" },
                 ];
+                const workflowSteps = buildTaskWorkflowSteps({
+                  status: task.status,
+                  assigneeId: task.assigneeId,
+                  assigneeName: task.assigneeId ? getTaskAssigneeName(task) : null,
+                  reviewerName: task.reviewer?.name ?? null,
+                });
 
                 return (
                   <article
@@ -5199,6 +5405,33 @@ export function WorkspaceDashboard({
                               <span className="mt-1 block font-medium text-slate-700">{item.value}</span>
                             </div>
                           ))}
+                        </div>
+
+                        <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+                          <div className="flex items-center justify-between gap-2">
+                            {workflowSteps.map((step, index) => (
+                              <div className="flex min-w-0 flex-1 items-center gap-2" key={step.key}>
+                                <div
+                                  className={`min-w-0 flex-1 rounded-lg border px-3 py-2 ${taskWorkflowStepClassNames[step.state]}`}
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <span
+                                      className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-bold ${taskWorkflowDotClassNames[step.state]}`}
+                                    >
+                                      {index + 1}
+                                    </span>
+                                    <span className="truncate text-xs font-semibold">{step.label}</span>
+                                  </div>
+                                  <p className="mt-1 truncate text-[11px] opacity-80">{step.helper}</p>
+                                </div>
+                                {index < workflowSteps.length - 1 ? (
+                                  <span
+                                    className={`hidden h-0.5 w-6 shrink-0 rounded-full lg:block ${taskWorkflowConnectorClassNames[step.state]}`}
+                                  />
+                                ) : null}
+                              </div>
+                            ))}
+                          </div>
                         </div>
 
                         <div className="mt-3 flex flex-wrap items-center gap-3 text-xs text-slate-500">
@@ -5803,102 +6036,107 @@ export function WorkspaceDashboard({
         </div>
       </div>
 
-      <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
-        <article className={`${surfaceCardClassName} space-y-4`}>
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+      <section className={surfaceCardClassName}>
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px] xl:items-stretch">
+          <div className="space-y-4">
+            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+              <div>
+                <p className="text-sm font-semibold text-slate-900">选择查看日期</p>
+                <p className="mt-1 text-sm text-slate-500">
+                  可以直接选择过去任意一天；有保存记录的日期会在下方显示。
+                </p>
+              </div>
+              <label className="block min-w-56 text-sm font-medium text-slate-600">
+                日期
+                <input
+                  className={`${fieldClassName} mt-1.5`}
+                  max={todayDateKey}
+                  type="date"
+                  value={selectedDate}
+                  onChange={(event) => {
+                    if (event.target.value) {
+                      setSelectedDate(event.target.value);
+                    }
+                  }}
+                />
+              </label>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              {reportDateOptions.slice(0, 10).map((date) => {
+                const hasReport = (reportEntriesByDay[date] ?? []).length > 0;
+                const isSelected = date === selectedDate;
+
+                return (
+                  <button
+                    className={`rounded-lg border px-3 py-2 text-sm transition ${
+                      isSelected
+                        ? "border-blue-600 bg-blue-600 text-white shadow-sm"
+                        : hasReport
+                          ? "border-blue-100 bg-blue-50 text-blue-700 hover:border-blue-200"
+                          : "border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:text-slate-700"
+                    }`}
+                    key={date}
+                    onClick={() => setSelectedDate(date)}
+                    type="button"
+                  >
+                    {date === todayDateKey ? "今天" : formatShortDate(date)}
+                    {hasReport ? <span className="ml-1 text-xs opacity-75">有记录</span> : null}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <aside className="flex flex-col justify-between rounded-xl border border-slate-200 bg-slate-50 p-4">
             <div>
-              <p className="text-sm font-semibold text-slate-900">选择查看日期</p>
-              <p className="mt-1 text-sm text-slate-500">
-                可以直接选择过去任意一天；有保存记录的日期会在下方显示。
+              <p className="text-sm text-slate-500">当前日期</p>
+              <h3 className="mt-1 text-xl font-bold text-slate-900">{formatShortDate(selectedDate)}</h3>
+              <div className="mt-4 grid grid-cols-3 gap-2">
+                <div className="rounded-lg bg-white p-3 ring-1 ring-slate-200">
+                  <p className="text-xs text-slate-400">应提交</p>
+                  <p className="mt-1 text-lg font-semibold text-slate-900">{selectedReportExpectedCount}</p>
+                </div>
+                <div className="rounded-lg bg-white p-3 ring-1 ring-slate-200">
+                  <p className="text-xs text-slate-400">已提交</p>
+                  <p className="mt-1 text-lg font-semibold text-blue-700">{selectedReportSubmittedCount}</p>
+                </div>
+                <div className="rounded-lg bg-white p-3 ring-1 ring-slate-200">
+                  <p className="text-xs text-slate-400">未提交</p>
+                  <p className="mt-1 text-lg font-semibold text-rose-600">{selectedReportMissingCount}</p>
+                </div>
+              </div>
+              <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-200">
+                <div
+                  className="h-full rounded-full bg-blue-600 transition-all"
+                  style={{
+                    width:
+                      selectedReportExpectedCount > 0
+                        ? `${Math.round((selectedReportSubmittedCount / selectedReportExpectedCount) * 100)}%`
+                        : "0%",
+                  }}
+                />
+              </div>
+            </div>
+            {permissions.canSubmitReport ? (
+              <ActionButton
+                className="mt-4 w-full justify-center"
+                onClick={() =>
+                  currentUserSelectedReport
+                    ? openEditReportModal(currentUserSelectedReport)
+                    : openCreateReportModal()
+                }
+                variant="primary"
+              >
+                {currentUserSelectedReport ? "修改我的汇报" : "提交这天汇报"}
+              </ActionButton>
+            ) : (
+              <p className="mt-4 rounded-lg bg-white px-3 py-2 text-sm text-slate-500 ring-1 ring-slate-200">
+                当前角色只查看归档，不需要提交汇报。
               </p>
-            </div>
-            <label className="block min-w-56 text-sm font-medium text-slate-600">
-              日期
-              <input
-                className={`${fieldClassName} mt-1.5`}
-                max={todayDateKey}
-                type="date"
-                value={selectedDate}
-                onChange={(event) => {
-                  if (event.target.value) {
-                    setSelectedDate(event.target.value);
-                  }
-                }}
-              />
-            </label>
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            {reportDateOptions.slice(0, 10).map((date) => {
-              const hasReport = (reportEntriesByDay[date] ?? []).length > 0;
-              const isSelected = date === selectedDate;
-
-              return (
-                <button
-                  className={`rounded-lg border px-3 py-2 text-sm transition ${
-                    isSelected
-                      ? "border-blue-600 bg-blue-600 text-white shadow-sm"
-                      : hasReport
-                        ? "border-blue-100 bg-blue-50 text-blue-700 hover:border-blue-200"
-                        : "border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:text-slate-700"
-                  }`}
-                  key={date}
-                  onClick={() => setSelectedDate(date)}
-                  type="button"
-                >
-                  {date === todayDateKey ? "今天" : formatShortDate(date)}
-                  {hasReport ? <span className="ml-1 text-xs opacity-75">有记录</span> : null}
-                </button>
-              );
-            })}
-          </div>
-        </article>
-
-        <aside className={`${surfaceCardClassName} bg-slate-950 text-white`}>
-          <p className="text-sm text-white/60">当前日期</p>
-          <h3 className="mt-2 text-2xl font-bold">{formatShortDate(selectedDate)}</h3>
-          <div className="mt-5 grid grid-cols-3 gap-3">
-            <div className="rounded-lg bg-white/10 p-3">
-              <p className="text-xs text-white/50">应提交</p>
-              <p className="mt-2 text-xl font-semibold">{selectedReportExpectedCount}</p>
-            </div>
-            <div className="rounded-lg bg-white/10 p-3">
-              <p className="text-xs text-white/50">已提交</p>
-              <p className="mt-2 text-xl font-semibold">{selectedReportSubmittedCount}</p>
-            </div>
-            <div className="rounded-lg bg-white/10 p-3">
-              <p className="text-xs text-white/50">未提交</p>
-              <p className="mt-2 text-xl font-semibold">{selectedReportMissingCount}</p>
-            </div>
-          </div>
-          <div className="mt-5 h-2 overflow-hidden rounded-full bg-white/10">
-            <div
-              className="h-full rounded-full bg-blue-400 transition-all"
-              style={{
-                width:
-                  selectedReportExpectedCount > 0
-                    ? `${Math.round((selectedReportSubmittedCount / selectedReportExpectedCount) * 100)}%`
-                    : "0%",
-              }}
-            />
-          </div>
-          {permissions.canSubmitReport ? (
-            <ActionButton
-              className="mt-5 w-full justify-center border-white/20 bg-white text-slate-900 hover:bg-slate-100"
-              onClick={() =>
-                currentUserSelectedReport
-                  ? openEditReportModal(currentUserSelectedReport)
-                  : openCreateReportModal()
-              }
-            >
-              {currentUserSelectedReport ? "修改我的汇报" : "提交这天汇报"}
-            </ActionButton>
-          ) : (
-            <p className="mt-5 rounded-lg bg-white/10 px-3 py-2 text-sm text-white/70">
-              当前角色只查看归档，不需要提交汇报。
-            </p>
-          )}
-        </aside>
+            )}
+          </aside>
+        </div>
       </section>
 
       <section className="grid gap-4 xl:grid-cols-2">
@@ -8778,7 +9016,7 @@ export function WorkspaceDashboard({
           <div className="space-y-4">
             <p className={`${subtleCardClassName} text-sm leading-7 text-slate-500`}>
               仅支持 `.doc`、`.docx`、`.pdf`、`.xls`、`.xlsx`、`.txt`、`.jpg`、`.jpeg`、`.png`、
-              `.zip`、`.rar`、`.7z`，单文件最大 20MB；不支持视频和 PPT 源文件。若选择 “PPT” 分类，请上传导出版 PDF 或图片版本。
+              `.zip`、`.rar`、`.7z`，单文件最大 100MB；不支持视频和 PPT 源文件。若选择 “PPT” 分类，请上传导出版 PDF 或图片版本。
             </p>
             <div className="grid gap-4 md:grid-cols-2">
               <label className="block text-sm text-slate-500">
@@ -8829,7 +9067,11 @@ export function WorkspaceDashboard({
                 type="file"
                 onChange={(event) => {
                   const file = event.target.files?.[0] ?? null;
-                  const validationError = validateClientFile(file, { allowArchives: true });
+                  const validationError = validateClientFile(file, {
+                    allowArchives: true,
+                    maxSizeBytes: MAX_DOCUMENT_CENTER_UPLOAD_SIZE,
+                    maxSizeLabel: "100MB",
+                  });
                   if (validationError && file) {
                     setLoadError(validationError);
                     event.target.value = "";
@@ -8840,11 +9082,25 @@ export function WorkspaceDashboard({
                 }}
               />
             </label>
+            {documentUploadProgress !== null ? (
+              <div className={`${subtleCardClassName} space-y-3`}>
+                <div className="flex items-center justify-between text-sm text-slate-500">
+                  <span>当前上传进度</span>
+                  <span className="font-medium text-slate-700">{documentUploadProgress}%</span>
+                </div>
+                <div className="h-2 overflow-hidden rounded-full bg-slate-200">
+                  <div
+                    className="h-full rounded-full bg-blue-600 transition-all"
+                    style={{ width: `${documentUploadProgress}%` }}
+                  />
+                </div>
+              </div>
+            ) : null}
             <ModalActions>
               <ActionButton disabled={isSaving} onClick={() => setDocumentModalOpen(false)}>取消</ActionButton>
               <ActionButton
                 loading={isSaving}
-                loadingLabel="上传中..."
+                loadingLabel={documentSavingLabel}
                 onClick={() => void saveDocument()}
                 variant="primary"
               >
@@ -8860,7 +9116,7 @@ export function WorkspaceDashboard({
           <div className="space-y-4">
             <p className={`${subtleCardClassName} text-sm leading-7 text-slate-500`}>
               仅支持 `.doc`、`.docx`、`.pdf`、`.xls`、`.xlsx`、`.txt`、`.jpg`、`.jpeg`、`.png`、
-              `.zip`、`.rar`、`.7z`，单文件最大 20MB；不支持视频和 PPT 源文件。若选择 “PPT” 分类，请上传导出版 PDF 或图片版本。
+              `.zip`、`.rar`、`.7z`，单文件最大 100MB；不支持视频和 PPT 源文件。若选择 “PPT” 分类，请上传导出版 PDF 或图片版本。
             </p>
             <label className="block text-sm text-slate-500">
               版本说明
@@ -8878,7 +9134,11 @@ export function WorkspaceDashboard({
                 type="file"
                 onChange={(event) => {
                   const file = event.target.files?.[0] ?? null;
-                  const validationError = validateClientFile(file, { allowArchives: true });
+                  const validationError = validateClientFile(file, {
+                    allowArchives: true,
+                    maxSizeBytes: MAX_DOCUMENT_CENTER_UPLOAD_SIZE,
+                    maxSizeLabel: "100MB",
+                  });
                   if (validationError && file) {
                     setLoadError(validationError);
                     event.target.value = "";
@@ -8889,11 +9149,25 @@ export function WorkspaceDashboard({
                 }}
               />
             </label>
+            {versionUploadProgress !== null ? (
+              <div className={`${subtleCardClassName} space-y-3`}>
+                <div className="flex items-center justify-between text-sm text-slate-500">
+                  <span>当前上传进度</span>
+                  <span className="font-medium text-slate-700">{versionUploadProgress}%</span>
+                </div>
+                <div className="h-2 overflow-hidden rounded-full bg-slate-200">
+                  <div
+                    className="h-full rounded-full bg-blue-600 transition-all"
+                    style={{ width: `${versionUploadProgress}%` }}
+                  />
+                </div>
+              </div>
+            ) : null}
             <ModalActions>
               <ActionButton disabled={isSaving} onClick={() => setVersionModalOpen(false)}>取消</ActionButton>
               <ActionButton
                 loading={isSaving}
-                loadingLabel="上传中..."
+                loadingLabel={versionSavingLabel}
                 onClick={() => void uploadNewDocumentVersion()}
                 variant="primary"
               >

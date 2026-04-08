@@ -138,6 +138,8 @@ export async function PATCH(
       relatedId: reworkTask.id,
       senderId: user.id,
       email: true,
+    }).catch((error) => {
+      console.error("Document rework task notification failed", error);
     });
   }
 
@@ -155,6 +157,9 @@ export async function PATCH(
       type: "document_review",
       targetTab: "documents",
       relatedId: document.id,
+      email: true,
+    }).catch((error) => {
+      console.error("Document leader approval notification failed", error);
     });
   } else if (action === "teacherRevision") {
     const recipientIds = await getUserIdsByRoles({
@@ -170,6 +175,9 @@ export async function PATCH(
       type: "document_review_result",
       targetTab: "documents",
       relatedId: document.id,
+      email: true,
+    }).catch((error) => {
+      console.error("Document teacher revision notification failed", error);
     });
   } else {
     await createNotifications({
@@ -183,6 +191,9 @@ export async function PATCH(
       type: "document_review_result",
       targetTab: "documents",
       relatedId: document.id,
+      email: true,
+    }).catch((error) => {
+      console.error("Document review result notification failed", error);
     });
   }
 
