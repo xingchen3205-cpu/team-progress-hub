@@ -14,6 +14,12 @@ export const allowedFileExtensions = [
   ".png",
 ] as const;
 
+export const documentArchiveExtensions = [
+  ".zip",
+  ".rar",
+  ".7z",
+] as const;
+
 export const blockedFileExtensions = [
   ".mp4",
   ".mov",
@@ -25,6 +31,10 @@ export const blockedFileExtensions = [
 ] as const;
 
 export const documentAcceptAttribute = allowedFileExtensions.join(",");
+export const documentCenterAcceptAttribute = [
+  ...allowedFileExtensions,
+  ...documentArchiveExtensions,
+].join(",");
 
 export const getFileExtension = (fileName: string) => path.extname(fileName).toLowerCase();
 
@@ -38,14 +48,30 @@ export const isBlockedUploadExtension = (fileName: string) =>
     getFileExtension(fileName) as (typeof blockedFileExtensions)[number],
   );
 
-export const validateUploadMeta = ({
-  fileName,
-  fileSize,
-}: {
-  fileName: string;
-  fileSize: number;
-}) => {
-  if (!fileName || !isAllowedUploadExtension(fileName) || isBlockedUploadExtension(fileName)) {
+export const isDocumentArchiveExtension = (fileName: string) =>
+  documentArchiveExtensions.includes(
+    getFileExtension(fileName) as (typeof documentArchiveExtensions)[number],
+  );
+
+export const validateUploadMeta = (
+  {
+    fileName,
+    fileSize,
+  }: {
+    fileName: string;
+    fileSize: number;
+  },
+  options: {
+    allowArchives?: boolean;
+  } = {},
+) => {
+  const archiveAllowed = Boolean(options.allowArchives && isDocumentArchiveExtension(fileName));
+
+  if (
+    !fileName ||
+    (!isAllowedUploadExtension(fileName) && !archiveAllowed) ||
+    (isBlockedUploadExtension(fileName) && !archiveAllowed)
+  ) {
     return "不支持该文件格式";
   }
 
@@ -55,3 +81,6 @@ export const validateUploadMeta = ({
 
   return null;
 };
+
+export const validateDocumentCenterUploadMeta = (meta: { fileName: string; fileSize: number }) =>
+  validateUploadMeta(meta, { allowArchives: true });

@@ -7,6 +7,7 @@ import {
   serializeDocument,
 } from "@/lib/api-serializers";
 import { getUploadWorkflow } from "@/lib/document-workflow";
+import { validateDocumentCenterUploadMeta } from "@/lib/file-policy";
 import { createNotifications, getUserIdsByRoles } from "@/lib/notifications";
 import { assertMainWorkspaceRole } from "@/lib/permissions";
 import { deleteStoredFile, saveUploadedFile } from "@/lib/uploads";
@@ -79,6 +80,7 @@ export async function POST(request: NextRequest) {
     storedFile = await saveUploadedFile({
       file,
       category,
+      validator: validateDocumentCenterUploadMeta,
     });
 
     const document = await prisma.document.create({

@@ -8,6 +8,7 @@ import {
   getUploadWorkflow,
   isPrivilegedReviewer,
 } from "@/lib/document-workflow";
+import { validateDocumentCenterUploadMeta } from "@/lib/file-policy";
 import { createNotifications, getUserIdsByRoles } from "@/lib/notifications";
 import { assertMainWorkspaceRole } from "@/lib/permissions";
 import { deleteStoredFile, saveUploadedFile } from "@/lib/uploads";
@@ -56,6 +57,7 @@ export async function POST(
     const storedFile = await saveUploadedFile({
       file,
       category: currentDocument.category,
+      validator: validateDocumentCenterUploadMeta,
     });
 
     const document = await prisma.document.update({

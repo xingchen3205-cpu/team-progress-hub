@@ -66,6 +66,7 @@ import {
 } from "@/lib/date";
 import { EMAIL_RULE_HINT, USERNAME_RULE_HINT, validateRequiredEmail, validateUsername } from "@/lib/account-policy";
 import {
+  documentCenterAcceptAttribute,
   documentAcceptAttribute,
   validateUploadMeta,
 } from "@/lib/file-policy";
@@ -1396,6 +1397,7 @@ export function WorkspaceDashboard({
     averageOvertimeSeconds: 0,
     qaHitRate: 0,
   });
+  const [trainingPanel, setTrainingPanel] = useState<"qa" | "pitch">("qa");
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [sentReminders, setSentReminders] = useState<NotificationItem[]>([]);
@@ -2330,15 +2332,23 @@ export function WorkspaceDashboard({
     setReloadToken((current) => current + 1);
   };
 
-  const validateClientFile = (file: File | null) => {
+  const validateClientFile = (
+    file: File | null,
+    options: {
+      allowArchives?: boolean;
+    } = {},
+  ) => {
     if (!file) {
       return "请先选择文件";
     }
 
-    return validateUploadMeta({
-      fileName: file.name,
-      fileSize: file.size,
-    });
+    return validateUploadMeta(
+      {
+        fileName: file.name,
+        fileSize: file.size,
+      },
+      options,
+    );
   };
 
   const handleDownload = (downloadUrl?: string | null) => {
@@ -3537,7 +3547,7 @@ export function WorkspaceDashboard({
   };
 
   const saveDocument = async () => {
-    const validationError = validateClientFile(documentDraft.file);
+    const validationError = validateClientFile(documentDraft.file, { allowArchives: true });
     if (validationError) {
       setLoadError(validationError);
       return;
@@ -3597,7 +3607,7 @@ export function WorkspaceDashboard({
       return;
     }
 
-    const validationError = validateClientFile(versionUploadFile);
+    const validationError = validateClientFile(versionUploadFile, { allowArchives: true });
     if (validationError) {
       setLoadError(validationError);
       return;
@@ -5268,13 +5278,80 @@ export function WorkspaceDashboard({
           <DemoResetNote />
         </div>
 
-        <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        <section className="grid gap-4 lg:grid-cols-2">
           {[
-            { label: "题库数量", value: `${trainingStats.questionCount} 题`, hint: "覆盖商业、技术、财务等方向" },
-            { label: "模拟训练", value: `${trainingStats.sessionCount} 次`, hint: "已保存的完整训练记录" },
-            { label: "平均超时", value: formatSeconds(trainingStats.averageOvertimeSeconds), hint: "越接近 0 越稳" },
-            { label: "Q&A 命中率", value: `${trainingStats.qaHitRate}%`, hint: "抽查题回答到位比例" },
-          ].map((item) => (
+            {
+              key: "qa",
+              icon: HelpCircle,
+              title: "答辩训练",
+              description: "管理评委追问、标准回答要点和随机抽查。",
+              metric: `${trainingStats.questionCount} 题`,
+              accent: "blue",
+            },
+            {
+              key: "pitch",
+              icon: Timer,
+              title: "路演训练",
+              description: "练习陈述节奏、超时控制和复盘记录。",
+              metric: `${trainingStats.sessionCount} 次`,
+              accent: "emerald",
+            },
+          ].map((item) => {
+            const Icon = item.icon;
+            const selected = trainingPanel === item.key;
+
+            return (
+              <button
+                className={`group rounded-xl border bg-white p-5 text-left shadow-sm transition ${
+                  selected
+                    ? item.accent === "blue"
+                      ? "border-blue-200 ring-2 ring-blue-500/10"
+                      : "border-emerald-200 ring-2 ring-emerald-500/10"
+                    : "border-slate-200 hover:border-slate-300"
+                }`}
+                key={item.key}
+                onClick={() => setTrainingPanel(item.key as "qa" | "pitch")}
+                type="button"
+              >
+                <div className="flex items-start justify-between gap-4">
+                  <span
+                    className={`inline-flex h-11 w-11 items-center justify-center rounded-xl ${
+                      item.accent === "blue" ? "bg-blue-50 text-blue-600" : "bg-emerald-50 text-emerald-600"
+                    }`}
+                  >
+                    <Icon className="h-5 w-5" />
+                  </span>
+                  <span
+                    className={`rounded-md px-2.5 py-1 text-xs font-semibold ${
+                      selected
+                        ? item.accent === "blue"
+                          ? "bg-blue-50 text-blue-600"
+                          : "bg-emerald-50 text-emerald-600"
+                        : "bg-slate-100 text-slate-500"
+                    }`}
+                  >
+                    {selected ? "当前板块" : item.metric}
+                  </span>
+                </div>
+                <h3 className="mt-4 text-lg font-semibold text-slate-900">{item.title}</h3>
+                <p className="mt-2 text-sm leading-6 text-slate-500">{item.description}</p>
+              </button>
+            );
+          })}
+        </section>
+
+        <section className="grid gap-4 md:grid-cols-3">
+          {(trainingPanel === "qa"
+            ? [
+                { label: "题库数量", value: `${trainingStats.questionCount} 题`, hint: "覆盖商业、技术、财务等方向" },
+                { label: "Q&A 命中率", value: `${trainingStats.qaHitRate}%`, hint: "抽查题回答到位比例" },
+                { label: "本轮抽查", value: `${qaDrillStats.total} 题`, hint: `${qaDrillStats.hit} 题命中要点` },
+              ]
+            : [
+                { label: "模拟训练", value: `${trainingStats.sessionCount} 次`, hint: "已保存的完整训练记录" },
+                { label: "平均超时", value: formatSeconds(trainingStats.averageOvertimeSeconds), hint: "越接近 0 越稳" },
+                { label: "当前计时", value: formatSeconds(trainingTimerDuration), hint: overtimeSeconds > 0 ? "已经超时" : "当前预设时长" },
+              ]).map((item) => (
             <article className={surfaceCardClassName} key={item.label}>
               <p className="text-sm text-slate-500">{item.label}</p>
               <p className="mt-2 text-2xl font-bold tracking-[-0.02em] text-slate-900">{item.value}</p>
@@ -5283,8 +5360,8 @@ export function WorkspaceDashboard({
           ))}
         </section>
 
-        <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
-          <article className={surfaceCardClassName}>
+        <section className={`grid gap-4 ${trainingPanel === "qa" ? "xl:grid-cols-[minmax(0,1fr)_420px]" : "xl:grid-cols-1"}`}>
+          <article className={`${surfaceCardClassName} ${trainingPanel === "qa" ? "" : "hidden"}`}>
             <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
               <div>
                 <span className="rounded-md bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-600">
@@ -5460,7 +5537,7 @@ export function WorkspaceDashboard({
           </article>
 
           <div className="space-y-4">
-            <article className={surfaceCardClassName}>
+            <article className={`${surfaceCardClassName} ${trainingPanel === "qa" ? "" : "hidden"}`}>
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <h3 className="text-base font-semibold text-slate-900">抽查模式</h3>
@@ -5515,7 +5592,7 @@ export function WorkspaceDashboard({
               </div>
             </article>
 
-            <article className={surfaceCardClassName}>
+            <article className={`${surfaceCardClassName} ${trainingPanel === "pitch" ? "" : "hidden"}`}>
               <span className="rounded-md bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-600">
                 路演训练
               </span>
@@ -5614,7 +5691,7 @@ export function WorkspaceDashboard({
               </div>
             </article>
 
-            <article className={surfaceCardClassName}>
+            <article className={`${surfaceCardClassName} ${trainingPanel === "pitch" ? "" : "hidden"}`}>
               <h3 className="text-base font-semibold text-slate-900">最近训练记录</h3>
               <div className="mt-4 space-y-3">
                 {trainingSessions.slice(0, 5).map((session) => (
@@ -8495,8 +8572,8 @@ export function WorkspaceDashboard({
         <Modal title="上传文档" onClose={() => setDocumentModalOpen(false)}>
           <div className="space-y-4">
             <p className={`${subtleCardClassName} text-sm leading-7 text-slate-500`}>
-              仅支持 `.doc`、`.docx`、`.pdf`、`.xls`、`.xlsx`、`.txt`、`.jpg`、`.jpeg`、`.png`，
-              单文件最大 20MB；不支持视频、压缩包和 PPT 源文件。若选择 “PPT” 分类，请上传导出版 PDF 或图片版本。
+              仅支持 `.doc`、`.docx`、`.pdf`、`.xls`、`.xlsx`、`.txt`、`.jpg`、`.jpeg`、`.png`、
+              `.zip`、`.rar`、`.7z`，单文件最大 20MB；不支持视频和 PPT 源文件。若选择 “PPT” 分类，请上传导出版 PDF 或图片版本。
             </p>
             <div className="grid gap-4 md:grid-cols-2">
               <label className="block text-sm text-slate-500">
@@ -8542,12 +8619,12 @@ export function WorkspaceDashboard({
             <label className="block text-sm text-slate-500">
               选择文件
               <input
-                accept={documentAcceptAttribute}
+                accept={documentCenterAcceptAttribute}
                 className={`${fieldClassName} block`}
                 type="file"
                 onChange={(event) => {
                   const file = event.target.files?.[0] ?? null;
-                  const validationError = validateClientFile(file);
+                  const validationError = validateClientFile(file, { allowArchives: true });
                   if (validationError && file) {
                     setLoadError(validationError);
                     event.target.value = "";
@@ -8577,8 +8654,8 @@ export function WorkspaceDashboard({
         <Modal title="上传文档新版本" onClose={() => setVersionModalOpen(false)}>
           <div className="space-y-4">
             <p className={`${subtleCardClassName} text-sm leading-7 text-slate-500`}>
-              仅支持 `.doc`、`.docx`、`.pdf`、`.xls`、`.xlsx`、`.txt`、`.jpg`、`.jpeg`、`.png`，
-              单文件最大 20MB；不支持视频、压缩包和 PPT 源文件。若选择 “PPT” 分类，请上传导出版 PDF 或图片版本。
+              仅支持 `.doc`、`.docx`、`.pdf`、`.xls`、`.xlsx`、`.txt`、`.jpg`、`.jpeg`、`.png`、
+              `.zip`、`.rar`、`.7z`，单文件最大 20MB；不支持视频和 PPT 源文件。若选择 “PPT” 分类，请上传导出版 PDF 或图片版本。
             </p>
             <label className="block text-sm text-slate-500">
               版本说明
@@ -8591,12 +8668,12 @@ export function WorkspaceDashboard({
             <label className="block text-sm text-slate-500">
               选择文件
               <input
-                accept={documentAcceptAttribute}
+                accept={documentCenterAcceptAttribute}
                 className={`${fieldClassName} block`}
                 type="file"
                 onChange={(event) => {
                   const file = event.target.files?.[0] ?? null;
-                  const validationError = validateClientFile(file);
+                  const validationError = validateClientFile(file, { allowArchives: true });
                   if (validationError && file) {
                     setLoadError(validationError);
                     event.target.value = "";
