@@ -44,6 +44,8 @@ const taskPriorityMap = {
   低优先级: TaskPriority.low,
   进行中: TaskPriority.high,
   已完成: TaskPriority.high,
+  待验收: TaskPriority.high,
+  已归档: TaskPriority.high,
 } as const satisfies Record<string, TaskPriority>;
 
 const documentCategoryMap = {

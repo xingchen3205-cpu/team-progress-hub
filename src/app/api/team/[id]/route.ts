@@ -274,7 +274,7 @@ export async function DELETE(
     where: {
       assigneeId: target.id,
       status: {
-        in: ["todo", "doing"],
+        in: ["todo", "doing", "review"],
       },
     },
   });
@@ -336,6 +336,22 @@ export async function DELETE(
       },
       data: {
         creatorId: fallbackOwner.id,
+      },
+    }),
+    prisma.task.updateMany({
+      where: {
+        reviewerId: target.id,
+      },
+      data: {
+        reviewerId: fallbackOwner.id,
+      },
+    }),
+    prisma.taskAttachment.updateMany({
+      where: {
+        uploaderId: target.id,
+      },
+      data: {
+        uploaderId: fallbackOwner.id,
       },
     }),
     prisma.announcement.updateMany({

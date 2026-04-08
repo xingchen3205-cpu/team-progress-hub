@@ -111,6 +111,11 @@ type TaskDraft = {
   notifyAssignee: boolean;
 };
 
+type TaskCompletionDraft = {
+  note: string;
+  file: File | null;
+};
+
 type TrainingQuestionDraft = {
   category: string;
   customCategory: string;
@@ -356,7 +361,7 @@ const allTabs: TabItem[] = [
   {
     key: "board",
     label: "任务看板",
-    description: "在待办、进行中、已完成三列之间拖拽调整任务状态。",
+    description: "按工单闭环管理提报、分配、处理、验收和归档。",
     icon: KanbanSquare,
   },
   {
@@ -406,13 +411,15 @@ const allTabs: TabItem[] = [
 const boardColumnStyles: Record<BoardStatus, string> = {
   todo: "border-[#ead7bf] bg-[#fbf7f2]/80",
   doing: "border-[#d8e6f5] bg-[#f7fbff]/80",
-  done: "border-[#d6e7dc] bg-[#f7fbf8]/80",
+  review: "border-[#f3d7bf] bg-[#fff8f1]/80",
+  archived: "border-[#d6e7dc] bg-[#f7fbf8]/80",
 };
 
 const boardBadgeStyles: Record<BoardStatus, string> = {
   todo: "bg-[#f5ead9] text-[#9f6222]",
   doing: "bg-[#e9f2fb] text-[#125e9a]",
-  done: "bg-[#e7f4eb] text-[#32734c]",
+  review: "bg-[#fff1e6] text-[#b45309]",
+  archived: "bg-[#e7f4eb] text-[#32734c]",
 };
 
 const docStatusStyles: Record<DocumentItem["status"], string> = {
@@ -869,6 +876,11 @@ const defaultTaskDraft = (assigneeId: string): TaskDraft => ({
   priority: "高优先级",
   notifyAssignee: true,
 });
+
+const defaultTaskCompletionDraft: TaskCompletionDraft = {
+  note: "",
+  file: null,
+};
 
 const defaultAnnouncementDraft: AnnouncementDraft = {
   title: "",
@@ -1372,6 +1384,13 @@ export function WorkspaceDashboard({
   const [taskModalOpen, setTaskModalOpen] = useState(false);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
   const [taskDraft, setTaskDraft] = useState<TaskDraft>(defaultTaskDraft("leader-1"));
+  const [taskCompletionModalOpen, setTaskCompletionModalOpen] = useState(false);
+  const [taskCompletionTarget, setTaskCompletionTarget] = useState<BoardTask | null>(null);
+  const [taskCompletionDraft, setTaskCompletionDraft] =
+    useState<TaskCompletionDraft>(defaultTaskCompletionDraft);
+  const [taskRejectModalOpen, setTaskRejectModalOpen] = useState(false);
+  const [taskRejectTarget, setTaskRejectTarget] = useState<BoardTask | null>(null);
+  const [taskRejectReason, setTaskRejectReason] = useState("");
   const [quickTaskTitle, setQuickTaskTitle] = useState("");
   const [quickTaskAssigneeId, setQuickTaskAssigneeId] = useState("");
   const [trainingQuestionDraft, setTrainingQuestionDraft] =
@@ -1828,7 +1847,7 @@ export function WorkspaceDashboard({
     ? documents.filter((item) => item.category === selectedCategory)
     : documents;
   const expertMembers = members.filter((member) => member.systemRole === "评审专家");
-  const myOpenTasks = tasks.filter((task) => task.assigneeId === currentMemberId && task.status !== "done");
+  const myOpenTasks = tasks.filter((task) => task.assigneeId === currentMemberId && task.status !== "archived");
   const pendingLeaderReviewCount = documents.filter((doc) => doc.statusKey === "pending").length;
   const pendingTeacherReviewCount = documents.filter((doc) => doc.statusKey === "leader_approved").length;
   const reportableMembers = members.filter(
@@ -1839,10 +1858,10 @@ export function WorkspaceDashboard({
 
   const getMemberName = (memberId: string) => membersMap[memberId]?.name ?? memberId;
   const getTaskAssigneeName = (task: BoardTask) =>
-    task.assignee?.name ?? membersMap[task.assigneeId]?.name ?? "未分配";
+    task.assignee?.name ?? (task.assigneeId ? membersMap[task.assigneeId]?.name : null) ?? "待分配";
 
   const todayTaskSummaryTasks = tasks
-    .filter((item) => item.status !== "done")
+    .filter((item) => item.status !== "archived")
     .slice(0, 3);
   const todayTaskSummary = todayTaskSummaryTasks.map((item) => `${item.title} · ${getTaskAssigneeName(item)}`);
 
@@ -2001,7 +2020,7 @@ export function WorkspaceDashboard({
     }
 
     if (["leader", "teacher", "admin"].includes(currentRole)) {
-      const openTaskCount = tasks.filter((task) => task.status !== "done").length;
+      const openTaskCount = tasks.filter((task) => task.status !== "archived").length;
       items.push({
         id: `board-${currentRole}`,
         title: "任务看板待同步",
@@ -2190,12 +2209,20 @@ export function WorkspaceDashboard({
     setReminderModalOpen(true);
   };
 
-  const canMoveTask = (task: BoardTask) =>
-    permissions.canMoveAnyTask || task.assigneeId === currentMemberId || task.creatorId === currentMemberId;
+  const canMoveTask = (task: BoardTask) => {
+    void task;
+    return false;
+  };
 
   const canEditTaskItem = (task: BoardTask) => permissions.canEditTask || task.creatorId === currentMemberId;
 
   const canDeleteTaskItem = (task: BoardTask) => permissions.canDeleteTask || task.creatorId === currentMemberId;
+
+  const canReviewTaskItem = (task: BoardTask) =>
+    currentRole === "admin" ||
+    ((currentRole === "teacher" || currentRole === "leader") &&
+      (task.reviewerId === currentMemberId ||
+        Boolean(task.teamGroupId && task.teamGroupId === currentUser?.teamGroupId)));
 
   const toggleBoardTaskExpand = (taskId: string) => {
     setExpandedBoardTaskIds((current) =>
@@ -2473,10 +2500,12 @@ export function WorkspaceDashboard({
     setEditingTaskId(task.id);
     setTaskDraft({
       title: task.title,
-      assigneeId: task.assigneeId,
+      assigneeId: task.assigneeId ?? "",
       dueDate: toDateTimeInputValue(task.dueDate),
       priority:
-        task.priority === "进行中" || task.priority === "已完成" ? "高优先级" : task.priority,
+        task.priority === "进行中" || task.priority === "待验收" || task.priority === "已归档"
+          ? "高优先级"
+          : task.priority,
       notifyAssignee: false,
     });
     setTaskModalOpen(true);
@@ -2504,7 +2533,7 @@ export function WorkspaceDashboard({
 
       setTaskDraft(defaultTaskDraft(firstAssignableMemberId));
       setTaskModalOpen(false);
-      showSuccessToast(isEditing ? "任务已更新" : "任务已创建", "新的安排已经同步到工作台。");
+      showSuccessToast(isEditing ? "工单已更新" : "工单已创建", "新的安排已经同步到工作台。");
       refreshWorkspace();
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "任务保存失败");
@@ -2560,13 +2589,155 @@ export function WorkspaceDashboard({
   const deleteTask = (taskId: string, taskTitle: string) => {
     setConfirmDialog({
       open: true,
-      title: "删除任务",
-      message: `确认删除任务「${taskTitle}」？`,
+      title: "删除工单",
+      message: `确认删除工单「${taskTitle}」？`,
       confirmLabel: "确认删除",
-      successTitle: "任务已删除",
-      successDetail: "该任务已经从当前看板移除。",
+      successTitle: "工单已删除",
+      successDetail: "该工单已经从当前看板移除。",
       onConfirm: () => deleteTaskRequest(taskId),
     });
+  };
+
+  const acceptTask = async (task: BoardTask) => {
+    setIsSaving(true);
+    try {
+      await requestJson(`/api/tasks/${task.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({ action: "accept" }),
+      });
+      showSuccessToast("工单已接取", `「${task.title}」已进入处理中。`);
+      refreshWorkspace();
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "工单接取失败");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const openTaskCompletionModal = (task: BoardTask) => {
+    setTaskCompletionTarget(task);
+    setTaskCompletionDraft(defaultTaskCompletionDraft);
+    setTaskCompletionModalOpen(true);
+  };
+
+  const closeTaskCompletionModal = () => {
+    setTaskCompletionTarget(null);
+    setTaskCompletionDraft(defaultTaskCompletionDraft);
+    setTaskCompletionModalOpen(false);
+  };
+
+  const uploadTaskEvidence = async (taskId: string, file: File) => {
+    const validationError = validateClientFile(file);
+    if (validationError) {
+      throw new Error(validationError);
+    }
+
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const response = await fetch(`/api/tasks/${taskId}/attachments`, {
+      method: "POST",
+      body: formData,
+      credentials: "same-origin",
+    });
+    const payload = (await response.json().catch(() => null)) as { message?: string } | null;
+
+    if (!response.ok) {
+      throw new Error(payload?.message || "完成凭证上传失败");
+    }
+  };
+
+  const submitTaskForReview = async () => {
+    if (!taskCompletionTarget) {
+      return;
+    }
+
+    if (!taskCompletionDraft.file && (taskCompletionTarget.attachments?.length ?? 0) === 0) {
+      setLoadError("请先上传完成凭证，再提交验收");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      if (taskCompletionDraft.file) {
+        await uploadTaskEvidence(taskCompletionTarget.id, taskCompletionDraft.file);
+      }
+
+      await requestJson(`/api/tasks/${taskCompletionTarget.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          action: "submit",
+          completionNote: taskCompletionDraft.note,
+        }),
+      });
+      closeTaskCompletionModal();
+      showSuccessToast("工单已提交验收", `「${taskCompletionTarget.title}」已推送给验收人。`);
+      refreshWorkspace();
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "工单提交失败");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const confirmTaskArchive = (task: BoardTask) => {
+    setConfirmDialog({
+      open: true,
+      title: "确认工单完成",
+      message: `确认工单「${task.title}」已经完成并归档？`,
+      confirmLabel: "确认归档",
+      successTitle: "工单已归档",
+      successDetail: "该工单已完成闭环，后续可在归档列备查。",
+      onConfirm: async () => {
+        await requestJson(`/api/tasks/${task.id}`, {
+          method: "PATCH",
+          body: JSON.stringify({ action: "confirm" }),
+        });
+        refreshWorkspace();
+      },
+    });
+  };
+
+  const openTaskRejectModal = (task: BoardTask) => {
+    setTaskRejectTarget(task);
+    setTaskRejectReason("");
+    setTaskRejectModalOpen(true);
+  };
+
+  const closeTaskRejectModal = () => {
+    setTaskRejectTarget(null);
+    setTaskRejectReason("");
+    setTaskRejectModalOpen(false);
+  };
+
+  const rejectTaskForRework = async () => {
+    if (!taskRejectTarget) {
+      return;
+    }
+
+    const rejectionReason = taskRejectReason.trim();
+    if (!rejectionReason) {
+      setLoadError("请填写驳回原因");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      await requestJson(`/api/tasks/${taskRejectTarget.id}`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          action: "reject",
+          rejectionReason,
+        }),
+      });
+      closeTaskRejectModal();
+      showSuccessToast("工单已驳回", `「${taskRejectTarget.title}」已退回处理人继续完善。`);
+      refreshWorkspace();
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "工单驳回失败");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const handleDrop = async (status: BoardStatus) => {
@@ -2599,19 +2770,8 @@ export function WorkspaceDashboard({
       return;
     }
 
-    setIsSaving(true);
-    try {
-      await requestJson(`/api/tasks/${task.id}`, {
-        method: "PATCH",
-        body: JSON.stringify({ status: "done" }),
-      });
-      showSuccessToast("任务已标记完成", `「${task.title}」已经同步到已完成。`);
-      refreshWorkspace();
-    } catch (error) {
-      setLoadError(error instanceof Error ? error.message : "任务状态更新失败");
-    } finally {
-      setIsSaving(false);
-    }
+    setLoadError(`请在任务看板打开「${task.title}」，上传完成凭证后提交验收。`);
+    router.push("/workspace?tab=board");
   };
 
   const resetTrainingQuestionDraft = () => {
@@ -3112,12 +3272,17 @@ export function WorkspaceDashboard({
   };
 
   const sendTaskReminder = (task: BoardTask) => {
+    if (!task.assigneeId) {
+      setLoadError("该工单还没有处理人，分配后才能发送处理提醒");
+      return;
+    }
+
     void sendDirectReminderToUsers({
       userIds: [task.assigneeId],
-      title: `任务提醒：${task.title}`,
-      detail: `请及时查看并推进任务「${task.title}」。`,
+      title: `工单提醒：${task.title}`,
+      detail: `请及时查看并推进工单「${task.title}」。`,
       targetTab: "board",
-      successTitle: "任务提醒已发送",
+      successTitle: "工单提醒已发送",
       successDetail: `已提醒 ${getTaskAssigneeName(task)} 查看任务看板。`,
     });
   };
@@ -4143,7 +4308,7 @@ export function WorkspaceDashboard({
   const renderOverview = () => (
     <div className="space-y-4">
       {(() => {
-        const quickCompletableTask = tasks.find((task) => task.status !== "done" && canMoveTask(task));
+        const quickCompletableTask = tasks.find((task) => task.status !== "archived" && canMoveTask(task));
         const assignableMembers = taskAssignableMembers;
         const countdownTotalHours = countdown.days * 24 + countdown.hours;
         const countdownStatus = !nearestEvent
@@ -4209,7 +4374,7 @@ export function WorkspaceDashboard({
               },
         ];
 
-        const openTasks = tasks.filter((task) => task.status !== "done");
+        const openTasks = tasks.filter((task) => task.status !== "archived");
         const unsubmittedReportCount = reportableMembers.filter(
           (member) => !todayReportEntryMap.has(member.id),
         ).length;
@@ -4534,7 +4699,7 @@ export function WorkspaceDashboard({
                     <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
                       <p className="text-xs text-slate-400">待完成任务</p>
                       <p className="mt-1 text-xl font-bold text-slate-900">
-                        {tasks.filter((item) => item.status !== "done").length} 项
+                        {tasks.filter((item) => item.status !== "archived").length} 项
                       </p>
                     </div>
                     <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
@@ -4744,8 +4909,8 @@ export function WorkspaceDashboard({
     <div className="space-y-4">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <SectionHeader
-          description="拖拽任务卡片切换状态，任务创建、编辑和删除会依据角色权限开放。"
-          title="任务看板"
+          description="按工单闭环推进：提报、分配、接取、提交凭证、验收归档都会记录在看板里。"
+          title="任务工单"
         />
         <div className="flex flex-wrap items-center gap-3">
           <DemoResetNote />
@@ -4757,13 +4922,13 @@ export function WorkspaceDashboard({
           >
             <span className="inline-flex items-center gap-2">
               <Plus className="h-4 w-4" />
-              <span>新建任务</span>
+              <span>发布工单</span>
             </span>
           </ActionButton>
         </div>
       </div>
 
-      <section className="grid items-stretch gap-4 xl:grid-cols-3">
+      <section className="grid items-stretch gap-4 xl:grid-cols-4">
         {boardColumns.map((column) => (
           <div
             key={column.id}
@@ -4774,7 +4939,7 @@ export function WorkspaceDashboard({
             <div className="flex shrink-0 items-center justify-between border-b border-white/70 pb-3">
               <div>
                 <h3 className="text-base font-semibold text-slate-900">{column.title}</h3>
-                <p className="mt-1 text-xs text-slate-500">列内滚动，不撑长页面</p>
+                <p className="mt-1 text-xs text-slate-500">列内滚动，闭环留痕</p>
               </div>
               <span className="rounded-lg bg-white px-3 py-1 text-sm font-semibold text-slate-600 shadow-sm">
                 {tasks.filter((task) => task.status === column.id).length}
@@ -4799,7 +4964,7 @@ export function WorkspaceDashboard({
                       }`}
                       onDragStart={() => setDraggingTaskId(canMove ? task.id : null)}
                       onDragEnd={() => setDraggingTaskId(null)}
-                      title={canMove ? "拖拽可调整状态" : "无权限拖拽该任务"}
+                      title="请使用卡片按钮推进工单状态"
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="min-w-0">
@@ -4829,7 +4994,10 @@ export function WorkspaceDashboard({
                               {isTaskExpanded ? "收起内容" : "查看完整"}
                             </button>
                           ) : null}
-                          <p className="mt-1.5 text-sm text-slate-500">负责人：{getTaskAssigneeName(task)}</p>
+                          <p className="mt-1.5 text-sm text-slate-500">处理人：{getTaskAssigneeName(task)}</p>
+                          <p className="mt-1 text-xs text-slate-400">
+                            验收人：{task.reviewer?.name ?? "待教师/负责人确认"}
+                          </p>
                         </div>
                         <span
                           className={`shrink-0 rounded-lg border px-2.5 py-1 text-xs font-medium ${
@@ -4841,10 +5009,66 @@ export function WorkspaceDashboard({
                           {task.priority}
                         </span>
                       </div>
+                      {task.rejectionReason ? (
+                        <p className="mt-3 rounded-lg border border-rose-100 bg-rose-50 px-3 py-2 text-xs leading-5 text-rose-700">
+                          驳回原因：{task.rejectionReason}
+                        </p>
+                      ) : null}
+                      {task.completionNote ? (
+                        <p className="mt-3 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs leading-5 text-blue-700">
+                          完成说明：{task.completionNote}
+                        </p>
+                      ) : null}
+                      {task.attachments && task.attachments.length > 0 ? (
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {task.attachments.slice(0, 3).map((attachment) => (
+                            <button
+                              className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs text-slate-600 transition hover:border-blue-200 hover:text-blue-600"
+                              key={attachment.id}
+                              onClick={() =>
+                                handlePreviewDocument({
+                                  downloadUrl: attachment.downloadUrl,
+                                  fileName: attachment.fileName,
+                                  mimeType: attachment.mimeType,
+                                  title: "完成凭证预览",
+                                })
+                              }
+                              type="button"
+                            >
+                              {attachment.fileName}
+                            </button>
+                          ))}
+                          {task.attachments.length > 3 ? (
+                            <span className="rounded-lg bg-slate-100 px-2.5 py-1 text-xs text-slate-500">
+                              +{task.attachments.length - 3}
+                            </span>
+                          ) : null}
+                        </div>
+                      ) : null}
                       <div className="mt-3 flex flex-col gap-3 border-t border-slate-100 pt-3 text-sm text-slate-500 sm:flex-row sm:items-center sm:justify-between">
                         <span>{task.dueDate}</span>
-                        <div className="flex items-center gap-2">
-                          {permissions.canSendDirective && task.assigneeId !== currentMemberId ? (
+                        <div className="flex flex-wrap items-center gap-2">
+                          {task.status === "todo" && task.assigneeId === currentMemberId ? (
+                            <ActionButton disabled={isSaving} onClick={() => void acceptTask(task)} variant="secondary">
+                              接取
+                            </ActionButton>
+                          ) : null}
+                          {task.status === "doing" && task.assigneeId === currentMemberId ? (
+                            <ActionButton disabled={isSaving} onClick={() => openTaskCompletionModal(task)} variant="primary">
+                              提交验收
+                            </ActionButton>
+                          ) : null}
+                          {task.status === "review" && canReviewTaskItem(task) ? (
+                            <>
+                              <ActionButton disabled={isSaving} onClick={() => confirmTaskArchive(task)} variant="secondary">
+                                确认归档
+                              </ActionButton>
+                              <ActionButton disabled={isSaving} onClick={() => openTaskRejectModal(task)} variant="danger">
+                                驳回
+                              </ActionButton>
+                            </>
+                          ) : null}
+                          {permissions.canSendDirective && task.assigneeId && task.assigneeId !== currentMemberId ? (
                             <ActionButton disabled={isSaving} onClick={() => sendTaskReminder(task)}>
                               提醒
                             </ActionButton>
@@ -7112,10 +7336,10 @@ export function WorkspaceDashboard({
       ) : null}
 
       {taskModalOpen ? (
-        <Modal title={editingTaskId ? "编辑任务" : "新建任务"} onClose={() => setTaskModalOpen(false)}>
+        <Modal title={editingTaskId ? "编辑工单" : "发布工单"} onClose={() => setTaskModalOpen(false)}>
           <div className="space-y-4">
             <label className="block text-sm text-slate-500">
-              任务名称
+              工单标题
               <input
                 className={fieldClassName}
                 value={taskDraft.title}
@@ -7125,7 +7349,7 @@ export function WorkspaceDashboard({
               />
             </label>
             <label className="block text-sm text-slate-500">
-              负责人
+              处理人
               <select
                 className={fieldClassName}
                 value={taskDraft.assigneeId}
@@ -7133,6 +7357,7 @@ export function WorkspaceDashboard({
                   setTaskDraft((current) => ({ ...current, assigneeId: event.target.value }))
                 }
               >
+                {currentRole !== "member" ? <option value="">暂不分配，进入待分配</option> : null}
                 {taskAssignableMembers.map((member) => (
                   <option key={member.id} value={member.id}>
                     {member.name}
@@ -7180,10 +7405,10 @@ export function WorkspaceDashboard({
                   }
                   type="checkbox"
                 />
-                <span>
-                  <span className="font-medium text-slate-900">创建后提醒负责人</span>
+                  <span>
+                  <span className="font-medium text-slate-900">创建后提醒处理人/验收人</span>
                   <span className="mt-1 block text-xs leading-5 text-slate-500">
-                    保存任务后，会同步给负责人发送站内待办提醒。
+                    保存工单后，会根据分配情况同步发送站内和邮件提醒。
                   </span>
                 </span>
               </label>
@@ -7191,7 +7416,81 @@ export function WorkspaceDashboard({
             <ModalActions>
               <ActionButton disabled={isSaving} onClick={() => setTaskModalOpen(false)}>取消</ActionButton>
               <ActionButton loading={isSaving} loadingLabel="保存中..." onClick={saveTask} variant="primary">
-                保存任务
+                保存工单
+              </ActionButton>
+            </ModalActions>
+          </div>
+        </Modal>
+      ) : null}
+
+      {taskCompletionModalOpen && taskCompletionTarget ? (
+        <Modal title="提交工单验收" onClose={closeTaskCompletionModal}>
+          <div className="space-y-4">
+            <p className="rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm leading-6 text-blue-700">
+              完成后需要上传至少一份佐证附件，提交后会推送给验收人确认闭环。
+            </p>
+            <label className="block text-sm text-slate-500">
+              完成说明
+              <textarea
+                className={textareaClassName}
+                placeholder="简要说明完成情况、关键结果或需要验收人注意的点"
+                value={taskCompletionDraft.note}
+                onChange={(event) =>
+                  setTaskCompletionDraft((current) => ({ ...current, note: event.target.value }))
+                }
+              />
+            </label>
+            <label className="block text-sm text-slate-500">
+              完成凭证
+              <input
+                accept={documentAcceptAttribute}
+                className={fieldClassName}
+                onChange={(event) =>
+                  setTaskCompletionDraft((current) => ({
+                    ...current,
+                    file: event.target.files?.[0] ?? null,
+                  }))
+                }
+                type="file"
+              />
+              <span className="mt-1.5 block text-xs leading-5 text-slate-400">
+                支持 PDF、Word、Excel、图片、txt，单文件最大 20MB。
+              </span>
+            </label>
+            {taskCompletionTarget.attachments && taskCompletionTarget.attachments.length > 0 ? (
+              <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
+                已有凭证：{taskCompletionTarget.attachments.map((item) => item.fileName).join("、")}
+              </div>
+            ) : null}
+            <ModalActions>
+              <ActionButton disabled={isSaving} onClick={closeTaskCompletionModal}>取消</ActionButton>
+              <ActionButton loading={isSaving} loadingLabel="提交中..." onClick={submitTaskForReview} variant="primary">
+                提交验收
+              </ActionButton>
+            </ModalActions>
+          </div>
+        </Modal>
+      ) : null}
+
+      {taskRejectModalOpen && taskRejectTarget ? (
+        <Modal title="驳回工单" onClose={closeTaskRejectModal}>
+          <div className="space-y-4">
+            <p className="text-sm leading-7 text-slate-500">
+              驳回后工单会回到“处理中”，并提醒处理人继续完善。
+            </p>
+            <label className="block text-sm text-slate-500">
+              驳回原因
+              <textarea
+                className={textareaClassName}
+                placeholder="请写清需要补充或重做的内容"
+                value={taskRejectReason}
+                onChange={(event) => setTaskRejectReason(event.target.value)}
+              />
+            </label>
+            <ModalActions>
+              <ActionButton disabled={isSaving} onClick={closeTaskRejectModal}>取消</ActionButton>
+              <ActionButton loading={isSaving} loadingLabel="提交中..." onClick={rejectTaskForRework} variant="danger">
+                确认驳回
               </ActionButton>
             </ModalActions>
           </div>

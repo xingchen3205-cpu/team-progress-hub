@@ -15,11 +15,16 @@ type TaskUser = {
 
 type TaskRecord = {
   creatorId: string;
-  assigneeId: string;
+  assigneeId?: string | null;
+  reviewerId?: string | null;
+  teamGroupId?: string | null;
   creator?: {
     teamGroupId?: string | null;
   } | null;
   assignee?: {
+    teamGroupId?: string | null;
+  } | null;
+  reviewer?: {
     teamGroupId?: string | null;
   } | null;
 };
@@ -31,7 +36,7 @@ export const getTaskVisibilityWhere = (actor: TaskActor): Prisma.TaskWhereInput 
 
   if (!actor.teamGroupId) {
     return {
-      OR: [{ creatorId: actor.id }, { assigneeId: actor.id }],
+      OR: [{ creatorId: actor.id }, { assigneeId: actor.id }, { reviewerId: actor.id }],
     };
   }
 
@@ -39,8 +44,11 @@ export const getTaskVisibilityWhere = (actor: TaskActor): Prisma.TaskWhereInput 
     OR: [
       { creatorId: actor.id },
       { assigneeId: actor.id },
+      { reviewerId: actor.id },
+      { teamGroupId: actor.teamGroupId },
       { creator: { teamGroupId: actor.teamGroupId } },
       { assignee: { teamGroupId: actor.teamGroupId } },
+      { reviewer: { teamGroupId: actor.teamGroupId } },
     ],
   };
 };
@@ -50,7 +58,7 @@ export const canAccessTask = (actor: TaskActor, task: TaskRecord) => {
     return true;
   }
 
-  if (task.creatorId === actor.id || task.assigneeId === actor.id) {
+  if (task.creatorId === actor.id || task.assigneeId === actor.id || task.reviewerId === actor.id) {
     return true;
   }
 
@@ -58,7 +66,12 @@ export const canAccessTask = (actor: TaskActor, task: TaskRecord) => {
     return false;
   }
 
-  return task.creator?.teamGroupId === actor.teamGroupId || task.assignee?.teamGroupId === actor.teamGroupId;
+  return (
+    task.teamGroupId === actor.teamGroupId ||
+    task.creator?.teamGroupId === actor.teamGroupId ||
+    task.assignee?.teamGroupId === actor.teamGroupId ||
+    task.reviewer?.teamGroupId === actor.teamGroupId
+  );
 };
 
 export const canAssignTaskToUser = (actor: TaskActor, target: TaskUser) => {
@@ -83,4 +96,20 @@ export const canAssignTaskToUser = (actor: TaskActor, target: TaskUser) => {
   }
 
   return Boolean(actor.teamGroupId && target.teamGroupId === actor.teamGroupId);
+};
+
+export const canReviewTask = (actor: TaskActor, task: TaskRecord) => {
+  if (actor.role === "admin") {
+    return true;
+  }
+
+  if (actor.role !== "teacher" && actor.role !== "leader") {
+    return false;
+  }
+
+  if (task.reviewerId === actor.id) {
+    return true;
+  }
+
+  return Boolean(actor.teamGroupId && task.teamGroupId === actor.teamGroupId);
 };

@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import type { Role } from "@prisma/client";
 
 import { getSessionUser } from "@/lib/auth";
 import { parseLocalDateTime } from "@/lib/date";
@@ -10,6 +11,57 @@ import {
   taskPriorityValueToDb,
 } from "@/lib/api-serializers";
 import { canAssignTaskToUser, getTaskVisibilityWhere } from "@/lib/task-access";
+
+const taskInclude = {
+  assignee: {
+    select: { id: true, name: true, avatar: true, role: true, teamGroupId: true },
+  },
+  creator: {
+    select: { id: true, name: true, avatar: true, role: true, teamGroupId: true },
+  },
+  reviewer: {
+    select: { id: true, name: true, avatar: true, role: true, teamGroupId: true },
+  },
+  teamGroup: {
+    select: { id: true, name: true },
+  },
+  attachments: {
+    orderBy: { uploadedAt: "desc" as const },
+    include: {
+      uploader: {
+        select: { id: true, name: true },
+      },
+    },
+  },
+};
+
+const getTeamReviewerIds = async ({
+  teamGroupId,
+  excludeUserIds = [],
+}: {
+  teamGroupId?: string | null;
+  excludeUserIds?: string[];
+}) => {
+  if (!teamGroupId) {
+    return [];
+  }
+
+  const reviewers = await prisma.user.findMany({
+    where: {
+      teamGroupId,
+      role: {
+        in: ["teacher", "leader"] satisfies Role[],
+      },
+      approvalStatus: "approved",
+      id: {
+        notIn: excludeUserIds,
+      },
+    },
+    select: { id: true },
+  });
+
+  return reviewers.map((reviewer) => reviewer.id);
+};
 
 export async function GET(request: NextRequest) {
   const user = await getSessionUser(request);
@@ -27,12 +79,7 @@ export async function GET(request: NextRequest) {
     where: getTaskVisibilityWhere(user),
     orderBy: [{ dueDate: "asc" }, { createdAt: "desc" }],
     include: {
-      assignee: {
-        select: { id: true, name: true, avatar: true, role: true, teamGroupId: true },
-      },
-      creator: {
-        select: { id: true, name: true, avatar: true, role: true, teamGroupId: true },
-      },
+      ...taskInclude,
     },
   });
 
@@ -55,6 +102,7 @@ export async function POST(request: NextRequest) {
     | {
         title?: string;
         assigneeId?: string;
+        teamGroupId?: string;
         dueDate?: string;
         priority?: "高优先级" | "中优先级" | "低优先级";
         notifyAssignee?: boolean;
@@ -62,59 +110,93 @@ export async function POST(request: NextRequest) {
     | null;
 
   const title = body?.title?.trim();
-  const assigneeId = body?.assigneeId?.trim();
+  const assigneeId = body?.assigneeId?.trim() || null;
   const dueDate = body?.dueDate ? parseLocalDateTime(body.dueDate) : null;
   const priority = body?.priority ? taskPriorityValueToDb[body.priority] : null;
   const notifyAssignee = Boolean(body?.notifyAssignee);
+  const requestedTeamGroupId = body?.teamGroupId?.trim() || null;
 
-  if (!title || !assigneeId || !dueDate || !priority) {
-    return NextResponse.json({ message: "任务信息不完整" }, { status: 400 });
+  if (!title || !dueDate || !priority) {
+    return NextResponse.json({ message: "工单信息不完整" }, { status: 400 });
   }
 
-  const assignee = await prisma.user.findUnique({
-    where: { id: assigneeId },
-    select: {
-      id: true,
-      role: true,
-      teamGroupId: true,
-      approvalStatus: true,
-    },
-  });
+  const assignee = assigneeId
+    ? await prisma.user.findUnique({
+        where: { id: assigneeId },
+        select: {
+          id: true,
+          role: true,
+          teamGroupId: true,
+          approvalStatus: true,
+        },
+      })
+    : null;
 
-  if (!assignee || !canAssignTaskToUser(user, assignee)) {
-    return NextResponse.json({ message: "无权限给该成员创建任务" }, { status: 403 });
+  if (assigneeId && (!assignee || !canAssignTaskToUser(user, assignee))) {
+    return NextResponse.json({ message: "无权限给该成员创建工单" }, { status: 403 });
   }
+
+  if (user.role === "member" && assigneeId && assigneeId !== user.id) {
+    return NextResponse.json({ message: "团队成员只能把工单指派给自己或提交待分配工单" }, { status: 403 });
+  }
+
+  const teamGroupId =
+    user.role === "admin"
+      ? requestedTeamGroupId || assignee?.teamGroupId || user.teamGroupId || null
+      : user.teamGroupId || assignee?.teamGroupId || null;
+
+  if (!teamGroupId && !assigneeId) {
+    return NextResponse.json({ message: "请先选择处理人，或将账号加入队伍后再发布待分配工单" }, { status: 400 });
+  }
+
+  const reviewerId = user.role === "teacher" || user.role === "leader" || user.role === "admin" ? user.id : null;
+  const autoAccepted = Boolean(assignee && (assignee.id === user.id || assignee.role === "leader"));
 
   const task = await prisma.task.create({
     data: {
       title,
       assigneeId,
       creatorId: user.id,
+      reviewerId,
+      teamGroupId,
       dueDate,
       priority,
-      status: "todo",
+      status: autoAccepted ? "doing" : "todo",
+      acceptedAt: autoAccepted ? new Date() : null,
     },
-    include: {
-      assignee: {
-        select: { id: true, name: true, avatar: true, role: true, teamGroupId: true },
-      },
-      creator: {
-        select: { id: true, name: true, avatar: true, role: true, teamGroupId: true },
-      },
-    },
+    include: taskInclude,
   });
 
-  if (notifyAssignee && task.assigneeId !== user.id) {
+  if (notifyAssignee && task.assigneeId && task.assigneeId !== user.id) {
     await createNotifications({
       userIds: [task.assigneeId],
-      title: `任务提醒：${task.title}`,
-      detail: `${user.name} 指派你处理任务「${task.title}」，请在任务看板查看并推进。`,
+      title: `工单提醒：${task.title}`,
+      detail: `${user.name} 指派你处理工单「${task.title}」，请在任务看板查看并推进。`,
       type: "task_assign",
       targetTab: "board",
       relatedId: task.id,
       senderId: user.id,
       email: true,
     });
+  }
+
+  if (!task.assigneeId || user.role === "member") {
+    const reviewerIds = await getTeamReviewerIds({
+      teamGroupId: task.teamGroupId,
+      excludeUserIds: [user.id, task.assigneeId ?? ""],
+    });
+    if (reviewerIds.length > 0) {
+      await createNotifications({
+        userIds: reviewerIds,
+        title: `新工单提报：${task.title}`,
+        detail: `${user.name} 提交了工单「${task.title}」，请进入任务看板分配或后续验收。`,
+        type: "task_submit",
+        targetTab: "board",
+        relatedId: task.id,
+        senderId: user.id,
+        email: true,
+      });
+    }
   }
 
   return NextResponse.json({ task: serializeTask(task) }, { status: 201 });

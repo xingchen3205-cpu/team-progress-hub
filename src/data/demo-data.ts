@@ -38,23 +38,48 @@ export type TeamGroupItem = {
 export type BoardTask = {
   id: string;
   title: string;
-  status: "todo" | "doing" | "done";
-  assigneeId: string;
+  status: "todo" | "doing" | "review" | "archived";
+  statusKey?: "todo" | "doing" | "review" | "archived" | "done";
+  assigneeId?: string | null;
   creatorId?: string;
+  reviewerId?: string | null;
+  teamGroupId?: string | null;
+  teamGroupName?: string | null;
   assignee?: {
     id: string;
     name: string;
     avatar: string;
     roleLabel: TeamRoleLabel;
-  };
+  } | null;
   creator?: {
     id: string;
     name: string;
     avatar: string;
     roleLabel: TeamRoleLabel;
   } | null;
+  reviewer?: {
+    id: string;
+    name: string;
+    avatar: string;
+    roleLabel: TeamRoleLabel;
+  } | null;
   dueDate: string;
-  priority: "高优先级" | "中优先级" | "低优先级" | "进行中" | "已完成";
+  priority: "高优先级" | "中优先级" | "低优先级" | "进行中" | "待验收" | "已归档";
+  completionNote?: string;
+  rejectionReason?: string;
+  acceptedAt?: string | null;
+  submittedAt?: string | null;
+  archivedAt?: string | null;
+  attachments?: Array<{
+    id: string;
+    fileName: string;
+    fileSize: number;
+    mimeType: string;
+    uploadedAt: string;
+    uploaderId: string;
+    uploaderName: string;
+    downloadUrl: string;
+  }>;
 };
 
 export type ReportEntry = {
@@ -335,9 +360,10 @@ export const initialEvents: EventItem[] = [
 ];
 
 export const boardColumns = [
-  { id: "todo", title: "待办" },
+  { id: "todo", title: "待分配 / 待接取" },
   { id: "doing", title: "进行中" },
-  { id: "done", title: "已完成" },
+  { id: "review", title: "待验收" },
+  { id: "archived", title: "已归档" },
 ] as const;
 
 export const teamMembers: TeamMember[] = [
@@ -484,18 +510,18 @@ export const initialBoardTasks: BoardTask[] = [
   {
     id: "task-5",
     title: "合并专家反馈清单",
-    status: "done",
+    status: "archived",
     assigneeId: "member-4",
     dueDate: "2026-04-05 17:00",
-    priority: "已完成",
+    priority: "已归档",
   },
   {
     id: "task-6",
     title: "上传演示录屏 v3",
-    status: "done",
+    status: "archived",
     assigneeId: "member-2",
     dueDate: "2026-04-05 15:30",
-    priority: "已完成",
+    priority: "已归档",
   },
 ];
 

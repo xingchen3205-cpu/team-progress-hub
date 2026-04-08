@@ -11,6 +11,7 @@ import type {
   Report,
   Role,
   Task,
+  TaskAttachment,
   TaskPriority,
   TaskStatus,
   TrainingQuestion,
@@ -66,10 +67,12 @@ export const taskPriorityValueToDb = {
   低优先级: "low",
 } as const;
 
-export const taskStatusLabels: Record<TaskStatus, "todo" | "doing" | "done"> = {
+export const taskStatusLabels: Record<TaskStatus, "todo" | "doing" | "review" | "archived"> = {
   todo: "todo",
   doing: "doing",
-  done: "done",
+  review: "review",
+  archived: "archived",
+  done: "archived",
 };
 
 export const formatDateTime = formatBeijingDateTime;
@@ -125,28 +128,39 @@ export const serializeUser = (
 
 export const serializeTask = (
   task: Task & {
-    assignee: Pick<User, "id" | "name" | "avatar" | "role">;
+    assignee?: Pick<User, "id" | "name" | "avatar" | "role"> | null;
     creator?: Pick<User, "id" | "name" | "avatar" | "role">;
+    reviewer?: Pick<User, "id" | "name" | "avatar" | "role"> | null;
+    teamGroup?: { id: string; name: string } | null;
+    attachments?: Array<TaskAttachment & { uploader?: Pick<User, "id" | "name"> | null }>;
   },
 ) => ({
   id: task.id,
   title: task.title,
-  status: task.status,
+  status: taskStatusLabels[task.status],
+  statusKey: task.status,
   assigneeId: task.assigneeId,
   creatorId: task.creatorId,
+  reviewerId: task.reviewerId,
+  teamGroupId: task.teamGroupId,
+  teamGroupName: task.teamGroup?.name ?? null,
   dueDate: formatDateTime(task.dueDate),
   priority:
     task.status === "doing"
       ? "进行中"
-      : task.status === "done"
-        ? "已完成"
+      : task.status === "review"
+        ? "待验收"
+        : task.status === "archived" || task.status === "done"
+          ? "已归档"
         : taskPriorityLabels[task.priority],
-  assignee: {
-    id: task.assignee.id,
-    name: task.assignee.name,
-    avatar: task.assignee.avatar,
-    roleLabel: roleLabels[task.assignee.role],
-  },
+  assignee: task.assignee
+    ? {
+        id: task.assignee.id,
+        name: task.assignee.name,
+        avatar: task.assignee.avatar,
+        roleLabel: roleLabels[task.assignee.role],
+      }
+    : null,
   creator: task.creator
     ? {
         id: task.creator.id,
@@ -155,6 +169,30 @@ export const serializeTask = (
         roleLabel: roleLabels[task.creator.role],
       }
     : null,
+  reviewer: task.reviewer
+    ? {
+        id: task.reviewer.id,
+        name: task.reviewer.name,
+        avatar: task.reviewer.avatar,
+        roleLabel: roleLabels[task.reviewer.role],
+      }
+    : null,
+  completionNote: task.completionNote ?? "",
+  rejectionReason: task.rejectionReason ?? "",
+  acceptedAt: task.acceptedAt ? formatDateTime(task.acceptedAt) : null,
+  submittedAt: task.submittedAt ? formatDateTime(task.submittedAt) : null,
+  archivedAt: task.archivedAt ? formatDateTime(task.archivedAt) : null,
+  attachments:
+    task.attachments?.map((attachment) => ({
+      id: attachment.id,
+      fileName: attachment.fileName,
+      fileSize: attachment.fileSize,
+      mimeType: attachment.mimeType,
+      uploadedAt: formatDateTime(attachment.uploadedAt),
+      uploaderId: attachment.uploaderId,
+      uploaderName: attachment.uploader?.name ?? "团队成员",
+      downloadUrl: `/api/tasks/${task.id}/attachments/${attachment.id}`,
+    })) ?? [],
   createdAt: task.createdAt.toISOString(),
 });
 

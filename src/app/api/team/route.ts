@@ -58,12 +58,12 @@ const buildTeamMemberPayload = (
     approvedAt: Date | null;
     teamGroup?: { id: string; name: string } | null;
   },
-  tasks: Array<{ assigneeId: string; status: "todo" | "doing" | "done" }>,
+  tasks: Array<{ assigneeId: string | null; status: "todo" | "doing" | "review" | "archived" | "done" }>,
   latestReportByUser: Map<string, { summary: string; nextPlan: string }>,
   options: { showAccount: boolean },
 ) => {
   const userTasks = tasks.filter((task) => task.assigneeId === member.id);
-  const doneCount = userTasks.filter((task) => task.status === "done").length;
+  const doneCount = userTasks.filter((task) => task.status === "done" || task.status === "archived").length;
   const progress = userTasks.length ? `${Math.round((doneCount / userTasks.length) * 100)}%` : "0%";
   const latestReport = latestReportByUser.get(member.id);
   const approverRoles = getRegistrationApproverRoles(member.role);

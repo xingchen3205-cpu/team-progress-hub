@@ -35,6 +35,8 @@ enum ExpertReviewMaterialKind {
 enum TaskStatus {
   todo
   doing
+  review
+  archived
   done
 }
 
@@ -79,6 +81,8 @@ model User {
   teamGroup            TeamGroup?               @relation(fields: [teamGroupId], references: [id], onDelete: SetNull)
   tasksAssigned        Task[]                   @relation("TaskAssignee")
   tasksCreated         Task[]                   @relation("TaskCreator")
+  tasksReviewed        Task[]                   @relation("TaskReviewer")
+  taskAttachments      TaskAttachment[]         @relation("TaskAttachmentUploader")
   reports              Report[]
   announcements        Announcement[]
   documents            Document[]               @relation("DocumentOwner")
@@ -98,19 +102,50 @@ model TeamGroup {
   description String?
   createdAt   DateTime @default(now())
   members     User[]
+  tasks       Task[]
 }
 
 model Task {
-  id         String       @id @default(cuid())
-  title      String
-  status     TaskStatus
-  priority   TaskPriority
-  assigneeId String
-  creatorId  String
-  dueDate    DateTime
-  createdAt  DateTime     @default(now())
-  assignee   User         @relation("TaskAssignee", fields: [assigneeId], references: [id])
-  creator    User         @relation("TaskCreator", fields: [creatorId], references: [id])
+  id              String           @id @default(cuid())
+  title           String
+  status          TaskStatus
+  priority        TaskPriority
+  assigneeId      String?
+  creatorId       String
+  reviewerId      String?
+  teamGroupId     String?
+  dueDate         DateTime
+  acceptedAt      DateTime?
+  submittedAt     DateTime?
+  archivedAt      DateTime?
+  rejectedAt      DateTime?
+  rejectionReason String?
+  completionNote  String?
+  createdAt       DateTime         @default(now())
+  assignee        User?            @relation("TaskAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  creator         User             @relation("TaskCreator", fields: [creatorId], references: [id])
+  reviewer        User?            @relation("TaskReviewer", fields: [reviewerId], references: [id], onDelete: SetNull)
+  teamGroup       TeamGroup?       @relation(fields: [teamGroupId], references: [id], onDelete: SetNull)
+  attachments     TaskAttachment[]
+
+  @@index([teamGroupId, status, dueDate])
+  @@index([assigneeId, status])
+  @@index([reviewerId, status])
+}
+
+model TaskAttachment {
+  id         String   @id @default(cuid())
+  taskId     String
+  uploaderId String
+  fileName   String
+  filePath   String
+  fileSize   Int
+  mimeType   String
+  uploadedAt DateTime @default(now())
+  task       Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  uploader   User     @relation("TaskAttachmentUploader", fields: [uploaderId], references: [id])
+
+  @@index([taskId, uploadedAt])
 }
 
 model Report {
@@ -197,7 +232,7 @@ model DocumentVersion {
 }
 
 model Notification {
-  id         String   @id @default(cuid())
+  id         String    @id @default(cuid())
   userId     String
   senderId   String?
   documentId String?
@@ -206,11 +241,11 @@ model Notification {
   type       String
   targetTab  String?
   relatedId  String?
-  isRead     Boolean  @default(false)
+  isRead     Boolean   @default(false)
   readAt     DateTime?
-  createdAt  DateTime @default(now())
-  user       User     @relation("NotificationRecipient", fields: [userId], references: [id])
-  sender     User?    @relation("NotificationSender", fields: [senderId], references: [id])
+  createdAt  DateTime  @default(now())
+  user       User      @relation("NotificationRecipient", fields: [userId], references: [id])
+  sender     User?     @relation("NotificationSender", fields: [senderId], references: [id])
 
   @@index([userId, isRead, createdAt])
   @@index([senderId, type, createdAt])
