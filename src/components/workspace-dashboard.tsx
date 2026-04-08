@@ -64,7 +64,7 @@ import {
   getBeijingHour,
   toIsoDateKey,
 } from "@/lib/date";
-import { buildReportDateOptions, isReportDateKey } from "@/lib/report-history";
+import { buildReportDateOptions, getReportAttachmentNote, isReportDateKey } from "@/lib/report-history";
 import { EMAIL_RULE_HINT, USERNAME_RULE_HINT, validateRequiredEmail, validateUsername } from "@/lib/account-policy";
 import {
   documentCenterAcceptAttribute,
@@ -5905,6 +5905,7 @@ export function WorkspaceDashboard({
         {visibleReportMembers.length > 0 ? (
           visibleReportMembers.map((member) => {
             const report = reportEntryMap.get(member.id);
+            const attachmentNote = getReportAttachmentNote(report?.attachment);
 
             return (
               <article
@@ -5945,9 +5946,11 @@ export function WorkspaceDashboard({
                           <p className="mt-2 text-sm leading-7 text-slate-700">{report.nextPlan}</p>
                         </div>
                       </div>
-                      <p className="mt-4 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-500">
-                        附件备注：{report.attachment}
-                      </p>
+                      {attachmentNote ? (
+                        <p className="mt-4 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-500">
+                          附件备注：{attachmentNote}
+                        </p>
+                      ) : null}
                       {member.id === currentMemberId && permissions.canSubmitReport ? (
                         <div className="mt-4 flex flex-wrap gap-3">
                           <ActionButton onClick={() => openEditReportModal(report)}>修改汇报</ActionButton>

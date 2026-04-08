@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { buildReportDateOptions } from "../src/lib/report-history";
+import { buildReportDateOptions, getReportAttachmentNote } from "../src/lib/report-history";
 
 describe("report history date options", () => {
   it("keeps saved report dates while allowing the currently selected date", () => {
@@ -26,5 +26,11 @@ describe("report history date options", () => {
       }),
       ["2026-04-08", "2026-04-07"],
     );
+  });
+
+  it("hides empty report attachment placeholders", () => {
+    assert.equal(getReportAttachmentNote("未上传附件"), null);
+    assert.equal(getReportAttachmentNote("   "), null);
+    assert.equal(getReportAttachmentNote("日报截图.png"), "日报截图.png");
   });
 });

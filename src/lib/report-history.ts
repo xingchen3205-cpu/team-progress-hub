@@ -41,3 +41,8 @@ export const buildReportDateOptions = ({
 
   return Array.from(dateSet).sort((left, right) => (left < right ? 1 : -1));
 };
+
+export const getReportAttachmentNote = (attachment?: string | null) => {
+  const trimmed = attachment?.trim() ?? "";
+  return trimmed && trimmed !== "未上传附件" ? trimmed : null;
+};
