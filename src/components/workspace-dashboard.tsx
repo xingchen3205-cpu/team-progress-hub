@@ -65,7 +65,12 @@ import {
   getBeijingHour,
   toIsoDateKey,
 } from "@/lib/date";
-import { buildReportDateOptions, getReportAttachmentNote, isReportDateKey } from "@/lib/report-history";
+import {
+  buildReportDateOptions,
+  getReportAttachmentNote,
+  getVisibleReportMembers,
+  isReportDateKey,
+} from "@/lib/report-history";
 import { EMAIL_RULE_HINT, USERNAME_RULE_HINT, validateRequiredEmail, validateUsername } from "@/lib/account-policy";
 import { buildTeamManagementConfirmation } from "@/lib/team-confirmation";
 import {
@@ -185,6 +190,17 @@ type ReminderDraftErrors = {
   title?: string;
   detail?: string;
   submit?: string;
+};
+
+type EmailReminderSettingsDraft = {
+  taskAssignmentEnabled: boolean;
+  taskReviewEnabled: boolean;
+  announcementEnabled: boolean;
+  directReminderEnabled: boolean;
+  documentReviewEnabled: boolean;
+  reportSubmitEnabled: boolean;
+  dailyReportMissingEnabled: boolean;
+  dailyReportHour: number;
 };
 
 type TeamDraft = {
@@ -514,7 +530,7 @@ type NotificationDeliveryResult = {
   notificationCount: number;
   emailRecipientCount: number;
   emailFailureCount: number;
-  emailSkippedReason?: "disabled" | "no-recipient-email";
+  emailSkippedReason?: "disabled" | "no-recipient-email" | "setting-disabled";
   emailFailureReason?: "resend-domain-unverified" | "unknown";
 };
 
@@ -546,6 +562,10 @@ const getReminderDeliveryDetail = (delivery?: NotificationDeliveryResult, fallba
 
   if (delivery.emailSkippedReason === "disabled") {
     return "站内提醒已发送；邮件服务暂未配置，所以没有发送邮件。";
+  }
+
+  if (delivery.emailSkippedReason === "setting-disabled") {
+    return "站内提醒已发送；当前邮件提醒设置已关闭，所以没有发送邮件。";
   }
 
   return fallbackDetail ?? "站内提醒已发送。";
@@ -586,6 +606,10 @@ const getBatchReminderDeliveryDetail = (
 
   if (skippedNoEmailCount > 0) {
     return "站内提醒已发送；部分成员个人信息里没有填写邮箱，所以没有发送邮件。";
+  }
+
+  if (validDeliveries.some((delivery) => delivery.emailSkippedReason === "setting-disabled")) {
+    return "站内提醒已发送；当前邮件提醒设置已关闭，所以没有发送邮件。";
   }
 
   return fallbackDetail;
@@ -653,22 +677,10 @@ const taskPriorityStyles: Record<TaskDraft["priority"], string> = {
   低优先级: "border-slate-200 bg-slate-100 text-slate-600",
 };
 
-const taskWorkflowStepClassNames: Record<"done" | "current" | "pending", string> = {
-  done: "border-emerald-200 bg-emerald-50 text-emerald-700",
-  current: "border-blue-200 bg-blue-50 text-blue-700 ring-2 ring-blue-500/10",
-  pending: "border-slate-200 bg-white text-slate-500",
-};
-
 const taskWorkflowDotClassNames: Record<"done" | "current" | "pending", string> = {
   done: "bg-emerald-500 text-white",
   current: "bg-blue-600 text-white shadow-sm shadow-blue-500/30",
   pending: "bg-slate-100 text-slate-400 ring-1 ring-slate-200",
-};
-
-const taskWorkflowConnectorClassNames: Record<"done" | "current" | "pending", string> = {
-  done: "bg-emerald-300",
-  current: "bg-blue-200",
-  pending: "bg-slate-200",
 };
 
 const surfaceCardClassName = "rounded-xl border border-slate-200 bg-white p-5 shadow-sm";
@@ -967,6 +979,59 @@ const defaultReminderDraft: ReminderDraft = {
 };
 
 const defaultReminderDraftErrors = (): ReminderDraftErrors => ({});
+
+const defaultEmailReminderSettingsDraft: EmailReminderSettingsDraft = {
+  taskAssignmentEnabled: true,
+  taskReviewEnabled: true,
+  announcementEnabled: true,
+  directReminderEnabled: true,
+  documentReviewEnabled: true,
+  reportSubmitEnabled: true,
+  dailyReportMissingEnabled: true,
+  dailyReportHour: 20,
+};
+
+const emailReminderSettingItems: Array<{
+  key: keyof Omit<EmailReminderSettingsDraft, "dailyReportHour">;
+  title: string;
+  description: string;
+}> = [
+  {
+    key: "taskAssignmentEnabled",
+    title: "新任务 / 工单指派",
+    description: "发布工单、分配处理人、提醒分配时同步邮件。",
+  },
+  {
+    key: "taskReviewEnabled",
+    title: "工单验收与返工",
+    description: "提交验收、确认归档、驳回返工时同步邮件。",
+  },
+  {
+    key: "announcementEnabled",
+    title: "公告同步提醒",
+    description: "发布公告并勾选同步提醒时发送邮件。",
+  },
+  {
+    key: "directReminderEnabled",
+    title: "站内指令提醒",
+    description: "管理员或教师手动发送提醒时同步邮件。",
+  },
+  {
+    key: "documentReviewEnabled",
+    title: "文档审批流转",
+    description: "文档待审、审批结果、打回修改时同步邮件。",
+  },
+  {
+    key: "reportSubmitEnabled",
+    title: "日程汇报提交",
+    description: "成员或负责人首次提交当日汇报时同步邮件。",
+  },
+  {
+    key: "dailyReportMissingEnabled",
+    title: "每日未提交汇报",
+    description: "每天按设置时间提醒未提交汇报的成员。",
+  },
+];
 
 const defaultEventDraft: EventDraft = {
   title: "",
@@ -1482,8 +1547,6 @@ export function WorkspaceDashboard({
   const [taskRejectModalOpen, setTaskRejectModalOpen] = useState(false);
   const [taskRejectTarget, setTaskRejectTarget] = useState<BoardTask | null>(null);
   const [taskRejectReason, setTaskRejectReason] = useState("");
-  const [quickTaskTitle, setQuickTaskTitle] = useState("");
-  const [quickTaskAssigneeId, setQuickTaskAssigneeId] = useState("");
   const [trainingQuestionDraft, setTrainingQuestionDraft] =
     useState<TrainingQuestionDraft>(defaultTrainingQuestionDraft);
   const [editingTrainingQuestionId, setEditingTrainingQuestionId] = useState<string | null>(null);
@@ -1507,6 +1570,11 @@ export function WorkspaceDashboard({
   const [reminderTargetMember, setReminderTargetMember] = useState<TeamMember | null>(null);
   const [reminderDraft, setReminderDraft] = useState<ReminderDraft>(defaultReminderDraft);
   const [reminderDraftErrors, setReminderDraftErrors] = useState<ReminderDraftErrors>(defaultReminderDraftErrors);
+  const [emailSettingsModalOpen, setEmailSettingsModalOpen] = useState(false);
+  const [emailSettingsDraft, setEmailSettingsDraft] = useState<EmailReminderSettingsDraft>(
+    defaultEmailReminderSettingsDraft,
+  );
+  const [emailSettingsLoading, setEmailSettingsLoading] = useState(false);
 
   const [eventModalOpen, setEventModalOpen] = useState(false);
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
@@ -1587,6 +1655,7 @@ export function WorkspaceDashboard({
     questionImportModalOpen ||
     announcementModalOpen ||
     reminderModalOpen ||
+    emailSettingsModalOpen ||
     eventModalOpen ||
     expertModalOpen ||
     reviewAssignmentModalOpen ||
@@ -1981,9 +2050,11 @@ export function WorkspaceDashboard({
 
   const firstAssignableMemberId = taskAssignableMembers[0]?.id ?? currentMemberId;
 
-  const visibleReportMembers = permissions.canViewAllReports
-    ? members.filter((item) => !["指导教师", "系统管理员", "评审专家"].includes(item.systemRole))
-    : members.filter((item) => item.id === currentMemberId);
+  const visibleReportMembers = getVisibleReportMembers({
+    members,
+    currentMemberId,
+    canViewAllReports: permissions.canViewAllReports,
+  });
   const reportDateOptions = useMemo(
     () =>
       buildReportDateOptions({
@@ -2008,7 +2079,7 @@ export function WorkspaceDashboard({
   const pendingLeaderReviewCount = documents.filter((doc) => doc.statusKey === "pending").length;
   const pendingTeacherReviewCount = documents.filter((doc) => doc.statusKey === "leader_approved").length;
   const reportableMembers = members.filter(
-    (item) => !["指导教师", "系统管理员", "评审专家"].includes(item.systemRole),
+    (item) => ["项目负责人", "团队成员"].includes(item.systemRole) && Boolean(item.teamGroupId),
   );
   const reportSubmittedCount = todayReportEntries.length;
   const reportExpectedCount = reportableMembers.length;
@@ -2364,6 +2435,41 @@ export function WorkspaceDashboard({
     });
     setReminderDraftErrors(defaultReminderDraftErrors());
     setReminderModalOpen(true);
+  };
+
+  const openEmailSettingsModal = async () => {
+    if (currentRole !== "admin") {
+      setLoadError("无权限配置邮件提醒");
+      return;
+    }
+
+    setEmailSettingsModalOpen(true);
+    setEmailSettingsLoading(true);
+    try {
+      const payload = await requestJson<{ settings: EmailReminderSettingsDraft }>("/api/settings/email");
+      setEmailSettingsDraft(payload.settings);
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "邮件提醒设置加载失败");
+    } finally {
+      setEmailSettingsLoading(false);
+    }
+  };
+
+  const saveEmailSettings = async () => {
+    setIsSaving(true);
+    try {
+      const payload = await requestJson<{ settings: EmailReminderSettingsDraft }>("/api/settings/email", {
+        method: "PATCH",
+        body: JSON.stringify(emailSettingsDraft),
+      });
+      setEmailSettingsDraft(payload.settings);
+      setEmailSettingsModalOpen(false);
+      showSuccessToast("邮件提醒设置已保存", "全体成员的邮件提醒规则已经更新。");
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "邮件提醒设置保存失败");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   const canMoveTask = (task: BoardTask) => {
@@ -2766,44 +2872,6 @@ export function WorkspaceDashboard({
       refreshWorkspace();
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "任务保存失败");
-    } finally {
-      setIsSaving(false);
-    }
-  };
-
-  const createQuickTask = async () => {
-    const title = quickTaskTitle.trim();
-    const assigneeId = currentRole === "member" ? currentMemberId : quickTaskAssigneeId || firstAssignableMemberId;
-
-    if (!title) {
-      setLoadError("请先输入任务名称");
-      return;
-    }
-
-    if (!assigneeId) {
-      setLoadError("请先选择任务负责人");
-      return;
-    }
-
-    setIsSaving(true);
-    try {
-      await requestJson("/api/tasks", {
-        method: "POST",
-        body: JSON.stringify({
-          title,
-          assigneeId,
-          teamGroupId: currentUser?.teamGroupId ?? "",
-          dueDate: `${toIsoDateKey(new Date())}T18:00`,
-          priority: "高优先级",
-          notifyAssignee: true,
-        }),
-      });
-      setQuickTaskTitle("");
-      setQuickTaskAssigneeId("");
-      showSuccessToast("任务已快速创建", "这条任务已经加入任务看板。");
-      refreshWorkspace();
-    } catch (error) {
-      setLoadError(error instanceof Error ? error.message : "任务创建失败");
     } finally {
       setIsSaving(false);
     }
@@ -4711,7 +4779,6 @@ export function WorkspaceDashboard({
     <div className="space-y-4">
       {(() => {
         const quickCompletableTask = tasks.find((task) => task.status !== "archived" && canMoveTask(task));
-        const assignableMembers = taskAssignableMembers;
         const countdownTotalHours = countdown.days * 24 + countdown.hours;
         const countdownStatus = !nearestEvent
           ? {
@@ -5043,58 +5110,6 @@ export function WorkspaceDashboard({
               </article>
 
               <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
-                {permissions.canCreateTask ? (
-                  <article className="rounded-xl border border-blue-100 bg-blue-50/60 p-4 shadow-sm">
-                    <div className="flex items-start gap-3">
-                      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white text-lg shadow-sm">
-                        📋
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-semibold text-slate-900">任务快速创建</p>
-                        <p className="mt-1 text-xs leading-5 text-slate-500">
-                          在首页先记下临时安排，稍后可到任务看板细化。
-                        </p>
-                      </div>
-                    </div>
-                    <div className="mt-3 grid gap-2">
-                      <input
-                        className="h-10 rounded-lg border border-blue-100 bg-white px-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-[#1d4ed8] focus:ring-2 focus:ring-blue-500/20"
-                        placeholder="输入任务名称"
-                        value={quickTaskTitle}
-                        onChange={(event) => setQuickTaskTitle(event.target.value)}
-                      />
-                      <div className="grid gap-2 sm:grid-cols-[minmax(0,1fr)_auto]">
-                        {currentRole === "member" ? (
-                          <div className="flex h-10 items-center rounded-lg border border-blue-100 bg-white px-3 text-sm text-slate-600">
-                            指派给自己
-                          </div>
-                        ) : (
-                          <select
-                            className="h-10 rounded-lg border border-blue-100 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-[#1d4ed8] focus:ring-2 focus:ring-blue-500/20"
-                            value={quickTaskAssigneeId || firstAssignableMemberId}
-                            onChange={(event) => setQuickTaskAssigneeId(event.target.value)}
-                          >
-                            {assignableMembers.map((member) => (
-                              <option key={member.id} value={member.id}>
-                                {member.name}
-                              </option>
-                            ))}
-                          </select>
-                        )}
-                        <ActionButton
-                          disabled={isSaving || !quickTaskTitle.trim()}
-                          loading={isSaving && Boolean(quickTaskTitle.trim())}
-                          loadingLabel="创建中..."
-                          onClick={() => void createQuickTask()}
-                          variant="primary"
-                        >
-                          创建
-                        </ActionButton>
-                      </div>
-                    </div>
-                  </article>
-                ) : null}
-
                 <article className={surfaceCardClassName}>
                   <p className="text-sm font-semibold text-slate-900">今日推进节奏</p>
                   <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
@@ -5109,7 +5124,7 @@ export function WorkspaceDashboard({
                       <p className="mt-1 text-xl font-bold text-slate-900">
                         {(reportEntriesByDay[reportDates[0]] ?? []).length} /
                         {" "}
-                        {members.filter((item) => !["指导教师", "系统管理员", "评审专家"].includes(item.systemRole)).length}
+                        {reportableMembers.length}
                       </p>
                     </div>
                   </div>
@@ -5478,6 +5493,7 @@ export function WorkspaceDashboard({
                   { label: "提交验收", value: task.submittedAt ?? "未提交" },
                   { label: "归档时间", value: task.archivedAt ?? "未归档" },
                 ];
+                const completedWorkflowCount = workflowSteps.filter((step) => step.state === "done").length;
 
                 return (
                   <article
@@ -5533,58 +5549,100 @@ export function WorkspaceDashboard({
                           </button>
                         ) : null}
 
-                        <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50/70 p-3">
-                          <p className="text-xs font-semibold text-slate-400">工单台账信息</p>
-                          <div className="mt-3 grid gap-2 text-sm text-slate-500 sm:grid-cols-2 xl:grid-cols-5">
-                            {taskPeople.map((item) => (
-                              <div className="rounded-lg bg-white px-3 py-2 ring-1 ring-slate-200" key={item.label}>
-                                <span className="block text-xs text-slate-400">{item.label}</span>
-                                <span className="mt-1 block font-medium text-slate-700">{item.value}</span>
-                              </div>
-                            ))}
-                          </div>
-                          <div className="mt-2 grid gap-2 text-sm text-slate-500 sm:grid-cols-2 xl:grid-cols-5">
-                            {taskTimeItems.map((item) => (
-                              <div className="rounded-lg bg-white px-3 py-2 ring-1 ring-slate-200" key={item.label}>
-                                <span className="block text-xs text-slate-400">{item.label}</span>
-                                <span className="mt-1 block font-medium text-slate-700">{item.value}</span>
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-
-                        <div className="mt-4 rounded-xl border border-slate-200 bg-white p-3">
-                          <div className="flex items-center justify-between gap-2">
-                            {workflowSteps.map((step, index) => (
-                              <div className="flex min-w-0 flex-1 items-center gap-2" key={step.key}>
+                        <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+                          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                            <div className="grid flex-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                              {taskPeople.map((item) => (
                                 <div
-                                  className={`min-w-0 flex-1 rounded-lg border px-3 py-2 ${taskWorkflowStepClassNames[step.state]}`}
+                                  className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 shadow-sm"
+                                  key={item.label}
                                 >
-                                  <div className="flex items-center gap-2">
+                                  <span className="block text-[11px] font-medium tracking-[0.08em] text-slate-400">
+                                    {item.label}
+                                  </span>
+                                  <span className="mt-1 block truncate text-sm font-semibold text-slate-800">
+                                    {item.value}
+                                  </span>
+                                </div>
+                              ))}
+                            </div>
+                            <div className="rounded-xl border border-blue-100 bg-white px-4 py-3 shadow-sm lg:w-44">
+                              <p className="text-[11px] font-medium tracking-[0.08em] text-slate-400">闭环进度</p>
+                              <p className="mt-1 text-xl font-bold text-slate-900">{completedWorkflowCount}/4</p>
+                              <p className="mt-1 text-xs leading-5 text-slate-500">{nextStepLabel}</p>
+                            </div>
+                          </div>
+
+                          <div className="mt-4 overflow-x-auto pb-1">
+                            <div className="grid min-w-[760px] grid-cols-4">
+                              {workflowSteps.map((step, index) => {
+                                const leftLineClass =
+                                  index > 0 && workflowSteps[index - 1]?.state === "done"
+                                    ? "bg-emerald-300"
+                                    : "bg-slate-200";
+                                const rightLineClass =
+                                  step.state === "done"
+                                    ? "bg-emerald-300"
+                                    : step.state === "current"
+                                      ? "bg-blue-200"
+                                      : "bg-slate-200";
+
+                                return (
+                                  <div className="relative px-2 text-center" key={step.key}>
+                                    {index > 0 ? (
+                                      <span
+                                        className={`absolute top-4 left-0 h-0.5 w-1/2 rounded-full ${leftLineClass}`}
+                                      />
+                                    ) : null}
+                                    {index < workflowSteps.length - 1 ? (
+                                      <span
+                                        className={`absolute top-4 right-0 h-0.5 w-1/2 rounded-full ${rightLineClass}`}
+                                      />
+                                    ) : null}
                                     <span
-                                      className={`flex h-5 w-5 shrink-0 items-center justify-center rounded-full text-[11px] font-bold ${taskWorkflowDotClassNames[step.state]}`}
+                                      className={`relative z-10 mx-auto flex h-8 w-8 items-center justify-center rounded-full text-xs font-bold ${taskWorkflowDotClassNames[step.state]}`}
                                     >
                                       {index + 1}
                                     </span>
-                                    <span className="truncate text-xs font-semibold">{step.label}</span>
+                                    <p
+                                      className={`mt-2 text-sm font-semibold ${
+                                        step.state === "done"
+                                          ? "text-emerald-700"
+                                          : step.state === "current"
+                                            ? "text-blue-700"
+                                            : "text-slate-500"
+                                      }`}
+                                    >
+                                      {step.label}
+                                    </p>
+                                    <p className="mx-auto mt-1 max-w-[160px] text-xs leading-5 text-slate-500">
+                                      {step.helper}
+                                    </p>
                                   </div>
-                                  <p className="mt-1 truncate text-[11px] opacity-80">{step.helper}</p>
-                                </div>
-                                {index < workflowSteps.length - 1 ? (
-                                  <span
-                                    className={`hidden h-0.5 w-6 shrink-0 rounded-full lg:block ${taskWorkflowConnectorClassNames[step.state]}`}
-                                  />
-                                ) : null}
-                              </div>
-                            ))}
+                                );
+                              })}
+                            </div>
                           </div>
+
+                          <details className="mt-3 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600">
+                            <summary className="cursor-pointer select-none text-xs font-semibold text-slate-500">
+                              查看时间台账
+                            </summary>
+                            <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
+                              {taskTimeItems.map((item) => (
+                                <div className="rounded-lg bg-slate-50 px-3 py-2 ring-1 ring-slate-200" key={item.label}>
+                                  <span className="block text-xs text-slate-400">{item.label}</span>
+                                  <span className="mt-1 block font-medium text-slate-700">{item.value}</span>
+                                </div>
+                              ))}
+                            </div>
+                          </details>
                         </div>
 
-                        <div className="mt-4 flex flex-col gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
-                          <div className="min-w-0">
-                            <p className="text-xs font-semibold text-slate-400">下一步</p>
-                            <p className="mt-1 text-sm font-semibold text-slate-800">{nextStepLabel}</p>
-                          </div>
+                        <div className="mt-3 flex flex-col gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
+                          <p className="min-w-0 text-sm font-semibold text-slate-700">
+                            下一步：<span className="text-slate-900">{nextStepLabel}</span>
+                          </p>
                           <div className="flex flex-wrap items-center gap-2 lg:justify-end">
                             {isUnassignedTask && canEditTaskItem(task) ? (
                               <ActionButton disabled={isSaving} onClick={() => openEditTaskModal(task)} variant="primary">
@@ -7246,6 +7304,14 @@ export function WorkspaceDashboard({
               <span className="inline-flex items-center gap-2">
                 <BellPlus className="h-4 w-4" />
                 <span>提醒记录</span>
+              </span>
+            </ActionButton>
+          ) : null}
+          {currentRole === "admin" ? (
+            <ActionButton onClick={() => void openEmailSettingsModal()}>
+              <span className="inline-flex items-center gap-2">
+                <BellPlus className="h-4 w-4" />
+                <span>邮件设置</span>
               </span>
             </ActionButton>
           ) : null}
@@ -9122,6 +9188,92 @@ export function WorkspaceDashboard({
               </ActionButton>
               <ActionButton loading={isSaving} loadingLabel="发送中..." onClick={saveReminder} variant="primary">
                 发送提醒
+              </ActionButton>
+            </ModalActions>
+          </div>
+        </Modal>
+      ) : null}
+
+      {emailSettingsModalOpen ? (
+        <Modal
+          onClose={() => setEmailSettingsModalOpen(false)}
+          panelClassName="max-w-[min(92vw,760px)]"
+          title="邮件提醒设置"
+        >
+          <div className="space-y-4">
+            <div className={`${subtleCardClassName} text-sm leading-7 text-slate-500`}>
+              该设置仅系统管理员可修改，保存后对全体成员生效；站内提醒不受影响。
+            </div>
+
+            {emailSettingsLoading ? (
+              <div className={`${subtleCardClassName} flex items-center justify-center py-10 text-sm text-slate-500`}>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                正在加载邮件提醒设置...
+              </div>
+            ) : (
+              <>
+                <div className="grid gap-3 md:grid-cols-2">
+                  {emailReminderSettingItems.map((item) => (
+                    <label
+                      className="flex cursor-pointer items-start gap-3 rounded-xl border border-slate-200 bg-white p-4 transition hover:border-blue-200 hover:bg-blue-50/30"
+                      key={item.key}
+                    >
+                      <input
+                        checked={Boolean(emailSettingsDraft[item.key])}
+                        className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600 focus:ring-blue-500"
+                        onChange={(event) =>
+                          setEmailSettingsDraft((current) => ({
+                            ...current,
+                            [item.key]: event.target.checked,
+                          }))
+                        }
+                        type="checkbox"
+                      />
+                      <span>
+                        <span className="block text-sm font-semibold text-slate-900">{item.title}</span>
+                        <span className="mt-1 block text-xs leading-5 text-slate-500">{item.description}</span>
+                      </span>
+                    </label>
+                  ))}
+                </div>
+
+                <label className="block rounded-xl border border-slate-200 bg-slate-50 p-4 text-sm text-slate-500">
+                  每日未提交汇报提醒时间
+                  <select
+                    className={fieldClassName}
+                    value={emailSettingsDraft.dailyReportHour}
+                    onChange={(event) =>
+                      setEmailSettingsDraft((current) => ({
+                        ...current,
+                        dailyReportHour: Number(event.target.value),
+                      }))
+                    }
+                  >
+                    {Array.from({ length: 24 }, (_, hour) => (
+                      <option key={hour} value={hour}>
+                        {`${hour}`.padStart(2, "0")}:00
+                      </option>
+                    ))}
+                  </select>
+                  <span className="mt-2 block text-xs leading-5 text-slate-400">
+                    系统会按小时检查，到达这里设置的整点才发送邮件。
+                  </span>
+                </label>
+              </>
+            )}
+
+            <ModalActions>
+              <ActionButton disabled={isSaving} onClick={() => setEmailSettingsModalOpen(false)}>
+                取消
+              </ActionButton>
+              <ActionButton
+                disabled={emailSettingsLoading}
+                loading={isSaving}
+                loadingLabel="保存中..."
+                onClick={() => void saveEmailSettings()}
+                variant="primary"
+              >
+                保存设置
               </ActionButton>
             </ModalActions>
           </div>

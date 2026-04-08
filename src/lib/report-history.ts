@@ -68,3 +68,27 @@ export const getAdminReportDeleteFilter = ({
     },
   };
 };
+
+type ReportMemberLike = {
+  id: string;
+  systemRole: string;
+  teamGroupId?: string | null;
+};
+
+const reportRequiredRoles = new Set(["项目负责人", "团队成员"]);
+
+export const getVisibleReportMembers = <Member extends ReportMemberLike>({
+  members,
+  currentMemberId,
+  canViewAllReports,
+}: {
+  members: Member[];
+  currentMemberId: string;
+  canViewAllReports: boolean;
+}) => {
+  if (!canViewAllReports) {
+    return members.filter((member) => member.id === currentMemberId && reportRequiredRoles.has(member.systemRole));
+  }
+
+  return members.filter((member) => reportRequiredRoles.has(member.systemRole) && Boolean(member.teamGroupId));
+};

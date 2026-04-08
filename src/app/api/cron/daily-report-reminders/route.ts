@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { toIsoDateKey } from "@/lib/date";
+import { getEmailReminderSettings, isDailyReportReminderDue } from "@/lib/email-settings";
 import { createNotifications } from "@/lib/notifications";
 import { prisma } from "@/lib/prisma";
 
@@ -12,6 +13,17 @@ export async function GET(request: NextRequest) {
 
   if (cronSecret && authorization !== `Bearer ${cronSecret}`) {
     return NextResponse.json({ message: "无权限" }, { status: 401 });
+  }
+
+  const now = new Date();
+  const emailSettings = await getEmailReminderSettings();
+  if (!isDailyReportReminderDue(emailSettings, now)) {
+    return NextResponse.json({
+      success: true,
+      skipped: true,
+      reason: "not_configured_hour",
+      configuredHour: emailSettings.dailyReportHour,
+    });
   }
 
   const date = toIsoDateKey(new Date());

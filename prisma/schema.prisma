@@ -277,6 +277,19 @@ model Notification {
   @@index([senderId, type, createdAt])
 }
 
+model EmailReminderSetting {
+  id                        String   @id
+  taskAssignmentEnabled     Boolean  @default(true)
+  taskReviewEnabled         Boolean  @default(true)
+  announcementEnabled       Boolean  @default(true)
+  directReminderEnabled     Boolean  @default(true)
+  documentReviewEnabled     Boolean  @default(true)
+  reportSubmitEnabled       Boolean  @default(true)
+  dailyReportMissingEnabled Boolean  @default(true)
+  dailyReportHour           Int      @default(20)
+  updatedAt                 DateTime @updatedAt
+}
+
 model ExpertReviewPackage {
   id          String                   @id @default(cuid())
   targetName  String

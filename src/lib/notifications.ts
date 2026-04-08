@@ -1,5 +1,6 @@
 import type { Role } from "@prisma/client";
 
+import { getEmailReminderSettings, isEmailReminderEnabled } from "@/lib/email-settings";
 import { buildWorkspaceUrl, isEmailConfigured, renderSystemEmail, sendEmail } from "@/lib/email";
 import { prisma } from "@/lib/prisma";
 
@@ -7,7 +8,7 @@ export type NotificationDeliveryResult = {
   notificationCount: number;
   emailRecipientCount: number;
   emailFailureCount: number;
-  emailSkippedReason?: "disabled" | "no-recipient-email";
+  emailSkippedReason?: "disabled" | "no-recipient-email" | "setting-disabled";
   emailFailureReason?: "resend-domain-unverified" | "unknown";
 };
 
@@ -70,6 +71,16 @@ export async function createNotifications({
       notificationCount: dedupedUserIds.length,
       emailRecipientCount: 0,
       emailFailureCount: 0,
+    };
+  }
+
+  const emailSettings = await getEmailReminderSettings();
+  if (!isEmailReminderEnabled(emailSettings, type)) {
+    return {
+      notificationCount: dedupedUserIds.length,
+      emailRecipientCount: 0,
+      emailFailureCount: 0,
+      emailSkippedReason: "setting-disabled",
     };
   }
 

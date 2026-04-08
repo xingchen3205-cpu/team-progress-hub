@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { buildReportDateOptions, getAdminReportDeleteFilter, getReportAttachmentNote } from "../src/lib/report-history";
+import {
+  buildReportDateOptions,
+  getAdminReportDeleteFilter,
+  getReportAttachmentNote,
+  getVisibleReportMembers,
+} from "../src/lib/report-history";
 
 describe("report history date options", () => {
   it("keeps saved report dates while allowing the currently selected date", () => {
@@ -53,5 +58,33 @@ describe("report history date options", () => {
     assert.equal(getAdminReportDeleteFilter({ date: "", teamGroupId: "group-1" }), null);
     assert.equal(getAdminReportDeleteFilter({ date: "2026-04-08", teamGroupId: "" }), null);
     assert.equal(getAdminReportDeleteFilter({ date: "not-a-date", teamGroupId: "group-1" }), null);
+  });
+
+  it("excludes ungrouped former team members from report expected lists", () => {
+    const members = [
+      { id: "leader-1", systemRole: "项目负责人", teamGroupId: "group-1" },
+      { id: "member-1", systemRole: "团队成员", teamGroupId: "group-1" },
+      { id: "former-member", systemRole: "团队成员", teamGroupId: null },
+      { id: "teacher-1", systemRole: "指导教师", teamGroupId: "group-1" },
+      { id: "expert-1", systemRole: "评审专家", teamGroupId: null },
+    ];
+
+    assert.deepEqual(
+      getVisibleReportMembers({
+        members,
+        currentMemberId: "admin-1",
+        canViewAllReports: true,
+      }).map((member) => member.id),
+      ["leader-1", "member-1"],
+    );
+
+    assert.deepEqual(
+      getVisibleReportMembers({
+        members,
+        currentMemberId: "former-member",
+        canViewAllReports: false,
+      }).map((member) => member.id),
+      ["former-member"],
+    );
   });
 });
