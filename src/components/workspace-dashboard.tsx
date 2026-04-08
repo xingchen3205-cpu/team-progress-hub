@@ -107,6 +107,7 @@ type TabItem = {
 type TaskDraft = {
   title: string;
   assigneeId: string;
+  teamGroupId: string;
   dueDate: string;
   priority: "高优先级" | "中优先级" | "低优先级";
   notifyAssignee: boolean;
@@ -915,9 +916,10 @@ const getNearestUpcomingIndex = (events: EventItem[]) => {
   return nextIndex === -1 ? events.length - 1 : nextIndex;
 };
 
-const defaultTaskDraft = (assigneeId: string): TaskDraft => ({
+const defaultTaskDraft = (assigneeId: string, teamGroupId = ""): TaskDraft => ({
   title: "",
   assigneeId,
+  teamGroupId,
   dueDate: "2026-04-08T18:00",
   priority: "高优先级",
   notifyAssignee: true,
@@ -2548,7 +2550,7 @@ export function WorkspaceDashboard({
 
   const openCreateTaskModal = () => {
     setEditingTaskId(null);
-    setTaskDraft(defaultTaskDraft(firstAssignableMemberId));
+    setTaskDraft(defaultTaskDraft(firstAssignableMemberId, currentUser?.teamGroupId ?? ""));
     setTaskModalOpen(true);
   };
 
@@ -2557,6 +2559,7 @@ export function WorkspaceDashboard({
     setTaskDraft({
       title: task.title,
       assigneeId: task.assigneeId ?? "",
+      teamGroupId: task.teamGroupId ?? currentUser?.teamGroupId ?? "",
       dueDate: toDateTimeInputValue(task.dueDate),
       priority:
         task.priority === "进行中" || task.priority === "待验收" || task.priority === "已归档"
@@ -2570,6 +2573,18 @@ export function WorkspaceDashboard({
   const saveTask = async () => {
     if (!taskDraft.title.trim()) {
       return;
+    }
+
+    if (!editingTaskId && !taskDraft.assigneeId) {
+      if (currentRole === "admin" && !taskDraft.teamGroupId) {
+        setLoadError("请选择待分配工单所属队伍");
+        return;
+      }
+
+      if (currentRole !== "admin" && !currentUser?.teamGroupId) {
+        setLoadError("请先在团队管理中把账号加入队伍，再发布待分配工单");
+        return;
+      }
     }
 
     setIsSaving(true);
@@ -2587,7 +2602,7 @@ export function WorkspaceDashboard({
         });
       }
 
-      setTaskDraft(defaultTaskDraft(firstAssignableMemberId));
+      setTaskDraft(defaultTaskDraft(firstAssignableMemberId, currentUser?.teamGroupId ?? ""));
       setTaskModalOpen(false);
       showSuccessToast(isEditing ? "工单已更新" : "工单已创建", "新的安排已经同步到工作台。");
       refreshWorkspace();
@@ -2619,6 +2634,7 @@ export function WorkspaceDashboard({
         body: JSON.stringify({
           title,
           assigneeId,
+          teamGroupId: currentUser?.teamGroupId ?? "",
           dueDate: `${toIsoDateKey(new Date())}T18:00`,
           priority: "高优先级",
           notifyAssignee: true,
@@ -7583,6 +7599,33 @@ export function WorkspaceDashboard({
                 ))}
               </select>
             </label>
+            {!editingTaskId && !taskDraft.assigneeId ? (
+              currentRole === "admin" ? (
+                <label className="block text-sm text-slate-500">
+                  所属队伍 <span className="text-red-500">*</span>
+                  <select
+                    className={fieldClassName}
+                    value={taskDraft.teamGroupId}
+                    onChange={(event) =>
+                      setTaskDraft((current) => ({ ...current, teamGroupId: event.target.value }))
+                    }
+                  >
+                    <option value="">请选择待分配工单所属队伍</option>
+                    {teamGroups.map((group) => (
+                      <option key={group.id} value={group.id}>
+                        {group.name}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : (
+                <p className="rounded-lg border border-amber-100 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-700">
+                  暂不分配时，工单会进入当前队伍
+                  {currentUser?.teamGroupName ? `「${currentUser.teamGroupName}」` : ""}
+                  的待分配列表，并提醒项目负责人处理。
+                </p>
+              )
+            ) : null}
             <div className="grid gap-4 md:grid-cols-2">
               <label className="block text-sm text-slate-500">
                 截止时间
@@ -7623,10 +7666,10 @@ export function WorkspaceDashboard({
                   }
                   type="checkbox"
                 />
-                  <span>
-                  <span className="font-medium text-slate-900">创建后提醒处理人/验收人</span>
+                <span>
+                  <span className="font-medium text-slate-900">创建后发送提醒</span>
                   <span className="mt-1 block text-xs leading-5 text-slate-500">
-                    保存工单后，会根据分配情况同步发送站内和邮件提醒。
+                    已分配时提醒处理人；暂不分配时提醒本队项目负责人来分配。
                   </span>
                 </span>
               </label>

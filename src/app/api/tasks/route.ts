@@ -11,6 +11,7 @@ import {
   taskPriorityValueToDb,
 } from "@/lib/api-serializers";
 import { canAssignTaskToUser, getTaskVisibilityWhere } from "@/lib/task-access";
+import { pickTaskDispatchRecipientIds } from "@/lib/task-workflow";
 
 const taskInclude = {
   assignee: {
@@ -35,7 +36,7 @@ const taskInclude = {
   },
 };
 
-const getTeamReviewerIds = async ({
+const getTeamReviewerCandidates = async ({
   teamGroupId,
   excludeUserIds = [],
 }: {
@@ -57,10 +58,10 @@ const getTeamReviewerIds = async ({
         notIn: excludeUserIds,
       },
     },
-    select: { id: true },
+    select: { id: true, role: true },
   });
 
-  return reviewers.map((reviewer) => reviewer.id);
+  return reviewers;
 };
 
 export async function GET(request: NextRequest) {
@@ -142,8 +143,8 @@ export async function POST(request: NextRequest) {
 
   const teamGroupId =
     user.role === "admin"
-      ? requestedTeamGroupId || assignee?.teamGroupId || user.teamGroupId || null
-      : user.teamGroupId || assignee?.teamGroupId || null;
+      ? assignee?.teamGroupId || requestedTeamGroupId || user.teamGroupId || null
+      : assignee?.teamGroupId || user.teamGroupId || null;
 
   if (!teamGroupId && !assigneeId) {
     return NextResponse.json({ message: "请先选择处理人，或将账号加入队伍后再发布待分配工单" }, { status: 400 });
@@ -180,16 +181,20 @@ export async function POST(request: NextRequest) {
     });
   }
 
-  if (!task.assigneeId || user.role === "member") {
-    const reviewerIds = await getTeamReviewerIds({
+  if (notifyAssignee && (!task.assigneeId || user.role === "member")) {
+    const reviewerCandidates = await getTeamReviewerCandidates({
       teamGroupId: task.teamGroupId,
       excludeUserIds: [user.id, task.assigneeId ?? ""],
     });
+    const reviewerIds = pickTaskDispatchRecipientIds({
+      candidates: reviewerCandidates,
+    });
+
     if (reviewerIds.length > 0) {
       await createNotifications({
         userIds: reviewerIds,
-        title: `新工单提报：${task.title}`,
-        detail: `${user.name} 提交了工单「${task.title}」，请进入任务看板分配或后续验收。`,
+        title: `待分配工单：${task.title}`,
+        detail: `${user.name} 提交了待分配工单「${task.title}」，请进入任务看板分配处理人。`,
         type: "task_submit",
         targetTab: "board",
         relatedId: task.id,
