@@ -13,6 +13,7 @@ import {
   Download,
   Eye,
   FileCheck,
+  FileText,
   FolderOpen,
   HelpCircle,
   Home,
@@ -1086,6 +1087,18 @@ const canPreviewInlineAsset = (asset: Pick<PreviewAsset, "mimeType" | "fileName"
   isImageAsset(asset as PreviewAsset) ||
   isTextAsset(asset as PreviewAsset) ||
   isWordAsset(asset as PreviewAsset);
+
+const formatFileSize = (fileSize?: number | null) => {
+  if (!fileSize || fileSize <= 0) {
+    return "未知大小";
+  }
+
+  if (fileSize >= 1024 * 1024) {
+    return `${(fileSize / 1024 / 1024).toFixed(1)} MB`;
+  }
+
+  return `${Math.max(1, Math.round(fileSize / 1024))} KB`;
+};
 
 const hasPdfSignature = async (file: File) => {
   const header = new Uint8Array(await file.slice(0, 5).arrayBuffer());
@@ -5565,28 +5578,98 @@ export function WorkspaceDashboard({
                           </p>
                         ) : null}
                         {attachmentCount > 0 ? (
-                          <div className="mt-3 flex flex-wrap gap-2">
-                            {task.attachments?.slice(0, 4).map((attachment) => (
-                              <button
-                                className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-xs text-slate-600 transition hover:border-blue-200 hover:text-blue-600"
-                                key={attachment.id}
-                                onClick={() =>
-                                  handlePreviewDocument({
-                                    downloadUrl: attachment.downloadUrl,
-                                    fileName: attachment.fileName,
-                                    mimeType: attachment.mimeType,
-                                    title: "完成凭证预览",
-                                  })
-                                }
-                                type="button"
-                              >
-                                {attachment.fileName}
-                              </button>
-                            ))}
-                            {attachmentCount > 4 ? (
-                              <span className="rounded-lg bg-slate-100 px-2.5 py-1 text-xs text-slate-500">
-                                +{attachmentCount - 4}
+                          <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50/70 p-3">
+                            <div className="flex items-center justify-between gap-3">
+                              <p className="text-xs font-semibold text-slate-400">完成凭证</p>
+                              <span className="rounded-md bg-white px-2 py-1 text-xs text-slate-500 ring-1 ring-slate-200">
+                                {attachmentCount} 个附件
                               </span>
+                            </div>
+                            <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                              {task.attachments?.slice(0, 6).map((attachment) => {
+                                const asset = {
+                                  title: "完成凭证预览",
+                                  url: attachment.downloadUrl,
+                                  fileName: attachment.fileName,
+                                  mimeType: attachment.mimeType,
+                                } satisfies PreviewAsset;
+                                const isPreviewableImage = isImageAsset(asset);
+
+                                return (
+                                  <div
+                                    className="group overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition hover:border-blue-200 hover:shadow-md"
+                                    key={attachment.id}
+                                  >
+                                    <button
+                                      className="block w-full text-left"
+                                      onClick={() =>
+                                        handlePreviewDocument({
+                                          downloadUrl: attachment.downloadUrl,
+                                          fileName: attachment.fileName,
+                                          mimeType: attachment.mimeType,
+                                          title: "完成凭证预览",
+                                        })
+                                      }
+                                      type="button"
+                                    >
+                                      <div className="flex h-28 items-center justify-center overflow-hidden bg-slate-100">
+                                        {isPreviewableImage ? (
+                                          // eslint-disable-next-line @next/next/no-img-element
+                                          <img
+                                            alt={attachment.fileName}
+                                            className="h-full w-full object-cover transition duration-200 group-hover:scale-[1.03]"
+                                            loading="lazy"
+                                            src={buildInlinePreviewUrl(attachment.downloadUrl) ?? attachment.downloadUrl}
+                                          />
+                                        ) : (
+                                          <div className="flex h-full w-full flex-col items-center justify-center gap-2 bg-gradient-to-br from-slate-50 to-slate-100 text-slate-400">
+                                            <FileText className="h-8 w-8" />
+                                            <span className="rounded-md bg-white px-2 py-1 text-[11px] font-semibold uppercase text-slate-500 ring-1 ring-slate-200">
+                                              {getAssetExtension(attachment.fileName).replace(".", "") || "file"}
+                                            </span>
+                                          </div>
+                                        )}
+                                      </div>
+                                      <div className="p-3">
+                                        <p className="line-clamp-2 text-sm font-semibold leading-6 text-slate-800">
+                                          {attachment.fileName}
+                                        </p>
+                                        <p className="mt-1 text-xs text-slate-400">
+                                          {formatFileSize(attachment.fileSize)} · {attachment.uploaderName}
+                                        </p>
+                                      </div>
+                                    </button>
+                                    <div className="flex items-center justify-end gap-2 border-t border-slate-100 px-3 py-2">
+                                      <button
+                                        className="text-xs font-semibold text-blue-600 hover:text-blue-700"
+                                        onClick={() =>
+                                          handlePreviewDocument({
+                                            downloadUrl: attachment.downloadUrl,
+                                            fileName: attachment.fileName,
+                                            mimeType: attachment.mimeType,
+                                            title: "完成凭证预览",
+                                          })
+                                        }
+                                        type="button"
+                                      >
+                                        预览
+                                      </button>
+                                      <button
+                                        className="text-xs font-semibold text-slate-500 hover:text-slate-700"
+                                        onClick={() => handleDownload(attachment.downloadUrl)}
+                                        type="button"
+                                      >
+                                        下载
+                                      </button>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                            {attachmentCount > 6 ? (
+                              <p className="mt-3 text-xs text-slate-400">
+                                还有 {attachmentCount - 6} 个附件未在卡片中展开，可进入工单详情后继续查看。
+                              </p>
                             ) : null}
                           </div>
                         ) : null}
@@ -6943,6 +7026,16 @@ export function WorkspaceDashboard({
                   </span>
                 </ActionButton>
                 <ActionButton
+                  disabled={!doc.downloadUrl}
+                  onClick={() => handleDownload(doc.downloadUrl)}
+                  title={doc.downloadUrl ? undefined : "当前文件尚未生成下载链接"}
+                >
+                  <span className="inline-flex items-center gap-2">
+                    <Download className="h-4 w-4" />
+                    <span>下载</span>
+                  </span>
+                </ActionButton>
+                <ActionButton
                   disabled={!canDeleteDocument(doc)}
                   onClick={() => removeDocument(doc.id, doc.name)}
                   title="无权限"
@@ -7018,6 +7111,16 @@ export function WorkspaceDashboard({
                         <span className="inline-flex items-center gap-2">
                           <Eye className="h-4 w-4" />
                           <span>预览版本</span>
+                        </span>
+                      </ActionButton>
+                      <ActionButton
+                        disabled={!version.downloadUrl}
+                        onClick={() => handleDownload(version.downloadUrl)}
+                        title={version.downloadUrl ? undefined : "当前版本尚未生成下载链接"}
+                      >
+                        <span className="inline-flex items-center gap-2">
+                          <Download className="h-4 w-4" />
+                          <span>下载版本</span>
                         </span>
                       </ActionButton>
                       <ActionButton
