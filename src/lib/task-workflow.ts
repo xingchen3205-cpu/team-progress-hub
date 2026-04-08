@@ -45,6 +45,24 @@ export const pickTaskDispatchRecipientIds = ({
 export const canRemindTaskDispatch = (task: TaskDispatchReminderTarget) =>
   task.status === "todo" && !task.assigneeId;
 
+export const getTaskAcceptedTimeLabel = ({
+  status,
+  assigneeId,
+  acceptedAt,
+}: TaskDispatchReminderTarget & {
+  acceptedAt?: string | null;
+}) => {
+  if (acceptedAt) {
+    return acceptedAt;
+  }
+
+  if (!assigneeId) {
+    return "待分配";
+  }
+
+  return status === "todo" ? "待接取" : "已接取（时间未记录）";
+};
+
 export const buildTaskWorkflowSteps = (task: TaskWorkflowTarget): TaskWorkflowStep[] => {
   const hasAssignee = Boolean(task.assigneeId);
   const assigneeName = task.assigneeName?.trim() || "处理人";

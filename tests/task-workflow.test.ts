@@ -1,7 +1,12 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { buildTaskWorkflowSteps, canRemindTaskDispatch, pickTaskDispatchRecipientIds } from "../src/lib/task-workflow";
+import {
+  buildTaskWorkflowSteps,
+  canRemindTaskDispatch,
+  getTaskAcceptedTimeLabel,
+  pickTaskDispatchRecipientIds,
+} from "../src/lib/task-workflow";
 
 describe("task workflow recipients", () => {
   it("prefers project leaders for unassigned work order dispatch reminders", () => {
@@ -63,6 +68,33 @@ describe("task workflow recipients", () => {
         { key: "processing", label: "处理", state: "done", helper: "张星云已提交验收" },
         { key: "review", label: "验收", state: "current", helper: "李老师确认闭环" },
       ],
+    );
+  });
+
+  it("does not show unaccepted wording for already active work orders without a recorded accept time", () => {
+    assert.equal(
+      getTaskAcceptedTimeLabel({
+        status: "doing",
+        assigneeId: "member-1",
+        acceptedAt: null,
+      }),
+      "已接取（时间未记录）",
+    );
+    assert.equal(
+      getTaskAcceptedTimeLabel({
+        status: "review",
+        assigneeId: "member-1",
+        acceptedAt: null,
+      }),
+      "已接取（时间未记录）",
+    );
+    assert.equal(
+      getTaskAcceptedTimeLabel({
+        status: "todo",
+        assigneeId: "member-1",
+        acceptedAt: null,
+      }),
+      "待接取",
     );
   });
 });

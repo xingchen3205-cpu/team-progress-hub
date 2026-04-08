@@ -83,7 +83,7 @@ import {
   expertReviewMaterialLabels,
 } from "@/lib/expert-review";
 import type { TrainingQuestionImportCandidate } from "@/lib/training-import";
-import { buildTaskWorkflowSteps } from "@/lib/task-workflow";
+import { buildTaskWorkflowSteps, getTaskAcceptedTimeLabel } from "@/lib/task-workflow";
 
 type BoardStatus = (typeof boardColumns)[number]["id"];
 type BoardStatusFilter = BoardStatus | "all";
@@ -5389,7 +5389,7 @@ export function WorkspaceDashboard({
                 const taskTimeItems = [
                   { label: "提报时间", value: task.createdAt ?? "未记录" },
                   { label: "截止时间", value: task.dueDate },
-                  { label: "接取时间", value: task.acceptedAt ?? "未接取" },
+                  { label: "接取时间", value: getTaskAcceptedTimeLabel(task) },
                   { label: "提交验收", value: task.submittedAt ?? "未提交" },
                   { label: "归档时间", value: task.archivedAt ?? "未归档" },
                 ];
