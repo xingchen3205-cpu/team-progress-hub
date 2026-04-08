@@ -106,31 +106,33 @@ model TeamGroup {
 }
 
 model Task {
-  id              String           @id @default(cuid())
-  title           String
-  status          TaskStatus
-  priority        TaskPriority
-  assigneeId      String?
-  creatorId       String
-  reviewerId      String?
-  teamGroupId     String?
-  dueDate         DateTime
-  acceptedAt      DateTime?
-  submittedAt     DateTime?
-  archivedAt      DateTime?
-  rejectedAt      DateTime?
-  rejectionReason String?
-  completionNote  String?
-  createdAt       DateTime         @default(now())
-  assignee        User?            @relation("TaskAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
-  creator         User             @relation("TaskCreator", fields: [creatorId], references: [id])
-  reviewer        User?            @relation("TaskReviewer", fields: [reviewerId], references: [id], onDelete: SetNull)
-  teamGroup       TeamGroup?       @relation(fields: [teamGroupId], references: [id], onDelete: SetNull)
-  attachments     TaskAttachment[]
+  id               String           @id @default(cuid())
+  title            String
+  status           TaskStatus
+  priority         TaskPriority
+  assigneeId       String?
+  creatorId        String
+  reviewerId       String?
+  teamGroupId      String?
+  sourceDocumentId String?
+  dueDate          DateTime
+  acceptedAt       DateTime?
+  submittedAt      DateTime?
+  archivedAt       DateTime?
+  rejectedAt       DateTime?
+  rejectionReason  String?
+  completionNote   String?
+  createdAt        DateTime         @default(now())
+  assignee         User?            @relation("TaskAssignee", fields: [assigneeId], references: [id], onDelete: SetNull)
+  creator          User             @relation("TaskCreator", fields: [creatorId], references: [id])
+  reviewer         User?            @relation("TaskReviewer", fields: [reviewerId], references: [id], onDelete: SetNull)
+  teamGroup        TeamGroup?       @relation(fields: [teamGroupId], references: [id], onDelete: SetNull)
+  attachments      TaskAttachment[]
 
   @@index([teamGroupId, status, dueDate])
   @@index([assigneeId, status])
   @@index([reviewerId, status])
+  @@index([sourceDocumentId, status])
 }
 
 model TaskAttachment {

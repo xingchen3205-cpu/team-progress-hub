@@ -6,6 +6,12 @@ import {
   type DocumentReviewAction,
   getDocumentReviewTransition,
 } from "@/lib/document-workflow";
+import {
+  buildDocumentReworkTaskTitle,
+  getDocumentReworkDueDate,
+  getDocumentReworkInitialStatus,
+  shouldCreateDocumentReworkTask,
+} from "@/lib/document-rework-task";
 import { createNotifications, getUserIdsByRoles } from "@/lib/notifications";
 import { assertMainWorkspaceRole } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
@@ -39,7 +45,7 @@ export async function PATCH(
     where: { id },
     include: {
       owner: {
-        select: { id: true, name: true },
+        select: { id: true, name: true, role: true, teamGroupId: true },
       },
       versions: {
         orderBy: { uploadedAt: "desc" },
@@ -74,7 +80,7 @@ export async function PATCH(
     },
     include: {
       owner: {
-        select: { id: true, name: true },
+        select: { id: true, name: true, role: true, teamGroupId: true },
       },
       versions: {
         orderBy: { uploadedAt: "desc" },
@@ -86,6 +92,54 @@ export async function PATCH(
       },
     },
   });
+
+  if (shouldCreateDocumentReworkTask(action)) {
+    const existingReworkTask = await prisma.task.findFirst({
+      where: {
+        sourceDocumentId: document.id,
+        status: {
+          notIn: ["archived", "done"],
+        },
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    const reworkTask =
+      existingReworkTask ??
+      (await prisma.task.create({
+        data: {
+          title: buildDocumentReworkTaskTitle(document.name),
+          assigneeId: document.ownerId,
+          creatorId: user.id,
+          reviewerId: user.id,
+          teamGroupId: document.owner.teamGroupId,
+          sourceDocumentId: document.id,
+          dueDate: getDocumentReworkDueDate(),
+          priority: "high",
+          status: getDocumentReworkInitialStatus(document.owner.role),
+          acceptedAt: document.owner.role === "leader" ? new Date() : null,
+        },
+        select: {
+          id: true,
+        },
+      }));
+
+    await createNotifications({
+      userIds: [document.ownerId],
+      documentId: document.id,
+      title: `文档修改工单：${document.name}`,
+      detail: existingReworkTask
+        ? `《${document.name}》仍有未归档的修改工单，请继续在任务工单中处理。`
+        : `《${document.name}》已被打回，系统已为你创建修改工单，请在任务工单中处理并提交验收。`,
+      type: "document_rework_task",
+      targetTab: "board",
+      relatedId: reworkTask.id,
+      senderId: user.id,
+      email: true,
+    });
+  }
 
   if (action === "leaderApprove") {
     const recipientIds = await getUserIdsByRoles({
