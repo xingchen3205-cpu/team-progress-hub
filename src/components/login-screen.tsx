@@ -4,7 +4,7 @@ import { startTransition, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, Loader2 } from "lucide-react";
 
-import { USERNAME_RULE_HINT, validateUsername } from "@/lib/account-policy";
+import { EMAIL_RULE_HINT, USERNAME_RULE_HINT, validateRequiredEmail, validateUsername } from "@/lib/account-policy";
 
 type FormMode = "login" | "register";
 
@@ -20,6 +20,7 @@ const initialRegisterValues = {
   role: "团队成员" as (typeof registerRoleOptions)[number],
   name: "",
   username: "",
+  email: "",
   password: "",
 };
 
@@ -38,6 +39,7 @@ export function LoginScreen() {
     role?: string;
     name?: string;
     username?: string;
+    email?: string;
     password?: string;
     submit?: string;
   }>({});
@@ -139,6 +141,7 @@ export function LoginScreen() {
       role: registerValues.role ? undefined : "请选择身份",
       name: registerValues.name.trim() ? undefined : "请输入姓名",
       username: validateUsername(registerValues.username.trim()) ?? undefined,
+      email: validateRequiredEmail(registerValues.email.trim()) ?? undefined,
       password: registerValues.password.trim()
         ? registerValues.password.trim().length >= 6
           ? undefined
@@ -149,7 +152,7 @@ export function LoginScreen() {
 
     setRegisterErrors(nextErrors);
 
-    if (nextErrors.role || nextErrors.name || nextErrors.username || nextErrors.password) {
+    if (nextErrors.role || nextErrors.name || nextErrors.username || nextErrors.email || nextErrors.password) {
       return;
     }
 
@@ -164,6 +167,7 @@ export function LoginScreen() {
           role: registerValues.role,
           name: registerValues.name.trim(),
           username: registerValues.username.trim(),
+          email: registerValues.email.trim(),
           password: registerValues.password.trim(),
         }),
       });
@@ -433,6 +437,31 @@ export function LoginScreen() {
                       <span className="mt-1 block text-sm text-[#f93b3b]">{registerErrors.username}</span>
                     ) : (
                       <span className="mt-1 block text-xs leading-6 text-[#94a3b8]">{USERNAME_RULE_HINT}</span>
+                    )}
+                  </label>
+
+                  <label className="block text-sm leading-6 text-[#60656e]">
+                    邮箱 <span className="text-[#f93b3b]">*</span>
+                    <input
+                      className={`mt-1 h-11 w-full rounded border bg-white px-3 text-base leading-7 text-[#13161b] outline-none placeholder:text-[#8d949f] focus:border-[#3091f2] ${
+                        registerErrors.email ? "border-[#f93b3b]" : "border-[#d5d7db]"
+                      }`}
+                      placeholder="用于接收任务和日程提醒"
+                      type="email"
+                      value={registerValues.email}
+                      onChange={(event) => {
+                        setRegisterValues((current) => ({ ...current, email: event.target.value }));
+                        setRegisterErrors((current) => ({
+                          ...current,
+                          email: undefined,
+                          submit: undefined,
+                        }));
+                      }}
+                    />
+                    {registerErrors.email ? (
+                      <span className="mt-1 block text-sm text-[#f93b3b]">{registerErrors.email}</span>
+                    ) : (
+                      <span className="mt-1 block text-xs leading-6 text-[#94a3b8]">{EMAIL_RULE_HINT}</span>
                     )}
                   </label>
 

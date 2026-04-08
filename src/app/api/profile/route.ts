@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { validateRequiredEmail } from "@/lib/account-policy";
 import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { serializeUser } from "@/lib/api-serializers";
@@ -32,27 +33,30 @@ export async function PATCH(request: NextRequest) {
 
   const name = body?.name?.trim();
   const responsibility = body?.responsibility?.trim();
-  const email = body?.email === "" ? null : body?.email?.trim() || undefined;
+  const email = body?.email?.trim() || "";
   const password = body?.password?.trim();
 
   if (!name) {
     return NextResponse.json({ message: "姓名不能为空" }, { status: 400 });
   }
 
-  if (typeof email === "string") {
-    const emailConflict = await prisma.user.findFirst({
-      where: {
-        id: {
-          not: user.id,
-        },
-        OR: [{ email }, { username: email }],
-      },
-      select: { id: true },
-    });
+  const emailError = validateRequiredEmail(email);
+  if (emailError) {
+    return NextResponse.json({ message: emailError }, { status: 400 });
+  }
 
-    if (emailConflict) {
-      return NextResponse.json({ message: "邮箱已被占用，请更换后再试" }, { status: 409 });
-    }
+  const emailConflict = await prisma.user.findFirst({
+    where: {
+      id: {
+        not: user.id,
+      },
+      OR: [{ email }, { username: email }],
+    },
+    select: { id: true },
+  });
+
+  if (emailConflict) {
+    return NextResponse.json({ message: "邮箱已被占用，请更换后再试" }, { status: 409 });
   }
 
   let passwordHash: string | undefined;

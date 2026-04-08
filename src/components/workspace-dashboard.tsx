@@ -65,7 +65,7 @@ import {
   getBeijingHour,
   toIsoDateKey,
 } from "@/lib/date";
-import { USERNAME_RULE_HINT, validateUsername } from "@/lib/account-policy";
+import { EMAIL_RULE_HINT, USERNAME_RULE_HINT, validateRequiredEmail, validateUsername } from "@/lib/account-policy";
 import {
   documentAcceptAttribute,
   validateUploadMeta,
@@ -1453,7 +1453,10 @@ export function WorkspaceDashboard({
   const currentRole = role ?? "member";
   const currentMemberId = currentUser?.id ?? "";
   const permissions = rolePermissions[currentRole];
-  const visibleTabs = allTabs.filter((item) => permissions.visibleTabs.includes(item.key));
+  const requiresEmailCompletion = Boolean(currentUser && validateRequiredEmail(currentUser.email));
+  const visibleTabs = allTabs.filter(
+    (item) => permissions.visibleTabs.includes(item.key) && (!requiresEmailCompletion || item.key === "profile"),
+  );
   const sidebarTabs = visibleTabs.filter((item) => item.key !== "profile");
   const safeActiveTab =
     visibleTabs.length > 0 && permissions.visibleTabs.includes(activeTab) ? activeTab : visibleTabs[0]?.key ?? "overview";
@@ -1469,6 +1472,14 @@ export function WorkspaceDashboard({
     setPreviewAsset(null);
     setSentRemindersOpen(false);
   }, [safeActiveTab]);
+
+  useEffect(() => {
+    if (!requiresEmailCompletion || activeTab === "profile") {
+      return;
+    }
+
+    router.replace("/workspace?tab=profile");
+  }, [activeTab, requiresEmailCompletion, router]);
 
   useEffect(() => {
     if (!successToast) {
@@ -3940,6 +3951,12 @@ export function WorkspaceDashboard({
   const saveProfile = async () => {
     if (!profileDraft.name.trim()) {
       setLoadError("请输入姓名");
+      return;
+    }
+
+    const emailError = validateRequiredEmail(profileDraft.email);
+    if (emailError) {
+      setLoadError(emailError);
       return;
     }
 
@@ -6601,6 +6618,12 @@ export function WorkspaceDashboard({
         </article>
 
         <article className={surfaceCardClassName}>
+          {requiresEmailCompletion ? (
+            <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-800">
+              请先补充联系邮箱。系统会通过邮箱发送任务、公告和日程汇报提醒。
+            </div>
+          ) : null}
+
           {profileMessage ? (
             <div className="mb-4 rounded-lg bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
               {profileMessage}
@@ -6620,16 +6643,18 @@ export function WorkspaceDashboard({
               />
             </label>
             <label className="block text-sm text-slate-500">
-              联系邮箱
+              联系邮箱 <span className="text-red-500">*</span>
               <input
                 className={fieldClassName}
-                placeholder="可选，用于联系"
+                placeholder="必填，用于接收任务和日程提醒"
+                type="email"
                 value={profileDraft.email}
                 onChange={(event) => {
                   setProfileDraft((current) => ({ ...current, email: event.target.value }));
                   setProfileMessage(null);
                 }}
               />
+              <span className="mt-1.5 block text-xs leading-5 text-slate-400">{EMAIL_RULE_HINT}</span>
             </label>
           </div>
 

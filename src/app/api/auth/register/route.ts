@@ -2,7 +2,7 @@ import { Prisma } from "@prisma/client";
 import bcrypt from "bcryptjs";
 import { NextResponse } from "next/server";
 
-import { validateUsername } from "@/lib/account-policy";
+import { validateRequiredEmail, validateUsername } from "@/lib/account-policy";
 import { prisma } from "@/lib/prisma";
 import { getRegistrationApproverRoles, roleLabels } from "@/lib/permissions";
 
@@ -25,6 +25,7 @@ export async function POST(request: Request) {
     | {
         name?: string;
         username?: string;
+        email?: string;
         password?: string;
         role?: keyof typeof registrationRoleMap;
       }
@@ -32,16 +33,22 @@ export async function POST(request: Request) {
 
   const name = body?.name?.trim();
   const username = body?.username?.trim();
+  const email = body?.email?.trim();
   const password = body?.password?.trim();
   const role = body?.role ? registrationRoleMap[body.role] : null;
 
-  if (!name || !username || !password || !role) {
-    return NextResponse.json({ message: "请完整填写姓名、账号名、密码和身份" }, { status: 400 });
+  if (!name || !username || !email || !password || !role) {
+    return NextResponse.json({ message: "请完整填写姓名、账号名、邮箱、密码和身份" }, { status: 400 });
   }
 
   const usernameError = validateUsername(username);
   if (usernameError) {
     return NextResponse.json({ message: usernameError }, { status: 400 });
+  }
+
+  const emailError = validateRequiredEmail(email);
+  if (emailError) {
+    return NextResponse.json({ message: emailError }, { status: 400 });
   }
 
   if (password.length < 6) {
@@ -55,13 +62,13 @@ export async function POST(request: Request) {
 
   const existingAccount = await prisma.user.findFirst({
     where: {
-      OR: [{ username }, { email: username }],
+      OR: [{ username }, { email: username }, { email }, { username: email }],
     },
     select: { id: true },
   });
 
   if (existingAccount) {
-    return NextResponse.json({ message: "账号名已存在，请更换后再试" }, { status: 409 });
+    return NextResponse.json({ message: "账号名或邮箱已存在，请更换后再试" }, { status: 409 });
   }
 
   const passwordHash = await bcrypt.hash(password, 10);
@@ -71,7 +78,7 @@ export async function POST(request: Request) {
       data: {
         name,
         username,
-        email: null,
+        email,
         password: passwordHash,
         role,
         approvalStatus: "pending",
@@ -91,7 +98,7 @@ export async function POST(request: Request) {
       (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") ||
       (error instanceof Error && /UNIQUE constraint failed: User\.(email|username)/i.test(error.message))
     ) {
-      return NextResponse.json({ message: "账号名已存在，请更换后再试" }, { status: 409 });
+      return NextResponse.json({ message: "账号名或邮箱已存在，请更换后再试" }, { status: 409 });
     }
 
     return NextResponse.json({ message: "注册失败，请稍后重试" }, { status: 500 });
