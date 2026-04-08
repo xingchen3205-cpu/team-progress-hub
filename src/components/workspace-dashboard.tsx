@@ -286,6 +286,7 @@ type TodoCenterItem = {
 };
 
 const imagePreviewExtensions = [".png", ".jpg", ".jpeg", ".gif", ".webp"] as const;
+const wordPreviewExtensions = [".docx"] as const;
 
 const trainingQuestionCategories = ["商业模式", "技术壁垒", "市场与竞品", "财务数据", "团队分工", "综合答辩", "其他"] as const;
 
@@ -454,6 +455,7 @@ type NotificationDeliveryResult = {
   emailRecipientCount: number;
   emailFailureCount: number;
   emailSkippedReason?: "disabled" | "no-recipient-email";
+  emailFailureReason?: "resend-domain-unverified" | "unknown";
 };
 
 type DirectReminderResponse = {
@@ -471,6 +473,10 @@ const getReminderDeliveryDetail = (delivery?: NotificationDeliveryResult, fallba
   }
 
   if (delivery.emailRecipientCount > 0 && delivery.emailFailureCount > 0) {
+    if (delivery.emailFailureReason === "resend-domain-unverified") {
+      return "站内提醒已发送；邮件发送失败，Resend 发信域名尚未完成验证。";
+    }
+
     return `站内提醒已发送；${delivery.emailFailureCount} 封邮件发送失败，请稍后重试。`;
   }
 
@@ -511,6 +517,10 @@ const getBatchReminderDeliveryDetail = (
   }
 
   if (emailRecipientCount > 0 && emailFailureCount > 0) {
+    if (validDeliveries.some((delivery) => delivery.emailFailureReason === "resend-domain-unverified")) {
+      return "站内提醒已发送；邮件发送失败，Resend 发信域名尚未完成验证。";
+    }
+
     return `站内提醒已发送；其中 ${emailFailureCount} 封邮件发送失败，请稍后重试。`;
   }
 
@@ -985,8 +995,16 @@ const isTextAsset = (asset: PreviewAsset) =>
   getAssetExtension(asset.fileName) === ".txt" ||
   getAssetExtension(asset.url) === ".txt";
 
+const isWordAsset = (asset: PreviewAsset) =>
+  asset.mimeType === "application/vnd.openxmlformats-officedocument.wordprocessingml.document" ||
+  wordPreviewExtensions.includes(getAssetExtension(asset.fileName) as (typeof wordPreviewExtensions)[number]) ||
+  wordPreviewExtensions.includes(getAssetExtension(asset.url) as (typeof wordPreviewExtensions)[number]);
+
 const canPreviewInlineAsset = (asset: Pick<PreviewAsset, "mimeType" | "fileName" | "url">) =>
-  isPdfAsset(asset as PreviewAsset) || isImageAsset(asset as PreviewAsset) || isTextAsset(asset as PreviewAsset);
+  isPdfAsset(asset as PreviewAsset) ||
+  isImageAsset(asset as PreviewAsset) ||
+  isTextAsset(asset as PreviewAsset) ||
+  isWordAsset(asset as PreviewAsset);
 
 const hasPdfSignature = async (file: File) => {
   const header = new Uint8Array(await file.slice(0, 5).arrayBuffer());
@@ -2266,6 +2284,19 @@ export function WorkspaceDashboard({
     return `${downloadUrl}${separator}inline=1`;
   };
 
+  const buildDocumentPreviewUrl = (downloadUrl?: string | null) => {
+    if (!downloadUrl) {
+      return null;
+    }
+
+    const [path, query] = downloadUrl.split("?");
+    if (!path.endsWith("/download")) {
+      return buildInlinePreviewUrl(downloadUrl);
+    }
+
+    return `${path.replace(/\/download$/, "/preview")}${query ? `?${query}` : ""}`;
+  };
+
   const handlePreviewDocument = ({
     downloadUrl,
     fileName,
@@ -2295,7 +2326,9 @@ export function WorkspaceDashboard({
       return;
     }
 
-    const previewUrl = buildInlinePreviewUrl(downloadUrl);
+    const previewUrl = isWordAsset({ downloadUrl, fileName, mimeType, url: downloadUrl } as PreviewAsset)
+      ? buildDocumentPreviewUrl(downloadUrl)
+      : buildInlinePreviewUrl(downloadUrl);
     if (!previewUrl) {
       setLoadError("当前文件暂不可预览");
       return;
@@ -7973,7 +8006,9 @@ export function WorkspaceDashboard({
                   ? "PDF 使用站内渲染模式，避免浏览器原生预览层在后台页面残留。"
                   : isImageAsset(previewAsset)
                     ? "图片按原始清晰度显示，可在窗口内滚动查看细节。"
-                    : "已切换为站内在线预览模式。"}
+                    : isWordAsset(previewAsset)
+                      ? "Word 文档已切换为站内只读预览；在线标注和协同修改需要后续接入文档协作服务。"
+                      : "已切换为站内在线预览模式。"}
             </p>
             <ModalActions>
               {previewAsset.mode === "download-fallback" ? (

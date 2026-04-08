@@ -8,6 +8,17 @@ export type NotificationDeliveryResult = {
   emailRecipientCount: number;
   emailFailureCount: number;
   emailSkippedReason?: "disabled" | "no-recipient-email";
+  emailFailureReason?: "resend-domain-unverified" | "unknown";
+};
+
+const getEmailFailureReason = (error: unknown): NotificationDeliveryResult["emailFailureReason"] => {
+  const message = error instanceof Error ? error.message : String(error);
+
+  if (message.includes("verify a domain") || message.includes("testing emails")) {
+    return "resend-domain-unverified";
+  }
+
+  return "unknown";
 };
 
 export async function createNotifications({
@@ -119,6 +130,7 @@ export async function createNotifications({
   );
 
   const emailFailureCount = results.filter((result) => result.status === "rejected").length;
+  const emailFailureReason = results.find((result) => result.status === "rejected");
 
   for (const result of results) {
     if (result.status === "rejected") {
@@ -130,6 +142,8 @@ export async function createNotifications({
     notificationCount: dedupedUserIds.length,
     emailRecipientCount: recipientEmails.length,
     emailFailureCount,
+    emailFailureReason:
+      emailFailureReason?.status === "rejected" ? getEmailFailureReason(emailFailureReason.reason) : undefined,
   };
 }
 
