@@ -5757,8 +5757,8 @@ export function WorkspaceDashboard({
                         ) : null}
 
                         <div className="mt-4 rounded-xl border border-slate-100 bg-slate-50 p-4">
-                          <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
-                            <div className="grid flex-1 gap-2 sm:grid-cols-2 xl:grid-cols-5">
+                          <div className="flex flex-col gap-4 2xl:flex-row 2xl:items-start 2xl:justify-between">
+                            <div className="grid flex-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
                               {taskPeople.map((item) => (
                                 <div
                                   className="rounded-xl border border-slate-100 bg-white px-3 py-2.5 shadow-sm"
@@ -5767,13 +5767,13 @@ export function WorkspaceDashboard({
                                   <span className="block text-[11px] font-medium tracking-[0.08em] text-slate-400">
                                     {item.label}
                                   </span>
-                                  <span className="mt-1 block truncate text-sm font-semibold text-slate-800">
+                                  <span className="mt-1 block break-words text-sm font-semibold leading-6 text-slate-800">
                                     {item.value}
                                   </span>
                                 </div>
                               ))}
                             </div>
-                            <div className="rounded-xl border border-[#D9E4F5] bg-[#F5F9FF] px-4 py-3 shadow-sm xl:w-56">
+                            <div className="rounded-xl border border-[#D9E4F5] bg-[#F5F9FF] px-4 py-3 shadow-sm 2xl:w-56">
                               <p className="text-[11px] font-medium tracking-[0.08em] text-slate-400">当前环节</p>
                               <p className="mt-1 text-sm font-semibold leading-6 text-slate-900">{nextStepLabel}</p>
                               <p className="mt-2 text-xs text-[#0B3B8A]">
@@ -5839,7 +5839,7 @@ export function WorkspaceDashboard({
                             <summary className="cursor-pointer select-none text-xs font-semibold text-slate-500">
                               查看时间台账
                             </summary>
-                            <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
+                            <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5">
                               {taskTimeItems.map((item) => (
                                 <div className="rounded-lg bg-slate-50 px-3 py-2 ring-1 ring-slate-100" key={item.label}>
                                   <span className="block text-xs text-slate-400">{item.label}</span>
