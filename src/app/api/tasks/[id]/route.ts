@@ -8,6 +8,7 @@ import { assertMainWorkspaceRole } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { serializeTask, taskPriorityValueToDb } from "@/lib/api-serializers";
 import { canAccessTask, canAssignTaskToUser, canReviewTask } from "@/lib/task-access";
+import { inferTaskTeamGroupId } from "@/lib/task-team-group";
 import { deriveTaskStatusFromAssignments, pickTaskDispatchRecipientIds } from "@/lib/task-workflow";
 import { deleteStoredFile } from "@/lib/uploads";
 
@@ -49,6 +50,21 @@ const getTask = (id: string) =>
     where: { id },
     include: taskInclude,
   });
+
+const hydrateLegacyTaskTeamGroup = async (task: NonNullable<TaskWithRelations>) => {
+  const inferredTeamGroupId = inferTaskTeamGroupId(task);
+  if (task.teamGroupId || !inferredTeamGroupId) {
+    return task;
+  }
+
+  return (
+    (await prisma.task.update({
+      where: { id: task.id },
+      data: { teamGroupId: inferredTeamGroupId },
+      include: taskInclude,
+    })) ?? task
+  );
+};
 
 const getTeamReviewerCandidates = async ({
   teamGroupId,
@@ -195,7 +211,7 @@ export async function PATCH(
     return NextResponse.json({ message: "工单不存在" }, { status: 404 });
   }
 
-  const currentTask = await hydrateLegacyTaskAssignments(fetchedTask);
+  const currentTask = await hydrateLegacyTaskTeamGroup(await hydrateLegacyTaskAssignments(fetchedTask));
 
   if (!canAccessTask(user, currentTask)) {
     return NextResponse.json({ message: "无权限" }, { status: 403 });
@@ -268,6 +284,7 @@ export async function PATCH(
       relatedId: currentTask.id,
       senderId: user.id,
       email: { noticeType: "工单处理", actionLabel: "进入系统处理" },
+      emailTeamGroupId: currentTask.teamGroupId ?? null,
     });
 
     return NextResponse.json({ success: true, delivery });
@@ -381,6 +398,7 @@ export async function PATCH(
           relatedId: task.id,
           senderId: user.id,
           email: { noticeType: "工单处理", actionLabel: "进入系统处理" },
+          emailTeamGroupId: task.teamGroupId ?? null,
         });
       }
     }
@@ -422,6 +440,7 @@ export async function PATCH(
         relatedId: task.id,
         senderId: user.id,
         email: { noticeType: "工单处理", actionLabel: "进入系统处理" },
+        emailTeamGroupId: task.teamGroupId ?? null,
       });
     }
 
@@ -471,6 +490,7 @@ export async function PATCH(
         relatedId: task.id,
         senderId: user.id,
         email: { noticeType: "工单处理", actionLabel: "进入系统处理" },
+        emailTeamGroupId: task.teamGroupId ?? null,
       });
     }
 
@@ -615,6 +635,7 @@ export async function PATCH(
         relatedId: task.id,
         senderId: user.id,
         email: { noticeType: "工单处理", actionLabel: "进入系统处理" },
+        emailTeamGroupId: task.teamGroupId ?? null,
       });
     }
 
@@ -670,7 +691,8 @@ export async function DELETE(
   }
 
   const { id } = await params;
-  const task = await getTask(id);
+  const fetchedTask = await getTask(id);
+  const task = fetchedTask ? await hydrateLegacyTaskTeamGroup(fetchedTask) : null;
   if (!task) {
     return NextResponse.json({ message: "工单不存在" }, { status: 404 });
   }

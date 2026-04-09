@@ -11,6 +11,7 @@ import {
   taskPriorityValueToDb,
 } from "@/lib/api-serializers";
 import { canAssignTaskToUser, getTaskVisibilityWhere } from "@/lib/task-access";
+import { inferTaskTeamGroupId } from "@/lib/task-team-group";
 import { deriveTaskStatusFromAssignments, pickTaskDispatchRecipientIds } from "@/lib/task-workflow";
 
 const taskInclude = {
@@ -103,7 +104,22 @@ export async function GET(request: NextRequest) {
     },
   });
 
-  return NextResponse.json({ tasks: tasks.map(serializeTask) });
+  const normalizedTasks = await Promise.all(
+    tasks.map(async (task) => {
+      const inferredTeamGroupId = inferTaskTeamGroupId(task);
+      if (!task.teamGroupId && inferredTeamGroupId) {
+        return prisma.task.update({
+          where: { id: task.id },
+          data: { teamGroupId: inferredTeamGroupId },
+          include: taskInclude,
+        });
+      }
+
+      return task;
+    }),
+  );
+
+  return NextResponse.json({ tasks: normalizedTasks.map(serializeTask) });
 }
 
 export async function POST(request: NextRequest) {
@@ -227,6 +243,7 @@ export async function POST(request: NextRequest) {
       relatedId: task.id,
       senderId: user.id,
       email: { noticeType: "工单处理", actionLabel: "进入系统处理" },
+      emailTeamGroupId: task.teamGroupId ?? null,
     });
   }
 
@@ -249,6 +266,7 @@ export async function POST(request: NextRequest) {
         relatedId: task.id,
         senderId: user.id,
         email: { noticeType: "工单处理", actionLabel: "进入系统处理" },
+        emailTeamGroupId: task.teamGroupId ?? null,
       });
     }
   }

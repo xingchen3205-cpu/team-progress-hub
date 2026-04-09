@@ -148,6 +148,7 @@ export async function PATCH(
       relatedId: reworkTask.id,
       senderId: user.id,
       email: { noticeType: "工单处理", actionLabel: "进入系统处理" },
+      emailTeamGroupId: document.owner.teamGroupId ?? null,
     }).catch((error) => {
       console.error("Document rework task notification failed", error);
     });
@@ -169,6 +170,7 @@ export async function PATCH(
       targetTab: "documents",
       relatedId: document.id,
       email: { noticeType: "文档审批", actionLabel: "进入系统处理" },
+      emailTeamGroupId: document.owner.teamGroupId ?? null,
     }).catch((error) => {
       console.error("Document leader approval notification failed", error);
     });
@@ -188,6 +190,7 @@ export async function PATCH(
       targetTab: "documents",
       relatedId: document.id,
       email: { noticeType: "文档审批", actionLabel: "进入系统处理" },
+      emailTeamGroupId: document.owner.teamGroupId ?? null,
     }).catch((error) => {
       console.error("Document teacher revision notification failed", error);
     });
@@ -204,6 +207,7 @@ export async function PATCH(
       targetTab: "documents",
       relatedId: document.id,
       email: { noticeType: "文档审批", actionLabel: "进入系统处理" },
+      emailTeamGroupId: document.owner.teamGroupId ?? null,
     }).catch((error) => {
       console.error("Document review result notification failed", error);
     });

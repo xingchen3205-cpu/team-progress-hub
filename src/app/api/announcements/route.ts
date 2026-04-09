@@ -118,6 +118,7 @@ export async function POST(request: NextRequest) {
       relatedId: announcement.id,
       senderId: user.id,
       email: true,
+      emailTeamGroupId: announcement.teamGroupId ?? null,
     });
   }
 

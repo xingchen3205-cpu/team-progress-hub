@@ -1,3 +1,5 @@
+import type { Role } from "@prisma/client";
+
 import { toIsoDateKey } from "@/lib/date";
 
 type BuildReportDateOptionsInput = {
@@ -69,6 +71,24 @@ export const getAdminReportDeleteFilter = ({
   };
 };
 
+export const getAdminReportViewFilter = (teamGroupId?: string | null) => {
+  const nextTeamGroupId = teamGroupId?.trim() ?? "";
+  const allowedRoles: Role[] = ["leader", "member"];
+
+  if (!nextTeamGroupId) {
+    return undefined;
+  }
+
+  return {
+    user: {
+      teamGroupId: nextTeamGroupId,
+      role: {
+        in: allowedRoles,
+      },
+    },
+  };
+};
+
 type ReportMemberLike = {
   id: string;
   systemRole: string;
@@ -81,14 +101,26 @@ export const getVisibleReportMembers = <Member extends ReportMemberLike>({
   members,
   currentMemberId,
   canViewAllReports,
+  selectedTeamGroupId,
 }: {
   members: Member[];
   currentMemberId: string;
   canViewAllReports: boolean;
+  selectedTeamGroupId?: string | null;
 }) => {
   if (!canViewAllReports) {
     return members.filter((member) => member.id === currentMemberId && reportRequiredRoles.has(member.systemRole));
   }
 
-  return members.filter((member) => reportRequiredRoles.has(member.systemRole) && Boolean(member.teamGroupId));
+  return members.filter((member) => {
+    if (!reportRequiredRoles.has(member.systemRole) || !member.teamGroupId) {
+      return false;
+    }
+
+    if (!selectedTeamGroupId) {
+      return true;
+    }
+
+    return member.teamGroupId === selectedTeamGroupId;
+  });
 };

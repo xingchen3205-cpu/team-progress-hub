@@ -121,6 +121,7 @@ export async function POST(request: NextRequest) {
       id: true,
       role: true,
       approvalStatus: true,
+      teamGroupId: true,
     },
   });
 
@@ -145,6 +146,7 @@ export async function POST(request: NextRequest) {
     relatedId: null,
     senderId: user.id,
     email: true,
+    emailTeamGroupId: targetUser.teamGroupId ?? null,
   });
 
   return NextResponse.json({ success: true, delivery }, { status: 201 });

@@ -7,7 +7,7 @@ import { assertMainWorkspaceRole } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { serializeReport } from "@/lib/api-serializers";
 import { createNotifications } from "@/lib/notifications";
-import { getAdminReportDeleteFilter } from "@/lib/report-history";
+import { getAdminReportDeleteFilter, getAdminReportViewFilter } from "@/lib/report-history";
 
 const getReportNotificationRecipientIds = async ({
   role,
@@ -57,9 +57,11 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ message: "无权限" }, { status: 403 });
   }
 
+  const selectedTeamGroupId = request.nextUrl.searchParams.get("teamGroupId")?.trim() || null;
+
   const reportWhere =
     user.role === "admin"
-      ? undefined
+      ? getAdminReportViewFilter(selectedTeamGroupId)
       : user.role === "member"
         ? { userId: user.id }
         : user.teamGroupId
@@ -197,6 +199,7 @@ export async function POST(request: NextRequest) {
       targetTab: "reports",
       relatedId: report.id,
       email: { noticeType: "日程汇报提醒" },
+      emailTeamGroupId: user.teamGroupId ?? null,
     });
   }
 

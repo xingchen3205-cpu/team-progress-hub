@@ -1482,6 +1482,7 @@ export function WorkspaceDashboard({
   const [reportEntriesByDay, setReportEntriesByDay] = useState<Record<string, ReportEntryWithDate[]>>({});
   const [reportDates, setReportDates] = useState<string[]>([getDefaultDateKey()]);
   const [selectedDate, setSelectedDate] = useState(getDefaultDateKey());
+  const [selectedReportTeamGroupId, setSelectedReportTeamGroupId] = useState("");
   const [reportDeleteTeamGroupId, setReportDeleteTeamGroupId] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [expandedDocs, setExpandedDocs] = useState<string[]>([]);
@@ -1736,7 +1737,11 @@ export function WorkspaceDashboard({
           requestJson<{ announcements: Announcement[] }>("/api/announcements"),
           requestJson<{ events: EventItem[] }>("/api/events"),
           requestJson<{ tasks: BoardTask[] }>("/api/tasks"),
-          requestJson<{ dates: string[]; reports: ReportEntryWithDate[] }>("/api/reports"),
+          requestJson<{ dates: string[]; reports: ReportEntryWithDate[] }>(
+            mePayload.user.role === "admin" && selectedReportTeamGroupId
+              ? `/api/reports?teamGroupId=${encodeURIComponent(selectedReportTeamGroupId)}`
+              : "/api/reports",
+          ),
           requestJson<{ experts: ExpertItem[] }>("/api/experts"),
           requestJson<{ documents: DocumentItem[] }>("/api/documents"),
           requestJson<{ notifications: NotificationItem[] }>("/api/notifications"),
@@ -1845,7 +1850,7 @@ export function WorkspaceDashboard({
     return () => {
       isMounted = false;
     };
-  }, [reloadToken, router]);
+  }, [reloadToken, router, selectedReportTeamGroupId]);
 
   useEffect(() => {
     if (!currentMemberId || requiresEmailCompletion || hasBlockingOverlay) {
@@ -2029,6 +2034,7 @@ export function WorkspaceDashboard({
     members,
     currentMemberId,
     canViewAllReports: permissions.canViewAllReports,
+    selectedTeamGroupId: currentRole === "admin" ? selectedReportTeamGroupId : null,
   });
   const reportDateOptions = useMemo(
     () =>
@@ -2057,9 +2063,17 @@ export function WorkspaceDashboard({
   );
   const pendingLeaderReviewCount = documents.filter((doc) => doc.statusKey === "pending").length;
   const pendingTeacherReviewCount = documents.filter((doc) => doc.statusKey === "leader_approved").length;
-  const reportableMembers = members.filter(
-    (item) => ["项目负责人", "团队成员"].includes(item.systemRole) && Boolean(item.teamGroupId),
-  );
+  const reportableMembers = members.filter((item) => {
+    if (!["项目负责人", "团队成员"].includes(item.systemRole) || !item.teamGroupId) {
+      return false;
+    }
+
+    if (currentRole !== "admin" || !selectedReportTeamGroupId) {
+      return true;
+    }
+
+    return item.teamGroupId === selectedReportTeamGroupId;
+  });
   const reportSubmittedCount = todayReportEntries.length;
   const reportExpectedCount = reportableMembers.length;
 
@@ -6517,20 +6531,39 @@ export function WorkspaceDashboard({
                   可以直接选择过去任意一天；有保存记录的日期会在下方显示。
                 </p>
               </div>
-              <label className="block min-w-56 text-sm font-medium text-slate-600">
-                日期
-                <input
-                  className={`${fieldClassName} mt-1.5`}
-                  max={todayDateKey}
-                  type="date"
-                  value={selectedDate}
-                  onChange={(event) => {
-                    if (event.target.value) {
-                      setSelectedDate(event.target.value);
-                    }
-                  }}
-                />
-              </label>
+              <div className="flex flex-col gap-3 md:flex-row md:items-end">
+                {currentRole === "admin" ? (
+                  <label className="block min-w-56 text-sm font-medium text-slate-600">
+                    项目组
+                    <select
+                      className={`${fieldClassName} mt-1.5`}
+                      value={selectedReportTeamGroupId}
+                      onChange={(event) => setSelectedReportTeamGroupId(event.target.value)}
+                    >
+                      <option value="">全部项目组</option>
+                      {teamGroups.map((group) => (
+                        <option key={group.id} value={group.id}>
+                          {group.name}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                ) : null}
+                <label className="block min-w-56 text-sm font-medium text-slate-600">
+                  日期
+                  <input
+                    className={`${fieldClassName} mt-1.5`}
+                    max={todayDateKey}
+                    type="date"
+                    value={selectedDate}
+                    onChange={(event) => {
+                      if (event.target.value) {
+                        setSelectedDate(event.target.value);
+                      }
+                    }}
+                  />
+                </label>
+              </div>
             </div>
 
             <div className="flex flex-wrap gap-2">

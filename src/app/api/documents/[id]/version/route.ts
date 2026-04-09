@@ -163,6 +163,7 @@ export async function POST(
           targetTab: "documents",
           relatedId: document.id,
           email: { noticeType: "文档审批", actionLabel: "进入系统处理" },
+          emailTeamGroupId: currentDocument.owner.teamGroupId ?? null,
         });
       }
     } catch (error) {

@@ -2,6 +2,7 @@ import type { Role } from "@prisma/client";
 
 import { getEmailReminderSettings, isEmailReminderEnabled } from "@/lib/email-settings";
 import { buildWorkspaceUrl, isEmailConfigured, renderSystemEmail, sendEmail } from "@/lib/email";
+import { filterNotificationEmailRecipients } from "@/lib/notification-email-scope";
 import { prisma } from "@/lib/prisma";
 
 export type NotificationDeliveryResult = {
@@ -32,6 +33,7 @@ export async function createNotifications({
   relatedId,
   senderId,
   email,
+  emailTeamGroupId,
 }: {
   userIds: string[];
   title: string;
@@ -42,6 +44,7 @@ export async function createNotifications({
   relatedId?: string | null;
   senderId?: string | null;
   email?: boolean | { subject?: string; actionLabel?: string; noticeType?: string };
+  emailTeamGroupId?: string | null;
 }): Promise<NotificationDeliveryResult> {
   const dedupedUserIds = [...new Set(userIds.filter(Boolean))];
 
@@ -106,15 +109,13 @@ export async function createNotifications({
     select: {
       email: true,
       name: true,
+      role: true,
+      approvalStatus: true,
+      teamGroupId: true,
     },
   });
 
-  const recipientEmails = recipients
-    .map((recipient) => ({
-      email: recipient.email?.trim(),
-      name: recipient.name,
-    }))
-    .filter((recipient): recipient is { email: string; name: string } => Boolean(recipient.email));
+  const recipientEmails = filterNotificationEmailRecipients(recipients, { emailTeamGroupId });
 
   if (recipientEmails.length === 0) {
     return {

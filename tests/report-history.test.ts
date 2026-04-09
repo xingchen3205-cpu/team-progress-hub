@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
 import {
+  getAdminReportViewFilter,
   buildReportDateOptions,
   getAdminReportDeleteFilter,
   getReportAttachmentNote,
@@ -60,6 +61,22 @@ describe("report history date options", () => {
     assert.equal(getAdminReportDeleteFilter({ date: "not-a-date", teamGroupId: "group-1" }), null);
   });
 
+  it("builds an admin report view filter scoped to one team group", () => {
+    assert.deepEqual(getAdminReportViewFilter("group-1"), {
+      user: {
+        teamGroupId: "group-1",
+        role: {
+          in: ["leader", "member"],
+        },
+      },
+    });
+  });
+
+  it("returns undefined admin report view filter when no team group is selected", () => {
+    assert.equal(getAdminReportViewFilter(""), undefined);
+    assert.equal(getAdminReportViewFilter(null), undefined);
+  });
+
   it("excludes ungrouped former team members from report expected lists", () => {
     const members = [
       { id: "leader-1", systemRole: "项目负责人", teamGroupId: "group-1" },
@@ -76,6 +93,26 @@ describe("report history date options", () => {
         canViewAllReports: true,
       }).map((member) => member.id),
       ["leader-1", "member-1"],
+    );
+
+    assert.deepEqual(
+      getVisibleReportMembers({
+        members,
+        currentMemberId: "admin-1",
+        canViewAllReports: true,
+        selectedTeamGroupId: "group-1",
+      }).map((member) => member.id),
+      ["leader-1", "member-1"],
+    );
+
+    assert.deepEqual(
+      getVisibleReportMembers({
+        members,
+        currentMemberId: "admin-1",
+        canViewAllReports: true,
+        selectedTeamGroupId: "group-2",
+      }).map((member) => member.id),
+      [],
     );
 
     assert.deepEqual(
