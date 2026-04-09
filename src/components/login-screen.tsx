@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { startTransition, useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { CheckCircle2, Loader2 } from "lucide-react";
@@ -11,7 +12,7 @@ type FormMode = "login" | "register";
 const registerRoleOptions = ["指导教师", "项目负责人", "团队成员", "评审专家"] as const;
 
 const initialLoginValues = {
-  username: "",
+  username: "724000296@qq.com",
   password: "",
   remember: true,
 };
@@ -216,38 +217,67 @@ export function LoginScreen() {
   }
 
   return (
-    <main className="flex min-h-screen items-center justify-center bg-[#f1f8ff] px-4 py-10 sm:px-6 lg:px-8">
-      <div className="w-full max-w-[1080px]">
-        <h1 className="mb-8 text-center text-[24px] leading-8 font-bold text-[#13161b] sm:text-[28px] lg:mb-10 lg:text-[32px] lg:leading-9">
-          中国国际大学生创新大赛管理系统
-        </h1>
-
-        <section className="overflow-hidden rounded-2xl bg-white shadow-[0_8px_30px_rgba(36,139,247,0.12)] lg:flex">
+    <main className="min-h-screen bg-slate-100 text-slate-900">
+      <div className="min-h-screen lg:grid lg:grid-cols-[11fr_9fr]">
+        <section className="relative min-h-[42vh] overflow-hidden lg:min-h-screen">
           <div
-            className="relative hidden min-h-[600px] w-[480px] bg-[#3091f2] bg-cover bg-center bg-no-repeat lg:block"
+            aria-hidden="true"
+            className="absolute inset-0 bg-cover bg-center"
             style={{
-              backgroundImage:
-                'url("https://t1.chei.com.cn/passport/assets/images/cyzjk/htgl-bg.png")',
+              backgroundImage: 'url("/login-campus.jpg")',
+              backgroundPosition: "center center",
             }}
           />
+          <div className="absolute inset-0 bg-gradient-to-br from-blue-900/38 via-blue-800/16 to-slate-900/48" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.09),transparent_40%)]" />
+          <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.08)_0%,transparent_22%,transparent_52%,rgba(125,211,252,0.08)_78%,transparent_100%)] opacity-70" />
+          <div className="absolute inset-0 opacity-25 [background-image:linear-gradient(135deg,rgba(255,255,255,0.07)_0,rgba(255,255,255,0.07)_1px,transparent_1px,transparent_24px)] [background-size:28px_28px]" />
+          <div className="relative flex h-full flex-col justify-between px-8 py-8 lg:px-14 lg:py-10">
+            <div className="mx-auto w-full max-w-3xl">
+              <div className="inline-flex items-center gap-2.5 rounded-full border border-white/18 bg-white/11 px-3.5 py-2 text-white shadow-[0_18px_44px_rgba(15,23,42,0.18)] backdrop-blur-xl">
+                <Image
+                  alt="南京铁道职业技术学院官方标识"
+                  className="h-8 w-auto object-contain"
+                  height={77}
+                  priority
+                  src="/official-logo.png"
+                  width={430}
+                />
+              </div>
+            </div>
 
-          <div className="flex flex-1 items-center justify-center bg-[#f5f6f8] px-5 py-8 sm:px-8 sm:py-10 lg:px-10 lg:py-12">
-            <div className="w-full max-w-[420px] rounded-xl border border-[#eef1f4] bg-white px-6 py-7 shadow-[0_8px_24px_rgba(19,22,27,0.06)] sm:px-8 sm:py-8">
-              <div className="mb-8">
-                <h2 className="text-[28px] leading-9 font-bold text-[#13161b]">
+            <div className="flex flex-1 items-center justify-center px-4">
+              <div className="max-w-3xl text-center">
+                <div className="flex flex-col items-center">
+                  <h1 className="text-4xl font-extrabold leading-[1.08] tracking-[0.045em] text-white drop-shadow-[0_10px_28px_rgba(15,23,42,0.42)] sm:text-5xl lg:text-[4.1rem]">
+                    <span className="block whitespace-nowrap">南京铁道职业技术学院</span>
+                    <span className="mt-1 block whitespace-nowrap">大赛管理系统</span>
+                  </h1>
+                  <div className="mt-7 h-px w-24 bg-gradient-to-r from-transparent via-white/80 to-transparent" />
+                </div>
+              </div>
+            </div>
+
+            <div className="mx-auto h-16 w-full max-w-3xl lg:h-20" />
+          </div>
+        </section>
+
+        <section className="flex min-h-screen flex-col bg-slate-50">
+          <div className="flex-1 px-6 py-10 sm:px-10 lg:px-14">
+            <div className="mx-auto flex min-h-full w-full max-w-[27rem] flex-col justify-center">
+              <div className="mb-10">
+                <h2 className="text-3xl font-bold tracking-tight text-slate-900">
                   {mode === "login" ? "用户登录" : "注册账号"}
+                  <span className="mt-2 block text-sm font-medium tracking-[0.28em] text-slate-400 uppercase">
+                    {mode === "login" ? "User Login" : "Account Registration"}
+                  </span>
                 </h2>
-                <p className="mt-2 text-sm leading-6 text-[#6b7280]">
-                  {mode === "login"
-                    ? "请输入账号密码登录管理系统。"
-                    : "请先填写基础信息，提交后将进入待审核状态，通过后即可登录。"}
-                </p>
               </div>
 
               {successMessage ? (
-                <div className="mb-4 flex items-start gap-3 rounded-xl border border-[#bbf7d0] bg-[#ecfdf5] px-4 py-3 text-sm leading-6 text-[#047857]">
+                <div className="mb-4 flex items-start gap-3 rounded-2xl border border-[#bbf7d0] bg-[#ecfdf5] px-4 py-3 text-sm leading-6 text-[#047857]">
                   <div className="relative mt-0.5 flex h-6 w-6 items-center justify-center rounded-full bg-[#d1fae5] text-[#059669]">
-                    <span className="absolute inset-0 rounded-full bg-[#6ee7b7]/40 animate-ping" />
+                    <span className="absolute inset-0 animate-ping rounded-full bg-[#6ee7b7]/40" />
                     <CheckCircle2 className="relative h-4 w-4" />
                   </div>
                   <p>{successMessage}</p>
@@ -256,20 +286,24 @@ export function LoginScreen() {
 
               {mode === "login" ? (
                 <form className="relative" noValidate onSubmit={handleLoginSubmit}>
-                  <div className="relative">
+                  <div
+                    className={`group relative rounded-2xl border px-4 transition-all duration-300 ${
+                      loginErrors.username
+                        ? "border-[#f93b3b] bg-white ring-4 ring-[#f93b3b]/10"
+                        : "border-slate-200 bg-slate-50 focus-within:border-blue-600 focus-within:bg-white focus-within:ring-4 focus-within:ring-blue-600/10"
+                    }`}
+                  >
                     <span
                       aria-hidden="true"
-                      className="absolute top-[13px] left-3 h-[18px] w-[18px] bg-contain bg-no-repeat"
+                      className="absolute top-[1.05rem] left-4 h-[18px] w-[18px] bg-contain bg-no-repeat opacity-65 transition-colors group-focus-within:opacity-100"
                       style={{
                         backgroundImage:
                           'url("https://t2.chei.com.cn/passport/assets/images/yhm.svg")',
                       }}
                     />
                     <input
-                      className={`h-11 w-full rounded border bg-white pr-3 pl-[37px] text-base leading-7 text-[#13161b] outline-none placeholder:text-[#8d949f] focus:border-[#3091f2] ${
-                        loginErrors.username ? "border-[#f93b3b]" : "border-[#d5d7db]"
-                      }`}
-                      placeholder="用户名/邮箱"
+                      className="h-14 w-full border-0 bg-transparent pr-0 pl-8 text-base leading-7 text-[#13161b] outline-none placeholder:text-slate-500"
+                      placeholder="请输入系统账号"
                       type="text"
                       value={loginValues.username}
                       onChange={(event) => {
@@ -284,27 +318,31 @@ export function LoginScreen() {
                     />
                   </div>
                   {loginErrors.username ? (
-                    <p className="mt-1 mb-3 text-sm leading-[22px] text-[#f93b3b]">
+                    <p className="mt-2 mb-5 text-sm leading-[22px] text-[#f93b3b]">
                       {loginErrors.username}
                     </p>
                   ) : (
-                    <div className="mb-6" />
+                    <div className="mb-7" />
                   )}
 
-                  <div className="relative">
+                  <div
+                    className={`group relative rounded-2xl border px-4 transition-all duration-300 ${
+                      loginErrors.password
+                        ? "border-[#f93b3b] bg-white ring-4 ring-[#f93b3b]/10"
+                        : "border-slate-200 bg-slate-50 focus-within:border-blue-600 focus-within:bg-white focus-within:ring-4 focus-within:ring-blue-600/10"
+                    }`}
+                  >
                     <span
                       aria-hidden="true"
-                      className="absolute top-[13px] left-3 h-[18px] w-[18px] bg-contain bg-no-repeat"
+                      className="absolute top-[1.05rem] left-4 h-[18px] w-[18px] bg-contain bg-no-repeat opacity-65 transition-colors group-focus-within:opacity-100"
                       style={{
                         backgroundImage:
                           'url("https://t2.chei.com.cn/passport/assets/images/mm.svg")',
                       }}
                     />
                     <input
-                      className={`h-11 w-full rounded border bg-white pr-3 pl-[37px] text-base leading-7 text-[#13161b] outline-none placeholder:text-[#8d949f] focus:border-[#3091f2] ${
-                        loginErrors.password ? "border-[#f93b3b]" : "border-[#d5d7db]"
-                      }`}
-                      placeholder="密码"
+                      className="h-14 w-full border-0 bg-transparent pr-0 pl-8 text-base leading-7 text-[#13161b] outline-none placeholder:text-slate-500"
+                      placeholder="请输入密码"
                       type="password"
                       value={loginValues.password}
                       onChange={(event) => {
@@ -319,14 +357,14 @@ export function LoginScreen() {
                     />
                   </div>
                   {loginErrors.password ? (
-                    <p className="mt-1 mb-3 text-sm leading-[22px] text-[#f93b3b]">
+                    <p className="mt-2 mb-5 text-sm leading-[22px] text-[#f93b3b]">
                       {loginErrors.password}
                     </p>
                   ) : (
-                    <div className="mb-6" />
+                    <div className="mb-7" />
                   )}
 
-                  <div className="mb-6 flex items-center text-sm leading-[22px] text-[#60656e]">
+                  <div className="mb-6 flex items-center justify-between gap-3 text-sm leading-[22px] text-[#60656e]">
                     <label className="flex items-center gap-2">
                       <input
                         checked={loginValues.remember}
@@ -340,16 +378,23 @@ export function LoginScreen() {
                       />
                       <span>记住密码</span>
                     </label>
+                    <button
+                      className="text-sm text-slate-500 transition hover:text-blue-900 hover:underline"
+                      onClick={() => setLoginErrors((current) => ({ ...current, submit: "请联系系统管理员重置密码。" }))}
+                      type="button"
+                    >
+                      忘记密码？
+                    </button>
                   </div>
 
                   {loginErrors.submit ? (
-                    <p className="mb-4 rounded-lg bg-[#fff1f2] px-4 py-3 text-sm leading-6 text-[#e11d48]">
+                    <p className="mb-4 rounded-xl bg-[#fff1f2] px-4 py-3 text-sm leading-6 text-[#e11d48]">
                       {loginErrors.submit}
                     </p>
                   ) : null}
 
                   <button
-                    className="flex h-11 w-full items-center justify-center gap-2 rounded border border-[#3091f2] bg-[#3091f2] text-base leading-[42px] text-white transition duration-200 hover:-translate-y-px hover:border-[#419df9] hover:bg-[#419df9] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3091f2]/20 active:translate-y-0 active:scale-[0.99] disabled:cursor-not-allowed disabled:border-[#86c0f7] disabled:bg-[#86c0f7] disabled:hover:translate-y-0 disabled:active:scale-100"
+                    className="flex h-14 w-full items-center justify-center gap-2 rounded-2xl border border-[#172554] bg-[#172554] text-base font-medium text-white transition duration-300 hover:bg-[#1e3a8a] hover:shadow-lg hover:shadow-[#172554]/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#172554]/20 active:scale-[0.98] disabled:cursor-not-allowed disabled:border-[#86c0f7] disabled:bg-[#86c0f7] disabled:hover:translate-y-0 disabled:active:scale-100"
                     disabled={isSubmitting}
                     type="submit"
                   >
@@ -368,7 +413,7 @@ export function LoginScreen() {
                   <label className="block text-sm leading-6 text-[#60656e]">
                     选择身份
                     <select
-                      className={`mt-1 h-11 w-full rounded border bg-white px-3 text-base leading-7 text-[#13161b] outline-none focus:border-[#3091f2] ${
+                      className={`mt-1 h-12 w-full rounded-2xl border bg-white px-3 text-base leading-7 text-[#13161b] outline-none focus:border-[#172554] focus:bg-white focus:ring-4 focus:ring-[#172554]/10 ${
                         registerErrors.role ? "border-[#f93b3b]" : "border-[#d5d7db]"
                       }`}
                       value={registerValues.role}
@@ -395,7 +440,7 @@ export function LoginScreen() {
                   <label className="block text-sm leading-6 text-[#60656e]">
                     姓名
                     <input
-                      className={`mt-1 h-11 w-full rounded border bg-white px-3 text-base leading-7 text-[#13161b] outline-none placeholder:text-[#8d949f] focus:border-[#3091f2] ${
+                      className={`mt-1 h-12 w-full rounded-2xl border bg-white px-3 text-base leading-7 text-[#13161b] outline-none placeholder:text-[#8d949f] focus:border-[#172554] focus:bg-white focus:ring-4 focus:ring-[#172554]/10 ${
                         registerErrors.name ? "border-[#f93b3b]" : "border-[#d5d7db]"
                       }`}
                       placeholder="请输入真实姓名"
@@ -418,7 +463,7 @@ export function LoginScreen() {
                   <label className="block text-sm leading-6 text-[#60656e]">
                     账号名
                     <input
-                      className={`mt-1 h-11 w-full rounded border bg-white px-3 text-base leading-7 text-[#13161b] outline-none placeholder:text-[#8d949f] focus:border-[#3091f2] ${
+                      className={`mt-1 h-12 w-full rounded-2xl border bg-white px-3 text-base leading-7 text-[#13161b] outline-none placeholder:text-[#8d949f] focus:border-[#172554] focus:bg-white focus:ring-4 focus:ring-[#172554]/10 ${
                         registerErrors.username ? "border-[#f93b3b]" : "border-[#d5d7db]"
                       }`}
                       placeholder="请输入登录账号名"
@@ -443,7 +488,7 @@ export function LoginScreen() {
                   <label className="block text-sm leading-6 text-[#60656e]">
                     邮箱 <span className="text-[#f93b3b]">*</span>
                     <input
-                      className={`mt-1 h-11 w-full rounded border bg-white px-3 text-base leading-7 text-[#13161b] outline-none placeholder:text-[#8d949f] focus:border-[#3091f2] ${
+                      className={`mt-1 h-12 w-full rounded-2xl border bg-white px-3 text-base leading-7 text-[#13161b] outline-none placeholder:text-[#8d949f] focus:border-[#172554] focus:bg-white focus:ring-4 focus:ring-[#172554]/10 ${
                         registerErrors.email ? "border-[#f93b3b]" : "border-[#d5d7db]"
                       }`}
                       placeholder="用于接收任务和日程提醒"
@@ -468,7 +513,7 @@ export function LoginScreen() {
                   <label className="block text-sm leading-6 text-[#60656e]">
                     密码
                     <input
-                      className={`mt-1 h-11 w-full rounded border bg-white px-3 text-base leading-7 text-[#13161b] outline-none placeholder:text-[#8d949f] focus:border-[#3091f2] ${
+                      className={`mt-1 h-12 w-full rounded-2xl border bg-white px-3 text-base leading-7 text-[#13161b] outline-none placeholder:text-[#8d949f] focus:border-[#172554] focus:bg-white focus:ring-4 focus:ring-[#172554]/10 ${
                         registerErrors.password ? "border-[#f93b3b]" : "border-[#d5d7db]"
                       }`}
                       placeholder="请设置登录密码"
@@ -495,7 +540,7 @@ export function LoginScreen() {
                   ) : null}
 
                   <button
-                    className="flex h-11 w-full items-center justify-center gap-2 rounded border border-[#3091f2] bg-[#3091f2] text-base leading-[42px] text-white transition duration-200 hover:-translate-y-px hover:border-[#419df9] hover:bg-[#419df9] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#3091f2]/20 active:translate-y-0 active:scale-[0.99] disabled:cursor-not-allowed disabled:border-[#86c0f7] disabled:bg-[#86c0f7] disabled:hover:translate-y-0 disabled:active:scale-100"
+                    className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl border border-[#172554] bg-[#172554] text-base leading-[42px] text-white transition duration-300 hover:bg-[#1e3a8a] hover:shadow-lg hover:shadow-[#172554]/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#172554]/20 active:scale-[0.98] disabled:cursor-not-allowed disabled:border-[#86c0f7] disabled:bg-[#86c0f7] disabled:hover:translate-y-0 disabled:active:scale-100"
                     disabled={isSubmitting}
                     type="submit"
                   >
@@ -511,7 +556,7 @@ export function LoginScreen() {
                 </form>
               )}
 
-              <div className="mt-6 space-y-2 text-center">
+              <div className="mt-8 rounded-2xl border border-slate-200 bg-white px-5 py-4 text-center shadow-sm">
                 <p className="text-sm leading-7 text-[#6b7280]">
                   {mode === "login"
                     ? "没有账号可先注册，审核通过后即可登录系统。"
@@ -527,11 +572,10 @@ export function LoginScreen() {
               </div>
             </div>
           </div>
+          <footer className="border-t border-slate-100 px-6 py-5 text-center text-xs leading-6 text-slate-400 sm:px-10 lg:px-14">
+            © 2026 中国国际大学生创新大赛管理系统 - 南京铁道职业技术学院
+          </footer>
         </section>
-
-        <footer className="mt-5 text-center text-xs leading-6 text-[#9ca3af] sm:text-sm">
-          © 2026 中国国际大学生创新大赛管理系统
-        </footer>
       </div>
     </main>
   );
