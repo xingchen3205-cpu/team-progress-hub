@@ -27,6 +27,12 @@ export async function POST(
   const task = await prisma.task.findUnique({
     where: { id },
     include: {
+      assignments: {
+        select: {
+          assigneeId: true,
+          assignee: { select: { teamGroupId: true } },
+        },
+      },
       assignee: { select: { teamGroupId: true } },
       creator: { select: { teamGroupId: true } },
       reviewer: { select: { teamGroupId: true } },
@@ -41,8 +47,11 @@ export async function POST(
     return NextResponse.json({ message: "无权限" }, { status: 403 });
   }
 
-  if (task.status !== "doing" || task.assigneeId !== user.id) {
-    return NextResponse.json({ message: "只有当前处理人可以为处理中工单上传完成凭证" }, { status: 403 });
+  const isAssignedExecutor =
+    task.assigneeId === user.id || task.assignments.some((assignment) => assignment.assigneeId === user.id);
+
+  if (task.status !== "doing" || !isAssignedExecutor) {
+    return NextResponse.json({ message: "只有当前执行中的处理人可以为工单上传完成凭证" }, { status: 403 });
   }
 
   const formData = await request.formData().catch(() => null);

@@ -4,9 +4,11 @@ import { describe, it } from "node:test";
 import {
   buildTaskWorkflowSteps,
   canRemindTaskDispatch,
+  deriveTaskStatusFromAssignments,
   getTaskAcceptedTimeLabel,
   getTaskReviewerLabel,
   pickTaskDispatchRecipientIds,
+  summarizeTaskAssignments,
 } from "../src/lib/task-workflow";
 
 describe("task workflow recipients", () => {
@@ -72,6 +74,26 @@ describe("task workflow recipients", () => {
     );
   });
 
+  it("shows multi-assignee progress clearly before the task can move to review", () => {
+    assert.deepEqual(
+      buildTaskWorkflowSteps({
+        status: "doing",
+        assigneeId: "member-1",
+        assigneeName: "张星云、梁家铭",
+        reviewerName: "李老师",
+        assigneeCount: 3,
+        acceptedCount: 2,
+        submittedCount: 1,
+      }),
+      [
+        { key: "submitted", label: "提报", state: "done", helper: "工单已创建" },
+        { key: "assigned", label: "接取", state: "done", helper: "2/3 人已接取" },
+        { key: "processing", label: "处理", state: "current", helper: "1/3 人已提交，待全部完成" },
+        { key: "review", label: "验收", state: "pending", helper: "李老师确认闭环" },
+      ],
+    );
+  });
+
   it("does not show unaccepted wording for already active work orders without a recorded accept time", () => {
     assert.equal(
       getTaskAcceptedTimeLabel({
@@ -97,6 +119,16 @@ describe("task workflow recipients", () => {
       }),
       "待接取",
     );
+    assert.equal(
+      getTaskAcceptedTimeLabel({
+        status: "doing",
+        assigneeId: "member-1",
+        assigneeCount: 3,
+        acceptedCount: 2,
+        acceptedAt: null,
+      }),
+      "2/3 人已接取",
+    );
   });
 
   it("does not show pending reviewer wording for archived work orders without a recorded reviewer", () => {
@@ -120,6 +152,42 @@ describe("task workflow recipients", () => {
         reviewerName: "李老师",
       }),
       "李老师",
+    );
+  });
+
+  it("summarizes multi-assignee progress and only enters review when everyone has submitted", () => {
+    assert.deepEqual(
+      summarizeTaskAssignments({
+        assigneeIds: ["member-1", "member-2", "member-3"],
+        acceptedAtValues: ["2026-04-09 10:00", "2026-04-09 10:05", null],
+        submittedAtValues: ["2026-04-09 11:00", null, null],
+      }),
+      { total: 3, accepted: 2, submitted: 1 },
+    );
+
+    assert.equal(
+      deriveTaskStatusFromAssignments({
+        assigneeIds: ["member-1", "member-2"],
+        acceptedAtValues: [null, null],
+        submittedAtValues: [null, null],
+      }),
+      "todo",
+    );
+    assert.equal(
+      deriveTaskStatusFromAssignments({
+        assigneeIds: ["member-1", "member-2"],
+        acceptedAtValues: ["2026-04-09 10:00", null],
+        submittedAtValues: [null, null],
+      }),
+      "doing",
+    );
+    assert.equal(
+      deriveTaskStatusFromAssignments({
+        assigneeIds: ["member-1", "member-2"],
+        acceptedAtValues: ["2026-04-09 10:00", "2026-04-09 10:03"],
+        submittedAtValues: ["2026-04-09 10:40", "2026-04-09 10:41"],
+      }),
+      "review",
     );
   });
 });

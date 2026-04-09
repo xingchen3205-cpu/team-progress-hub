@@ -28,6 +28,12 @@ export async function GET(
   const task = await prisma.task.findUnique({
     where: { id },
     include: {
+      assignments: {
+        select: {
+          assigneeId: true,
+          assignee: { select: { teamGroupId: true } },
+        },
+      },
       assignee: { select: { teamGroupId: true } },
       creator: { select: { teamGroupId: true } },
       reviewer: { select: { teamGroupId: true } },

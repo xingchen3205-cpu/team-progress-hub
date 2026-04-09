@@ -41,6 +41,7 @@ export type BoardTask = {
   status: "todo" | "doing" | "review" | "archived";
   statusKey?: "todo" | "doing" | "review" | "archived" | "done";
   assigneeId?: string | null;
+  assigneeIds?: string[];
   creatorId?: string;
   reviewerId?: string | null;
   teamGroupId?: string | null;
@@ -63,6 +64,27 @@ export type BoardTask = {
     avatar: string;
     roleLabel: TeamRoleLabel;
   } | null;
+  assignments?: Array<{
+    id: string;
+    assigneeId: string;
+    acceptedAt?: string | null;
+    submittedAt?: string | null;
+    archivedAt?: string | null;
+    rejectedAt?: string | null;
+    rejectionReason?: string | null;
+    completionNote?: string | null;
+    assignee: {
+      id: string;
+      name: string;
+      avatar: string;
+      roleLabel: TeamRoleLabel;
+    };
+  }>;
+  assignmentSummary?: {
+    total: number;
+    accepted: number;
+    submitted: number;
+  };
   dueDate: string;
   priority: "高优先级" | "中优先级" | "低优先级" | "进行中" | "待验收" | "已归档";
   completionNote?: string;

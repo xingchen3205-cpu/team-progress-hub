@@ -80,6 +80,7 @@ model User {
   approvedUsers        User[]                   @relation("UserApprovals")
   teamGroup            TeamGroup?               @relation(fields: [teamGroupId], references: [id], onDelete: SetNull)
   tasksAssigned        Task[]                   @relation("TaskAssignee")
+  taskAssignments      TaskAssignment[]         @relation("TaskAssignmentAssignee")
   tasksCreated         Task[]                   @relation("TaskCreator")
   tasksReviewed        Task[]                   @relation("TaskReviewer")
   taskAttachments      TaskAttachment[]         @relation("TaskAttachmentUploader")
@@ -136,11 +137,31 @@ model Task {
   reviewer         User?            @relation("TaskReviewer", fields: [reviewerId], references: [id], onDelete: SetNull)
   teamGroup        TeamGroup?       @relation(fields: [teamGroupId], references: [id], onDelete: SetNull)
   attachments      TaskAttachment[]
+  assignments      TaskAssignment[]
 
   @@index([teamGroupId, status, dueDate])
   @@index([assigneeId, status])
   @@index([reviewerId, status])
   @@index([sourceDocumentId, status])
+}
+
+model TaskAssignment {
+  id              String   @id @default(cuid())
+  taskId          String
+  assigneeId      String
+  acceptedAt      DateTime?
+  submittedAt     DateTime?
+  archivedAt      DateTime?
+  rejectedAt      DateTime?
+  rejectionReason String?
+  completionNote  String?
+  createdAt       DateTime @default(now())
+  task            Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  assignee        User     @relation("TaskAssignmentAssignee", fields: [assigneeId], references: [id])
+
+  @@unique([taskId, assigneeId])
+  @@index([assigneeId, submittedAt])
+  @@index([taskId, submittedAt])
 }
 
 model TaskAttachment {

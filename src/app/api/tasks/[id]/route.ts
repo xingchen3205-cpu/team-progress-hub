@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import type { Role, TaskStatus } from "@prisma/client";
+import type { Role, TaskAssignment, TaskStatus } from "@prisma/client";
 
 import { getSessionUser } from "@/lib/auth";
 import { parseLocalDateTime } from "@/lib/date";
@@ -8,12 +8,20 @@ import { assertMainWorkspaceRole } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { serializeTask, taskPriorityValueToDb } from "@/lib/api-serializers";
 import { canAccessTask, canAssignTaskToUser, canReviewTask } from "@/lib/task-access";
-import { canRemindTaskDispatch, pickTaskDispatchRecipientIds } from "@/lib/task-workflow";
+import { deriveTaskStatusFromAssignments, pickTaskDispatchRecipientIds } from "@/lib/task-workflow";
 import { deleteStoredFile } from "@/lib/uploads";
 
 const taskInclude = {
   assignee: {
     select: { id: true, name: true, avatar: true, role: true, teamGroupId: true, approvalStatus: true },
+  },
+  assignments: {
+    orderBy: [{ createdAt: "asc" as const }, { assigneeId: "asc" as const }],
+    include: {
+      assignee: {
+        select: { id: true, name: true, avatar: true, role: true, teamGroupId: true, approvalStatus: true },
+      },
+    },
   },
   creator: {
     select: { id: true, name: true, avatar: true, role: true, teamGroupId: true },
@@ -33,6 +41,8 @@ const taskInclude = {
     },
   },
 };
+
+type TaskWithRelations = Awaited<ReturnType<typeof getTask>>;
 
 const getTask = (id: string) =>
   prisma.task.findUnique({
@@ -95,6 +105,74 @@ const normalizeStatus = (status?: string | null): TaskStatus | undefined => {
   return undefined;
 };
 
+const normalizeAssigneeIds = (body: { assigneeId?: string | null; assigneeIds?: string[] | null } | null) => {
+  const candidates = Array.isArray(body?.assigneeIds) ? body.assigneeIds : body?.assigneeId ? [body.assigneeId] : [];
+  return Array.from(
+    new Set(
+      candidates
+        .map((value) => value?.trim())
+        .filter((value): value is string => Boolean(value)),
+    ),
+  );
+};
+
+const getLifecycleFieldsFromAssignments = (
+  assignments: Array<Pick<TaskAssignment, "assigneeId" | "acceptedAt" | "submittedAt">>,
+) => {
+  const assigneeIds = assignments.map((assignment) => assignment.assigneeId);
+  const acceptedAtValues = assignments.map((assignment) => assignment.acceptedAt);
+  const submittedAtValues = assignments.map((assignment) => assignment.submittedAt);
+  const status = deriveTaskStatusFromAssignments({
+    assigneeIds,
+    acceptedAtValues,
+    submittedAtValues,
+  });
+  const acceptedAtCandidates = acceptedAtValues.filter((value): value is Date => Boolean(value));
+  const submittedAtCandidates = submittedAtValues.filter((value): value is Date => Boolean(value));
+
+  return {
+    assigneeId: assigneeIds[0] ?? null,
+    status,
+    acceptedAt:
+      acceptedAtCandidates.length > 0
+        ? new Date(Math.min(...acceptedAtCandidates.map((value) => value.getTime())))
+        : null,
+    submittedAt:
+      status === "review" && submittedAtCandidates.length > 0
+        ? new Date(Math.max(...submittedAtCandidates.map((value) => value.getTime())))
+        : null,
+    archivedAt: null,
+  };
+};
+
+const hydrateLegacyTaskAssignments = async (task: NonNullable<TaskWithRelations>) => {
+  if (task.assignments.length > 0 || !task.assigneeId) {
+    return task;
+  }
+
+  await prisma.taskAssignment.upsert({
+    where: {
+      taskId_assigneeId: {
+        taskId: task.id,
+        assigneeId: task.assigneeId,
+      },
+    },
+    update: {},
+    create: {
+      taskId: task.id,
+      assigneeId: task.assigneeId,
+      acceptedAt: task.acceptedAt,
+      submittedAt: task.submittedAt,
+      archivedAt: task.archivedAt,
+      rejectedAt: task.rejectedAt,
+      rejectionReason: task.rejectionReason,
+      completionNote: task.completionNote,
+    },
+  });
+
+  return (await getTask(task.id)) ?? task;
+};
+
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -111,11 +189,13 @@ export async function PATCH(
   }
 
   const { id } = await params;
-  const currentTask = await getTask(id);
+  const fetchedTask = await getTask(id);
 
-  if (!currentTask) {
+  if (!fetchedTask) {
     return NextResponse.json({ message: "工单不存在" }, { status: 404 });
   }
+
+  const currentTask = await hydrateLegacyTaskAssignments(fetchedTask);
 
   if (!canAccessTask(user, currentTask)) {
     return NextResponse.json({ message: "无权限" }, { status: 403 });
@@ -126,6 +206,8 @@ export async function PATCH(
         action?: "accept" | "submit" | "confirm" | "reject" | "remind_dispatch";
         title?: string;
         assigneeId?: string | null;
+        assigneeIds?: string[] | null;
+        teamGroupId?: string | null;
         dueDate?: string;
         priority?: "高优先级" | "中优先级" | "低优先级";
         status?: "todo" | "doing" | "review" | "archived" | "done";
@@ -138,13 +220,29 @@ export async function PATCH(
     return NextResponse.json({ message: "请求内容为空" }, { status: 400 });
   }
 
+  const currentAssignment =
+    currentTask.assignments.find((assignment) => assignment.assigneeId === user.id) ??
+    (currentTask.assigneeId === user.id
+      ? {
+          id: `legacy-${currentTask.id}`,
+          assigneeId: user.id,
+          acceptedAt: currentTask.acceptedAt,
+          submittedAt: currentTask.submittedAt,
+          archivedAt: currentTask.archivedAt,
+          rejectedAt: currentTask.rejectedAt,
+          rejectionReason: currentTask.rejectionReason,
+          completionNote: currentTask.completionNote,
+          createdAt: currentTask.createdAt,
+          assignee: currentTask.assignee!,
+        }
+      : null);
   const isReviewer = canReviewTask(user, currentTask);
-  const isAssignee = currentTask.assigneeId === user.id;
+  const isAssignee = Boolean(currentAssignment);
   const isCreator = currentTask.creatorId === user.id;
   const editableByRole = user.role === "admin" || user.role === "teacher" || user.role === "leader";
 
   if (body.action === "remind_dispatch") {
-    if (!canRemindTaskDispatch(currentTask)) {
+    if (!(currentTask.status === "todo" && currentTask.assignments.length === 0 && !currentTask.assigneeId)) {
       return NextResponse.json({ message: "只有待分配工单可以提醒分配" }, { status: 400 });
     }
 
@@ -176,15 +274,38 @@ export async function PATCH(
   }
 
   if (body.action === "accept") {
-    if (!isAssignee || currentTask.status !== "todo") {
-      return NextResponse.json({ message: "只有当前处理人可以接取待接取工单" }, { status: 403 });
+    if (!isAssignee || !currentAssignment) {
+      return NextResponse.json({ message: "只有被分配的处理人可以接取工单" }, { status: 403 });
     }
 
-    const task = await prisma.task.update({
-      where: { id },
+    if (currentTask.status !== "todo" && currentTask.status !== "doing") {
+      return NextResponse.json({ message: "当前工单无需接取" }, { status: 400 });
+    }
+
+    const acceptedAt = currentAssignment.acceptedAt ?? new Date();
+    await prisma.taskAssignment.updateMany({
+      where: {
+        taskId: currentTask.id,
+        assigneeId: user.id,
+      },
       data: {
-        status: "doing",
-        acceptedAt: new Date(),
+        acceptedAt,
+      },
+    });
+
+    const updatedTask = await getTask(currentTask.id);
+    if (!updatedTask) {
+      return NextResponse.json({ message: "工单不存在" }, { status: 404 });
+    }
+
+    const lifecycle = getLifecycleFieldsFromAssignments(updatedTask.assignments);
+    const task = await prisma.task.update({
+      where: { id: currentTask.id },
+      data: {
+        assigneeId: lifecycle.assigneeId,
+        status: lifecycle.status,
+        acceptedAt: lifecycle.acceptedAt,
+        submittedAt: lifecycle.submittedAt,
       },
       include: taskInclude,
     });
@@ -193,42 +314,85 @@ export async function PATCH(
   }
 
   if (body.action === "submit") {
-    if (!isAssignee || currentTask.status !== "doing") {
-      return NextResponse.json({ message: "只有当前处理人可以提交处理中工单" }, { status: 403 });
+    if (!isAssignee || !currentAssignment) {
+      return NextResponse.json({ message: "只有被分配的处理人可以提交工单" }, { status: 403 });
     }
 
-    if (currentTask.attachments.length === 0) {
-      return NextResponse.json({ message: "请先上传完成凭证，再提交验收" }, { status: 400 });
+    if (currentTask.status !== "doing" && currentTask.status !== "todo") {
+      return NextResponse.json({ message: "当前工单无法提交验收" }, { status: 400 });
     }
 
-    const task = await prisma.task.update({
-      where: { id },
+    const ownAttachmentCount = currentTask.attachments.filter((attachment) => attachment.uploaderId === user.id).length;
+    const canUseLegacyAttachment =
+      currentTask.assignments.length <= 1 &&
+      currentTask.assigneeId === user.id &&
+      currentTask.attachments.length > 0;
+
+    if (ownAttachmentCount === 0 && !canUseLegacyAttachment) {
+      return NextResponse.json({ message: "请先上传你本人的完成凭证，再提交验收" }, { status: 400 });
+    }
+
+    const now = new Date();
+    await prisma.taskAssignment.updateMany({
+      where: {
+        taskId: currentTask.id,
+        assigneeId: user.id,
+      },
       data: {
-        status: "review",
-        submittedAt: new Date(),
-        completionNote: body.completionNote?.trim() || currentTask.completionNote,
+        acceptedAt: currentAssignment.acceptedAt ?? now,
+        submittedAt: now,
+        completionNote: body.completionNote?.trim() || currentAssignment.completionNote || null,
+        rejectedAt: null,
+        rejectionReason: null,
+      },
+    });
+
+    const submittedTask = await getTask(currentTask.id);
+    if (!submittedTask) {
+      return NextResponse.json({ message: "工单不存在" }, { status: 404 });
+    }
+
+    const lifecycle = getLifecycleFieldsFromAssignments(submittedTask.assignments);
+    const task = await prisma.task.update({
+      where: { id: currentTask.id },
+      data: {
+        assigneeId: lifecycle.assigneeId,
+        status: lifecycle.status,
+        acceptedAt: lifecycle.acceptedAt,
+        submittedAt: lifecycle.submittedAt,
+        completionNote:
+          lifecycle.status === "review" && body.completionNote?.trim()
+            ? body.completionNote.trim()
+            : currentTask.completionNote,
+        rejectedAt: null,
+        rejectionReason: null,
       },
       include: taskInclude,
     });
 
-    const reviewerIds = currentTask.reviewerId
-      ? [currentTask.reviewerId]
-      : await getTeamReviewerIds({
-          teamGroupId: currentTask.teamGroupId,
-          excludeUserIds: [user.id],
-        });
+    if (task.status === "review") {
+      const reviewerIds = task.reviewerId
+        ? [task.reviewerId]
+        : await getTeamReviewerIds({
+            teamGroupId: task.teamGroupId,
+            excludeUserIds: [user.id],
+          });
 
-    if (reviewerIds.length > 0) {
-      await createNotifications({
-        userIds: reviewerIds,
-        title: `工单待验收：${currentTask.title}`,
-        detail: `${user.name} 已提交工单「${currentTask.title}」的完成凭证，请进入任务看板验收闭环。`,
-        type: "task_review",
-        targetTab: "board",
-        relatedId: currentTask.id,
-        senderId: user.id,
-        email: { noticeType: "工单处理", actionLabel: "进入系统处理" },
-      });
+      if (reviewerIds.length > 0) {
+        await createNotifications({
+          userIds: reviewerIds,
+          title: `工单待验收：${task.title}`,
+          detail:
+            task.assignments.length > 1
+              ? `${user.name} 完成了多人协同工单「${task.title}」的最后一项提交，请进入任务看板统一验收。`
+              : `${user.name} 已提交工单「${task.title}」的完成凭证，请进入任务看板验收闭环。`,
+          type: "task_review",
+          targetTab: "board",
+          relatedId: task.id,
+          senderId: user.id,
+          email: { noticeType: "工单处理", actionLabel: "进入系统处理" },
+        });
+      }
     }
 
     return NextResponse.json({ task: serializeTask(task) });
@@ -239,23 +403,33 @@ export async function PATCH(
       return NextResponse.json({ message: "只有本队指导教师或项目负责人可以确认待验收工单" }, { status: 403 });
     }
 
-    const task = await prisma.task.update({
-      where: { id },
+    const archivedAt = new Date();
+    await prisma.taskAssignment.updateMany({
+      where: { taskId: currentTask.id },
       data: {
+        archivedAt,
+      },
+    });
+
+    const task = await prisma.task.update({
+      where: { id: currentTask.id },
+      data: {
+        reviewerId: currentTask.reviewerId ?? user.id,
         status: "archived",
-        archivedAt: new Date(),
+        archivedAt,
       },
       include: taskInclude,
     });
 
-    if (currentTask.assigneeId && currentTask.assigneeId !== user.id) {
+    const assigneeIds = task.assignments.map((assignment) => assignment.assigneeId).filter((assigneeId) => assigneeId !== user.id);
+    if (assigneeIds.length > 0) {
       await createNotifications({
-        userIds: [currentTask.assigneeId],
-        title: `工单已归档：${currentTask.title}`,
-        detail: `${user.name} 已确认工单「${currentTask.title}」完成，工单已归档备查。`,
+        userIds: assigneeIds,
+        title: `工单已归档：${task.title}`,
+        detail: `${user.name} 已确认工单「${task.title}」完成，工单已归档备查。`,
         type: "task_confirm",
         targetTab: "board",
-        relatedId: currentTask.id,
+        relatedId: task.id,
         senderId: user.id,
         email: { noticeType: "工单处理", actionLabel: "进入系统处理" },
       });
@@ -274,24 +448,37 @@ export async function PATCH(
       return NextResponse.json({ message: "请填写驳回原因" }, { status: 400 });
     }
 
-    const task = await prisma.task.update({
-      where: { id },
+    const rejectedAt = new Date();
+    await prisma.taskAssignment.updateMany({
+      where: { taskId: currentTask.id },
       data: {
+        submittedAt: null,
+        rejectedAt,
+        rejectionReason,
+      },
+    });
+
+    const task = await prisma.task.update({
+      where: { id: currentTask.id },
+      data: {
+        reviewerId: currentTask.reviewerId ?? user.id,
         status: "doing",
-        rejectedAt: new Date(),
+        submittedAt: null,
+        rejectedAt,
         rejectionReason,
       },
       include: taskInclude,
     });
 
-    if (currentTask.assigneeId && currentTask.assigneeId !== user.id) {
+    const assigneeIds = task.assignments.map((assignment) => assignment.assigneeId).filter((assigneeId) => assigneeId !== user.id);
+    if (assigneeIds.length > 0) {
       await createNotifications({
-        userIds: [currentTask.assigneeId],
-        title: `工单被驳回：${currentTask.title}`,
-        detail: `${user.name} 驳回了工单「${currentTask.title}」：${rejectionReason}`,
+        userIds: assigneeIds,
+        title: `工单被驳回：${task.title}`,
+        detail: `${user.name} 驳回了工单「${task.title}」：${rejectionReason}`,
         type: "task_reject",
         targetTab: "board",
-        relatedId: currentTask.id,
+        relatedId: task.id,
         senderId: user.id,
         email: { noticeType: "工单处理", actionLabel: "进入系统处理" },
       });
@@ -300,13 +487,9 @@ export async function PATCH(
     return NextResponse.json({ task: serializeTask(task) });
   }
 
-  const hasContentChanges = Boolean(
-    body.title?.trim() ||
-      body.assigneeId !== undefined ||
-      body.dueDate ||
-      body.priority ||
-      body.status,
-  );
+  const hasAssigneeChange = body.assigneeId !== undefined || body.assigneeIds !== undefined;
+  const nextAssigneeIds = hasAssigneeChange ? normalizeAssigneeIds(body) : currentTask.assignments.map((assignment) => assignment.assigneeId);
+  const hasContentChanges = Boolean(body.title?.trim() || body.dueDate || body.priority || body.status || hasAssigneeChange);
 
   if (!hasContentChanges) {
     return NextResponse.json({ message: "没有需要更新的内容" }, { status: 400 });
@@ -320,6 +503,7 @@ export async function PATCH(
     title?: string;
     assigneeId?: string | null;
     reviewerId?: string | null;
+    teamGroupId?: string | null;
     dueDate?: Date;
     priority?: "high" | "medium" | "low";
     status?: TaskStatus;
@@ -344,60 +528,118 @@ export async function PATCH(
     data.priority = taskPriorityValueToDb[body.priority];
   }
 
-  if (body.assigneeId !== undefined) {
+  if (hasAssigneeChange) {
     if (!editableByRole && !isCreator) {
       return NextResponse.json({ message: "无权限重新分配工单" }, { status: 403 });
     }
 
-    const nextAssigneeId = body.assigneeId?.trim() || null;
-    if (nextAssigneeId) {
-      const nextAssignee = await prisma.user.findUnique({
-        where: { id: nextAssigneeId },
-        select: {
-          id: true,
-          role: true,
-          teamGroupId: true,
-          approvalStatus: true,
-        },
-      });
+    const assignees = nextAssigneeIds.length
+      ? await prisma.user.findMany({
+          where: { id: { in: nextAssigneeIds } },
+          select: {
+            id: true,
+            role: true,
+            teamGroupId: true,
+            approvalStatus: true,
+          },
+        })
+      : [];
 
-      if (!nextAssignee || !canAssignTaskToUser(user, nextAssignee)) {
-        return NextResponse.json({ message: "无权限把工单指派给该成员" }, { status: 403 });
-      }
-
-      data.assigneeId = nextAssignee.id;
-      data.reviewerId = editableByRole ? user.id : currentTask.reviewerId;
-      data.status = nextAssignee.id === user.id || nextAssignee.role === "leader" ? "doing" : "todo";
-      data.acceptedAt = data.status === "doing" ? new Date() : null;
-      data.submittedAt = null;
-      data.archivedAt = null;
-    } else {
-      data.assigneeId = null;
-      data.status = "todo";
-      data.acceptedAt = null;
-      data.submittedAt = null;
-      data.archivedAt = null;
+    if (assignees.length !== nextAssigneeIds.length) {
+      return NextResponse.json({ message: "部分处理人不存在" }, { status: 404 });
     }
+
+    if (assignees.some((assignee) => !canAssignTaskToUser(user, assignee))) {
+      return NextResponse.json({ message: "无权限把工单指派给所选成员" }, { status: 403 });
+    }
+
+    if (user.role === "member" && nextAssigneeIds.some((assigneeId) => assigneeId !== user.id)) {
+      return NextResponse.json({ message: "团队成员只能把工单指派给自己或保留待分配" }, { status: 403 });
+    }
+
+    const existingAssignments = currentTask.assignments;
+    const existingByAssigneeId = new Map(existingAssignments.map((assignment) => [assignment.assigneeId, assignment]));
+    const removedAssigneeIds = existingAssignments
+      .map((assignment) => assignment.assigneeId)
+      .filter((assigneeId) => !nextAssigneeIds.includes(assigneeId));
+    const addedAssigneeIds = nextAssigneeIds.filter((assigneeId) => !existingByAssigneeId.has(assigneeId));
+    const now = new Date();
+    const autoAcceptedIds = new Set(addedAssigneeIds.filter((assigneeId) => assigneeId === user.id));
+
+    await prisma.$transaction([
+      prisma.taskAssignment.deleteMany({
+        where: {
+          taskId: currentTask.id,
+          assigneeId: {
+            in: removedAssigneeIds.length > 0 ? removedAssigneeIds : ["__none__"],
+          },
+        },
+      }),
+      ...(addedAssigneeIds.length > 0
+        ? [
+            prisma.taskAssignment.createMany({
+              data: addedAssigneeIds.map((assigneeId) => ({
+                taskId: currentTask.id,
+                assigneeId,
+                acceptedAt: autoAcceptedIds.has(assigneeId) ? now : null,
+              })),
+            }),
+          ]
+        : []),
+    ]);
+
+    const refreshedTask = await getTask(currentTask.id);
+    if (!refreshedTask) {
+      return NextResponse.json({ message: "工单不存在" }, { status: 404 });
+    }
+
+    const lifecycle = getLifecycleFieldsFromAssignments(refreshedTask.assignments);
+    data.assigneeId = lifecycle.assigneeId;
+    data.status = lifecycle.status;
+    data.acceptedAt = lifecycle.acceptedAt;
+    data.submittedAt = lifecycle.submittedAt;
+    data.archivedAt = null;
+    data.reviewerId = editableByRole ? currentTask.reviewerId ?? user.id : currentTask.reviewerId;
+    data.teamGroupId =
+      user.role === "admin"
+        ? refreshedTask.assignments[0]?.assignee.teamGroupId ?? body.teamGroupId?.trim() ?? currentTask.teamGroupId
+        : refreshedTask.assignments[0]?.assignee.teamGroupId ?? currentTask.teamGroupId;
+
+    const task = await prisma.task.update({
+      where: { id: currentTask.id },
+      data,
+      include: taskInclude,
+    });
+
+    const addedReminderIds = addedAssigneeIds.filter((assigneeId) => assigneeId !== user.id);
+    if (addedReminderIds.length > 0) {
+      await createNotifications({
+        userIds: addedReminderIds,
+        title: `工单分配：${task.title}`,
+        detail:
+          addedReminderIds.length > 1
+            ? `${user.name} 将工单「${task.title}」分配给你们协同处理，请全部完成后统一进入验收。`
+            : `${user.name} 将工单「${task.title}」分配给你，请进入任务看板处理。`,
+        type: "task_assign",
+        targetTab: "board",
+        relatedId: task.id,
+        senderId: user.id,
+        email: { noticeType: "工单处理", actionLabel: "进入系统处理" },
+      });
+    }
+
+    return NextResponse.json({ task: serializeTask(task) });
   }
 
   const nextStatus = normalizeStatus(body.status);
   if (nextStatus) {
     if (nextStatus === "review") {
-      if (!isAssignee || currentTask.status !== "doing") {
-        return NextResponse.json({ message: "只有处理人可以提交工单验收" }, { status: 403 });
-      }
-      if (currentTask.attachments.length === 0) {
-        return NextResponse.json({ message: "请先上传完成凭证，再提交验收" }, { status: 400 });
-      }
-      data.status = "review";
-      data.submittedAt = new Date();
-    } else if (nextStatus === "archived") {
-      if (!isReviewer) {
-        return NextResponse.json({ message: "只有本队指导教师或项目负责人可以确认归档" }, { status: 403 });
-      }
-      data.status = "archived";
-      data.archivedAt = new Date();
-    } else if (nextStatus === "doing") {
+      return NextResponse.json({ message: "请由执行人提交验收，不支持直接修改到待验收" }, { status: 400 });
+    }
+    if (nextStatus === "archived") {
+      return NextResponse.json({ message: "请通过确认归档完成闭环" }, { status: 400 });
+    }
+    if (nextStatus === "doing") {
       if (!isAssignee && !editableByRole) {
         return NextResponse.json({ message: "只有处理人或分配人可以推进工单" }, { status: 403 });
       }
@@ -408,27 +650,16 @@ export async function PATCH(
         return NextResponse.json({ message: "无权限回退工单状态" }, { status: 403 });
       }
       data.status = "todo";
+      data.acceptedAt = null;
+      data.submittedAt = null;
     }
   }
 
   const task = await prisma.task.update({
-    where: { id },
+    where: { id: currentTask.id },
     data,
     include: taskInclude,
   });
-
-  if (data.assigneeId && data.assigneeId !== currentTask.assigneeId && data.assigneeId !== user.id) {
-    await createNotifications({
-      userIds: [data.assigneeId],
-      title: `工单分配：${task.title}`,
-      detail: `${user.name} 将工单「${task.title}」分配给你，请进入任务看板处理。`,
-      type: "task_assign",
-      targetTab: "board",
-      relatedId: task.id,
-      senderId: user.id,
-      email: { noticeType: "工单处理", actionLabel: "进入系统处理" },
-    });
-  }
 
   return NextResponse.json({ task: serializeTask(task) });
 }

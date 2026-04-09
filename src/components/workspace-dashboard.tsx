@@ -116,7 +116,7 @@ type TabItem = {
 
 type TaskDraft = {
   title: string;
-  assigneeId: string;
+  assigneeIds: string[];
   teamGroupId: string;
   dueDate: string;
   priority: "高优先级" | "中优先级" | "低优先级";
@@ -479,7 +479,9 @@ const boardStatusOrder: Record<BoardStatus, number> = {
 };
 
 const getBoardStatusLabel = (task: BoardTask) => {
-  if (task.status === "todo" && !task.assigneeId) {
+  const hasAssignments = (task.assignmentSummary?.total ?? task.assignments?.length ?? task.assigneeIds?.length ?? 0) > 0;
+
+  if (task.status === "todo" && !hasAssignments) {
     return "待分配";
   }
 
@@ -915,9 +917,9 @@ const getNearestUpcomingIndex = (events: EventItem[]) => {
   return nextIndex === -1 ? events.length - 1 : nextIndex;
 };
 
-const defaultTaskDraft = (assigneeId: string, teamGroupId = ""): TaskDraft => ({
+const defaultTaskDraft = (assigneeIds: string[] = [], teamGroupId = ""): TaskDraft => ({
   title: "",
-  assigneeId,
+  assigneeIds,
   teamGroupId,
   dueDate: "2026-04-08T18:00",
   priority: "高优先级",
@@ -1505,7 +1507,7 @@ export function WorkspaceDashboard({
 
   const [taskModalOpen, setTaskModalOpen] = useState(false);
   const [editingTaskId, setEditingTaskId] = useState<string | null>(null);
-  const [taskDraft, setTaskDraft] = useState<TaskDraft>(defaultTaskDraft("leader-1"));
+  const [taskDraft, setTaskDraft] = useState<TaskDraft>(defaultTaskDraft([]));
   const [taskCompletionModalOpen, setTaskCompletionModalOpen] = useState(false);
   const [taskCompletionTarget, setTaskCompletionTarget] = useState<BoardTask | null>(null);
   const [taskCompletionDraft, setTaskCompletionDraft] =
@@ -2020,7 +2022,8 @@ export function WorkspaceDashboard({
     return scopedMembers;
   }, [currentMemberId, currentRole, currentUser, members]);
 
-  const firstAssignableMemberId = taskAssignableMembers[0]?.id ?? currentMemberId;
+  const defaultAssignableMemberIds =
+    currentRole === "member" && currentMemberId ? [currentMemberId] : [];
 
   const visibleReportMembers = getVisibleReportMembers({
     members,
@@ -2047,7 +2050,11 @@ export function WorkspaceDashboard({
     ? documents.filter((item) => item.category === selectedCategory)
     : documents;
   const expertMembers = members.filter((member) => member.systemRole === "评审专家");
-  const myOpenTasks = tasks.filter((task) => task.assigneeId === currentMemberId && task.status !== "archived");
+  const myOpenTasks = tasks.filter(
+    (task) =>
+      task.status !== "archived" &&
+      Boolean(task.assignments?.some((assignment) => assignment.assigneeId === currentMemberId) || task.assigneeId === currentMemberId),
+  );
   const pendingLeaderReviewCount = documents.filter((doc) => doc.statusKey === "pending").length;
   const pendingTeacherReviewCount = documents.filter((doc) => doc.statusKey === "leader_approved").length;
   const reportableMembers = members.filter(
@@ -2057,8 +2064,66 @@ export function WorkspaceDashboard({
   const reportExpectedCount = reportableMembers.length;
 
   const getMemberName = (memberId: string) => membersMap[memberId]?.name ?? memberId;
-  const getTaskAssigneeName = (task: BoardTask) =>
-    task.assignee?.name ?? (task.assigneeId ? membersMap[task.assigneeId]?.name : null) ?? "待分配";
+  const getTaskAssigneeIds = (task: BoardTask) =>
+    task.assigneeIds?.length
+      ? task.assigneeIds
+      : task.assignments?.length
+        ? task.assignments.map((assignment) => assignment.assigneeId)
+        : task.assigneeId
+          ? [task.assigneeId]
+          : [];
+  const getTaskAssignments = (task: BoardTask) =>
+    task.assignments?.length
+      ? task.assignments
+      : task.assigneeId
+        ? [
+            {
+              id: `legacy-${task.id}-${task.assigneeId}`,
+              assigneeId: task.assigneeId,
+              acceptedAt: task.acceptedAt ?? null,
+              submittedAt: task.submittedAt ?? null,
+              archivedAt: task.archivedAt ?? null,
+              rejectedAt: null,
+              rejectionReason: task.rejectionReason ?? null,
+              completionNote: task.completionNote ?? null,
+              assignee: task.assignee ?? {
+                id: task.assigneeId,
+                name: membersMap[task.assigneeId]?.name ?? "未命名成员",
+                avatar: null,
+                role: "member" as RoleKey,
+              },
+            },
+          ]
+        : [];
+  const getCurrentTaskAssignment = (task: BoardTask) =>
+    getTaskAssignments(task).find((assignment) => assignment.assigneeId === currentMemberId) ?? null;
+  const getTaskAssignmentSummary = (task: BoardTask) => {
+    const assignments = getTaskAssignments(task);
+    const acceptedCount = assignments.filter((assignment) => Boolean(assignment.acceptedAt)).length;
+    const submittedCount = assignments.filter((assignment) => Boolean(assignment.submittedAt)).length;
+
+    return {
+      total: assignments.length,
+      accepted: acceptedCount,
+      submitted: submittedCount,
+    };
+  };
+  const getTaskAssigneeName = (task: BoardTask) => {
+    const assignmentNames =
+      task.assignments?.map((assignment) => assignment.assignee.name).filter(Boolean) ??
+      (task.assigneeId ? [membersMap[task.assigneeId]?.name ?? ""] : []);
+
+    const uniqueNames = Array.from(new Set(assignmentNames.filter(Boolean)));
+    if (uniqueNames.length === 0) {
+      return "待分配";
+    }
+
+    if (uniqueNames.length === 1) {
+      return uniqueNames[0];
+    }
+
+    return `${uniqueNames[0]}等 ${uniqueNames.length} 人`;
+  };
 
   const todayTaskSummaryTasks = tasks
     .filter((item) => item.status !== "archived")
@@ -2443,10 +2508,17 @@ export function WorkspaceDashboard({
     }
   };
 
-  const canMoveTask = (task: BoardTask) => {
-    void task;
-    return false;
+  const canAcceptTask = (task: BoardTask) => {
+    const assignment = getCurrentTaskAssignment(task);
+    return Boolean(assignment && !assignment.acceptedAt && !assignment.submittedAt && task.status !== "review" && task.status !== "archived");
   };
+
+  const canSubmitTask = (task: BoardTask) => {
+    const assignment = getCurrentTaskAssignment(task);
+    return Boolean(assignment && assignment.acceptedAt && !assignment.submittedAt && task.status !== "review" && task.status !== "archived");
+  };
+
+  const canMoveTask = (task: BoardTask) => canAcceptTask(task) || canSubmitTask(task);
 
   const canEditTaskItem = (task: BoardTask) => permissions.canEditTask || task.creatorId === currentMemberId;
 
@@ -2785,7 +2857,7 @@ export function WorkspaceDashboard({
 
   const openCreateTaskModal = () => {
     setEditingTaskId(null);
-    setTaskDraft(defaultTaskDraft(firstAssignableMemberId, currentUser?.teamGroupId ?? ""));
+    setTaskDraft(defaultTaskDraft(defaultAssignableMemberIds, currentUser?.teamGroupId ?? ""));
     setTaskModalOpen(true);
   };
 
@@ -2793,7 +2865,10 @@ export function WorkspaceDashboard({
     setEditingTaskId(task.id);
     setTaskDraft({
       title: task.title,
-      assigneeId: task.assigneeId ?? "",
+      assigneeIds:
+        task.assigneeIds?.length
+          ? task.assigneeIds
+          : task.assignments?.map((assignment) => assignment.assigneeId) ?? (task.assigneeId ? [task.assigneeId] : []),
       teamGroupId: task.teamGroupId ?? currentUser?.teamGroupId ?? "",
       dueDate: toDateTimeInputValue(task.dueDate),
       priority:
@@ -2810,7 +2885,7 @@ export function WorkspaceDashboard({
       return;
     }
 
-    if (!editingTaskId && !taskDraft.assigneeId) {
+    if (!editingTaskId && taskDraft.assigneeIds.length === 0) {
       if (currentRole === "admin" && !taskDraft.teamGroupId) {
         setLoadError("请选择待分配工单所属队伍");
         return;
@@ -2837,7 +2912,7 @@ export function WorkspaceDashboard({
         });
       }
 
-      setTaskDraft(defaultTaskDraft(firstAssignableMemberId, currentUser?.teamGroupId ?? ""));
+      setTaskDraft(defaultTaskDraft(defaultAssignableMemberIds, currentUser?.teamGroupId ?? ""));
       setTaskModalOpen(false);
       showSuccessToast(isEditing ? "工单已更新" : "工单已创建", "新的安排已经同步到工作台。");
       refreshWorkspace();
@@ -3498,15 +3573,19 @@ export function WorkspaceDashboard({
   };
 
   const sendTaskReminder = (task: BoardTask) => {
-    if (!task.assigneeId) {
+    const reminderTargetIds = getTaskAssigneeIds(task).filter((assigneeId) => assigneeId !== currentMemberId);
+    if (reminderTargetIds.length === 0) {
       setLoadError("该工单还没有处理人，分配后才能发送处理提醒");
       return;
     }
 
     void sendDirectReminderToUsers({
-      userIds: [task.assigneeId],
+      userIds: reminderTargetIds,
       title: `工单提醒：${task.title}`,
-      detail: `请及时查看并推进工单「${task.title}」。`,
+      detail:
+        reminderTargetIds.length > 1
+          ? `请及时查看并推进工单「${task.title}」，全部执行人完成后将统一提交验收。`
+          : `请及时查看并推进工单「${task.title}」。`,
       targetTab: "board",
       successTitle: "工单提醒已发送",
       successDetail: `已提醒 ${getTaskAssigneeName(task)} 查看任务看板。`,
@@ -5585,7 +5664,8 @@ export function WorkspaceDashboard({
                 const canExpandTask = task.title.length > 32;
                 const statusMeta = boardStatusMeta[task.status];
                 const attachmentCount = task.attachments?.length ?? 0;
-                const isUnassignedTask = task.status === "todo" && !task.assigneeId;
+                const assignmentSummary = getTaskAssignmentSummary(task);
+                const isUnassignedTask = task.status === "todo" && assignmentSummary.total === 0;
                 const canPromptDispatch =
                   isUnassignedTask &&
                   Boolean(task.teamGroupId) &&
@@ -5595,8 +5675,11 @@ export function WorkspaceDashboard({
                     currentRole === "leader");
                 const workflowSteps = buildTaskWorkflowSteps({
                   status: task.status,
-                  assigneeId: task.assigneeId,
-                  assigneeName: task.assigneeId ? getTaskAssigneeName(task) : null,
+                  assigneeId: assignmentSummary.total > 0 ? getTaskAssigneeIds(task)[0] ?? null : null,
+                  assigneeName: assignmentSummary.total > 0 ? getTaskAssigneeName(task) : null,
+                  assigneeCount: assignmentSummary.total,
+                  acceptedCount: assignmentSummary.accepted,
+                  submittedCount: assignmentSummary.submitted,
                   reviewerName: task.reviewer?.name ?? null,
                 });
                 const nextStepLabel = isUnassignedTask
@@ -5788,12 +5871,12 @@ export function WorkspaceDashboard({
                                 提醒分配
                               </ActionButton>
                             ) : null}
-                            {task.status === "todo" && task.assigneeId === currentMemberId ? (
+                            {canAcceptTask(task) ? (
                               <ActionButton disabled={isSaving} onClick={() => void acceptTask(task)} variant="secondary">
                                 接取
                               </ActionButton>
                             ) : null}
-                            {task.status === "doing" && task.assigneeId === currentMemberId ? (
+                            {canSubmitTask(task) ? (
                               <ActionButton disabled={isSaving} onClick={() => openTaskCompletionModal(task)} variant="primary">
                                 提交验收
                               </ActionButton>
@@ -5808,7 +5891,7 @@ export function WorkspaceDashboard({
                                 </ActionButton>
                               </>
                             ) : null}
-                            {permissions.canSendDirective && task.assigneeId && task.assigneeId !== currentMemberId ? (
+                            {permissions.canSendDirective && getTaskAssigneeIds(task).some((assigneeId) => assigneeId !== currentMemberId) ? (
                               <ActionButton disabled={isSaving} onClick={() => sendTaskReminder(task)}>
                                 提醒
                               </ActionButton>
@@ -8483,23 +8566,56 @@ export function WorkspaceDashboard({
               />
             </label>
             <label className="block text-sm text-slate-500">
-              处理人
-              <select
-                className={fieldClassName}
-                value={taskDraft.assigneeId}
-                onChange={(event) =>
-                  setTaskDraft((current) => ({ ...current, assigneeId: event.target.value }))
-                }
-              >
-                {currentRole !== "member" ? <option value="">暂不分配，进入待分配</option> : null}
-                {taskAssignableMembers.map((member) => (
-                  <option key={member.id} value={member.id}>
-                    {member.name}
-                  </option>
-                ))}
-              </select>
+              处理人 {currentRole !== "member" ? <span className="text-slate-400">（可多选）</span> : null}
+              <div className="mt-1.5 space-y-3 rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                {currentRole !== "member" ? (
+                  <label className="flex items-center gap-3 text-sm text-slate-600">
+                    <input
+                      checked={taskDraft.assigneeIds.length === 0}
+                      className="h-4 w-4 rounded border-slate-300 text-blue-700 focus:ring-blue-600/20"
+                      onChange={(event) => {
+                        if (event.target.checked) {
+                          setTaskDraft((current) => ({ ...current, assigneeIds: [] }));
+                        }
+                      }}
+                      type="radio"
+                    />
+                    <span>暂不分配，先进入待分配列表</span>
+                  </label>
+                ) : null}
+                <div className="grid gap-2 md:grid-cols-2">
+                  {taskAssignableMembers.map((member) => {
+                    const checked = taskDraft.assigneeIds.includes(member.id);
+                    return (
+                      <label
+                        className={`flex items-center gap-3 rounded-xl border px-3 py-2 text-sm transition ${
+                          checked
+                            ? "border-[#BFD2F0] bg-white text-[#0B3B8A] shadow-sm"
+                            : "border-slate-200 bg-white text-slate-600 hover:border-[#D9E3F2]"
+                        }`}
+                        key={member.id}
+                      >
+                        <input
+                          checked={checked}
+                          className="h-4 w-4 rounded border-slate-300 text-blue-700 focus:ring-blue-600/20"
+                          onChange={(event) =>
+                            setTaskDraft((current) => ({
+                              ...current,
+                              assigneeIds: event.target.checked
+                                ? Array.from(new Set([...current.assigneeIds, member.id]))
+                                : current.assigneeIds.filter((item) => item !== member.id),
+                            }))
+                          }
+                          type="checkbox"
+                        />
+                        <span>{member.name}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+              </div>
             </label>
-            {!editingTaskId && !taskDraft.assigneeId ? (
+            {!editingTaskId && taskDraft.assigneeIds.length === 0 ? (
               currentRole === "admin" ? (
                 <label className="block text-sm text-slate-500">
                   所属队伍 <span className="text-red-500">*</span>

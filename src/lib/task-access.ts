@@ -18,6 +18,12 @@ type TaskRecord = {
   assigneeId?: string | null;
   reviewerId?: string | null;
   teamGroupId?: string | null;
+  assignments?: Array<{
+    assigneeId: string;
+    assignee?: {
+      teamGroupId?: string | null;
+    } | null;
+  }>;
   creator?: {
     teamGroupId?: string | null;
   } | null;
@@ -36,7 +42,7 @@ export const getTaskVisibilityWhere = (actor: TaskActor): Prisma.TaskWhereInput 
 
   if (!actor.teamGroupId) {
     return {
-      OR: [{ creatorId: actor.id }, { assigneeId: actor.id }, { reviewerId: actor.id }],
+      OR: [{ creatorId: actor.id }, { assigneeId: actor.id }, { reviewerId: actor.id }, { assignments: { some: { assigneeId: actor.id } } }],
     };
   }
 
@@ -45,10 +51,12 @@ export const getTaskVisibilityWhere = (actor: TaskActor): Prisma.TaskWhereInput 
       { creatorId: actor.id },
       { assigneeId: actor.id },
       { reviewerId: actor.id },
+      { assignments: { some: { assigneeId: actor.id } } },
       { teamGroupId: actor.teamGroupId },
       { creator: { teamGroupId: actor.teamGroupId } },
       { assignee: { teamGroupId: actor.teamGroupId } },
       { reviewer: { teamGroupId: actor.teamGroupId } },
+      { assignments: { some: { assignee: { teamGroupId: actor.teamGroupId } } } },
     ],
   };
 };
@@ -58,7 +66,12 @@ export const canAccessTask = (actor: TaskActor, task: TaskRecord) => {
     return true;
   }
 
-  if (task.creatorId === actor.id || task.assigneeId === actor.id || task.reviewerId === actor.id) {
+  if (
+    task.creatorId === actor.id ||
+    task.assigneeId === actor.id ||
+    task.reviewerId === actor.id ||
+    task.assignments?.some((assignment) => assignment.assigneeId === actor.id)
+  ) {
     return true;
   }
 
@@ -70,7 +83,8 @@ export const canAccessTask = (actor: TaskActor, task: TaskRecord) => {
     task.teamGroupId === actor.teamGroupId ||
     task.creator?.teamGroupId === actor.teamGroupId ||
     task.assignee?.teamGroupId === actor.teamGroupId ||
-    task.reviewer?.teamGroupId === actor.teamGroupId
+    task.reviewer?.teamGroupId === actor.teamGroupId ||
+    task.assignments?.some((assignment) => assignment.assignee?.teamGroupId === actor.teamGroupId)
   );
 };
 

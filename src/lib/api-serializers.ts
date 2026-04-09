@@ -11,6 +11,7 @@ import type {
   Report,
   Role,
   Task,
+  TaskAssignment,
   TaskAttachment,
   TaskPriority,
   TaskStatus,
@@ -132,14 +133,41 @@ export const serializeTask = (
     creator?: Pick<User, "id" | "name" | "avatar" | "role">;
     reviewer?: Pick<User, "id" | "name" | "avatar" | "role"> | null;
     teamGroup?: { id: string; name: string } | null;
+    assignments?: Array<
+      TaskAssignment & {
+        assignee: Pick<User, "id" | "name" | "avatar" | "role">;
+      }
+    >;
     attachments?: Array<TaskAttachment & { uploader?: Pick<User, "id" | "name"> | null }>;
   },
-) => ({
+) => {
+  const assignments =
+    task.assignments?.map((assignment) => ({
+      id: assignment.id,
+      assigneeId: assignment.assigneeId,
+      acceptedAt: assignment.acceptedAt ? formatDateTime(assignment.acceptedAt) : null,
+      submittedAt: assignment.submittedAt ? formatDateTime(assignment.submittedAt) : null,
+      archivedAt: assignment.archivedAt ? formatDateTime(assignment.archivedAt) : null,
+      rejectedAt: assignment.rejectedAt ? formatDateTime(assignment.rejectedAt) : null,
+      rejectionReason: assignment.rejectionReason ?? "",
+      completionNote: assignment.completionNote ?? "",
+      assignee: {
+        id: assignment.assignee.id,
+        name: assignment.assignee.name,
+        avatar: assignment.assignee.avatar,
+        roleLabel: roleLabels[assignment.assignee.role],
+      },
+    })) ?? [];
+  const acceptedCount = assignments.filter((assignment) => Boolean(assignment.acceptedAt)).length;
+  const submittedCount = assignments.filter((assignment) => Boolean(assignment.submittedAt)).length;
+
+  return {
   id: task.id,
   title: task.title,
   status: taskStatusLabels[task.status],
   statusKey: task.status,
   assigneeId: task.assigneeId,
+  assigneeIds: assignments.map((assignment) => assignment.assigneeId),
   creatorId: task.creatorId,
   reviewerId: task.reviewerId,
   teamGroupId: task.teamGroupId,
@@ -161,6 +189,12 @@ export const serializeTask = (
         roleLabel: roleLabels[task.assignee.role],
       }
     : null,
+  assignments,
+  assignmentSummary: {
+    total: assignments.length,
+    accepted: acceptedCount,
+    submitted: submittedCount,
+  },
   creator: task.creator
     ? {
         id: task.creator.id,
@@ -194,7 +228,8 @@ export const serializeTask = (
       downloadUrl: `/api/tasks/${task.id}/attachments/${attachment.id}`,
     })) ?? [],
   createdAt: formatDateTime(task.createdAt),
-});
+  };
+};
 
 export const serializeReport = (
   report: Report & {
