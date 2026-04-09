@@ -262,7 +262,7 @@ export async function PATCH(
     const delivery = await createNotifications({
       userIds: reviewerIds,
       title: `待分配工单：${currentTask.title}`,
-      detail: `${user.name} 提醒你分配工单「${currentTask.title}」，请进入任务看板选择处理人。`,
+      detail: `${user.name} 提醒你分配工单「${currentTask.title}」，请进入任务中心选择处理人。`,
       type: "task_submit",
       targetTab: "board",
       relatedId: currentTask.id,
@@ -322,16 +322,6 @@ export async function PATCH(
       return NextResponse.json({ message: "当前工单无法提交验收" }, { status: 400 });
     }
 
-    const ownAttachmentCount = currentTask.attachments.filter((attachment) => attachment.uploaderId === user.id).length;
-    const canUseLegacyAttachment =
-      currentTask.assignments.length <= 1 &&
-      currentTask.assigneeId === user.id &&
-      currentTask.attachments.length > 0;
-
-    if (ownAttachmentCount === 0 && !canUseLegacyAttachment) {
-      return NextResponse.json({ message: "请先上传你本人的完成凭证，再提交验收" }, { status: 400 });
-    }
-
     const now = new Date();
     await prisma.taskAssignment.updateMany({
       where: {
@@ -384,8 +374,8 @@ export async function PATCH(
           title: `工单待验收：${task.title}`,
           detail:
             task.assignments.length > 1
-              ? `${user.name} 完成了多人协同工单「${task.title}」的最后一项提交，请进入任务看板统一验收。`
-              : `${user.name} 已提交工单「${task.title}」的完成凭证，请进入任务看板验收闭环。`,
+              ? `${user.name} 完成了多人协同工单「${task.title}」的最后一项提交，请进入任务中心统一验收。`
+              : `${user.name} 已提交工单「${task.title}」的完成情况，请进入任务中心验收闭环。`,
           type: "task_review",
           targetTab: "board",
           relatedId: task.id,
@@ -619,7 +609,7 @@ export async function PATCH(
         detail:
           addedReminderIds.length > 1
             ? `${user.name} 将工单「${task.title}」分配给你们协同处理，请全部完成后统一进入验收。`
-            : `${user.name} 将工单「${task.title}」分配给你，请进入任务看板处理。`,
+            : `${user.name} 将工单「${task.title}」分配给你，请进入任务中心处理。`,
         type: "task_assign",
         targetTab: "board",
         relatedId: task.id,

@@ -221,7 +221,7 @@ export async function POST(request: NextRequest) {
       detail:
         reminderAssigneeIds.length > 1
           ? `${user.name} 指派你参与处理工单「${task.title}」，全部执行人完成后将统一提交验收。`
-          : `${user.name} 指派你处理工单「${task.title}」，请在任务看板查看并推进。`,
+          : `${user.name} 指派你处理工单「${task.title}」，请在任务中心查看并推进。`,
       type: "task_assign",
       targetTab: "board",
       relatedId: task.id,
@@ -243,7 +243,7 @@ export async function POST(request: NextRequest) {
       await createNotifications({
         userIds: reviewerIds,
         title: `待分配工单：${task.title}`,
-        detail: `${user.name} 提交了待分配工单「${task.title}」，请进入任务看板分配处理人。`,
+        detail: `${user.name} 提交了待分配工单「${task.title}」，请进入任务中心分配处理人。`,
         type: "task_submit",
         targetTab: "board",
         relatedId: task.id,

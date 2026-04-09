@@ -383,7 +383,7 @@ const allTabs: TabItem[] = [
   },
   {
     key: "board",
-    label: "任务看板",
+    label: "任务中心",
     description: "按工单闭环管理提报、分配、处理、验收和归档。",
     icon: KanbanSquare,
   },
@@ -2278,7 +2278,7 @@ export function WorkspaceDashboard({
         id: `task-${currentMemberId}`,
         title: "我的任务待推进",
         detail: `你当前还有 ${myOpenTasks.length} 项未完成任务，建议先同步状态并推进。`,
-        actionLabel: "查看任务看板",
+        actionLabel: "查看任务中心",
         targetTab: "board",
       });
     }
@@ -2287,12 +2287,12 @@ export function WorkspaceDashboard({
       const openTaskCount = tasks.filter((task) => task.status !== "archived").length;
       items.push({
         id: `board-${currentRole}`,
-        title: "任务看板待同步",
+        title: "任务中心待同步",
         detail:
           openTaskCount > 0
             ? `当前还有 ${openTaskCount} 项任务未完成，建议及时分派、跟进并调整优先级。`
             : "今天的任务安排可以再确认一遍，确保没有遗漏新的推进事项。",
-        actionLabel: "进入任务看板",
+        actionLabel: "进入任务中心",
         targetTab: "board",
       });
     }
@@ -2996,11 +2996,6 @@ export function WorkspaceDashboard({
       return;
     }
 
-    if (!taskCompletionDraft.file && (taskCompletionTarget.attachments?.length ?? 0) === 0) {
-      setLoadError("请先上传完成凭证，再提交验收");
-      return;
-    }
-
     setIsSaving(true);
     try {
       if (taskCompletionDraft.file) {
@@ -3090,7 +3085,7 @@ export function WorkspaceDashboard({
       return;
     }
 
-    setLoadError(`请在任务看板打开「${task.title}」，上传完成凭证后提交验收。`);
+    setLoadError(`请在任务中心打开「${task.title}」后提交验收。`);
     router.push("/workspace?tab=board");
   };
 
@@ -3588,7 +3583,7 @@ export function WorkspaceDashboard({
           : `请及时查看并推进工单「${task.title}」。`,
       targetTab: "board",
       successTitle: "工单提醒已发送",
-      successDetail: `已提醒 ${getTaskAssigneeName(task)} 查看任务看板。`,
+      successDetail: `已提醒 ${getTaskAssigneeName(task)} 查看任务中心。`,
     });
   };
 
@@ -8704,7 +8699,7 @@ export function WorkspaceDashboard({
         <Modal title="提交工单验收" onClose={closeTaskCompletionModal}>
           <div className="space-y-4">
             <p className="rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm leading-6 text-blue-700">
-              完成后需要上传至少一份佐证附件，提交后会推送给验收人确认闭环。
+              可上传佐证附件辅助验收，提交后会推送给验收人确认闭环。
             </p>
             <label className="block text-sm text-slate-500">
               完成说明
