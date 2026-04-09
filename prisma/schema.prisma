@@ -97,6 +97,7 @@ model User {
   expertScores         ExpertReviewScore[]      @relation("ExpertScoreReviewer")
   trainingQuestions    TrainingQuestion[]       @relation("TrainingQuestionCreator")
   trainingSessions     TrainingSession[]        @relation("TrainingSessionCreator")
+  passwordResetTokens  PasswordResetToken[]
 }
 
 model TeamGroup {
@@ -409,4 +410,16 @@ model TrainingSession {
   @@index([createdAt])
   @@index([createdById, createdAt])
   @@index([teamGroupId, createdAt])
+}
+
+model PasswordResetToken {
+  id        String   @id @default(cuid())
+  userId     String
+  tokenHash String   @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
 }

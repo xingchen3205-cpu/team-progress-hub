@@ -1,5 +1,14 @@
 const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://xingchencxcy.com";
 
+export const buildAppUrl = (path = "/") => {
+  if (/^https?:\/\//.test(path)) {
+    return path;
+  }
+
+  const normalizedPath = path.startsWith("/") ? path : `/${path}`;
+  return `${appUrl}${normalizedPath}`;
+};
+
 const escapeHtml = (value: string) =>
   value
     .replaceAll("&", "&amp;")
@@ -27,10 +36,10 @@ export const isEmailConfigured = () => Boolean(process.env.RESEND_API_KEY && pro
 
 export const buildWorkspaceUrl = (targetTab?: string | null) => {
   if (!targetTab || targetTab === "overview") {
-    return `${appUrl}/workspace`;
+    return buildAppUrl("/workspace");
   }
 
-  return `${appUrl}/workspace?tab=${encodeURIComponent(targetTab)}`;
+  return buildAppUrl(`/workspace?tab=${encodeURIComponent(targetTab)}`);
 };
 
 export const renderSystemEmail = ({

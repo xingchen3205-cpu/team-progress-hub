@@ -7,7 +7,7 @@ import { CheckCircle2, Loader2 } from "lucide-react";
 
 import { EMAIL_RULE_HINT, USERNAME_RULE_HINT, validateRequiredEmail, validateUsername } from "@/lib/account-policy";
 
-type FormMode = "login" | "register";
+type FormMode = "login" | "register" | "forgot" | "reset";
 
 const registerRoleOptions = ["指导教师", "项目负责人", "团队成员", "评审专家"] as const;
 
@@ -25,11 +25,23 @@ const initialRegisterValues = {
   password: "",
 };
 
-export function LoginScreen() {
+const initialForgotValues = {
+  account: "",
+};
+
+const initialResetValues = {
+  password: "",
+  confirmPassword: "",
+};
+
+export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: string }) {
   const router = useRouter();
+  const resetToken = initialResetToken.trim();
   const [mode, setMode] = useState<FormMode>("login");
   const [loginValues, setLoginValues] = useState(initialLoginValues);
   const [registerValues, setRegisterValues] = useState(initialRegisterValues);
+  const [forgotValues, setForgotValues] = useState(initialForgotValues);
+  const [resetValues, setResetValues] = useState(initialResetValues);
   const [isCheckingSession, setIsCheckingSession] = useState(true);
   const [loginErrors, setLoginErrors] = useState<{
     username?: string;
@@ -42,6 +54,15 @@ export function LoginScreen() {
     username?: string;
     email?: string;
     password?: string;
+    submit?: string;
+  }>({});
+  const [forgotErrors, setForgotErrors] = useState<{
+    account?: string;
+    submit?: string;
+  }>({});
+  const [resetErrors, setResetErrors] = useState<{
+    password?: string;
+    confirmPassword?: string;
     submit?: string;
   }>({});
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -76,11 +97,31 @@ export function LoginScreen() {
     };
   }, [router]);
 
+  useEffect(() => {
+    if (resetToken) {
+      setMode("reset");
+      setSuccessMessage(null);
+    } else if (mode === "reset") {
+      setMode("login");
+    }
+  }, [mode, resetToken]);
+
   const switchMode = (nextMode: FormMode) => {
+    if (mode === "reset" && !resetToken) {
+      setMode(nextMode);
+      return;
+    }
+
     setMode(nextMode);
     setLoginErrors({});
     setRegisterErrors({});
+    setForgotErrors({});
+    setResetErrors({});
     setSuccessMessage(null);
+
+    if (resetToken && nextMode !== "reset") {
+      router.replace("/login");
+    }
   };
 
   const handleLoginSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
@@ -129,6 +170,59 @@ export function LoginScreen() {
       setLoginErrors((current) => ({
         ...current,
         submit: "登录请求失败，请稍后重试。",
+      }));
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleForgotSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    const account = forgotValues.account.trim();
+    const nextErrors = {
+      account: account ? undefined : "请输入账号名或邮箱",
+      submit: undefined,
+    };
+
+    setForgotErrors(nextErrors);
+
+    if (nextErrors.account) {
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const response = await fetch("/api/auth/forgot-password", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ account }),
+      });
+
+      const payload = (await response.json().catch(() => null)) as { message?: string } | null;
+
+      if (!response.ok) {
+        setForgotErrors((current) => ({
+          ...current,
+          submit: payload?.message || "找回密码失败，请稍后重试。",
+        }));
+        return;
+      }
+
+      setSuccessMessage(payload?.message || "重置邮件已发送，请前往注册邮箱查收。");
+      setLoginValues((current) => ({
+        ...current,
+        username: account,
+      }));
+      setForgotValues(initialForgotValues);
+      setForgotErrors({});
+      setMode("login");
+    } catch {
+      setForgotErrors((current) => ({
+        ...current,
+        submit: "找回密码请求失败，请稍后重试。",
       }));
     } finally {
       setIsSubmitting(false);
@@ -202,6 +296,65 @@ export function LoginScreen() {
     }
   };
 
+  const handleResetSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    const password = resetValues.password.trim();
+    const confirmPassword = resetValues.confirmPassword.trim();
+    const nextErrors = {
+      password: password ? (password.length >= 6 ? undefined : "密码至少需要 6 位") : "请输入新密码",
+      confirmPassword: confirmPassword
+        ? confirmPassword === password
+          ? undefined
+          : "两次输入的密码不一致"
+        : "请再次输入新密码",
+      submit: !resetToken ? "重置链接已失效，请重新申请找回密码" : undefined,
+    };
+
+    setResetErrors(nextErrors);
+
+    if (nextErrors.password || nextErrors.confirmPassword || nextErrors.submit) {
+      return;
+    }
+
+    setIsSubmitting(true);
+    try {
+      const response = await fetch("/api/auth/reset-password", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          token: resetToken,
+          password,
+        }),
+      });
+
+      const payload = (await response.json().catch(() => null)) as { message?: string } | null;
+
+      if (!response.ok) {
+        setResetErrors((current) => ({
+          ...current,
+          submit: payload?.message || "密码重置失败，请稍后重试。",
+        }));
+        return;
+      }
+
+      setSuccessMessage(payload?.message || "密码已重置，请使用新密码登录。");
+      setResetValues(initialResetValues);
+      setResetErrors({});
+      router.replace("/login");
+      setMode("login");
+    } catch {
+      setResetErrors((current) => ({
+        ...current,
+        submit: "密码重置请求失败，请稍后重试。",
+      }));
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   if (isCheckingSession) {
     return (
       <main className="flex min-h-screen items-center justify-center bg-[#f1f8ff] px-4">
@@ -267,9 +420,21 @@ export function LoginScreen() {
             <div className="mx-auto flex min-h-full w-full max-w-[27rem] flex-col justify-center">
               <div className="mb-10">
                 <h2 className="text-3xl font-bold tracking-tight text-slate-900">
-                  {mode === "login" ? "用户登录" : "注册账号"}
+                  {mode === "login"
+                    ? "用户登录"
+                    : mode === "register"
+                      ? "注册账号"
+                      : mode === "forgot"
+                        ? "找回密码"
+                        : "重置密码"}
                   <span className="mt-2 block text-sm font-medium tracking-[0.28em] text-slate-400 uppercase">
-                    {mode === "login" ? "User Login" : "Account Registration"}
+                    {mode === "login"
+                      ? "User Login"
+                      : mode === "register"
+                        ? "Account Registration"
+                        : mode === "forgot"
+                          ? "Password Recovery"
+                          : "Password Reset"}
                   </span>
                 </h2>
               </div>
@@ -303,7 +468,7 @@ export function LoginScreen() {
                     />
                     <input
                       className="h-14 w-full border-0 bg-transparent pr-0 pl-8 text-base leading-7 text-[#13161b] outline-none placeholder:text-slate-500"
-                      placeholder="请输入系统账号"
+                      placeholder="请输入账号名或邮箱"
                       type="text"
                       value={loginValues.username}
                       onChange={(event) => {
@@ -380,7 +545,7 @@ export function LoginScreen() {
                     </label>
                     <button
                       className="text-sm text-slate-500 transition hover:text-blue-900 hover:underline"
-                      onClick={() => setLoginErrors((current) => ({ ...current, submit: "请联系系统管理员重置密码。" }))}
+                      onClick={() => switchMode("forgot")}
                       type="button"
                     >
                       忘记密码？
@@ -405,6 +570,125 @@ export function LoginScreen() {
                       </>
                     ) : (
                       "登录"
+                    )}
+                  </button>
+                </form>
+              ) : mode === "forgot" ? (
+                <form className="relative space-y-4" noValidate onSubmit={handleForgotSubmit}>
+                  <label className="block text-sm leading-6 text-[#60656e]">
+                    账号名或邮箱
+                    <input
+                      className={`mt-1 h-12 w-full rounded-2xl border bg-white px-3 text-base leading-7 text-[#13161b] outline-none placeholder:text-[#64748b] focus:border-[#172554] focus:bg-white focus:ring-4 focus:ring-[#172554]/10 ${
+                        forgotErrors.account ? "border-[#f93b3b]" : "border-[#d5d7db]"
+                      }`}
+                      placeholder="请输入注册时填写的账号名或邮箱"
+                      type="text"
+                      value={forgotValues.account}
+                      onChange={(event) => {
+                        setForgotValues({ account: event.target.value });
+                        setForgotErrors((current) => ({
+                          ...current,
+                          account: undefined,
+                          submit: undefined,
+                        }));
+                      }}
+                    />
+                    {forgotErrors.account ? (
+                      <span className="mt-1 block text-sm text-[#f93b3b]">{forgotErrors.account}</span>
+                    ) : (
+                      <span className="mt-1 block text-xs leading-6 text-[#94a3b8]">
+                        系统会将密码重置入口发送到注册时绑定的邮箱。
+                      </span>
+                    )}
+                  </label>
+
+                  {forgotErrors.submit ? (
+                    <p className="rounded-lg bg-[#fff1f2] px-4 py-3 text-sm leading-6 text-[#e11d48]">
+                      {forgotErrors.submit}
+                    </p>
+                  ) : null}
+
+                  <button
+                    className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl border border-[#172554] bg-[#172554] text-base leading-[42px] text-white transition duration-300 hover:bg-[#1e3a8a] hover:shadow-lg hover:shadow-[#172554]/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#172554]/20 active:scale-[0.98] disabled:cursor-not-allowed disabled:border-[#86c0f7] disabled:bg-[#86c0f7] disabled:hover:translate-y-0 disabled:active:scale-100"
+                    disabled={isSubmitting}
+                    type="submit"
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <span>发送中...</span>
+                      </>
+                    ) : (
+                      "发送重置邮件"
+                    )}
+                  </button>
+                </form>
+              ) : mode === "reset" ? (
+                <form className="relative space-y-4" noValidate onSubmit={handleResetSubmit}>
+                  <label className="block text-sm leading-6 text-[#60656e]">
+                    新密码
+                    <input
+                      className={`mt-1 h-12 w-full rounded-2xl border bg-white px-3 text-base leading-7 text-[#13161b] outline-none placeholder:text-[#64748b] focus:border-[#172554] focus:bg-white focus:ring-4 focus:ring-[#172554]/10 ${
+                        resetErrors.password ? "border-[#f93b3b]" : "border-[#d5d7db]"
+                      }`}
+                      placeholder="请设置新的登录密码"
+                      type="password"
+                      value={resetValues.password}
+                      onChange={(event) => {
+                        setResetValues((current) => ({ ...current, password: event.target.value }));
+                        setResetErrors((current) => ({
+                          ...current,
+                          password: undefined,
+                          submit: undefined,
+                        }));
+                      }}
+                    />
+                    {resetErrors.password ? (
+                      <span className="mt-1 block text-sm text-[#f93b3b]">{resetErrors.password}</span>
+                    ) : null}
+                  </label>
+
+                  <label className="block text-sm leading-6 text-[#60656e]">
+                    确认密码
+                    <input
+                      className={`mt-1 h-12 w-full rounded-2xl border bg-white px-3 text-base leading-7 text-[#13161b] outline-none placeholder:text-[#64748b] focus:border-[#172554] focus:bg-white focus:ring-4 focus:ring-[#172554]/10 ${
+                        resetErrors.confirmPassword ? "border-[#f93b3b]" : "border-[#d5d7db]"
+                      }`}
+                      placeholder="请再次输入新密码"
+                      type="password"
+                      value={resetValues.confirmPassword}
+                      onChange={(event) => {
+                        setResetValues((current) => ({ ...current, confirmPassword: event.target.value }));
+                        setResetErrors((current) => ({
+                          ...current,
+                          confirmPassword: undefined,
+                          submit: undefined,
+                        }));
+                      }}
+                    />
+                    {resetErrors.confirmPassword ? (
+                      <span className="mt-1 block text-sm text-[#f93b3b]">{resetErrors.confirmPassword}</span>
+                    ) : null}
+                  </label>
+
+                  {resetErrors.submit ? (
+                    <p className="rounded-lg bg-[#fff1f2] px-4 py-3 text-sm leading-6 text-[#e11d48]">
+                      {resetErrors.submit}
+                    </p>
+                  ) : null}
+
+                  <button
+                    className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl border border-[#172554] bg-[#172554] text-base leading-[42px] text-white transition duration-300 hover:bg-[#1e3a8a] hover:shadow-lg hover:shadow-[#172554]/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#172554]/20 active:scale-[0.98] disabled:cursor-not-allowed disabled:border-[#86c0f7] disabled:bg-[#86c0f7] disabled:hover:translate-y-0 disabled:active:scale-100"
+                    disabled={isSubmitting}
+                    type="submit"
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        <span>提交中...</span>
+                      </>
+                    ) : (
+                      "重置密码"
                     )}
                   </button>
                 </form>
@@ -438,7 +722,7 @@ export function LoginScreen() {
                   </label>
 
                   <label className="block text-sm leading-6 text-[#60656e]">
-                    姓名
+                    姓名 <span className="text-[#f93b3b]">*</span>
                     <input
                       className={`mt-1 h-12 w-full rounded-2xl border bg-white px-3 text-base leading-7 text-[#13161b] outline-none placeholder:text-[#8d949f] focus:border-[#172554] focus:bg-white focus:ring-4 focus:ring-[#172554]/10 ${
                         registerErrors.name ? "border-[#f93b3b]" : "border-[#d5d7db]"
@@ -461,7 +745,7 @@ export function LoginScreen() {
                   </label>
 
                   <label className="block text-sm leading-6 text-[#60656e]">
-                    账号名
+                    账号名 <span className="text-[#f93b3b]">*</span>
                     <input
                       className={`mt-1 h-12 w-full rounded-2xl border bg-white px-3 text-base leading-7 text-[#13161b] outline-none placeholder:text-[#8d949f] focus:border-[#172554] focus:bg-white focus:ring-4 focus:ring-[#172554]/10 ${
                         registerErrors.username ? "border-[#f93b3b]" : "border-[#d5d7db]"
@@ -511,7 +795,7 @@ export function LoginScreen() {
                   </label>
 
                   <label className="block text-sm leading-6 text-[#60656e]">
-                    密码
+                    密码 <span className="text-[#f93b3b]">*</span>
                     <input
                       className={`mt-1 h-12 w-full rounded-2xl border bg-white px-3 text-base leading-7 text-[#13161b] outline-none placeholder:text-[#8d949f] focus:border-[#172554] focus:bg-white focus:ring-4 focus:ring-[#172554]/10 ${
                         registerErrors.password ? "border-[#f93b3b]" : "border-[#d5d7db]"
@@ -560,11 +844,23 @@ export function LoginScreen() {
                 <p className="text-sm leading-7 text-[#6b7280]">
                   {mode === "login"
                     ? "没有账号可先注册，审核通过后即可登录系统。"
-                    : "提交注册后请等待上一级账号审核通过。"}
+                    : mode === "register"
+                      ? "提交注册后请等待上一级账号审核通过。"
+                      : mode === "forgot"
+                        ? "如未收到重置邮件，请确认邮箱是否填写正确并检查垃圾邮件。"
+                        : "重置完成后，可返回登录并使用新密码进入系统。"}
                 </p>
                 <button
                   className="text-sm font-medium text-[#326ca6] transition hover:text-[#255686] hover:underline"
-                  onClick={() => switchMode(mode === "login" ? "register" : "login")}
+                  onClick={() =>
+                    switchMode(
+                      mode === "login"
+                        ? "register"
+                        : mode === "register"
+                          ? "login"
+                          : "login",
+                    )
+                  }
                   type="button"
                 >
                   {mode === "login" ? "注册账号" : "返回登录"}
