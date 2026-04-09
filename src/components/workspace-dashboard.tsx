@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -62,7 +63,6 @@ import { PdfPreview } from "@/components/pdf-preview";
 import {
   formatBeijingDateTimeShort,
   formatBeijingFriendlyDate,
-  getBeijingHour,
   toIsoDateKey,
 } from "@/lib/date";
 import {
@@ -683,8 +683,8 @@ const taskWorkflowDotClassNames: Record<"done" | "current" | "pending", string> 
   pending: "bg-slate-100 text-slate-400 ring-1 ring-slate-200",
 };
 
-const surfaceCardClassName = "rounded-xl border border-slate-200 bg-white p-5 shadow-sm";
-const subtleCardClassName = "rounded-xl border border-slate-200 bg-slate-50 p-4";
+const surfaceCardClassName = "rounded-xl border border-slate-100 bg-white p-5 shadow-sm";
+const subtleCardClassName = "rounded-xl border border-slate-100 bg-slate-50 p-4";
 const fieldClassName =
   "mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20";
 const fieldErrorClassName =
@@ -889,43 +889,6 @@ const toDateTimeInputValue = (value: string) => {
 };
 
 const formatFriendlyDate = (value: Date) => formatBeijingFriendlyDate(value);
-
-const getGreetingCopy = (name: string, date: Date) => {
-  const hour = getBeijingHour(date);
-
-  if (hour >= 5 && hour < 11) {
-    return {
-      title: `早上好，${name}！`,
-      description: "新的一天开始了，先看关键节点和今日重点，我们稳稳推进。",
-    };
-  }
-
-  if (hour >= 11 && hour < 14) {
-    return {
-      title: `中午好，${name}！`,
-      description: "午间也别太赶，先把优先级最高的事项再确认一遍。",
-    };
-  }
-
-  if (hour >= 14 && hour < 18) {
-    return {
-      title: `下午好，${name}！`,
-      description: "下午适合把任务和材料同步顺一遍，节奏继续往前推。",
-    };
-  }
-
-  if (hour >= 18 && hour < 23) {
-    return {
-      title: `晚上好，${name}！辛苦了`,
-      description: "今天的成果已经很扎实了，再把关键收尾工作补齐就很好。",
-    };
-  }
-
-  return {
-    title: `夜深了，${name}`,
-    description: "如果还在处理材料，记得适当收尾休息，我们明天继续推进。",
-  };
-};
 
 const formatSeconds = (seconds: number) => {
   const normalizedSeconds = Math.max(0, Math.round(seconds));
@@ -1241,7 +1204,10 @@ async function requestJson<T>(input: string, init?: RequestInit) {
 function SectionHeader({ title, description }: { title: string; description?: string }) {
   return (
     <div className="space-y-2">
-      <h2 className="text-2xl font-bold text-slate-900">{title}</h2>
+      <div className="inline-flex items-center gap-2 rounded-md bg-[#EAF1FB] px-3 py-2">
+        <div className="h-4 w-1 rounded-full bg-[#0B3B8A]" />
+        <h2 className="text-2xl font-bold text-slate-900">{title}</h2>
+      </div>
       {description ? <p className="text-sm leading-6 text-slate-500">{description}</p> : null}
     </div>
   );
@@ -1417,14 +1383,14 @@ function ActionButton({
 }) {
   const variantClassName =
     variant === "primary"
-      ? "border border-[#1d4ed8] bg-[#1d4ed8] text-white hover:bg-[#1e40af]"
+      ? "border border-[#0B3B8A] bg-[#0B3B8A] text-white hover:bg-[#0A3277]"
       : variant === "danger"
         ? "border border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
-        : "border border-slate-200 bg-white text-slate-700 hover:bg-slate-50";
+        : "border border-slate-200 bg-white text-slate-700 hover:border-[#C9D9F3] hover:bg-[#F7FAFE] hover:text-[#0B3B8A]";
 
   return (
     <button
-      className={`inline-flex h-10 shrink-0 items-center justify-center whitespace-nowrap rounded-lg px-4 text-sm shadow-sm transition duration-200 focus-visible:ring-2 focus-visible:ring-blue-200 focus-visible:outline-none ${variantClassName} ${
+      className={`inline-flex h-10 shrink-0 items-center justify-center whitespace-nowrap rounded-lg px-4 text-sm shadow-sm transition duration-200 focus-visible:ring-2 focus-visible:ring-[#0B3B8A]/20 focus-visible:outline-none ${variantClassName} ${
         disabled || loading
           ? "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400 hover:bg-slate-100"
           : "hover:-translate-y-px active:translate-y-0 active:scale-[0.98]"
@@ -1603,6 +1569,7 @@ export function WorkspaceDashboard({
   const [teamModalOpen, setTeamModalOpen] = useState(false);
   const [teamDraft, setTeamDraft] = useState<TeamDraft>(defaultTeamDraft);
   const [teamGroupDraft, setTeamGroupDraft] = useState<TeamGroupDraft>(defaultTeamGroupDraft);
+  const [editingTeamGroupId, setEditingTeamGroupId] = useState<string | null>(null);
   const [batchExpertModalOpen, setBatchExpertModalOpen] = useState(false);
   const [batchExpertDraft, setBatchExpertDraft] = useState<BatchExpertDraft>(defaultBatchExpertDraft);
   const [profileDraft, setProfileDraft] = useState<ProfileDraft>(defaultProfileDraft());
@@ -1645,7 +1612,12 @@ export function WorkspaceDashboard({
   const activeTabItem = allTabs.find((item) => item.key === safeActiveTab) ?? allTabs[0];
   const nearestUpcomingIndex = events.length > 0 ? getNearestUpcomingIndex(events) : 0;
   const nearestEvent = events[nearestUpcomingIndex];
-  const greetingCopy = getGreetingCopy(currentUser?.profile.name ?? "你好", currentDateTime);
+  const portalScopeText =
+    currentRole === "admin"
+      ? "全局管理"
+      : currentRole === "expert"
+        ? "专家评审任务"
+        : currentUser?.teamGroupName ?? "未加入项目组";
   const canReviewDocuments =
     currentRole === "admin" || permissions.canLeaderReviewDocument || permissions.canTeacherReviewDocument;
   const hasBlockingOverlay =
@@ -2091,7 +2063,6 @@ export function WorkspaceDashboard({
   const todayTaskSummaryTasks = tasks
     .filter((item) => item.status !== "archived")
     .slice(0, 3);
-  const todayTaskSummary = todayTaskSummaryTasks.map((item) => `${item.title} · ${getTaskAssigneeName(item)}`);
 
   const canManageMember = (member: TeamMember) => {
     if (!permissions.canManageTeam) {
@@ -3415,25 +3386,6 @@ export function WorkspaceDashboard({
     }
   };
 
-  const deleteAnnouncementRequest = async (announcementId: string) => {
-    await requestJson(`/api/announcements/${announcementId}`, {
-      method: "DELETE",
-    });
-    refreshWorkspace();
-  };
-
-  const deleteAnnouncement = (announcementId: string, announcementTitle: string) => {
-    setConfirmDialog({
-      open: true,
-      title: "删除公告",
-      message: `确认删除公告「${announcementTitle}」？删除后首页将不再展示这条公告。`,
-      confirmLabel: "确认删除",
-      successTitle: "公告已删除",
-      successDetail: "首页公告列表已经同步更新。",
-      onConfirm: () => deleteAnnouncementRequest(announcementId),
-    });
-  };
-
   const saveReminder = async () => {
     const title = reminderDraft.title.trim();
     const detail = reminderDraft.detail.trim();
@@ -3578,22 +3530,6 @@ export function WorkspaceDashboard({
     } finally {
       setIsSaving(false);
     }
-  };
-
-  const sendAnnouncementReminder = (announcement: Announcement) => {
-    const recipientIds = members
-      .filter((member) => !["系统管理员", "评审专家"].includes(member.systemRole))
-      .filter(canSendDirectiveToMember)
-      .map((member) => member.id);
-
-    void sendDirectReminderToUsers({
-      userIds: recipientIds,
-      title: `公告提醒：${announcement.title}`,
-      detail: announcement.detail,
-      targetTab: "overview",
-      successTitle: "公告提醒已发送",
-      successDetail: "已提醒相关成员查看首页公告。",
-    });
   };
 
   const openCreateReportModal = () => {
@@ -4377,21 +4313,39 @@ export function WorkspaceDashboard({
 
     setIsSaving(true);
     try {
-      await requestJson("/api/team/groups", {
-        method: "POST",
+      await requestJson(editingTeamGroupId ? `/api/team/groups/${editingTeamGroupId}` : "/api/team/groups", {
+        method: editingTeamGroupId ? "PATCH" : "POST",
         body: JSON.stringify({
           name: teamGroupDraft.name,
           description: teamGroupDraft.description,
         }),
       });
       setTeamGroupDraft(defaultTeamGroupDraft);
-      showSuccessToast("分组已创建", "现在可以把团队账号分配到这个分组。");
+      setEditingTeamGroupId(null);
+      showSuccessToast(
+        editingTeamGroupId ? "分组已更新" : "分组已创建",
+        editingTeamGroupId ? "分组名称已经更新，成员归属保持不变。" : "现在可以把团队账号分配到这个分组。",
+      );
       refreshWorkspace();
     } catch (error) {
-      setLoadError(error instanceof Error ? error.message : "分组创建失败");
+      setLoadError(error instanceof Error ? error.message : editingTeamGroupId ? "分组更新失败" : "分组创建失败");
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const editTeamGroup = (group: TeamGroupItem) => {
+    setLoadError(null);
+    setEditingTeamGroupId(group.id);
+    setTeamGroupDraft({
+      name: group.name,
+      description: group.description ?? "",
+    });
+  };
+
+  const cancelEditTeamGroup = () => {
+    setEditingTeamGroupId(null);
+    setTeamGroupDraft(defaultTeamGroupDraft);
   };
 
   const deleteTeamGroupRequest = async (groupId: string) => {
@@ -4775,470 +4729,645 @@ export function WorkspaceDashboard({
     }
   };
 
-  const renderOverview = () => (
-    <div className="space-y-4">
-      {(() => {
-        const quickCompletableTask = tasks.find((task) => task.status !== "archived" && canMoveTask(task));
-        const countdownTotalHours = countdown.days * 24 + countdown.hours;
-        const countdownStatus = !nearestEvent
+  const renderOverview = () => {
+    const quickCompletableTask = tasks.find((task) => task.status !== "archived" && canMoveTask(task));
+    const countdownTotalHours = countdown.days * 24 + countdown.hours;
+    const countdownStatus = !nearestEvent
+      ? {
+          label: "待配置",
+          className: "border-slate-200 bg-slate-50 text-slate-500",
+          hint: "补充节点后自动预警",
+        }
+      : countdownTotalHours <= 24
+        ? {
+            label: "紧急",
+            className: "border-red-200 bg-red-50 text-red-600",
+            hint: "进入最后 24 小时",
+          }
+        : countdown.days <= 3
           ? {
-              label: "待配置",
-              className: "border-slate-200 bg-slate-50 text-slate-500",
-              hint: "补充节点后自动预警",
+              label: "临近",
+              className: "border-amber-200 bg-amber-50 text-amber-700",
+              hint: "建议开始集中检查",
             }
-          : countdownTotalHours <= 24
-            ? {
-                label: "紧急",
-                className: "border-red-200 bg-red-50 text-red-600",
-                hint: "进入最后 24 小时",
-              }
-            : countdown.days <= 3
-              ? {
-                  label: "临近",
-                  className: "border-amber-200 bg-amber-50 text-amber-700",
-                  hint: "建议开始集中检查",
-                }
-              : {
-                  label: "推进中",
-                  className: "border-blue-100 bg-blue-50 text-[#1d4ed8]",
-                  hint: "按计划持续推进",
-                };
-        const overviewMetrics = [
-          {
-            label: "当前身份",
-            value: currentUser?.roleLabel ?? roleLabels[currentRole],
-            hint: "当前登录角色",
-            progress: 100,
-          },
-          {
-            label: "待办事项",
-            value: `${todoItemCount} 项`,
-            hint: todoItemCount > 0 ? "建议优先处理待办中心事项" : "当前没有新的待办堆积",
-            progress: todoItemCount > 0 ? Math.max(10, 100 - Math.min(todoItemCount * 20, 90)) : 100,
-          },
-          {
-            label: "未读提醒",
-            value: `${unreadTodoNotifications.length} 条`,
-            hint: unreadTodoNotifications.length > 0 ? "含站内提醒与审批提醒" : "消息已基本处理完成",
-            progress:
-              unreadTodoNotifications.length > 0
-                ? Math.max(10, 100 - Math.min(unreadTodoNotifications.length * 20, 90))
-                : 100,
-          },
-          permissions.canManageTeam
-            ? {
-                label: "待审核账号",
-                value: `${pendingApprovalMembers.length} 个`,
-                hint: pendingApprovalMembers.length > 0 ? "涉及新注册与待通过账号" : "当前没有待审核账号",
-                progress:
-                  pendingApprovalMembers.length > 0
-                    ? Math.max(10, 100 - Math.min(pendingApprovalMembers.length * 20, 90))
-                    : 100,
-              }
-            : {
-                label: "我的任务",
-                value: `${myOpenTasks.length} 项`,
-                hint: myOpenTasks.length > 0 ? "优先处理未完成任务与汇报" : "当前没有未完成任务",
-                progress: myOpenTasks.length > 0 ? Math.max(10, 100 - Math.min(myOpenTasks.length * 20, 90)) : 100,
-              },
-        ];
+          : {
+              label: "推进中",
+              className: "border-blue-100 bg-blue-50 text-[#1d4ed8]",
+              hint: "按计划持续推进",
+            };
 
-        const openTasks = tasks.filter((task) => task.status !== "archived");
-        const unsubmittedReportCount = reportableMembers.filter(
-          (member) => !todayReportEntryMap.has(member.id),
-        ).length;
-        const myReportSubmitted = todayReportEntryMap.has(currentMemberId);
-        const reviewScoreCount = reviewAssignments.filter((assignment) => assignment.score).length;
-        const pendingExpertReviewCount = reviewAssignments.filter((assignment) => assignment.statusKey === "pending").length;
-        const taskSummaryDetail =
-          todayTaskSummary[0] ??
-          (openTasks.length > 0
-            ? `全队任务看板还有 ${openTasks.length} 项待推进，可进入看板查看分工。`
-            : "今天的任务重点已经基本清空，可以继续补齐材料细节。");
+    const openTasks = tasks.filter((task) => task.status !== "archived");
+    const unsubmittedReportCount = reportableMembers.filter(
+      (member) => !todayReportEntryMap.has(member.id),
+    ).length;
+    const myReportSubmitted = todayReportEntryMap.has(currentMemberId);
+    const reviewScoreCount = reviewAssignments.filter((assignment) => assignment.score).length;
+    const pendingExpertReviewCount = reviewAssignments.filter((assignment) => assignment.statusKey === "pending").length;
 
-        const attentionCards = [
-          currentRole === "member" || currentRole === "leader"
-            ? {
-                label: myReportSubmitted ? "今日日程已提交" : "今日日程待提交",
-                value: myReportSubmitted ? "已提交" : "未提交",
-                detail: myReportSubmitted
-                  ? "你今天的日程汇报已经提交，可以继续查看任务看板和最新反馈。"
-                  : "今天还没有提交日程汇报，建议先补齐今日完成和明日计划。",
-                actionLabel: myReportSubmitted ? "查看日程汇报" : "填写日程汇报",
-                onAction: () => {
-                  router.push("/workspace?tab=reports");
-                },
-              }
-            : {
-                label: currentRole === "admin" || currentRole === "teacher" ? "团队汇报进度" : "今日工作提示",
-                value: `${reportSubmittedCount}/${reportExpectedCount || 0}`,
-                detail:
-                  reportExpectedCount > 0
-                    ? `今日已有 ${reportSubmittedCount} 人提交汇报，还有 ${unsubmittedReportCount} 人待提交。`
-                    : "当前还没有需要统计的团队汇报对象。",
-                actionLabel: "查看日程汇报",
-                onAction: () => {
-                  router.push("/workspace?tab=reports");
-                },
-              },
-          {
-            label: currentRole === "member" ? "全队任务看板" : canReviewDocuments ? "待审材料" : "任务推进",
-            value:
-              currentRole === "member"
-                ? `${myOpenTasks.length}/${openTasks.length} 项`
-                : canReviewDocuments
-                  ? `${pendingLeaderReviewCount + pendingTeacherReviewCount} 份`
-                  : `${openTasks.length} 项`,
-            detail:
-              currentRole === "member"
-                ? `看板会展示全队任务，你只能更新自己负责的 ${myOpenTasks.length} 项状态。`
-                : canReviewDocuments
-                  ? pendingLeaderReviewCount + pendingTeacherReviewCount > 0
-                    ? "文档中心仍有待审批材料，建议尽快处理。"
-                    : "当前没有新的材料审批堆积。"
-                  : taskSummaryDetail,
-            actionLabel:
-              currentRole === "member" && quickCompletableTask
-                ? "标记我的任务完成"
-                : canReviewDocuments && currentRole !== "member"
-                  ? "查看文档中心"
-                  : "进入任务看板",
-            onAction: () => {
-              if (currentRole === "member" && quickCompletableTask) {
-                void completeTaskFromOverview(quickCompletableTask);
-                return;
-              }
-
-              router.push(canReviewDocuments && currentRole !== "member" ? "/workspace?tab=documents" : "/workspace?tab=board");
+    const overviewMetrics =
+      currentRole === "admin"
+        ? [
+            {
+              label: "待审核账号",
+              value: `${pendingApprovalMembers.length} 个`,
+              hint: pendingApprovalMembers.length > 0 ? "等待系统管理员审核处理" : "当前没有待审核账号",
             },
-          },
-          currentRole === "member"
-            ? {
-                label: "专家评审结果",
-                value: reviewScoreCount > 0 ? `${reviewScoreCount} 条评分` : pendingExpertReviewCount > 0 ? "评审中" : "暂无",
-                detail:
-                  reviewScoreCount > 0
-                    ? "已有专家评分和综合评语可查看，适合结合反馈继续优化材料。"
-                    : pendingExpertReviewCount > 0
-                      ? "专家评审正在进行中，提交后这里会同步显示评分结果。"
-                      : "当前还没有专家评审结果。后续开放后会在这里同步。",
-                actionLabel: "查看专家评审",
-                onAction: () => {
-                  router.push("/workspace?tab=review");
-                },
-              }
-            : {
-                label: "最近关键节点",
-                value: nearestEvent ? nearestEvent.title : "暂未设置",
-                detail: nearestEvent
-                  ? `${formatDateTime(nearestEvent.dateTime)} · 建议提前检查材料、彩排和人员分工。`
-                  : "可在时间进度里补充关键节点，首页会自动同步提醒。",
-                actionLabel: "查看时间进度",
-                onAction: () => {
-                  router.push("/workspace?tab=timeline");
-                },
+            {
+              label: "待办提醒",
+              value: `${todoItemCount} 项`,
+              hint: todoItemCount > 0 ? "建议优先处理站内待办与提醒" : "当前无新增待办",
+            },
+            {
+              label: "未读消息",
+              value: `${unreadTodoNotifications.length} 条`,
+              hint: unreadTodoNotifications.length > 0 ? "含系统提醒与审批通知" : "消息已基本处理完成",
+            },
+          ]
+        : currentRole === "teacher"
+          ? [
+              {
+                label: "待审材料",
+                value: `${pendingLeaderReviewCount + pendingTeacherReviewCount} 份`,
+                hint:
+                  pendingLeaderReviewCount + pendingTeacherReviewCount > 0
+                    ? "文档中心仍有待审批材料"
+                    : "当前没有待审批材料",
               },
-        ];
-
-        const priorityFocusItems =
-          currentRole === "member"
+              {
+                label: "未交汇报",
+                value: `${unsubmittedReportCount} 人`,
+                hint: unsubmittedReportCount > 0 ? "建议尽快督促项目组补齐汇报" : "团队汇报已基本收齐",
+              },
+              {
+                label: "待办提醒",
+                value: `${todoItemCount} 项`,
+                hint: todoItemCount > 0 ? "有事项待处理" : "当前无新增待办",
+              },
+            ]
+          : currentRole === "leader"
             ? [
-                myReportSubmitted ? "今日日程汇报已提交。" : "今日日程汇报还未提交，建议先补齐。",
-                myOpenTasks.length > 0
-                  ? `你当前有 ${myOpenTasks.length} 项个人任务待推进，全队看板共有 ${openTasks.length} 项未完成任务。`
-                  : `你当前没有个人待办，全队看板仍有 ${openTasks.length} 项未完成任务可查看。`,
-                reviewScoreCount > 0
-                  ? `专家评审已有 ${reviewScoreCount} 条评分/评语可查看。`
-                  : pendingExpertReviewCount > 0
-                    ? "专家评审正在进行中，结果出来后会同步到专家评审页。"
-                    : "当前暂无专家评审结果。",
+                {
+                  label: "待分配工单",
+                  value: `${tasks.filter((task) => task.status === "todo" && !task.assigneeId).length} 项`,
+                  hint: "本队待分配任务需尽快落到责任人",
+                },
+                {
+                  label: "待验收工单",
+                  value: `${tasks.filter((task) => task.status === "review").length} 项`,
+                  hint: "已提交待验收的事项请及时闭环",
+                },
+                {
+                  label: "未交汇报",
+                  value: `${unsubmittedReportCount} 人`,
+                  hint: unsubmittedReportCount > 0 ? "团队汇报尚未收齐" : "今天团队汇报已基本收齐",
+                },
               ]
-            : currentRole === "leader"
+            : currentRole === "expert"
               ? [
-                  unsubmittedReportCount > 0
-                    ? `今天还有 ${unsubmittedReportCount} 人未提交汇报。`
-                    : "今天团队汇报已基本收齐。",
-                  openTasks.length > 0
-                    ? `任务看板还有 ${openTasks.length} 项未完成，建议检查分派和优先级。`
-                    : "任务看板当前没有未完成事项。",
-                  reviewScoreCount > 0
-                    ? `专家评审已有 ${reviewScoreCount} 条评分/评语，可结合结果继续推进。`
-                    : "专家评审结果暂未形成。",
+                  {
+                    label: "待评任务",
+                    value: `${pendingExpertReviewCount} 项`,
+                    hint: pendingExpertReviewCount > 0 ? "请按时完成评审打分" : "当前没有待评分配任务",
+                  },
+                  {
+                    label: "已交评分",
+                    value: `${reviewScoreCount} 条`,
+                    hint: reviewScoreCount > 0 ? "已完成的评审结果会保留存档" : "当前尚未提交评分",
+                  },
+                  {
+                    label: "待办提醒",
+                    value: `${todoItemCount} 项`,
+                    hint: todoItemCount > 0 ? "仍有待办需要查看" : "当前无新增待办",
+                  },
                 ]
-              : currentRole === "teacher" || currentRole === "admin"
-                ? [
-                    pendingApprovalMembers.length > 0
-                      ? `当前有 ${pendingApprovalMembers.length} 个账号等待审核。`
-                      : "当前没有新的账号审核积压。",
-                    pendingLeaderReviewCount + pendingTeacherReviewCount > 0
-                      ? `文档中心共有 ${pendingLeaderReviewCount + pendingTeacherReviewCount} 份材料待审批。`
-                      : "文档中心当前没有待审批材料。",
-                    reviewScoreCount > 0
-                      ? `专家评审已有 ${reviewScoreCount} 条评分/评语，可进入专家评审查看。`
-                      : "专家评审暂无已提交评分。",
-                  ]
-                : [
-                    unreadTodoNotifications.length > 0
-                      ? `仍有 ${unreadTodoNotifications.length} 条未读提醒。`
-                      : "站内提醒已基本处理完成。",
-                  ];
+              : [
+                  {
+                    label: "我的任务",
+                    value: `${myOpenTasks.length} 项`,
+                    hint: myOpenTasks.length > 0 ? "优先推进分配给自己的任务" : "当前没有个人未完成任务",
+                  },
+                  {
+                    label: "今日日报",
+                    value: myReportSubmitted ? "已提交" : "待提交",
+                    hint: myReportSubmitted ? "今天的日程汇报已完成" : "请先提交今日工作汇报",
+                  },
+                  {
+                    label: "未读消息",
+                    value: `${unreadTodoNotifications.length} 条`,
+                    hint: unreadTodoNotifications.length > 0 ? "有新提醒待查看" : "当前没有未读消息",
+                  },
+                ];
 
-        return (
-          <>
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-              <SectionHeader
-                description="聚焦最近关键节点、今日任务重点、最新公告和核心统计。"
-                title="首页概览"
-              />
-              <div className="flex flex-wrap items-center gap-3">
-                <DemoResetNote />
-                <ActionButton
-                  disabled={!permissions.canPublishAnnouncement}
-                  onClick={() => setAnnouncementModalOpen(true)}
-                  title="无权限"
-                  variant="primary"
-                >
-                  <span className="inline-flex items-center gap-2">
-                    <BellPlus className="h-4 w-4" />
-                    <span>发布公告</span>
-                  </span>
-                </ActionButton>
-              </div>
-            </div>
+    const businessTabs = [
+      {
+        key: "todo",
+        label: "待办事项",
+        count: todoItemCount,
+        onClick: () => setNotificationsOpen(true),
+      },
+      {
+        key: "board",
+        label: "工单流转",
+        count: openTasks.length,
+        onClick: () => router.push("/workspace?tab=board"),
+      },
+      {
+        key: "documents",
+        label: "文档审批",
+        count: pendingLeaderReviewCount + pendingTeacherReviewCount,
+        onClick: () => router.push("/workspace?tab=documents"),
+      },
+      {
+        key: "reports",
+        label: "日程汇报",
+        count: reportExpectedCount > 0 ? reportExpectedCount - reportSubmittedCount : 0,
+        onClick: () => router.push("/workspace?tab=reports"),
+      },
+    ];
 
-            <section className="grid gap-4 xl:grid-cols-2">
-              <article className={surfaceCardClassName}>
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                  <div>
-                    <p className="text-2xl font-bold tracking-[-0.02em] text-slate-900">{greetingCopy.title}</p>
-                    <p className="mt-2 max-w-3xl text-sm leading-7 text-slate-500">{greetingCopy.description}</p>
-                    {todoItemCount > 0 ? (
-                      <button
-                        className="mt-3 inline-flex items-center rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-sm font-medium text-[#1d4ed8] transition hover:bg-blue-100"
-                        onClick={() => setNotificationsOpen(true)}
-                        type="button"
-                      >
-                        今日待办 {todoItemCount} 项 <span className="ml-1">→</span>
-                      </button>
-                    ) : null}
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-500">
-                      {formatFriendlyDate(currentDateTime)}
-                    </span>
-                    <span className="rounded-full bg-blue-50 px-3 py-1 text-xs text-blue-600">
-                      {currentUser?.roleLabel ?? roleLabels[currentRole]}
-                    </span>
-                  </div>
-                </div>
+    const portalQuickEntries = [
+      {
+        title: currentRole === "member" || currentRole === "leader" ? "今日日程汇报" : "团队汇报进度",
+        icon: CalendarDays,
+        metric:
+          currentRole === "member" || currentRole === "leader"
+            ? myReportSubmitted
+              ? "已提交"
+              : "待提交"
+            : `${reportSubmittedCount}/${reportExpectedCount || 0}`,
+        detail:
+          currentRole === "member" || currentRole === "leader"
+            ? myReportSubmitted
+              ? "今日汇报已完成，可继续查看任务推进。"
+              : "建议先补齐今日完成与明日计划。"
+            : reportExpectedCount > 0
+              ? `今日已有 ${reportSubmittedCount} 人提交，还有 ${unsubmittedReportCount} 人待提交。`
+              : "当前没有需要统计的团队汇报对象。",
+        actionLabel: currentRole === "member" || currentRole === "leader" ? "进入汇报" : "查看汇报",
+        onAction: () => router.push("/workspace?tab=reports"),
+      },
+      {
+        title: "任务工单",
+        icon: KanbanSquare,
+        metric: `${openTasks.length} 项`,
+        detail:
+          quickCompletableTask && currentRole === "member"
+            ? "你有可直接推进的个人工单，可快速标记处理状态。"
+            : openTasks.length > 0
+              ? "当前仍有工单流转中，建议查看处理进度。"
+              : "当前没有未归档工单。",
+        actionLabel: quickCompletableTask && currentRole === "member" ? "标记完成" : "进入工单",
+        onAction: () => {
+          if (quickCompletableTask && currentRole === "member") {
+            void completeTaskFromOverview(quickCompletableTask);
+            return;
+          }
+          router.push("/workspace?tab=board");
+        },
+      },
+      {
+        title: canReviewDocuments ? "文档审批" : "文档中心",
+        icon: FolderOpen,
+        metric: `${pendingLeaderReviewCount + pendingTeacherReviewCount} 份`,
+        detail:
+          canReviewDocuments
+            ? pendingLeaderReviewCount + pendingTeacherReviewCount > 0
+              ? "仍有材料待审批，建议尽快处理。"
+              : "当前没有待审批材料。"
+            : `当前共维护 ${documents.length} 份文档材料。`,
+        actionLabel: "查看文档",
+        onAction: () => router.push("/workspace?tab=documents"),
+      },
+      {
+        title: "专家评审",
+        icon: FileCheck,
+        metric: reviewScoreCount > 0 ? `${reviewScoreCount} 条` : pendingExpertReviewCount > 0 ? "进行中" : "暂无",
+        detail:
+          reviewScoreCount > 0
+            ? "已有评分和综合评语，可结合结果继续优化。"
+            : pendingExpertReviewCount > 0
+              ? "当前还有评审包正在评分中。"
+              : "当前暂无可查看的评审结果。",
+        actionLabel: "查看评审",
+        onAction: () => router.push("/workspace?tab=review"),
+      },
+    ];
 
-                <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-                  {overviewMetrics.map((item) => (
-                    <article key={item.label} className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-                      <p className="text-xs tracking-[0.08em] text-slate-400">{item.label}</p>
-                      <p className="mt-1.5 text-xl font-bold tracking-[-0.02em] text-slate-900">{item.value}</p>
-                      <p className="mt-1.5 line-clamp-2 text-xs leading-5 text-slate-500">{item.hint}</p>
-                    </article>
-                  ))}
-                </div>
-              </article>
+    const priorityFocusItems =
+      currentRole === "member"
+        ? [
+            myReportSubmitted ? "今日日程汇报已提交。" : "今日日程汇报还未提交，建议先补齐。",
+            myOpenTasks.length > 0
+              ? `当前有 ${myOpenTasks.length} 项个人任务待推进。`
+              : "当前没有个人待办任务。",
+            reviewScoreCount > 0
+              ? `专家评审已有 ${reviewScoreCount} 条评分/评语可查看。`
+              : "当前暂无专家评审结果。",
+          ]
+        : currentRole === "leader"
+          ? [
+              unsubmittedReportCount > 0 ? `今天还有 ${unsubmittedReportCount} 人未提交汇报。` : "今天团队汇报已基本收齐。",
+              openTasks.length > 0 ? `工单台账仍有 ${openTasks.length} 项待推进。` : "工单台账当前没有未完成事项。",
+              reviewScoreCount > 0 ? `专家评审已有 ${reviewScoreCount} 条评分/评语。` : "专家评审结果暂未形成。",
+            ]
+          : [
+              pendingApprovalMembers.length > 0
+                ? `当前有 ${pendingApprovalMembers.length} 个账号等待审核。`
+                : "当前没有新的账号审核积压。",
+              pendingLeaderReviewCount + pendingTeacherReviewCount > 0
+                ? `文档中心共有 ${pendingLeaderReviewCount + pendingTeacherReviewCount} 份材料待审批。`
+                : "文档中心当前没有待审批材料。",
+              reviewScoreCount > 0 ? `专家评审已有 ${reviewScoreCount} 条评分/评语。` : "专家评审暂无已提交评分。",
+            ];
 
-              <article className={`${surfaceCardClassName} p-5`}>
-                <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
-                  <div>
-                    <p className="text-sm font-medium tracking-[0.16em] text-blue-600">最近关键节点</p>
-                    <h3 className="mt-2 text-2xl font-bold tracking-[-0.03em] text-slate-900">
-                      {nearestEvent?.title ?? "暂未设置关键节点"}
-                    </h3>
-                    <p className="mt-2 line-clamp-2 text-sm leading-6 text-slate-500">
-                      {nearestEvent
-                        ? `${formatDateTime(nearestEvent.dateTime)} · ${nearestEvent.description}`
-                        : "请先在时间进度中创建比赛关键节点。"}
-                    </p>
-                  </div>
-                  <div className={`rounded-xl border px-4 py-3 text-sm ${countdownStatus.className}`}>
-                    <div className="flex items-center justify-between gap-3">
-                      <span className="font-semibold">{countdownStatus.label}</span>
-                      <span className="text-xs opacity-80">{countdownStatus.hint}</span>
-                    </div>
-                  </div>
-                </div>
+    const keyEventItems = events.slice(0, 4);
 
-                <div className="mt-4 grid gap-3 sm:grid-cols-4">
-                  {[
-                    { label: "天", value: countdown.days },
-                    { label: "时", value: countdown.hours },
-                    { label: "分", value: countdown.minutes },
-                    { label: "秒", value: countdown.seconds },
-                  ].map((item) => (
-                    <article
-                      key={item.label}
-                      className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-center shadow-sm"
-                    >
-                      <p className="text-xs font-semibold tracking-[0.18em] text-blue-500">{item.label}</p>
-                      <p className="text-2xl font-bold text-blue-600 tabular-nums">
-                        {`${item.value}`.padStart(2, "0")}
-                      </p>
-                      <p className="mt-1 text-xs text-slate-500">倒计时</p>
-                    </article>
-                  ))}
-                </div>
-              </article>
-            </section>
-
-            <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
-              <article className={`${surfaceCardClassName} bg-[linear-gradient(180deg,#ffffff_0%,#f8fbff_100%)]`}>
-                <p className="text-sm font-semibold text-slate-900">今日工作提示</p>
-                <div className="mt-4 grid gap-3 md:grid-cols-3">
-                  {attentionCards.map((item) => (
-                    <div key={item.label} className="rounded-xl border border-slate-200 bg-white px-4 py-3">
-                      <div className="flex items-center justify-between gap-3">
-                        <p className="text-sm font-medium text-slate-900">{item.label}</p>
-                        <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs text-blue-600">{item.value}</span>
-                      </div>
-                      <p className="mt-2 line-clamp-3 text-sm leading-6 text-slate-500">{item.detail}</p>
-                      <button
-                        className="mt-3 inline-flex items-center text-sm font-medium text-[#1d4ed8] transition hover:text-[#1e40af]"
-                        onClick={item.onAction}
-                        type="button"
-                      >
-                        {item.actionLabel} <span className="ml-1">→</span>
-                      </button>
-                    </div>
-                  ))}
-                </div>
-              </article>
-
-              <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-1">
-                <article className={surfaceCardClassName}>
-                  <p className="text-sm font-semibold text-slate-900">今日推进节奏</p>
-                  <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
-                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-                      <p className="text-xs text-slate-400">待完成任务</p>
-                      <p className="mt-1 text-xl font-bold text-slate-900">
-                        {tasks.filter((item) => item.status !== "archived").length} 项
-                      </p>
-                    </div>
-                    <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-                      <p className="text-xs text-slate-400">本日汇报进度</p>
-                      <p className="mt-1 text-xl font-bold text-slate-900">
-                        {(reportEntriesByDay[reportDates[0]] ?? []).length} /
-                        {" "}
-                        {reportableMembers.length}
-                      </p>
-                    </div>
-                  </div>
-                </article>
-
-                <article className={surfaceCardClassName}>
-                  <p className="text-sm font-semibold text-slate-900">优先关注</p>
-                  <div className="mt-3 space-y-2 text-sm leading-6 text-slate-500">
-                    {priorityFocusItems.map((item) => (
-                      <p className="line-clamp-2" key={item}>{item}</p>
-                    ))}
-                  </div>
-                </article>
-              </div>
-            </section>
-          </>
-        );
-      })()}
-
-      <div className="grid gap-4 xl:grid-cols-2">
-        <section className={surfaceCardClassName}>
-          <h3 className="text-base font-semibold text-slate-900">今日任务摘要</h3>
-          <div className="mt-4 space-y-4">
-            {todayTaskSummaryTasks.length > 0 ? (
-              todayTaskSummaryTasks.map((item, index) => (
-                <div key={item.id} className="flex flex-col gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-                  <div className="flex items-start gap-3">
-                  <span className="mt-0.5 flex h-6 w-6 items-center justify-center rounded-md bg-blue-600 text-xs font-semibold text-white">
-                    {index + 1}
-                  </span>
-                    <div>
-                      <p className="text-sm font-medium leading-6 text-slate-900">{item.title}</p>
-                      <p className="mt-1 text-sm leading-6 text-slate-500">负责人：{getTaskAssigneeName(item)}</p>
-                    </div>
-                  </div>
-                  {canMoveTask(item) ? (
-                    <ActionButton
-                      disabled={isSaving}
-                      onClick={() => void completeTaskFromOverview(item)}
-                    >
-                      勾选完成
-                    </ActionButton>
-                  ) : (
-                    <button
-                      className="self-start text-sm font-medium text-blue-600 transition hover:text-blue-700 sm:self-center"
-                      onClick={() => router.push("/workspace?tab=board")}
-                      type="button"
-                    >
-                      查看任务 →
-                    </button>
-                  )}
-                </div>
-              ))
-            ) : (
-              <p className="text-sm leading-7 text-slate-500">当前暂无待处理任务。</p>
-            )}
-          </div>
-        </section>
-
-        <section className={surfaceCardClassName}>
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <h3 className="text-base font-semibold text-slate-900">最新公告</h3>
-              <p className="mt-1 text-xs text-slate-500">重要通知会同步进入成员待办提醒。</p>
-            </div>
-            <span className="rounded-lg bg-blue-50 px-3 py-1 text-xs font-medium text-blue-600">
-              {announcements.length} 条
+    return (
+      <div className="space-y-5">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 rounded-[18px] border border-[#D9E5F7] bg-white px-4 py-3 shadow-sm">
+            <div className="h-4 w-1 rounded-full bg-[#0B3B8A]" />
+            <p className="truncate text-sm font-semibold text-slate-900">中国国际大学生创新大赛管理系统</p>
+            <span className="rounded-full border border-[#DCE7F6] bg-[#F7FAFE] px-3 py-1 text-xs text-slate-500">
+              南京铁道职业技术学院
+            </span>
+            <span className="rounded-full border border-[#DCE7F6] bg-[#F7FAFE] px-3 py-1 text-xs text-slate-500">
+              {formatFriendlyDate(currentDateTime)}
+            </span>
+            <span className="rounded-full border border-[#DCE7F6] bg-[#F7FAFE] px-3 py-1 text-xs text-[#0B3B8A]">
+              {currentUser?.roleLabel ?? roleLabels[currentRole]}
+            </span>
+            <span className="rounded-full border border-[#DCE7F6] bg-[#F7FAFE] px-3 py-1 text-xs text-slate-500">
+              {portalScopeText}
             </span>
           </div>
-          <div className="mt-4 space-y-3">
-            {announcements.slice(0, 2).map((item) => (
-              <article key={item.id} className="rounded-xl border border-blue-100 bg-blue-50/50 p-4 shadow-sm">
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="rounded-md bg-white px-2 py-1 text-xs font-medium text-blue-600 shadow-sm">
-                        公告
-                      </span>
-                      <p className="text-sm font-semibold text-slate-900">{item.title}</p>
-                    </div>
-                    <p className="mt-2 text-sm leading-7 text-slate-600">{item.detail}</p>
+          <div className="flex flex-wrap items-center gap-3">
+            <DemoResetNote />
+            <ActionButton
+              disabled={!permissions.canPublishAnnouncement}
+              onClick={() => setAnnouncementModalOpen(true)}
+              title="无权限"
+              variant="primary"
+            >
+              <span className="inline-flex items-center gap-2">
+                <BellPlus className="h-4 w-4" />
+                <span>发布公告</span>
+              </span>
+            </ActionButton>
+          </div>
+        </div>
+
+        <section className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_360px]">
+          <article className="overflow-hidden rounded-[20px] border border-[#D9E5F7] bg-white shadow-sm">
+            <div className="border-b border-slate-100 bg-[linear-gradient(180deg,#F9FBFF_0%,#FFFFFF_100%)] px-6 py-5">
+              <div className="flex items-start justify-between gap-4">
+                <div className="min-w-0">
+                  <div className="inline-flex items-center gap-2 rounded-full border border-[#D7E4F7] bg-white px-3 py-1 text-xs font-medium tracking-[0.08em] text-[#0B3B8A]">
+                    <span className="h-2 w-2 rounded-full bg-[#0B3B8A]" />
+                    今日总览
                   </div>
-                  <div className="flex shrink-0 items-center gap-2">
-                    {permissions.canSendDirective ? (
-                      <ActionButton disabled={isSaving} onClick={() => sendAnnouncementReminder(item)}>
-                        <span className="inline-flex items-center gap-1.5">
-                          <BellPlus className="h-4 w-4" />
-                          提醒
-                        </span>
-                      </ActionButton>
-                    ) : null}
-                    {permissions.canPublishAnnouncement ? (
-                      <button
-                        className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-blue-100 bg-white text-slate-500 transition hover:border-red-200 hover:bg-red-50 hover:text-red-600"
-                        onClick={() => deleteAnnouncement(item.id, item.title)}
-                        type="button"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    ) : null}
+                  <h3 className="mt-4 text-[30px] font-bold tracking-[-0.04em] text-slate-900">
+                    欢迎登录，{currentUser?.profile.name ?? currentUser?.name ?? "用户"}。
+                  </h3>
+                  <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-500">
+                    {currentRole === "admin"
+                      ? "当前为全局管理视角，请优先关注账号审核、站内待办和公告发布。"
+                      : currentRole === "teacher"
+                        ? "当前聚合本队材料审批、团队汇报和关键节点，便于统一查看与督办。"
+                        : currentRole === "leader"
+                          ? "当前聚合本队工单流转、汇报进度和专家反馈，便于推进每日事务。"
+                          : currentRole === "expert"
+                            ? "当前展示评审任务、评分进度和关键提醒，便于集中完成专家评审。"
+                            : "当前展示本队任务、今日日报和评审反馈，方便快速进入个人办理事项。"}
+                  </p>
+                </div>
+                <button
+                  className="hidden shrink-0 rounded-full border border-[#D9E5F7] bg-[#F8FBFF] px-4 py-2 text-sm font-medium text-[#0B3B8A] transition hover:border-[#BDD0EF] hover:bg-white lg:inline-flex"
+                  onClick={() => setNotificationsOpen(true)}
+                  type="button"
+                >
+                  今日待办 {todoItemCount} 项 →
+                </button>
+              </div>
+            </div>
+            <div className="grid gap-3 px-6 py-5 md:grid-cols-3">
+              {overviewMetrics.map((item) => (
+                <article
+                  key={item.label}
+                  className="rounded-2xl border border-[#E3ECF8] bg-[#FBFDFF] px-4 py-4 shadow-sm shadow-slate-100/70"
+                >
+                  <p className="text-xs tracking-[0.08em] text-slate-400">{item.label}</p>
+                  <p className="mt-2 text-[28px] font-bold tracking-[-0.03em] text-slate-900">{item.value}</p>
+                  <p className="mt-2 text-xs leading-5 text-slate-500">{item.hint}</p>
+                </article>
+              ))}
+            </div>
+          </article>
+
+          <article className="overflow-hidden rounded-[20px] border border-slate-100 bg-white shadow-sm">
+            <div className="border-b border-slate-100 bg-[#F7FAFE] px-4 py-3">
+              <div className="flex items-center gap-2">
+                <div className="h-4 w-1 rounded-full bg-[#0B3B8A]" />
+                <h3 className="text-lg font-semibold text-slate-900">今日工作提示</h3>
+              </div>
+            </div>
+            <div className="space-y-3 p-4">
+              {priorityFocusItems.map((item, index) => (
+                <div
+                  key={item}
+                  className="rounded-xl border border-[#E4ECF8] bg-[#FBFDFF] px-4 py-3 shadow-sm shadow-slate-100/60"
+                >
+                  <div className="flex items-start gap-3">
+                    <span className="mt-0.5 inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-[#EAF1FB] px-2 text-xs font-semibold text-[#0B3B8A]">
+                      {index + 1}
+                    </span>
+                    <p className="text-sm leading-6 text-slate-600">{item}</p>
                   </div>
                 </div>
-              </article>
-            ))}
-            {announcements.length === 0 ? (
-              <p className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-5 text-sm text-slate-500">
-                当前暂无公告，发布后会在这里重点展示。
-              </p>
-            ) : null}
+              ))}
+              <button
+                className="flex w-full items-center justify-between rounded-xl border border-[#D9E5F7] bg-white px-4 py-3 text-left transition hover:border-[#BDD0EF] hover:bg-[#F9FBFF]"
+                onClick={() => setNotificationsOpen(true)}
+                type="button"
+              >
+                <div>
+                  <p className="text-sm font-semibold text-slate-900">进入待办中心</p>
+                  <p className="mt-1 text-xs text-slate-500">统一查看待办、提醒与审批通知</p>
+                </div>
+                <span className="rounded-full bg-[#EAF1FB] px-2.5 py-1 text-xs font-medium text-[#0B3B8A]">
+                  {todoItemCount} 项
+                </span>
+              </button>
+            </div>
+          </article>
+        </section>
+
+        <section className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.85fr)]">
+          <article className="overflow-hidden rounded-[20px] border border-slate-100 bg-white shadow-sm">
+            <div className="border-b border-slate-100 bg-[#F7FAFE] px-4 py-3">
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <div className="h-4 w-1 rounded-full bg-[#0B3B8A]" />
+                  <h3 className="text-lg font-semibold text-slate-900">业务办理</h3>
+                </div>
+                <span className="text-xs text-slate-400">常用业务入口</span>
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {businessTabs.map((item, index) => (
+                  <button
+                    className={`rounded-t-xl border px-3 py-2 text-sm transition ${
+                      index === 0
+                        ? "border-[#BFD2F0] bg-white text-[#0B3B8A] shadow-sm"
+                        : "border-transparent bg-transparent text-slate-500 hover:border-[#D9E4F5] hover:bg-white"
+                    }`}
+                    key={item.key}
+                    onClick={item.onClick}
+                    type="button"
+                  >
+                    <span className="font-medium">{item.label}</span>
+                    <span className="ml-2 rounded-md bg-slate-100 px-1.5 py-0.5 text-xs text-slate-500">{item.count}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-3 p-4">
+              <div className="grid gap-3 md:grid-cols-2">
+                {portalQuickEntries.slice(0, 2).map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <button
+                      className="group rounded-2xl border border-slate-100 bg-white px-4 py-4 text-left shadow-sm transition hover:border-[#C9D9F3] hover:bg-[#F9FBFF]"
+                      key={item.title}
+                      onClick={item.onAction}
+                      type="button"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#F1F6FE] text-[#0B3B8A]">
+                            <Icon className="h-5 w-5" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-semibold text-slate-900">{item.title}</p>
+                            <p className="mt-1 text-2xl font-bold tracking-[-0.02em] text-slate-900">{item.metric}</p>
+                          </div>
+                        </div>
+                        <span className="rounded-md bg-slate-50 px-2 py-1 text-xs text-slate-500 transition group-hover:bg-white">
+                          进入
+                        </span>
+                      </div>
+                      <p className="mt-3 text-sm leading-6 text-slate-500">{item.detail}</p>
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="grid gap-3 md:grid-cols-2">
+                {portalQuickEntries.slice(2).map((item) => {
+                  const Icon = item.icon;
+                  return (
+                    <button
+                      className="group rounded-2xl border border-slate-100 bg-[#FBFDFF] px-4 py-4 text-left shadow-sm transition hover:border-[#C9D9F3] hover:bg-white"
+                      key={item.title}
+                      onClick={item.onAction}
+                      type="button"
+                    >
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex items-center gap-3">
+                          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#F1F6FE] text-[#0B3B8A]">
+                            <Icon className="h-5 w-5" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-semibold text-slate-900">{item.title}</p>
+                            <p className="mt-1 text-lg font-bold tracking-[-0.02em] text-slate-900">{item.metric}</p>
+                          </div>
+                        </div>
+                        <span className="rounded-md bg-white px-2 py-1 text-xs text-slate-500 transition group-hover:bg-[#F8FBFF]">
+                          进入
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+              <div className="rounded-2xl border border-dashed border-[#D9E5F7] bg-[#F8FBFF] px-4 py-3">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-900">快捷办理提示</p>
+                    <p className="mt-1 text-sm text-slate-500">优先从待办事项进入，可减少重复查找模块的时间。</p>
+                  </div>
+                  <button
+                    className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-[#D0DFF5] bg-white px-3 py-2 text-sm font-medium text-[#0B3B8A] transition hover:border-[#B7CDEE] hover:bg-[#F9FBFF]"
+                    onClick={() => setNotificationsOpen(true)}
+                    type="button"
+                  >
+                    查看待办
+                    <span className="rounded-full bg-[#EAF1FB] px-2 py-0.5 text-xs">{todoItemCount}</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </article>
+
+          <div className="space-y-4">
+            <article className="overflow-hidden rounded-[20px] border border-slate-100 bg-white shadow-sm">
+              <div className="border-b border-slate-100 bg-[#F7FAFE] px-4 py-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <div className="h-4 w-1 rounded-full bg-[#0B3B8A]" />
+                    <h3 className="text-lg font-semibold text-slate-900">通知公告</h3>
+                  </div>
+                  <span className="text-xs text-slate-400">{announcements.length} 条</span>
+                </div>
+              </div>
+              <div className="divide-y divide-slate-100">
+                {announcements.slice(0, 5).map((item) => (
+                  <article className="px-4 py-3 transition hover:bg-[#FAFCFF]" key={item.id}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-start gap-3">
+                          <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-[#0B3B8A]" />
+                          <div className="min-w-0">
+                            <p className="line-clamp-1 text-sm font-semibold text-slate-900">{item.title}</p>
+                            <p className="mt-1 line-clamp-2 text-sm leading-6 text-slate-500">{item.detail}</p>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="shrink-0 text-right">
+                        <span className="inline-flex rounded-md bg-slate-50 px-2 py-1 text-xs text-slate-400">
+                          通知公告
+                        </span>
+                      </div>
+                    </div>
+                  </article>
+                ))}
+                {announcements.length === 0 ? (
+                  <div className="px-4 py-6 text-sm text-slate-500">当前暂无公告。</div>
+                ) : null}
+              </div>
+            </article>
+
+            <article className="overflow-hidden rounded-[20px] border border-slate-100 bg-white shadow-sm">
+              <div className="border-b border-slate-100 bg-[#F7FAFE] px-4 py-3">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2">
+                    <div className="h-4 w-1 rounded-full bg-[#0B3B8A]" />
+                    <h3 className="text-lg font-semibold text-slate-900">关键节点</h3>
+                  </div>
+                  <span className={`rounded-full border px-2.5 py-1 text-xs ${countdownStatus.className}`}>
+                    {countdownStatus.label}
+                  </span>
+                </div>
+              </div>
+              <div className="space-y-3 p-4">
+                <div className="rounded-xl border border-[#DDE8F7] bg-[#F8FBFF] px-4 py-3">
+                  <p className="text-xs text-slate-400">节点倒计时</p>
+                  <p className="mt-1 text-sm font-semibold text-slate-900">
+                    {nearestEvent
+                      ? `距 ${nearestEvent.title} 还剩 ${countdown.days}天 ${countdown.hours}小时 ${countdown.minutes}分`
+                      : "当前还没有配置关键节点"}
+                  </p>
+                </div>
+                <div className="space-y-0 rounded-xl border border-slate-100 bg-white">
+                  {keyEventItems.map((item, index) => (
+                    <button
+                      className={`block w-full px-4 py-3 text-left transition hover:bg-[#F9FBFF] ${index !== keyEventItems.length - 1 ? "border-b border-slate-100" : ""}`}
+                      key={item.id}
+                      onClick={() => router.push("/workspace?tab=timeline")}
+                      type="button"
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="flex flex-col items-center pt-1">
+                          <span className="h-2.5 w-2.5 rounded-full bg-[#0B3B8A]" />
+                          {index !== keyEventItems.length - 1 ? <span className="mt-1 h-10 w-px bg-[#D7E4F7]" /> : null}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-start justify-between gap-3">
+                            <p className="line-clamp-1 text-sm font-semibold text-slate-900">{item.title}</p>
+                            <span className="shrink-0 text-xs text-slate-400">{formatDateTime(item.dateTime)}</span>
+                          </div>
+                          <p className="mt-1 line-clamp-2 text-sm leading-6 text-slate-500">{item.description}</p>
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </article>
           </div>
         </section>
+
+        <section className="grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]">
+          <article className="overflow-hidden rounded-[20px] border border-slate-100 bg-white shadow-sm">
+            <div className="border-b border-slate-100 bg-[#F7FAFE] px-4 py-3">
+              <div className="flex items-center gap-2">
+                <div className="h-4 w-1 rounded-full bg-[#0B3B8A]" />
+                <h3 className="text-lg font-semibold text-slate-900">今日任务摘要</h3>
+              </div>
+            </div>
+            <div className="space-y-3 p-4">
+              {todayTaskSummaryTasks.length > 0 ? (
+                todayTaskSummaryTasks.map((item, index) => (
+                <div
+                  key={item.id}
+                    className="flex flex-col gap-3 rounded-xl border border-slate-100 bg-[#FBFDFF] px-4 py-3 lg:flex-row lg:items-center lg:justify-between"
+                  >
+                    <div className="flex items-start gap-3">
+                      <span className="mt-0.5 flex h-6 w-6 items-center justify-center rounded-md bg-[#EAF1FB] text-xs font-semibold text-[#0B3B8A]">
+                        {index + 1}
+                      </span>
+                      <div>
+                        <p className="text-sm font-medium leading-6 text-slate-900">{item.title}</p>
+                        <p className="mt-1 text-sm leading-6 text-slate-500">
+                          负责人：{getTaskAssigneeName(item)} · 截止：{formatDateTime(item.dueDate)}
+                        </p>
+                      </div>
+                    </div>
+                    {canMoveTask(item) ? (
+                      <ActionButton disabled={isSaving} onClick={() => void completeTaskFromOverview(item)}>
+                        勾选完成
+                      </ActionButton>
+                    ) : (
+                      <button
+                        className="self-start text-sm font-medium text-[#0B3B8A] transition hover:text-[#0A3277] lg:self-center"
+                        onClick={() => router.push("/workspace?tab=board")}
+                        type="button"
+                      >
+                        查看工单 →
+                      </button>
+                    )}
+                  </div>
+                ))
+              ) : (
+                <p className="text-sm leading-7 text-slate-500">当前暂无待处理任务。</p>
+              )}
+            </div>
+          </article>
+
+          <article className="overflow-hidden rounded-[20px] border border-slate-100 bg-white shadow-sm">
+            <div className="border-b border-slate-100 bg-[#F7FAFE] px-4 py-3">
+              <div className="flex items-center gap-2">
+                <div className="h-4 w-1 rounded-full bg-[#0B3B8A]" />
+                <h3 className="text-lg font-semibold text-slate-900">优先关注</h3>
+              </div>
+            </div>
+            <div className="space-y-3 p-4">
+              {priorityFocusItems.map((item) => (
+                <div className="rounded-xl border border-slate-100 bg-[#FBFDFF] px-4 py-3" key={item}>
+                  <div className="flex gap-3">
+                    <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-[#0B3B8A]" />
+                    <p className="text-sm leading-6 text-slate-600">{item}</p>
+                  </div>
+                </div>
+              ))}
+              <div className="rounded-xl border border-[#E4ECF8] bg-[#F8FBFF] px-4 py-3">
+                <p className="text-xs text-slate-400">节点提示</p>
+                <p className="mt-1 text-sm font-medium text-slate-900">{countdownStatus.hint}</p>
+              </div>
+            </div>
+          </article>
+        </section>
       </div>
-    </div>
-  );
+    );
+  };
 
   const renderTimeline = () => (
     <div className="space-y-4">
@@ -5384,8 +5513,8 @@ export function WorkspaceDashboard({
           </div>
         </div>
 
-        <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
-          <div className="border-b border-slate-200 bg-slate-50/80 p-4">
+        <section className="overflow-hidden rounded-xl border border-slate-100 bg-white shadow-sm">
+          <div className="border-b border-slate-100 bg-[#F7FAFE] p-4">
             <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
               <div className="grid gap-3 sm:grid-cols-3">
                 {[
@@ -5393,7 +5522,7 @@ export function WorkspaceDashboard({
                   { label: "待验收", value: `${reviewTaskCount} 项`, hint: "需要确认闭环" },
                   { label: "已归档", value: `${taskStatusCounts.archived ?? 0} 项`, hint: "完成留痕" },
                 ].map((item) => (
-                  <div className="rounded-lg border border-slate-200 bg-white px-4 py-3" key={item.label}>
+                  <div className="rounded-lg border border-slate-100 bg-white px-4 py-3" key={item.label}>
                     <p className="text-xs text-slate-500">{item.label}</p>
                     <p className="mt-1 text-xl font-bold text-slate-900">{item.value}</p>
                     <p className="mt-1 text-xs text-slate-400">{item.hint}</p>
@@ -5430,8 +5559,8 @@ export function WorkspaceDashboard({
                   <button
                     className={`shrink-0 rounded-lg border px-3.5 py-2 text-left transition ${
                       active
-                        ? "border-blue-200 bg-blue-50 text-blue-700 shadow-sm"
-                        : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50"
+                        ? "border-[#C9D9F3] bg-[#EAF1FB] text-[#0B3B8A] shadow-sm"
+                        : "border-slate-200 bg-white text-slate-600 hover:border-[#D9E3F2] hover:bg-[#F7FAFE]"
                     }`}
                     key={item.id}
                     onClick={() => setBoardStatusFilter(item.id)}
@@ -5497,7 +5626,7 @@ export function WorkspaceDashboard({
 
                 return (
                   <article
-                    className="group relative overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm transition hover:border-blue-200 hover:shadow-md"
+                    className="group relative overflow-hidden rounded-xl border border-slate-100 bg-white shadow-sm transition hover:border-[#D2E0F5] hover:shadow-md"
                     key={task.id}
                   >
                     <span className={`absolute inset-y-0 left-0 w-1 ${statusMeta.rowAccentClassName}`} />
@@ -5549,12 +5678,12 @@ export function WorkspaceDashboard({
                           </button>
                         ) : null}
 
-                        <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
-                          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                            <div className="grid flex-1 gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                        <div className="mt-4 rounded-xl border border-slate-100 bg-slate-50 p-4">
+                          <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+                            <div className="grid flex-1 gap-2 sm:grid-cols-2 xl:grid-cols-5">
                               {taskPeople.map((item) => (
                                 <div
-                                  className="rounded-xl border border-slate-200 bg-white px-3 py-2.5 shadow-sm"
+                                  className="rounded-xl border border-slate-100 bg-white px-3 py-2.5 shadow-sm"
                                   key={item.label}
                                 >
                                   <span className="block text-[11px] font-medium tracking-[0.08em] text-slate-400">
@@ -5566,25 +5695,28 @@ export function WorkspaceDashboard({
                                 </div>
                               ))}
                             </div>
-                            <div className="rounded-xl border border-blue-100 bg-white px-4 py-3 shadow-sm lg:w-44">
-                              <p className="text-[11px] font-medium tracking-[0.08em] text-slate-400">闭环进度</p>
-                              <p className="mt-1 text-xl font-bold text-slate-900">{completedWorkflowCount}/4</p>
-                              <p className="mt-1 text-xs leading-5 text-slate-500">{nextStepLabel}</p>
+                            <div className="rounded-xl border border-[#D9E4F5] bg-[#F5F9FF] px-4 py-3 shadow-sm xl:w-56">
+                              <p className="text-[11px] font-medium tracking-[0.08em] text-slate-400">当前环节</p>
+                              <p className="mt-1 text-sm font-semibold leading-6 text-slate-900">{nextStepLabel}</p>
+                              <p className="mt-2 text-xs text-[#0B3B8A]">
+                                已完成 {completedWorkflowCount}/4 个节点
+                              </p>
                             </div>
                           </div>
 
-                          <div className="mt-4 overflow-x-auto pb-1">
+                          <div className="mt-4 rounded-xl border border-[#D9E4F5] bg-[#F5F9FF] px-4 py-4">
+                          <div className="overflow-x-auto pb-1">
                             <div className="grid min-w-[760px] grid-cols-4">
                               {workflowSteps.map((step, index) => {
                                 const leftLineClass =
                                   index > 0 && workflowSteps[index - 1]?.state === "done"
-                                    ? "bg-emerald-300"
+                                    ? "bg-[#89B3EA]"
                                     : "bg-slate-200";
                                 const rightLineClass =
                                   step.state === "done"
-                                    ? "bg-emerald-300"
+                                    ? "bg-[#89B3EA]"
                                     : step.state === "current"
-                                      ? "bg-blue-200"
+                                      ? "bg-[#BFD5F5]"
                                       : "bg-slate-200";
 
                                 return (
@@ -5607,9 +5739,9 @@ export function WorkspaceDashboard({
                                     <p
                                       className={`mt-2 text-sm font-semibold ${
                                         step.state === "done"
-                                          ? "text-emerald-700"
+                                          ? "text-[#0B3B8A]"
                                           : step.state === "current"
-                                            ? "text-blue-700"
+                                            ? "text-[#0B3B8A]"
                                             : "text-slate-500"
                                       }`}
                                     >
@@ -5623,14 +5755,15 @@ export function WorkspaceDashboard({
                               })}
                             </div>
                           </div>
+                          </div>
 
-                          <details className="mt-3 rounded-xl border border-slate-200 bg-white px-3 py-2 text-sm text-slate-600">
+                          <details className="mt-3 rounded-xl border border-slate-100 bg-white px-3 py-2 text-sm text-slate-600">
                             <summary className="cursor-pointer select-none text-xs font-semibold text-slate-500">
                               查看时间台账
                             </summary>
                             <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
                               {taskTimeItems.map((item) => (
-                                <div className="rounded-lg bg-slate-50 px-3 py-2 ring-1 ring-slate-200" key={item.label}>
+                                <div className="rounded-lg bg-slate-50 px-3 py-2 ring-1 ring-slate-100" key={item.label}>
                                   <span className="block text-xs text-slate-400">{item.label}</span>
                                   <span className="mt-1 block font-medium text-slate-700">{item.value}</span>
                                 </div>
@@ -5639,10 +5772,11 @@ export function WorkspaceDashboard({
                           </details>
                         </div>
 
-                        <div className="mt-3 flex flex-col gap-3 rounded-xl border border-slate-200 bg-white px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
-                          <p className="min-w-0 text-sm font-semibold text-slate-700">
-                            下一步：<span className="text-slate-900">{nextStepLabel}</span>
-                          </p>
+                        <div className="mt-3 flex flex-col gap-3 rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 lg:flex-row lg:items-center lg:justify-between">
+                          <div className="space-y-1">
+                            <p className="text-[11px] font-medium tracking-[0.08em] text-slate-400">办理提示</p>
+                            <p className="min-w-0 text-sm font-semibold text-slate-800">{nextStepLabel}</p>
+                          </div>
                           <div className="flex flex-wrap items-center gap-2 lg:justify-end">
                             {isUnassignedTask && canEditTaskItem(task) ? (
                               <ActionButton disabled={isSaving} onClick={() => openEditTaskModal(task)} variant="primary">
@@ -7038,15 +7172,18 @@ export function WorkspaceDashboard({
           return (
             <button
               key={category}
-              className={`rounded-xl border border-slate-200 p-5 text-left shadow-sm transition ${
+              className={`rounded-xl border p-5 text-left shadow-sm transition ${
                 isActive
-                  ? "bg-blue-50"
-                  : "bg-white hover:border-blue-200"
+                  ? "border-[#C9D9F3] bg-[#EAF1FB]"
+                  : "border-slate-100 bg-white hover:border-[#D9E3F2] hover:bg-[#F7FAFE]"
               }`}
               onClick={() => setSelectedCategory((current) => (current === category ? null : category))}
               type="button"
             >
-              <h3 className="text-base font-semibold text-slate-900">{category}</h3>
+              <div className="inline-flex items-center gap-2">
+                <div className="h-4 w-1 rounded-full bg-[#0B3B8A]" />
+                <h3 className="text-base font-semibold text-slate-900">{category}</h3>
+              </div>
               <p className="mt-3 text-2xl font-bold text-slate-900">{count}</p>
               <p className="mt-2 text-sm text-slate-500">点击筛选该分类文档</p>
             </button>
@@ -7436,9 +7573,21 @@ export function WorkspaceDashboard({
               />
             </label>
             <div className="flex items-end">
-              <ActionButton loading={isSaving} loadingLabel="创建中..." onClick={saveTeamGroup} variant="primary">
-                新建分组
-              </ActionButton>
+              <div className="flex flex-wrap gap-2">
+                <ActionButton
+                  loading={isSaving}
+                  loadingLabel={editingTeamGroupId ? "保存中..." : "创建中..."}
+                  onClick={saveTeamGroup}
+                  variant="primary"
+                >
+                  {editingTeamGroupId ? "保存修改" : "新建分组"}
+                </ActionButton>
+                {editingTeamGroupId ? (
+                  <ActionButton disabled={isSaving} onClick={cancelEditTeamGroup}>
+                    取消编辑
+                  </ActionButton>
+                ) : null}
+              </div>
             </div>
           </div>
 
@@ -7451,6 +7600,13 @@ export function WorkspaceDashboard({
                 >
                   <span className="font-medium text-slate-800">{group.name}</span>
                   <span className="text-xs text-slate-400">{group.memberCount} 人</span>
+                  <button
+                    className="rounded-md px-1.5 py-1 text-xs text-[#0B3B8A] transition hover:bg-[#F3F8FF]"
+                    onClick={() => editTeamGroup(group)}
+                    type="button"
+                  >
+                    编辑
+                  </button>
                   <button
                     className="rounded-md px-1.5 py-1 text-xs text-slate-400 transition hover:bg-red-50 hover:text-red-600"
                     onClick={() => deleteTeamGroup(group)}
@@ -7960,7 +8116,7 @@ export function WorkspaceDashboard({
 
   return (
     <>
-      <main className="min-h-screen bg-[#f1f5f9] p-4 md:p-6">
+      <main className="min-h-screen bg-slate-50 p-4 md:p-6">
         <div className="mx-auto flex max-w-[1500px] flex-col gap-4 xl:flex-row">
           {mobileSidebarOpen ? (
             <div
@@ -7970,9 +8126,17 @@ export function WorkspaceDashboard({
           ) : null}
 
           <aside className="hidden xl:block xl:w-[280px] xl:flex-none">
-            <div className="rounded-xl bg-slate-900 px-5 py-6 text-white shadow-sm xl:sticky xl:top-4 xl:flex xl:h-[calc(100vh-2rem)] xl:flex-col">
-              <div className="border-b border-white/10 pb-4">
-                <h1 className="text-[18px] font-semibold tracking-[0.02em] text-white">管理中心</h1>
+            <div className="rounded-xl bg-[#0B3B8A] px-5 py-6 text-white shadow-sm xl:sticky xl:top-4 xl:flex xl:h-[calc(100vh-2rem)] xl:flex-col">
+              <div className="border-b border-white/15 pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white/10 ring-1 ring-white/20 backdrop-blur-sm">
+                    <Image alt="南铁校徽" className="h-9 w-auto object-contain" height={77} src="/official-logo.png" width={430} />
+                  </div>
+                  <div className="min-w-0">
+                    <h1 className="text-base font-semibold tracking-[0.02em] text-white">管理中心</h1>
+                    <p className="mt-1 text-[11px] tracking-[0.12em] text-white/70">南京铁道职业技术学院</p>
+                  </div>
+                </div>
               </div>
 
               <nav className="mt-5 space-y-1.5">
@@ -7987,12 +8151,12 @@ export function WorkspaceDashboard({
                       key={item.key}
                       className={`relative flex items-center gap-3 rounded-lg px-4 py-3 text-sm no-underline transition ${
                         isActive
-                          ? "bg-white/10 text-white"
-                          : "text-white/70 hover:bg-white/6 hover:text-white"
+                          ? "bg-blue-800 text-white shadow-sm"
+                          : "text-white/80 hover:bg-white/8 hover:text-white"
                       }`}
                       href={href}
                     >
-                      {isActive ? <span className="absolute inset-y-2 left-0 w-[3px] rounded-full bg-sky-300" /> : null}
+                      {isActive ? <span className="absolute inset-y-2 left-0 w-[3px] rounded-full bg-white" /> : null}
                       <Icon className="h-[18px] w-[18px]" strokeWidth={2.1} />
                       <span>{item.label}</span>
                     </Link>
@@ -8030,13 +8194,21 @@ export function WorkspaceDashboard({
           </aside>
 
           <aside
-            className={`fixed inset-y-0 left-0 z-50 w-[280px] bg-slate-900 px-5 py-6 text-white shadow-xl transition-transform duration-200 xl:hidden ${
+            className={`fixed inset-y-0 left-0 z-50 w-[280px] bg-[#0B3B8A] px-5 py-6 text-white shadow-xl transition-transform duration-200 xl:hidden ${
               mobileSidebarOpen ? "translate-x-0" : "-translate-x-full"
             }`}
           >
             <div className="flex h-full flex-col">
-              <div className="flex items-center justify-between border-b border-white/10 pb-4">
-                <h1 className="text-[18px] font-semibold tracking-[0.02em] text-white">管理中心</h1>
+              <div className="flex items-center justify-between border-b border-white/15 pb-4">
+                <div className="flex items-center gap-3">
+                  <div className="flex h-11 w-11 items-center justify-center rounded-full bg-white/10 ring-1 ring-white/20 backdrop-blur-sm">
+                    <Image alt="南铁校徽" className="h-8 w-auto object-contain" height={77} src="/official-logo.png" width={430} />
+                  </div>
+                  <div>
+                    <h1 className="text-base font-semibold tracking-[0.02em] text-white">管理中心</h1>
+                    <p className="mt-1 text-[11px] tracking-[0.12em] text-white/70">南京铁道职业技术学院</p>
+                  </div>
+                </div>
                 <button
                   className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 text-white/80"
                   onClick={() => setMobileSidebarOpen(false)}
@@ -8058,13 +8230,13 @@ export function WorkspaceDashboard({
                       key={`mobile-${item.key}`}
                       className={`relative flex items-center gap-3 rounded-lg px-4 py-3 text-sm no-underline transition ${
                         isActive
-                          ? "bg-white/10 text-white"
-                          : "text-white/70 hover:bg-white/6 hover:text-white"
+                          ? "bg-blue-800 text-white shadow-sm"
+                          : "text-white/80 hover:bg-white/8 hover:text-white"
                       }`}
                       href={href}
                       onClick={() => setMobileSidebarOpen(false)}
                     >
-                      {isActive ? <span className="absolute inset-y-2 left-0 w-[3px] rounded-full bg-sky-300" /> : null}
+                      {isActive ? <span className="absolute inset-y-2 left-0 w-[3px] rounded-full bg-white" /> : null}
                       <Icon className="h-[18px] w-[18px]" strokeWidth={2.1} />
                       <span>{item.label}</span>
                     </Link>
@@ -8102,7 +8274,7 @@ export function WorkspaceDashboard({
           </aside>
 
           <section className="min-w-0 flex-1">
-            <header className="bg-white px-5 py-4 shadow-sm">
+            <header className="rounded-xl border border-slate-100 bg-white px-5 py-4 shadow-sm">
               <div className="mx-auto flex max-w-[1200px] flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div className="flex min-h-10 items-center gap-3">
                   <button
@@ -8112,11 +8284,7 @@ export function WorkspaceDashboard({
                   >
                     <Menu className="h-5 w-5" />
                   </button>
-                  {safeActiveTab === "overview" ? (
-                    <span className="sr-only">{activeTabItem.label}</span>
-                  ) : (
-                    <p className="text-lg font-semibold text-slate-900">{activeTabItem.label}</p>
-                  )}
+                  <p className="text-lg font-semibold text-slate-900">{activeTabItem.label}</p>
                 </div>
 
                 <div className="flex flex-wrap items-center gap-3">
