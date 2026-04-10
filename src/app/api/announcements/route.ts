@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { getSessionUser } from "@/lib/auth";
 import { createNotifications } from "@/lib/notifications";
-import { assertMainWorkspaceRole, assertRole } from "@/lib/permissions";
+import { assertMainWorkspaceRole, assertRole, hasGlobalAdminPrivileges } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { serializeAnnouncement } from "@/lib/api-serializers";
 import { buildTeamScopedResourceWhere } from "@/lib/team-scope";
@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    assertRole(user.role, ["admin", "teacher", "leader"]);
+    assertRole(user.role, ["admin", "school_admin", "teacher", "leader"]);
   } catch {
     return NextResponse.json({ message: "无权限" }, { status: 403 });
   }
@@ -72,7 +72,7 @@ export async function POST(request: NextRequest) {
       title,
       detail,
       authorId: user.id,
-      teamGroupId: user.role === "admin" ? null : user.teamGroupId,
+      teamGroupId: hasGlobalAdminPrivileges(user.role) ? null : user.teamGroupId,
     },
     include: {
       author: {
@@ -83,7 +83,7 @@ export async function POST(request: NextRequest) {
 
   if (notifyTeam) {
     const targetRoles =
-      user.role === "admin"
+      hasGlobalAdminPrivileges(user.role)
         ? (["teacher", "leader", "member"] as const)
         : user.role === "teacher"
           ? (["leader", "member"] as const)
@@ -98,7 +98,7 @@ export async function POST(request: NextRequest) {
         id: {
           not: user.id,
         },
-        ...(user.role === "admin"
+        ...(hasGlobalAdminPrivileges(user.role)
           ? {}
           : user.teamGroupId
             ? { teamGroupId: user.teamGroupId }

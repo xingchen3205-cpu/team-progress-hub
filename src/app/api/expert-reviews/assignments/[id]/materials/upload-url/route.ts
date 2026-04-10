@@ -22,7 +22,7 @@ export async function POST(
   }
 
   try {
-    assertRole(user.role, ["admin", "teacher", "leader"]);
+    assertRole(user.role, ["admin", "school_admin", "teacher", "leader"]);
   } catch {
     return NextResponse.json({ message: "无权限" }, { status: 403 });
   }

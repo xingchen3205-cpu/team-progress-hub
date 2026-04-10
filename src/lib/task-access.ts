@@ -1,5 +1,7 @@
 import type { Prisma, Role, UserApprovalStatus } from "@prisma/client";
 
+import { hasGlobalAdminPrivileges } from "@/lib/permissions";
+
 type TaskActor = {
   id: string;
   role: Role;
@@ -36,7 +38,7 @@ type TaskRecord = {
 };
 
 export const getTaskVisibilityWhere = (actor: TaskActor): Prisma.TaskWhereInput => {
-  if (actor.role === "admin") {
+  if (hasGlobalAdminPrivileges(actor.role)) {
     return {};
   }
 
@@ -62,7 +64,7 @@ export const getTaskVisibilityWhere = (actor: TaskActor): Prisma.TaskWhereInput 
 };
 
 export const canAccessTask = (actor: TaskActor, task: TaskRecord) => {
-  if (actor.role === "admin") {
+  if (hasGlobalAdminPrivileges(actor.role)) {
     return true;
   }
 
@@ -97,7 +99,7 @@ export const canAssignTaskToUser = (actor: TaskActor, target: TaskUser) => {
     return false;
   }
 
-  if (actor.role === "admin") {
+  if (hasGlobalAdminPrivileges(actor.role)) {
     return true;
   }
 
@@ -113,7 +115,7 @@ export const canAssignTaskToUser = (actor: TaskActor, target: TaskUser) => {
 };
 
 export const canReviewTask = (actor: TaskActor, task: TaskRecord) => {
-  if (actor.role === "admin") {
+  if (hasGlobalAdminPrivileges(actor.role)) {
     return true;
   }
 

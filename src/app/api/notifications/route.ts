@@ -2,7 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { getSessionUser } from "@/lib/auth";
 import { serializeNotification } from "@/lib/api-serializers";
-import { assertMainWorkspaceRole, assertRole, canViewTeamMember } from "@/lib/permissions";
+import {
+  assertMainWorkspaceRole,
+  assertRole,
+  canViewTeamMember,
+} from "@/lib/permissions";
 import { createNotifications } from "@/lib/notifications";
 import { prisma } from "@/lib/prisma";
 
@@ -22,7 +26,7 @@ export async function GET(request: NextRequest) {
 
   if (scope === "sent") {
     try {
-      assertRole(user.role, ["admin", "teacher"]);
+      assertRole(user.role, ["admin", "school_admin", "teacher"]);
     } catch {
       return NextResponse.json({ message: "无权限" }, { status: 403 });
     }
@@ -86,7 +90,7 @@ export async function POST(request: NextRequest) {
 
   try {
     assertMainWorkspaceRole(user.role);
-    assertRole(user.role, ["admin", "teacher"]);
+    assertRole(user.role, ["admin", "school_admin", "teacher"]);
   } catch {
     return NextResponse.json({ message: "无权限" }, { status: 403 });
   }

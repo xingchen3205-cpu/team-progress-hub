@@ -1,5 +1,7 @@
 import type { Role } from "@prisma/client";
 
+import { hasGlobalAdminPrivileges } from "@/lib/permissions";
+
 type TeamScopedActor = {
   id: string;
   role: Role;
@@ -20,7 +22,7 @@ export const buildTeamScopedResourceWhere = ({
   ownerField: string;
   teamGroupField?: string;
 }) => {
-  if (actor.role === "admin") {
+  if (hasGlobalAdminPrivileges(actor.role)) {
     return {};
   }
 
@@ -37,7 +39,7 @@ export const buildTeamScopedResourceWhere = ({
 };
 
 export const buildDocumentVisibilityWhere = (actor: TeamScopedActor) => {
-  if (actor.role === "admin") {
+  if (hasGlobalAdminPrivileges(actor.role)) {
     return {};
   }
 
@@ -58,7 +60,7 @@ export const buildExpertReviewAssignmentVisibilityWhere = (actor: TeamScopedActo
     return { expertUserId: actor.id };
   }
 
-  if (actor.role === "admin") {
+  if (hasGlobalAdminPrivileges(actor.role)) {
     return {};
   }
 
@@ -74,7 +76,7 @@ export const canAccessTeamScopedResource = (
   actor: TeamScopedActor,
   resource: TeamScopedResource,
 ) => {
-  if (actor.role === "admin") {
+  if (hasGlobalAdminPrivileges(actor.role)) {
     return true;
   }
 

@@ -9,23 +9,24 @@ import {
   canApproveRegistration,
   canManageUser,
   getRegistrationApproverRoles,
+  hasGlobalAdminPrivileges,
   roleLabels,
 } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { serializeUser } from "@/lib/api-serializers";
 
 const defaultPassword = "123456";
-type TeamMemberRole = "admin" | "teacher" | "leader" | "member" | "expert";
+type TeamMemberRole = "admin" | "school_admin" | "teacher" | "leader" | "member" | "expert";
 type TeamViewerRole = TeamMemberRole;
 
 const canViewAccountIdentifier = (viewerRole: TeamViewerRole) =>
-  viewerRole === "admin" || viewerRole === "teacher";
+  hasGlobalAdminPrivileges(viewerRole) || viewerRole === "teacher";
 
 const canViewApprovedMember = (
   viewer: { id: string; role: TeamViewerRole; teamGroupId?: string | null },
   member: { id: string; role: TeamMemberRole; teamGroup?: { id: string } | null },
 ) => {
-  if (viewer.role === "admin") {
+  if (hasGlobalAdminPrivileges(viewer.role)) {
     return true;
   }
 
@@ -162,7 +163,7 @@ export async function GET(request: NextRequest) {
     );
 
   const groups =
-    user.role === "admin"
+    hasGlobalAdminPrivileges(user.role)
       ? await prisma.teamGroup.findMany({
           orderBy: { createdAt: "asc" },
           include: {
@@ -203,7 +204,7 @@ export async function POST(request: NextRequest) {
         name?: string;
         username?: string;
         email?: string;
-        role?: "系统管理员" | "指导教师" | "项目负责人" | "团队成员" | "评审专家";
+        role?: "系统管理员" | "校级管理员" | "指导教师" | "项目负责人" | "团队成员" | "评审专家";
         responsibility?: string;
         password?: string;
         teamGroupId?: string | null;
@@ -212,6 +213,7 @@ export async function POST(request: NextRequest) {
 
   const roleMap = {
     系统管理员: "admin",
+    校级管理员: "school_admin",
     指导教师: "teacher",
     项目负责人: "leader",
     团队成员: "member",
@@ -242,8 +244,8 @@ export async function POST(request: NextRequest) {
   }
 
   let teamGroupId: string | null = null;
-  if (requestedTeamGroupId && role !== "expert") {
-    if (user.role !== "admin") {
+  if (requestedTeamGroupId && role !== "expert" && role !== "school_admin") {
+    if (!hasGlobalAdminPrivileges(user.role)) {
       return NextResponse.json({ message: "无权限设置账号分组" }, { status: 403 });
     }
 
@@ -257,7 +259,7 @@ export async function POST(request: NextRequest) {
     }
 
     teamGroupId = group.id;
-  } else if (user.role !== "admin" && role !== "expert" && user.teamGroupId) {
+  } else if (!hasGlobalAdminPrivileges(user.role) && role !== "expert" && role !== "school_admin" && user.teamGroupId) {
     teamGroupId = user.teamGroupId;
   }
 

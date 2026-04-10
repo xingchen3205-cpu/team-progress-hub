@@ -4,7 +4,7 @@ import type { Role, TaskAssignment, TaskStatus } from "@prisma/client";
 import { getSessionUser } from "@/lib/auth";
 import { parseLocalDateTime } from "@/lib/date";
 import { createNotifications } from "@/lib/notifications";
-import { assertMainWorkspaceRole } from "@/lib/permissions";
+import { assertMainWorkspaceRole, hasGlobalAdminPrivileges } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { serializeTask, taskPriorityValueToDb } from "@/lib/api-serializers";
 import { canAccessTask, canAssignTaskToUser, canReviewTask } from "@/lib/task-access";
@@ -255,14 +255,14 @@ export async function PATCH(
   const isReviewer = canReviewTask(user, currentTask);
   const isAssignee = Boolean(currentAssignment);
   const isCreator = currentTask.creatorId === user.id;
-  const editableByRole = user.role === "admin" || user.role === "teacher" || user.role === "leader";
+  const editableByRole = hasGlobalAdminPrivileges(user.role) || user.role === "teacher" || user.role === "leader";
 
   if (body.action === "remind_dispatch") {
     if (!(currentTask.status === "todo" && currentTask.assignments.length === 0 && !currentTask.assigneeId)) {
       return NextResponse.json({ message: "只有待分配工单可以提醒分配" }, { status: 400 });
     }
 
-    if (!isCreator && user.role !== "admin" && user.role !== "teacher" && user.role !== "leader") {
+    if (!isCreator && !hasGlobalAdminPrivileges(user.role) && user.role !== "teacher" && user.role !== "leader") {
       return NextResponse.json({ message: "只有提报人或本队教师/负责人可以提醒分配" }, { status: 403 });
     }
 
@@ -611,7 +611,7 @@ export async function PATCH(
     data.archivedAt = null;
     data.reviewerId = editableByRole ? currentTask.reviewerId ?? user.id : currentTask.reviewerId;
     data.teamGroupId =
-      user.role === "admin"
+      hasGlobalAdminPrivileges(user.role)
         ? refreshedTask.assignments[0]?.assignee.teamGroupId ?? body.teamGroupId?.trim() ?? currentTask.teamGroupId
         : refreshedTask.assignments[0]?.assignee.teamGroupId ?? currentTask.teamGroupId;
 
@@ -702,7 +702,7 @@ export async function DELETE(
   }
 
   const canDelete =
-    user.role === "admin" ||
+    hasGlobalAdminPrivileges(user.role) ||
     user.role === "teacher" ||
     user.role === "leader" ||
     task.creatorId === user.id;

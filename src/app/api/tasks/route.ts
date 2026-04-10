@@ -4,7 +4,7 @@ import type { Role } from "@prisma/client";
 import { getSessionUser } from "@/lib/auth";
 import { parseLocalDateTime } from "@/lib/date";
 import { createNotifications } from "@/lib/notifications";
-import { assertMainWorkspaceRole } from "@/lib/permissions";
+import { assertMainWorkspaceRole, hasGlobalAdminPrivileges } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import {
   serializeTask,
@@ -185,7 +185,7 @@ export async function POST(request: NextRequest) {
 
   const firstAssignee = assigneeIds[0] ? assigneesById.get(assigneeIds[0]) ?? null : null;
   const teamGroupId =
-    user.role === "admin"
+    hasGlobalAdminPrivileges(user.role)
       ? firstAssignee?.teamGroupId || requestedTeamGroupId || user.teamGroupId || null
       : firstAssignee?.teamGroupId || user.teamGroupId || null;
 
@@ -193,7 +193,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: "请先选择处理人，或将账号加入队伍后再发布待分配工单" }, { status: 400 });
   }
 
-  const reviewerId = user.role === "teacher" || user.role === "leader" || user.role === "admin" ? user.id : null;
+  const reviewerId =
+    user.role === "teacher" || user.role === "leader" || hasGlobalAdminPrivileges(user.role)
+      ? user.id
+      : null;
   const now = new Date();
   const autoAcceptedIds = new Set(
     assignees.filter((assignee) => assignee.id === user.id || assignee.role === "leader").map((assignee) => assignee.id),

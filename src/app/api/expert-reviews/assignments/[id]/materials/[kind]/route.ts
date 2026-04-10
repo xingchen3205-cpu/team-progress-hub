@@ -25,7 +25,7 @@ export async function GET(
   const { id, kind } = await params;
 
   try {
-    assertRole(user.role, ["admin", "teacher", "leader", "expert"]);
+    assertRole(user.role, ["admin", "school_admin", "teacher", "leader", "expert"]);
   } catch {
     return NextResponse.json({ message: "无权限" }, { status: 403 });
   }

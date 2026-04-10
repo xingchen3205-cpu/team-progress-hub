@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { getSessionUser } from "@/lib/auth";
-import { assertMainWorkspaceRole } from "@/lib/permissions";
+import { assertMainWorkspaceRole, hasGlobalAdminPrivileges } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { serializeTrainingQuestion } from "@/lib/api-serializers";
 import { buildTeamScopedResourceWhere } from "@/lib/team-scope";
@@ -68,7 +68,7 @@ export async function POST(request: NextRequest) {
       question,
       answerPoints,
       createdById: user.id,
-      teamGroupId: user.role === "admin" ? null : user.teamGroupId,
+      teamGroupId: hasGlobalAdminPrivileges(user.role) ? null : user.teamGroupId,
     },
     include: {
       createdBy: {

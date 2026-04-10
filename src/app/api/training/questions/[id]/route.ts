@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { getSessionUser } from "@/lib/auth";
-import { assertMainWorkspaceRole, assertRole } from "@/lib/permissions";
+import { assertMainWorkspaceRole, assertRole, hasGlobalAdminPrivileges } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { serializeTrainingQuestion } from "@/lib/api-serializers";
 
@@ -9,7 +9,7 @@ const canManageTrainingQuestion = (
   user: NonNullable<Awaited<ReturnType<typeof getSessionUser>>>,
   question: { createdById: string; teamGroupId?: string | null },
 ) => {
-  if (user.role === "admin" || user.id === question.createdById) {
+  if (hasGlobalAdminPrivileges(user.role) || user.id === question.createdById) {
     return true;
   }
 
@@ -107,7 +107,7 @@ export async function DELETE(
   }
 
   try {
-    assertRole(user.role, ["admin", "teacher", "leader", "member"]);
+    assertRole(user.role, ["admin", "school_admin", "teacher", "leader", "member"]);
   } catch {
     return NextResponse.json({ message: "无权限" }, { status: 403 });
   }

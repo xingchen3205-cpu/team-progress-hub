@@ -5,7 +5,7 @@ import {
   redactExpertReviewAssignmentForRole,
   serializeExpertReviewAssignment,
 } from "@/lib/expert-review";
-import { assertRole } from "@/lib/permissions";
+import { assertRole, hasGlobalAdminPrivileges } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { buildExpertReviewAssignmentVisibilityWhere } from "@/lib/team-scope";
 
@@ -62,7 +62,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    assertRole(user.role, ["admin", "teacher", "leader", "member", "expert"]);
+    assertRole(user.role, ["admin", "school_admin", "teacher", "leader", "member", "expert"]);
   } catch {
     return NextResponse.json({ message: "无权限" }, { status: 403 });
   }
@@ -87,7 +87,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    assertRole(user.role, ["admin", "teacher", "leader"]);
+    assertRole(user.role, ["admin", "school_admin", "teacher", "leader"]);
   } catch {
     return NextResponse.json({ message: "无权限" }, { status: 403 });
   }
@@ -133,7 +133,7 @@ export async function POST(request: NextRequest) {
         overview,
         deadline,
         createdById: user.id,
-        teamGroupId: user.role === "admin" ? null : user.teamGroupId,
+        teamGroupId: hasGlobalAdminPrivileges(user.role) ? null : user.teamGroupId,
       },
       select: { id: true },
     });

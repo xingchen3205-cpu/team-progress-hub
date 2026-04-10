@@ -715,6 +715,27 @@ const rolePermissions = {
     canEditTimeline: true,
     canResetPassword: true,
   },
+  school_admin: {
+    visibleTabs: ["overview", "timeline", "board", "training", "reports", "experts", "review", "documents", "team", "profile"] as TabKey[],
+    canPublishAnnouncement: true,
+    canSendDirective: true,
+    canCreateTask: true,
+    canEditTask: true,
+    canDeleteTask: true,
+    canMoveAnyTask: true,
+    canSubmitReport: false,
+    canViewAllReports: true,
+    canUploadExpert: true,
+    canDeleteExpert: true,
+    canUploadDocument: true,
+    canLeaderReviewDocument: true,
+    canTeacherReviewDocument: true,
+    canDeleteAnyDocument: true,
+    canManageTeam: true,
+    canManageTeacherAccount: true,
+    canEditTimeline: true,
+    canResetPassword: true,
+  },
   teacher: {
     visibleTabs: ["overview", "timeline", "board", "training", "reports", "experts", "review", "documents", "team", "profile"] as TabKey[],
     canPublishAnnouncement: true,
@@ -803,6 +824,7 @@ const rolePermissions = {
 
 const teamRoleToRoleKey: Record<TeamRoleLabel, RoleKey> = {
   系统管理员: "admin",
+  校级管理员: "school_admin",
   指导教师: "teacher",
   项目负责人: "leader",
   团队成员: "member",
@@ -1603,6 +1625,9 @@ export function WorkspaceDashboard({
 
   const role = currentUser?.role ?? null;
   const currentRole = role ?? "member";
+  const isSystemAdmin = currentRole === "admin";
+  const isSchoolAdmin = currentRole === "school_admin";
+  const hasGlobalAdminRole = isSystemAdmin || isSchoolAdmin;
   const currentMemberId = currentUser?.id ?? "";
   const permissions = rolePermissions[currentRole];
   const requiresEmailCompletion = Boolean(currentUser && validateRequiredEmail(currentUser.email));
@@ -1616,13 +1641,13 @@ export function WorkspaceDashboard({
   const nearestUpcomingIndex = events.length > 0 ? getNearestUpcomingIndex(events) : 0;
   const nearestEvent = events[nearestUpcomingIndex];
   const portalScopeText =
-    currentRole === "admin"
+    hasGlobalAdminRole
       ? "全局管理"
       : currentRole === "expert"
         ? "专家评审任务"
         : currentUser?.teamGroupName ?? "未加入项目组";
   const canReviewDocuments =
-    currentRole === "admin" || permissions.canLeaderReviewDocument || permissions.canTeacherReviewDocument;
+    hasGlobalAdminRole || permissions.canLeaderReviewDocument || permissions.canTeacherReviewDocument;
   const hasBlockingOverlay =
     taskModalOpen ||
     taskCompletionModalOpen ||
@@ -1738,7 +1763,7 @@ export function WorkspaceDashboard({
           requestJson<{ events: EventItem[] }>("/api/events"),
           requestJson<{ tasks: BoardTask[] }>("/api/tasks"),
           requestJson<{ dates: string[]; reports: ReportEntryWithDate[] }>(
-            mePayload.user.role === "admin" && selectedReportTeamGroupId
+            (mePayload.user.role === "admin" || mePayload.user.role === "school_admin") && selectedReportTeamGroupId
               ? `/api/reports?teamGroupId=${encodeURIComponent(selectedReportTeamGroupId)}`
               : "/api/reports",
           ),
@@ -1752,6 +1777,7 @@ export function WorkspaceDashboard({
 
         if (
           mePayload.user.role === "admin" ||
+          mePayload.user.role === "school_admin" ||
           mePayload.user.role === "teacher" ||
           mePayload.user.role === "leader" ||
           mePayload.user.role === "member"
@@ -1809,7 +1835,7 @@ export function WorkspaceDashboard({
         setTrainingQuestions(trainingQuestionsPayload.questions);
         setTrainingSessions(trainingSessionsPayload.sessions);
         setTrainingStats(trainingSessionsPayload.stats);
-        if (!["admin", "teacher"].includes(mePayload.user.role)) {
+        if (!["admin", "school_admin", "teacher"].includes(mePayload.user.role)) {
           setSentReminders([]);
         }
         setMembers(teamPayload.members);
@@ -2034,7 +2060,7 @@ export function WorkspaceDashboard({
     members,
     currentMemberId,
     canViewAllReports: permissions.canViewAllReports,
-    selectedTeamGroupId: currentRole === "admin" ? selectedReportTeamGroupId : null,
+    selectedTeamGroupId: hasGlobalAdminRole ? selectedReportTeamGroupId : null,
   });
   const reportDateOptions = useMemo(
     () =>
@@ -2068,7 +2094,7 @@ export function WorkspaceDashboard({
       return false;
     }
 
-    if (currentRole !== "admin" || !selectedReportTeamGroupId) {
+    if (!hasGlobalAdminRole || !selectedReportTeamGroupId) {
       return true;
     }
 
@@ -2147,8 +2173,16 @@ export function WorkspaceDashboard({
     if (!permissions.canManageTeam) {
       return false;
     }
-    if (currentRole === "admin") {
+    if (isSystemAdmin) {
       return true;
+    }
+    if (isSchoolAdmin) {
+      return (
+        member.systemRole === "指导教师" ||
+        member.systemRole === "项目负责人" ||
+        member.systemRole === "团队成员" ||
+        member.systemRole === "评审专家"
+      );
     }
     if (currentRole === "teacher") {
       return (
@@ -2168,8 +2202,17 @@ export function WorkspaceDashboard({
       return false;
     }
 
-    if (currentRole === "admin") {
+    if (isSystemAdmin) {
       return true;
+    }
+
+    if (isSchoolAdmin) {
+      return (
+        member.systemRole === "指导教师" ||
+        member.systemRole === "项目负责人" ||
+        member.systemRole === "团队成员" ||
+        member.systemRole === "评审专家"
+      );
     }
 
     return (
@@ -2184,7 +2227,7 @@ export function WorkspaceDashboard({
       return false;
     }
 
-    if (currentRole === "admin") {
+    if (isSystemAdmin || isSchoolAdmin) {
       return ["指导教师", "项目负责人", "团队成员", "评审专家"].includes(member.systemRole);
     }
 
@@ -2200,21 +2243,23 @@ export function WorkspaceDashboard({
   };
 
   const availableRoleOptions: TeamRoleLabel[] =
-    currentRole === "admin"
-      ? ["指导教师", "项目负责人", "团队成员", "评审专家"]
+    isSystemAdmin
+      ? ["校级管理员", "指导教师", "项目负责人", "团队成员", "评审专家"]
+      : isSchoolAdmin
+        ? ["指导教师", "项目负责人", "团队成员", "评审专家"]
       : currentRole === "teacher"
         ? ["项目负责人", "团队成员", "评审专家"]
         : ["团队成员"];
 
-  const canViewExpertAccounts = currentRole === "admin" || currentRole === "teacher";
-  const canViewTeamAccountIdentifiers = currentRole === "admin" || currentRole === "teacher";
+  const canViewExpertAccounts = hasGlobalAdminRole || currentRole === "teacher";
+  const canViewTeamAccountIdentifiers = hasGlobalAdminRole || currentRole === "teacher";
   const visibleTeamMembers = members.filter((member) => canViewExpertAccounts || member.systemRole !== "评审专家");
 
   const visibleCoreTeamMembers = visibleTeamMembers.filter((member) => member.systemRole !== "评审专家");
   const visibleExpertAccountMembers = visibleTeamMembers.filter((member) => member.systemRole === "评审专家");
   const activeTeamMembers =
     teamAccountView === "experts" ? visibleExpertAccountMembers : visibleCoreTeamMembers;
-  const canUseTeamGroups = currentRole === "admin" && teamAccountView === "team";
+  const canUseTeamGroups = hasGlobalAdminRole && teamAccountView === "team";
   const showTeamActions = permissions.canManageTeam || permissions.canSendDirective || permissions.canResetPassword;
   const teamListGridClassName = canUseTeamGroups
     ? "lg:grid-cols-[minmax(0,1.3fr)_160px_180px_120px_minmax(260px,1fr)]"
@@ -2236,13 +2281,13 @@ export function WorkspaceDashboard({
 
     const matchesRole = teamRoleFilter === "全部" || member.systemRole === teamRoleFilter;
     const matchesGroup =
-      currentRole !== "admin" ||
+      !hasGlobalAdminRole ||
       teamAccountView !== "team" ||
       teamGroupFilter === "全部" ||
       (teamGroupFilter === "未分组" ? !member.teamGroupId : member.teamGroupId === teamGroupFilter);
     return matchesKeyword && matchesRole && matchesGroup;
   });
-  const canBatchCreateExperts = currentRole === "admin" || currentRole === "teacher";
+  const canBatchCreateExperts = hasGlobalAdminRole || currentRole === "teacher";
 
   useEffect(() => {
     if (!canViewExpertAccounts && teamAccountView === "experts") {
@@ -2311,7 +2356,7 @@ export function WorkspaceDashboard({
       });
     }
 
-    if ((currentRole === "leader" || currentRole === "admin") && pendingLeaderReviewCount > 0) {
+    if ((currentRole === "leader" || hasGlobalAdminRole) && pendingLeaderReviewCount > 0) {
       items.push({
         id: "leader-review",
         title: "文档待负责人审批",
@@ -2322,7 +2367,7 @@ export function WorkspaceDashboard({
       });
     }
 
-    if ((currentRole === "teacher" || currentRole === "admin") && pendingTeacherReviewCount > 0) {
+    if ((currentRole === "teacher" || hasGlobalAdminRole) && pendingTeacherReviewCount > 0) {
       items.push({
         id: "teacher-review",
         title: "文档待教师终审",
@@ -2363,6 +2408,7 @@ export function WorkspaceDashboard({
     currentMemberId,
     currentRole,
     currentUser,
+    hasGlobalAdminRole,
     myOpenTasks.length,
     nearestEvent,
     pendingApprovalMembers.length,
@@ -2449,7 +2495,15 @@ export function WorkspaceDashboard({
       return false;
     }
 
-    return member.systemRole !== "系统管理员";
+    if (member.systemRole === "系统管理员") {
+      return false;
+    }
+
+    if (member.systemRole === "校级管理员") {
+      return isSystemAdmin;
+    }
+
+    return true;
   };
 
   const reminderTabOptions = useMemo(() => {
@@ -2488,7 +2542,7 @@ export function WorkspaceDashboard({
   };
 
   const openEmailSettingsModal = async () => {
-    if (currentRole !== "admin") {
+    if (!hasGlobalAdminRole) {
       setLoadError("无权限配置邮件提醒");
       return;
     }
@@ -2539,7 +2593,7 @@ export function WorkspaceDashboard({
   const canDeleteTaskItem = (task: BoardTask) => permissions.canDeleteTask || task.creatorId === currentMemberId;
 
   const canReviewTaskItem = (task: BoardTask) =>
-    currentRole === "admin" ||
+    hasGlobalAdminRole ||
     ((currentRole === "teacher" || currentRole === "leader") &&
       (task.reviewerId === currentMemberId ||
         Boolean(task.teamGroupId && task.teamGroupId === currentUser?.teamGroupId)));
@@ -2559,15 +2613,15 @@ export function WorkspaceDashboard({
     ((doc.ownerId === currentMemberId || version.uploaderId === currentMemberId) &&
       doc.statusKey !== "approved");
 
-  const canManageReviewMaterials = ["admin", "teacher", "leader"].includes(currentRole);
-  const canCreateReviewPackage = ["admin", "teacher", "leader"].includes(currentRole);
+  const canManageReviewMaterials = ["admin", "school_admin", "teacher", "leader"].includes(currentRole);
+  const canCreateReviewPackage = ["admin", "school_admin", "teacher", "leader"].includes(currentRole);
   const canManageTrainingQuestion = (question: TrainingQuestionItem) =>
-    ["admin", "teacher", "leader"].includes(currentRole) || question.createdById === currentMemberId;
+    ["admin", "school_admin", "teacher", "leader"].includes(currentRole) || question.createdById === currentMemberId;
   const activeDrillQuestion =
     trainingQuestions.find((question) => question.id === activeDrillQuestionId) ?? trainingQuestions[0] ?? null;
 
   const getDocumentActionButtons = (doc: DocumentItem): DocumentActionButton[] => {
-    if ((permissions.canLeaderReviewDocument || currentRole === "admin") && doc.statusKey === "pending") {
+    if ((permissions.canLeaderReviewDocument || hasGlobalAdminRole) && doc.statusKey === "pending") {
       return [
         {
           key: "leaderApprove",
@@ -2582,7 +2636,7 @@ export function WorkspaceDashboard({
       ];
     }
 
-    if ((permissions.canTeacherReviewDocument || currentRole === "admin") && doc.statusKey === "leader_approved") {
+    if ((permissions.canTeacherReviewDocument || hasGlobalAdminRole) && doc.statusKey === "leader_approved") {
       return [
         {
           key: "teacherApprove",
@@ -2900,12 +2954,12 @@ export function WorkspaceDashboard({
     }
 
     if (!editingTaskId && taskDraft.assigneeIds.length === 0) {
-      if (currentRole === "admin" && !taskDraft.teamGroupId) {
+      if (hasGlobalAdminRole && !taskDraft.teamGroupId) {
         setLoadError("请选择待分配工单所属队伍");
         return;
       }
 
-      if (currentRole !== "admin" && !currentUser?.teamGroupId) {
+      if (!hasGlobalAdminRole && !currentUser?.teamGroupId) {
         setLoadError("请先在团队管理中把账号加入队伍，再发布待分配工单");
         return;
       }
@@ -4853,12 +4907,12 @@ export function WorkspaceDashboard({
     const pendingExpertReviewCount = reviewAssignments.filter((assignment) => assignment.statusKey === "pending").length;
 
     const overviewMetrics =
-      currentRole === "admin"
+      hasGlobalAdminRole
         ? [
             {
               label: "待审核账号",
               value: `${pendingApprovalMembers.length} 个`,
-              hint: pendingApprovalMembers.length > 0 ? "等待系统管理员审核处理" : "当前没有待审核账号",
+              hint: pendingApprovalMembers.length > 0 ? "等待全局管理员审核处理" : "当前没有待审核账号",
             },
             {
               label: "待办提醒",
@@ -5118,7 +5172,7 @@ export function WorkspaceDashboard({
                     欢迎登录，{currentUser?.profile.name ?? currentUser?.name ?? "用户"}。
                   </h3>
                   <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-500">
-                    {currentRole === "admin"
+                    {hasGlobalAdminRole
                       ? "当前为全局管理视角，请优先关注账号审核、站内待办和公告发布。"
                       : currentRole === "teacher"
                         ? "当前聚合本队材料审批、团队汇报和关键节点，便于统一查看与督办。"
@@ -5679,7 +5733,7 @@ export function WorkspaceDashboard({
                   isUnassignedTask &&
                   Boolean(task.teamGroupId) &&
                   (task.creatorId === currentMemberId ||
-                    currentRole === "admin" ||
+                    hasGlobalAdminRole ||
                     currentRole === "teacher" ||
                     currentRole === "leader");
                 const workflowSteps = buildTaskWorkflowSteps({
@@ -6532,7 +6586,7 @@ export function WorkspaceDashboard({
                 </p>
               </div>
               <div className="flex flex-col gap-3 md:flex-row md:items-end">
-                {currentRole === "admin" ? (
+                {hasGlobalAdminRole ? (
                   <label className="block min-w-56 text-sm font-medium text-slate-600">
                     项目组
                     <select
@@ -6639,7 +6693,7 @@ export function WorkspaceDashboard({
                 当前角色只查看归档，不需要提交汇报。
               </p>
             )}
-            {currentRole === "admin" ? (
+            {hasGlobalAdminRole ? (
               <div className="mt-4 rounded-lg border border-rose-100 bg-white p-3">
                 <p className="text-xs font-semibold text-rose-600">管理员清理</p>
                 <p className="mt-1 text-xs leading-5 text-slate-500">
@@ -7555,7 +7609,7 @@ export function WorkspaceDashboard({
               </span>
             </ActionButton>
           ) : null}
-          {currentRole === "admin" ? (
+          {hasGlobalAdminRole ? (
             <ActionButton onClick={() => void openEmailSettingsModal()}>
               <span className="inline-flex items-center gap-2">
                 <BellPlus className="h-4 w-4" />
@@ -7648,13 +7702,13 @@ export function WorkspaceDashboard({
         </section>
       ) : null}
 
-      {currentRole === "admin" ? (
+      {hasGlobalAdminRole ? (
         <section className={`${surfaceCardClassName} space-y-4`}>
           <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
             <div>
               <h3 className="text-base font-semibold text-slate-900">团队分组</h3>
               <p className="mt-1 text-sm text-slate-500">
-                仅系统管理员可见，可按学校、项目组等维度管理教师、负责人和成员；评审专家独立管理，不参与分组。
+                全局管理员可见，可按学校、项目组等维度管理教师、负责人和成员；评审专家独立管理，不参与分组。
               </p>
             </div>
             <span className="w-fit rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-500">
@@ -7856,7 +7910,11 @@ export function WorkspaceDashboard({
         {filteredTeamMembers.length > 0 ? (
           filteredTeamMembers.map((member) => {
             const editable = canManageMember(member);
-            const roleDisabled = !editable || member.systemRole === "系统管理员";
+            const isSystemAccount = member.systemRole === "系统管理员";
+            const isSchoolAdminAccount = member.systemRole === "校级管理员";
+            const protectedGlobalAccount = isSystemAccount || (isSchoolAdminAccount && !isSystemAdmin);
+            const groupAssignmentLocked = isSystemAccount || isSchoolAdminAccount;
+            const roleDisabled = !editable || protectedGlobalAccount;
 
             return (
               <article
@@ -7875,9 +7933,13 @@ export function WorkspaceDashboard({
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
                         <h3 className="truncate text-sm font-semibold text-slate-900">{member.name}</h3>
-                        {member.systemRole === "系统管理员" ? (
+                        {isSystemAccount ? (
                           <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-600">
                             最高权限
+                          </span>
+                        ) : isSchoolAdminAccount ? (
+                          <span className="rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-medium text-indigo-600">
+                            全局管理员
                           </span>
                         ) : member.systemRole === "评审专家" ? (
                           <span className="rounded-full bg-violet-50 px-2.5 py-1 text-xs font-medium text-violet-600">
@@ -7919,7 +7981,7 @@ export function WorkspaceDashboard({
                       <p className="mb-2 text-xs text-slate-400 lg:hidden">分组</p>
                       <select
                         className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
-                        disabled={member.systemRole === "系统管理员"}
+                        disabled={groupAssignmentLocked}
                         value={member.teamGroupId ?? ""}
                         onChange={(event) => confirmUpdateMemberGroup(member, event.target.value)}
                       >
@@ -7937,12 +7999,14 @@ export function WorkspaceDashboard({
                     <p className="mb-2 text-xs text-slate-400 lg:hidden">状态</p>
                     <span
                       className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${
-                        member.systemRole === "系统管理员"
+                        isSystemAccount
                           ? "bg-blue-50 text-blue-600"
+                          : isSchoolAdminAccount
+                            ? "bg-indigo-50 text-indigo-600"
                           : "bg-emerald-50 text-emerald-700"
                       }`}
                     >
-                      {member.systemRole === "系统管理员" ? "系统保留账号" : "已启用"}
+                      {isSystemAccount ? "系统保留账号" : isSchoolAdminAccount ? "全局管理员" : "已启用"}
                     </span>
                   </div>
 
@@ -7964,7 +8028,7 @@ export function WorkspaceDashboard({
                       ) : null}
                       {permissions.canManageTeam ? (
                         <ActionButton
-                          disabled={!editable || member.systemRole === "系统管理员"}
+                          disabled={!editable || protectedGlobalAccount}
                           onClick={() => removeMember(member.id, member.name)}
                           title="无权限"
                           variant="danger"
@@ -8057,7 +8121,7 @@ export function WorkspaceDashboard({
               <p className="text-xs text-slate-400">账号角色</p>
               <p className="mt-1 text-sm font-medium text-slate-700">{currentUser.roleLabel}</p>
             </div>
-            {currentUser.role !== "admin" && currentUser.role !== "expert" ? (
+            {currentUser.role !== "admin" && currentUser.role !== "school_admin" && currentUser.role !== "expert" ? (
               <div className="rounded-lg border border-slate-200 bg-slate-50 px-4 py-3">
                 <p className="text-xs text-slate-400">当前队伍</p>
                 <p className="mt-1 text-sm font-medium text-slate-700">
@@ -8644,7 +8708,7 @@ export function WorkspaceDashboard({
               </div>
             </label>
             {!editingTaskId && taskDraft.assigneeIds.length === 0 ? (
-              currentRole === "admin" ? (
+              hasGlobalAdminRole ? (
                 <label className="block text-sm text-slate-500">
                   所属队伍 <span className="text-red-500">*</span>
                   <select
@@ -9514,7 +9578,7 @@ export function WorkspaceDashboard({
         >
           <div className="space-y-4">
             <div className={`${subtleCardClassName} text-sm leading-7 text-slate-500`}>
-              该设置仅系统管理员可修改，保存后对全体成员生效；站内提醒不受影响。
+              该设置仅全局管理员可修改，保存后对全体成员生效；站内提醒不受影响。
             </div>
 
             {emailSettingsLoading ? (
@@ -10016,7 +10080,7 @@ export function WorkspaceDashboard({
                 ))}
               </select>
             </label>
-            {currentRole === "admin" && teamDraft.role !== "评审专家" ? (
+            {hasGlobalAdminRole && teamDraft.role !== "评审专家" && teamDraft.role !== "校级管理员" ? (
               <label className="block text-sm text-slate-500">
                 分组（选填）
                 <select

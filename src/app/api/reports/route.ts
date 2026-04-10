@@ -3,7 +3,7 @@ import type { Role } from "@prisma/client";
 
 import { getSessionUser } from "@/lib/auth";
 import { toIsoDateKey } from "@/lib/date";
-import { assertMainWorkspaceRole } from "@/lib/permissions";
+import { assertMainWorkspaceRole, hasGlobalAdminPrivileges } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { serializeReport } from "@/lib/api-serializers";
 import { createNotifications } from "@/lib/notifications";
@@ -26,7 +26,7 @@ const getReportNotificationRecipientIds = async ({
         not: excludeUserId,
       },
       OR: [
-        { role: "admin" },
+        { role: { in: ["admin", "school_admin"] satisfies Role[] } },
         ...(teamGroupId
           ? [
               {
@@ -60,7 +60,7 @@ export async function GET(request: NextRequest) {
   const selectedTeamGroupId = request.nextUrl.searchParams.get("teamGroupId")?.trim() || null;
 
   const reportWhere =
-    user.role === "admin"
+    hasGlobalAdminPrivileges(user.role)
       ? getAdminReportViewFilter(selectedTeamGroupId)
       : user.role === "member"
         ? { userId: user.id }
@@ -226,7 +226,7 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ message: "缺少汇报日期" }, { status: 400 });
   }
 
-  if (user.role === "admin") {
+  if (hasGlobalAdminPrivileges(user.role)) {
     const teamGroupId = request.nextUrl.searchParams.get("teamGroupId")?.trim();
     const where = getAdminReportDeleteFilter({ date, teamGroupId });
 

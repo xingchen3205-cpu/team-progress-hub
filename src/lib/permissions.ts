@@ -1,7 +1,11 @@
 import type { Role, UserApprovalStatus } from "@prisma/client";
 
-export const roleLabels: Record<Role, "系统管理员" | "指导教师" | "项目负责人" | "团队成员" | "评审专家"> = {
+export const roleLabels: Record<
+  Role,
+  "系统管理员" | "校级管理员" | "指导教师" | "项目负责人" | "团队成员" | "评审专家"
+> = {
   admin: "系统管理员",
+  school_admin: "校级管理员",
   teacher: "指导教师",
   leader: "项目负责人",
   member: "团队成员",
@@ -19,16 +23,24 @@ export const assertRole = (role: Role, allowed: Role[]) => {
   }
 };
 
+export const isSystemAdmin = (role: Role) => role === "admin";
+
+export const isSchoolAdmin = (role: Role) => role === "school_admin";
+
+export const hasGlobalAdminPrivileges = (role: Role) =>
+  role === "admin" || role === "school_admin";
+
 export const assertExpertFeedbackAccess = (role: Role) => {
-  assertRole(role, ["admin", "teacher", "leader", "member"]);
+  assertRole(role, ["admin", "school_admin", "teacher", "leader", "member"]);
 };
 
 export const assertMainWorkspaceRole = (role: Role) => {
-  assertRole(role, ["admin", "teacher", "leader", "member"]);
+  assertRole(role, ["admin", "school_admin", "teacher", "leader", "member"]);
 };
 
 const roleRank: Record<Role, number> = {
-  admin: 5,
+  admin: 6,
+  school_admin: 5,
   teacher: 4,
   leader: 3,
   member: 2,
@@ -40,13 +52,13 @@ export const selfRegisterableRoles: Role[] = ["teacher", "leader", "member", "ex
 export const getRegistrationApproverRoles = (role: Role): Role[] | null => {
   switch (role) {
     case "teacher":
-      return ["admin"];
+      return ["school_admin", "admin"];
     case "leader":
-      return ["teacher", "admin"];
+      return ["teacher", "school_admin", "admin"];
     case "member":
-      return ["leader", "teacher", "admin"];
+      return ["leader", "teacher", "school_admin", "admin"];
     case "expert":
-      return ["teacher", "admin"];
+      return ["teacher", "school_admin", "admin"];
     default:
       return null;
   }
@@ -63,7 +75,7 @@ export const canViewTeamMember = (
   targetRole: Role,
   targetId: string,
 ) => {
-  if (actorRole === "admin") {
+  if (hasGlobalAdminPrivileges(actorRole)) {
     return true;
   }
 
@@ -87,6 +99,14 @@ export const canManageUser = (
   targetRole: Role,
   nextRole?: Role,
 ) => {
+  if (nextRole === "admin" && actorRole !== "admin") {
+    return false;
+  }
+
+  if (nextRole === "school_admin" && actorRole !== "admin") {
+    return false;
+  }
+
   if (nextRole === "admin" && targetRole !== "admin") {
     return false;
   }
@@ -95,8 +115,18 @@ export const canManageUser = (
     return actorRole === "admin";
   }
 
+  if (targetRole === "school_admin") {
+    return actorRole === "admin";
+  }
+
+  if (actorRole === "school_admin") {
+    if (nextRole && (nextRole === "admin" || nextRole === "school_admin")) {
+      return false;
+    }
+  }
+
   if (targetRole === "expert" || nextRole === "expert") {
-    return actorRole === "admin" || actorRole === "teacher";
+    return hasGlobalAdminPrivileges(actorRole) || actorRole === "teacher";
   }
 
   if (actorRole === "admin") {

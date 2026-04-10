@@ -1,19 +1,21 @@
 import type { DocumentStatus, Role } from "@prisma/client";
 
+import { hasGlobalAdminPrivileges } from "@/lib/permissions";
+
 export type DocumentReviewAction =
   | "leaderApprove"
   | "leaderRevision"
   | "teacherApprove"
   | "teacherRevision";
 
-export const isPrivilegedReviewer = (role: Role) => role === "admin" || role === "teacher";
+export const isPrivilegedReviewer = (role: Role) => hasGlobalAdminPrivileges(role) || role === "teacher";
 
-export const canHandleLeaderStage = (role: Role) => role === "leader" || role === "admin";
+export const canHandleLeaderStage = (role: Role) => role === "leader" || hasGlobalAdminPrivileges(role);
 
-export const canHandleTeacherStage = (role: Role) => role === "teacher" || role === "admin";
+export const canHandleTeacherStage = (role: Role) => role === "teacher" || hasGlobalAdminPrivileges(role);
 
 export const getUploadWorkflow = (role: Role, isNewVersion = false) => {
-  if (role === "teacher" || role === "admin") {
+  if (role === "teacher" || hasGlobalAdminPrivileges(role)) {
     return {
       status: "approved" as DocumentStatus,
       comment: isNewVersion
@@ -29,7 +31,7 @@ export const getUploadWorkflow = (role: Role, isNewVersion = false) => {
       comment: isNewVersion
         ? "项目负责人已上传新版本，等待指导教师终审。"
         : "项目负责人已上传文档，等待指导教师终审。",
-      notificationTargetRoles: ["teacher", "admin"] as Role[],
+      notificationTargetRoles: ["teacher", "school_admin", "admin"] as Role[],
     };
   }
 
@@ -38,7 +40,7 @@ export const getUploadWorkflow = (role: Role, isNewVersion = false) => {
     comment: isNewVersion
       ? "成员已上传新版本，等待项目负责人审批。"
       : "成员已上传文档，等待项目负责人审批。",
-    notificationTargetRoles: ["leader", "admin"] as Role[],
+    notificationTargetRoles: ["leader", "school_admin", "admin"] as Role[],
   };
 };
 
@@ -64,7 +66,7 @@ export const getDocumentReviewTransition = ({
       ? {
           nextStatus: "leader_approved" as DocumentStatus,
           defaultComment: "项目负责人已审核通过，等待指导教师终审。",
-          notificationTargetRoles: ["teacher", "admin"] as Role[],
+          notificationTargetRoles: ["teacher", "school_admin", "admin"] as Role[],
           notificationTitle: "文档待教师终审",
         }
       : {

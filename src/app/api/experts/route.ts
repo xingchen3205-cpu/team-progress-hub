@@ -2,7 +2,12 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { getSessionUser } from "@/lib/auth";
 import { toIsoDateKey } from "@/lib/date";
-import { assertExpertFeedbackAccess, assertMainWorkspaceRole, assertRole } from "@/lib/permissions";
+import {
+  assertExpertFeedbackAccess,
+  assertMainWorkspaceRole,
+  assertRole,
+  hasGlobalAdminPrivileges,
+} from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { serializeExpertFeedback } from "@/lib/api-serializers";
 import { buildTeamScopedResourceWhere } from "@/lib/team-scope";
@@ -57,7 +62,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    assertRole(user.role, ["admin", "teacher", "leader"]);
+    assertRole(user.role, ["admin", "school_admin", "teacher", "leader"]);
   } catch {
     return NextResponse.json({ message: "无权限" }, { status: 403 });
   }
@@ -97,7 +102,7 @@ export async function POST(request: NextRequest) {
         nextAction,
         attachments: JSON.stringify(storedFiles.map((item) => item.fileName)),
         createdById: user.id,
-        teamGroupId: user.role === "admin" ? null : user.teamGroupId,
+        teamGroupId: hasGlobalAdminPrivileges(user.role) ? null : user.teamGroupId,
         attachmentFiles: {
           create: storedFiles.map((item) => ({
             fileName: item.fileName,

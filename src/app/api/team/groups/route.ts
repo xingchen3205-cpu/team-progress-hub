@@ -2,6 +2,7 @@ import { Prisma } from "@prisma/client";
 import { NextRequest, NextResponse } from "next/server";
 
 import { getSessionUser } from "@/lib/auth";
+import { hasGlobalAdminPrivileges } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
 const serializeGroup = (group: {
@@ -24,7 +25,7 @@ const assertAdmin = async (request: NextRequest) => {
     return { error: NextResponse.json({ message: "未登录" }, { status: 401 }) };
   }
 
-  if (user.role !== "admin") {
+  if (!hasGlobalAdminPrivileges(user.role)) {
     return { error: NextResponse.json({ message: "无权限" }, { status: 403 }) };
   }
 

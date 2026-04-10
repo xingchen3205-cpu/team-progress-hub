@@ -32,6 +32,7 @@ const prisma = new PrismaClient({ adapter });
 
 const roleMap = {
   系统管理员: Role.admin,
+  校级管理员: Role.school_admin,
   指导教师: Role.teacher,
   项目负责人: Role.leader,
   团队成员: Role.member,

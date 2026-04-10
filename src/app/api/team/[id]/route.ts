@@ -6,6 +6,7 @@ import {
   assertMainWorkspaceRole,
   canApproveRegistration,
   canManageUser,
+  hasGlobalAdminPrivileges,
 } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { serializeUser } from "@/lib/api-serializers";
@@ -34,7 +35,7 @@ export async function PATCH(
   }
 
   if (
-    user.role !== "admin" &&
+    !hasGlobalAdminPrivileges(user.role) &&
     target.role !== "expert" &&
     target.id !== user.id &&
     target.teamGroupId !== user.teamGroupId
@@ -47,7 +48,7 @@ export async function PATCH(
         name?: string;
         username?: string;
         email?: string;
-        role?: "系统管理员" | "指导教师" | "项目负责人" | "团队成员" | "评审专家";
+        role?: "系统管理员" | "校级管理员" | "指导教师" | "项目负责人" | "团队成员" | "评审专家";
         responsibility?: string;
         password?: string;
         action?: "approve";
@@ -57,6 +58,7 @@ export async function PATCH(
 
   const roleMap = {
     系统管理员: "admin",
+    校级管理员: "school_admin",
     指导教师: "teacher",
     项目负责人: "leader",
     团队成员: "member",
@@ -110,7 +112,7 @@ export async function PATCH(
   }
 
   if (target.role === "admin" && nextRole !== "admin") {
-    return NextResponse.json({ message: "admin 账号角色不能被修改" }, { status: 403 });
+    return NextResponse.json({ message: "系统管理员账号角色不能被修改" }, { status: 403 });
   }
 
   if (!canManageUser(user.role, target.role, nextRole)) {
@@ -119,11 +121,11 @@ export async function PATCH(
 
   let nextTeamGroupId: string | null | undefined;
   if (Object.prototype.hasOwnProperty.call(body ?? {}, "teamGroupId")) {
-    if (user.role !== "admin") {
+    if (!hasGlobalAdminPrivileges(user.role)) {
       return NextResponse.json({ message: "无权限设置账号分组" }, { status: 403 });
     }
 
-    if (nextRole === "expert") {
+    if (nextRole === "expert" || nextRole === "school_admin") {
       nextTeamGroupId = null;
     } else if (body?.teamGroupId) {
       const group = await prisma.teamGroup.findUnique({
@@ -139,7 +141,7 @@ export async function PATCH(
     } else {
       nextTeamGroupId = null;
     }
-  } else if (nextRole === "expert" && target.role !== "expert") {
+  } else if ((nextRole === "expert" && target.role !== "expert") || (nextRole === "school_admin" && target.role !== "school_admin")) {
     nextTeamGroupId = null;
   }
 
@@ -263,7 +265,7 @@ export async function DELETE(
   }
 
   if (target.role === "admin") {
-    return NextResponse.json({ message: "admin 账号不能被删除" }, { status: 403 });
+    return NextResponse.json({ message: "系统管理员账号不能被删除" }, { status: 403 });
   }
 
   if (target.id === user.id) {

@@ -1,8 +1,8 @@
-export type RoleKey = "admin" | "teacher" | "leader" | "member" | "expert";
+export type RoleKey = "admin" | "school_admin" | "teacher" | "leader" | "member" | "expert";
 
 export type ApprovalStatusKey = "pending" | "approved";
 
-export type TeamRoleLabel = "系统管理员" | "指导教师" | "项目负责人" | "团队成员" | "评审专家";
+export type TeamRoleLabel = "系统管理员" | "校级管理员" | "指导教师" | "项目负责人" | "团队成员" | "评审专家";
 
 export type TeamMember = {
   id: string;
@@ -312,6 +312,7 @@ export type TrainingStats = {
 
 export const roleLabels: Record<RoleKey, TeamRoleLabel> = {
   admin: "系统管理员",
+  school_admin: "校级管理员",
   teacher: "指导教师",
   leader: "项目负责人",
   member: "团队成员",

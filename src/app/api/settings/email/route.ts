@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    assertRole(user.role, ["admin"]);
+    assertRole(user.role, ["admin", "school_admin"]);
   } catch {
     return NextResponse.json({ message: "无权限" }, { status: 403 });
   }
@@ -33,7 +33,7 @@ export async function PATCH(request: NextRequest) {
   }
 
   try {
-    assertRole(user.role, ["admin"]);
+    assertRole(user.role, ["admin", "school_admin"]);
   } catch {
     return NextResponse.json({ message: "无权限" }, { status: 403 });
   }
