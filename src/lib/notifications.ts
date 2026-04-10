@@ -1,4 +1,4 @@
-import type { Role } from "@prisma/client";
+import type { Notification, Role, UserApprovalStatus } from "@prisma/client";
 
 import { getEmailReminderSettings, isEmailReminderEnabled } from "@/lib/email-settings";
 import { buildWorkspaceUrl, isEmailConfigured, renderSystemEmail, sendEmail } from "@/lib/email";
@@ -21,6 +21,79 @@ const getEmailFailureReason = (error: unknown): NotificationDeliveryResult["emai
   }
 
   return "unknown";
+};
+
+type NotificationEmailRecipient = {
+  id: string;
+  email: string | null;
+  name: string;
+  role: Role;
+  approvalStatus: UserApprovalStatus;
+  teamGroupId?: string | null;
+};
+
+const getEmailErrorMessage = (
+  reason: NotificationDeliveryResult["emailSkippedReason"] | NotificationDeliveryResult["emailFailureReason"],
+) => {
+  switch (reason) {
+    case "disabled":
+      return "邮件服务暂未配置";
+    case "setting-disabled":
+      return "当前邮件提醒设置已关闭";
+    case "no-recipient-email":
+      return "收件人未填写邮箱";
+    case "resend-domain-unverified":
+      return "Resend 发信域名尚未完成验证";
+    case "unknown":
+      return "邮件服务返回失败，请稍后重试";
+    default:
+      return null;
+  }
+};
+
+const getSkippedEmailReason = (
+  recipient: NotificationEmailRecipient | undefined,
+  emailTeamGroupId: string | null | undefined,
+) => {
+  if (!recipient?.email?.trim()) {
+    return "收件人未填写邮箱";
+  }
+
+  if (recipient.approvalStatus !== "approved") {
+    return "账号尚未通过审核";
+  }
+
+  if (recipient.role === "admin") {
+    return "系统管理员不接收此类邮件提醒";
+  }
+
+  if (emailTeamGroupId === null) {
+    return "未指定项目组，不发送邮件";
+  }
+
+  if (emailTeamGroupId !== undefined && recipient.teamGroupId !== emailTeamGroupId) {
+    return "非同项目组，不发送邮件";
+  }
+
+  return "本次未发送邮件";
+};
+
+const markEmailSkipped = async (
+  notifications: Notification[],
+  emailError: string,
+) => {
+  await Promise.all(
+    notifications.map((notification) =>
+      prisma.notification.update({
+        where: { id: notification.id },
+        data: {
+          emailStatus: "skipped",
+          emailError,
+          emailSentAt: null,
+        },
+      }),
+    ),
+  );
 };
 
 export async function createNotifications({
@@ -56,18 +129,22 @@ export async function createNotifications({
     };
   }
 
-  await prisma.notification.createMany({
-    data: dedupedUserIds.map((userId) => ({
-      userId,
-      senderId: senderId ?? null,
-      documentId: documentId ?? null,
-      title,
-      detail,
-      type,
-      targetTab: targetTab ?? null,
-      relatedId: relatedId ?? null,
-    })),
-  });
+  const createdNotifications = await prisma.$transaction(
+    dedupedUserIds.map((userId) =>
+      prisma.notification.create({
+        data: {
+          userId,
+          senderId: senderId ?? null,
+          documentId: documentId ?? null,
+          title,
+          detail,
+          type,
+          targetTab: targetTab ?? null,
+          relatedId: relatedId ?? null,
+        },
+      }),
+    ),
+  );
 
   if (!email) {
     return {
@@ -79,6 +156,8 @@ export async function createNotifications({
 
   const emailSettings = await getEmailReminderSettings();
   if (!isEmailReminderEnabled(emailSettings, type)) {
+    await markEmailSkipped(createdNotifications, getEmailErrorMessage("setting-disabled") ?? "当前邮件提醒设置已关闭");
+
     return {
       notificationCount: dedupedUserIds.length,
       emailRecipientCount: 0,
@@ -88,6 +167,8 @@ export async function createNotifications({
   }
 
   if (!isEmailConfigured()) {
+    await markEmailSkipped(createdNotifications, getEmailErrorMessage("disabled") ?? "邮件服务暂未配置");
+
     return {
       notificationCount: dedupedUserIds.length,
       emailRecipientCount: 0,
@@ -101,12 +182,9 @@ export async function createNotifications({
       id: {
         in: dedupedUserIds,
       },
-      email: {
-        not: null,
-      },
-      approvalStatus: "approved",
     },
     select: {
+      id: true,
       email: true,
       name: true,
       role: true,
@@ -116,8 +194,45 @@ export async function createNotifications({
   });
 
   const recipientEmails = filterNotificationEmailRecipients(recipients, { emailTeamGroupId });
+  const recipientByEmail = new Map(
+    recipients
+      .filter((recipient) => Boolean(recipient.email?.trim()))
+      .map((recipient) => [recipient.email!.trim(), recipient]),
+  );
+  const notificationByUserId = new Map(createdNotifications.map((notification) => [notification.userId, notification]));
+  const emailRecipients = recipientEmails.flatMap((recipient) => {
+    const user = recipientByEmail.get(recipient.email);
+    const notification = user ? notificationByUserId.get(user.id) : null;
 
-  if (recipientEmails.length === 0) {
+    if (!user || !notification) {
+      return [];
+    }
+
+    return [
+      {
+        ...recipient,
+        notification,
+      },
+    ];
+  });
+
+  if (emailRecipients.length === 0) {
+    await Promise.all(
+      createdNotifications.map((notification) =>
+        prisma.notification.update({
+          where: { id: notification.id },
+          data: {
+            emailStatus: "skipped",
+            emailError: getSkippedEmailReason(
+              recipients.find((recipient) => recipient.id === notification.userId),
+              emailTeamGroupId,
+            ),
+            emailSentAt: null,
+          },
+        }),
+      ),
+    );
+
     return {
       notificationCount: dedupedUserIds.length,
       emailRecipientCount: 0,
@@ -130,7 +245,7 @@ export async function createNotifications({
   const actionUrl = buildWorkspaceUrl(targetTab);
 
   const results = await Promise.allSettled(
-    recipientEmails.map((recipient) =>
+    emailRecipients.map((recipient) =>
       sendEmail({
         to: recipient.email,
         subject: emailOptions.subject ?? title,
@@ -146,18 +261,61 @@ export async function createNotifications({
     ),
   );
 
+  const emailSentAt = new Date();
   const emailFailureCount = results.filter((result) => result.status === "rejected").length;
   const emailFailureReason = results.find((result) => result.status === "rejected");
 
-  for (const result of results) {
+  for (const [index, result] of results.entries()) {
+    const notification = emailRecipients[index]?.notification;
+
+    if (!notification) {
+      continue;
+    }
+
     if (result.status === "rejected") {
       console.error("Email notification failed", result.reason);
+      await prisma.notification.update({
+        where: { id: notification.id },
+        data: {
+          emailStatus: "failed",
+          emailError: getEmailErrorMessage(getEmailFailureReason(result.reason)),
+          emailSentAt: null,
+        },
+      });
+    } else {
+      await prisma.notification.update({
+        where: { id: notification.id },
+        data: {
+          emailStatus: "sent",
+          emailError: null,
+          emailSentAt,
+        },
+      });
     }
   }
 
+  const deliveredUserIds = new Set(emailRecipients.map((recipient) => recipient.notification.userId));
+  await Promise.all(
+    createdNotifications
+      .filter((notification) => !deliveredUserIds.has(notification.userId))
+      .map((notification) =>
+        prisma.notification.update({
+          where: { id: notification.id },
+          data: {
+            emailStatus: "skipped",
+            emailError: getSkippedEmailReason(
+              recipients.find((recipient) => recipient.id === notification.userId),
+              emailTeamGroupId,
+            ),
+            emailSentAt: null,
+          },
+        }),
+      ),
+  );
+
   return {
     notificationCount: dedupedUserIds.length,
-    emailRecipientCount: recipientEmails.length,
+    emailRecipientCount: emailRecipients.length,
     emailFailureCount,
     emailFailureReason:
       emailFailureReason?.status === "rejected" ? getEmailFailureReason(emailFailureReason.reason) : undefined,

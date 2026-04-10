@@ -174,10 +174,14 @@ export type NotificationItem = {
   relatedId?: string | null;
   isRead: boolean;
   readAt?: string | null;
+  emailStatus?: "sent" | "failed" | "skipped" | null;
+  emailError?: string | null;
+  emailSentAt?: string | null;
   createdAt: string;
   recipient?: {
     id: string;
     name: string;
+    email?: string | null;
     avatar: string;
     avatarUrl?: string | null;
     roleLabel: TeamRoleLabel;

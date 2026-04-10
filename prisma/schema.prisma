@@ -62,6 +62,12 @@ enum DocumentCategory {
   proof
 }
 
+enum NotificationEmailStatus {
+  sent
+  failed
+  skipped
+}
+
 model User {
   id                   String                   @id @default(cuid())
   name                 String
@@ -292,6 +298,9 @@ model Notification {
   relatedId  String?
   isRead     Boolean   @default(false)
   readAt     DateTime?
+  emailStatus NotificationEmailStatus?
+  emailError  String?
+  emailSentAt DateTime?
   createdAt  DateTime  @default(now())
   user       User      @relation("NotificationRecipient", fields: [userId], references: [id])
   sender     User?     @relation("NotificationSender", fields: [senderId], references: [id])

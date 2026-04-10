@@ -272,7 +272,7 @@ export const serializeAnnouncement = (
 
 export const serializeNotification = (notification: Notification) => {
   const typedNotification = notification as Notification & {
-    user?: Pick<User, "id" | "name" | "avatar" | "role">;
+    user?: Pick<User, "id" | "name" | "avatar" | "role" | "email">;
     sender?: Pick<User, "id" | "name" | "avatar" | "role"> | null;
   };
 
@@ -286,11 +286,15 @@ export const serializeNotification = (notification: Notification) => {
     relatedId: notification.relatedId,
     isRead: notification.isRead,
     readAt: notification.readAt ? formatDateTime(notification.readAt) : null,
+    emailStatus: notification.emailStatus,
+    emailError: notification.emailError,
+    emailSentAt: notification.emailSentAt ? formatDateTime(notification.emailSentAt) : null,
     createdAt: formatDateTime(notification.createdAt),
     recipient: typedNotification.user
       ? {
           id: typedNotification.user.id,
           name: typedNotification.user.name,
+          email: typedNotification.user.email,
           avatar: typedNotification.user.avatar,
           roleLabel: roleLabels[typedNotification.user.role],
         }

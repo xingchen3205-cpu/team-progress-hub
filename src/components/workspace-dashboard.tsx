@@ -72,6 +72,7 @@ import {
   isReportDateKey,
 } from "@/lib/report-history";
 import { EMAIL_RULE_HINT, USERNAME_RULE_HINT, validateRequiredEmail, validateUsername } from "@/lib/account-policy";
+import { getNotificationEmailStatusMeta } from "@/lib/notification-email-status";
 import { buildTeamManagementConfirmation } from "@/lib/team-confirmation";
 import {
   documentCenterAcceptAttribute,
@@ -2833,7 +2834,7 @@ export function WorkspaceDashboard({
       const payload = await requestJson<{ notifications: NotificationItem[] }>("/api/notifications?scope=sent");
       setSentReminders(payload.notifications);
     } catch (error) {
-      setLoadError(error instanceof Error ? error.message : "提醒记录加载失败");
+      setLoadError(error instanceof Error ? error.message : "邮件提醒记录加载失败");
     } finally {
       setSentRemindersLoading(false);
     }
@@ -7605,7 +7606,7 @@ export function WorkspaceDashboard({
             <ActionButton onClick={openSentRemindersModal}>
               <span className="inline-flex items-center gap-2">
                 <BellPlus className="h-4 w-4" />
-                <span>提醒记录</span>
+                <span>邮件提醒</span>
               </span>
             </ActionButton>
           ) : null}
@@ -9657,12 +9658,12 @@ export function WorkspaceDashboard({
       ) : null}
 
       {sentRemindersOpen ? (
-        <Modal onClose={() => setSentRemindersOpen(false)} panelClassName="max-w-[min(92vw,860px)]" title="提醒记录">
+        <Modal onClose={() => setSentRemindersOpen(false)} panelClassName="max-w-[min(92vw,860px)]" title="邮件提醒记录">
           <div className="space-y-4">
             <div className={`${subtleCardClassName} flex flex-col gap-3 md:flex-row md:items-center md:justify-between`}>
               <div>
-                <p className="text-sm font-medium text-slate-900">这里会记录你发送给成员的站内提醒。</p>
-                <p className="mt-1 text-sm leading-6 text-slate-500">成员点开提醒或待办后，这里会更新为已读状态。</p>
+                <p className="text-sm font-medium text-slate-900">这里仅展示邮件提醒的发送结果。</p>
+                <p className="mt-1 text-sm leading-6 text-slate-500">站内提醒仍会正常发送，但不再在这里显示已读/未读状态。</p>
               </div>
               <ActionButton disabled={sentRemindersLoading} onClick={() => void loadSentReminders()}>
                 刷新记录
@@ -9673,51 +9674,61 @@ export function WorkspaceDashboard({
               <div className={`${subtleCardClassName} flex items-center justify-center py-12 text-sm text-slate-500`}>
                 <span className="inline-flex items-center gap-2">
                   <Loader2 className="h-4 w-4 animate-spin" />
-                  <span>正在加载提醒记录...</span>
+                  <span>正在加载邮件提醒记录...</span>
                 </span>
               </div>
             ) : sentReminders.length > 0 ? (
               <div className="space-y-3">
                 {sentReminders.map((item) => (
-                  <article key={item.id} className={surfaceCardClassName}>
-                    <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                      <div className="min-w-0">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <p className="text-sm font-semibold text-slate-900">{item.title}</p>
-                          <span
-                            className={`rounded-full px-2.5 py-1 text-xs font-medium ${
-                              item.isRead ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"
-                            }`}
-                          >
-                            {item.isRead ? "已读" : "未读"}
-                          </span>
+                  (() => {
+                    const emailMeta = getNotificationEmailStatusMeta(item.emailStatus, item.emailError);
+                    const statusClassName =
+                      emailMeta.tone === "success"
+                        ? "bg-emerald-100 text-emerald-700"
+                        : emailMeta.tone === "danger"
+                          ? "bg-red-100 text-red-700"
+                          : "bg-slate-100 text-slate-600";
+
+                    return (
+                      <article key={item.id} className={surfaceCardClassName}>
+                        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="text-sm font-semibold text-slate-900">{item.title}</p>
+                              <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${statusClassName}`}>
+                                {emailMeta.label}
+                              </span>
+                            </div>
+                            <p className="mt-2 text-sm leading-6 text-slate-500">{item.detail}</p>
+                            <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-slate-400">
+                              <span>接收人：{item.recipient?.name ?? "成员"}</span>
+                              {item.recipient?.email ? <span>邮箱：{item.recipient.email}</span> : null}
+                              <span>创建时间：{item.createdAt}</span>
+                              {item.emailSentAt ? <span>邮件发送时间：{item.emailSentAt}</span> : null}
+                              {item.targetTab ? (
+                                <span>
+                                  跳转板块：
+                                  {allTabs.find((tab) => tab.key === item.targetTab)?.label ?? item.targetTab}
+                                </span>
+                              ) : null}
+                            </div>
+                          </div>
+                          <div className="shrink-0 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-left text-xs text-slate-500 md:max-w-[220px]">
+                            <p className="font-medium text-slate-700">{emailMeta.label}</p>
+                            <p className="mt-1 leading-5">{emailMeta.detail}</p>
+                          </div>
                         </div>
-                        <p className="mt-2 text-sm leading-6 text-slate-500">{item.detail}</p>
-                        <div className="mt-3 flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-slate-400">
-                          <span>接收人：{item.recipient?.name ?? "成员"}</span>
-                          <span>发送时间：{item.createdAt}</span>
-                          {item.targetTab ? (
-                            <span>
-                              跳转板块：
-                              {allTabs.find((tab) => tab.key === item.targetTab)?.label ?? item.targetTab}
-                            </span>
-                          ) : null}
-                        </div>
-                      </div>
-                      <div className="shrink-0 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-right text-xs text-slate-500">
-                        <p className="font-medium text-slate-700">{item.isRead ? "对方已查看" : "等待查看"}</p>
-                        <p className="mt-1">{item.readAt ? `已读时间：${item.readAt}` : "暂未打开此提醒"}</p>
-                      </div>
-                    </div>
-                  </article>
+                      </article>
+                    );
+                  })()
                 ))}
               </div>
             ) : (
               <div className="rounded-lg border border-dashed border-slate-200">
                 <EmptyState
-                  description="你最近还没有发送新的站内提醒，后续发送后会在这里查看已读状态。"
+                  description="你最近还没有发送新的邮件提醒，后续发送后会在这里查看邮件发送结果。"
                   icon={BellPlus}
-                  title="暂无提醒记录"
+                  title="暂无邮件提醒记录"
                 />
               </div>
             )}
