@@ -12,7 +12,7 @@ type FormMode = "login" | "register" | "forgot" | "reset";
 const registerRoleOptions = ["指导教师", "项目负责人", "团队成员", "评审专家"] as const;
 
 const initialLoginValues = {
-  username: "724000296@qq.com",
+  username: "",
   password: "",
   remember: true,
 };
