@@ -445,30 +445,30 @@ const boardStatusMeta: Record<
   todo: {
     label: "待分配 / 待接取",
     description: "等待明确处理人或处理人接取",
-    dotClassName: "bg-amber-500",
-    badgeClassName: "border-amber-200 bg-amber-50 text-amber-700",
-    rowAccentClassName: "bg-amber-500",
+    dotClassName: "bg-[#1a6fd4]/35",
+    badgeClassName: "border border-white/90 bg-white text-slate-900 shadow-[0_14px_32px_rgba(31,38,135,0.14)]",
+    rowAccentClassName: "bg-[#1a6fd4]/35",
   },
   doing: {
     label: "处理中",
     description: "处理人正在推进并补充凭证",
-    dotClassName: "bg-blue-600",
-    badgeClassName: "border-blue-200 bg-blue-50 text-blue-700",
-    rowAccentClassName: "bg-blue-600",
+    dotClassName: "bg-[#1a6fd4]",
+    badgeClassName: "border border-white/90 bg-white text-[#1a6fd4] shadow-[0_14px_32px_rgba(31,38,135,0.16)]",
+    rowAccentClassName: "bg-[#1a6fd4]",
   },
   review: {
     label: "待验收",
     description: "等待负责人或教师确认闭环",
-    dotClassName: "bg-orange-500",
-    badgeClassName: "border-orange-200 bg-orange-50 text-orange-700",
-    rowAccentClassName: "bg-orange-500",
+    dotClassName: "bg-[#1a6fd4]/72",
+    badgeClassName: "border border-white/90 bg-white text-[#1a6fd4] shadow-[0_14px_32px_rgba(31,38,135,0.16)]",
+    rowAccentClassName: "bg-[#1a6fd4]/72",
   },
   archived: {
     label: "已归档",
     description: "已完成闭环，保留备查",
-    dotClassName: "bg-emerald-600",
-    badgeClassName: "border-emerald-200 bg-emerald-50 text-emerald-700",
-    rowAccentClassName: "bg-emerald-600",
+    dotClassName: "bg-[#1a6fd4]/50",
+    badgeClassName: "border border-white/90 bg-white text-slate-900/70 shadow-[0_14px_32px_rgba(31,38,135,0.14)]",
+    rowAccentClassName: "bg-[#1a6fd4]/50",
   },
 };
 
@@ -494,11 +494,11 @@ const getBoardStatusLabel = (task: BoardTask) => {
 };
 
 const docStatusStyles: Record<DocumentItem["status"], string> = {
-  待负责人审批: "bg-[#fef3c7] text-[#9a6700]",
-  待教师终审: "bg-[#dbeafe] text-[#1d4ed8]",
-  终审通过: "bg-[#e7f4eb] text-[#32734c]",
-  负责人打回: "bg-[#fee2e2] text-[#b91c1c]",
-  教师打回: "bg-[#fce7f3] text-[#be185d]",
+  待负责人审批: "border border-white/90 bg-white text-slate-900 shadow-[0_12px_28px_rgba(31,38,135,0.12)]",
+  待教师终审: "border border-white/90 bg-white text-[#1a6fd4] shadow-[0_12px_28px_rgba(31,38,135,0.14)]",
+  终审通过: "border border-white/90 bg-white text-[#1a6fd4] shadow-[0_12px_28px_rgba(31,38,135,0.14)]",
+  负责人打回: "border border-white/90 bg-white text-slate-900 shadow-[0_12px_28px_rgba(31,38,135,0.12)]",
+  教师打回: "border border-white/90 bg-white text-slate-900 shadow-[0_12px_28px_rgba(31,38,135,0.12)]",
 };
 
 type DocumentStatusKey = NonNullable<DocumentItem["statusKey"]>;
@@ -675,23 +675,23 @@ const getDocumentStatusHint = (statusKey: DocumentStatusKey) => {
 };
 
 const taskPriorityStyles: Record<TaskDraft["priority"], string> = {
-  高优先级: "border-rose-200 bg-rose-50 text-rose-700",
-  中优先级: "border-amber-200 bg-amber-50 text-amber-700",
-  低优先级: "border-slate-200 bg-slate-100 text-slate-600",
+  高优先级: "border border-white/90 bg-white text-[#1a6fd4] shadow-[0_12px_28px_rgba(31,38,135,0.14)]",
+  中优先级: "border border-white/90 bg-white text-slate-900 shadow-[0_12px_28px_rgba(31,38,135,0.12)]",
+  低优先级: "border border-white/90 bg-white text-slate-900/70 shadow-[0_12px_28px_rgba(31,38,135,0.1)]",
 };
 
 const taskWorkflowDotClassNames: Record<"done" | "current" | "pending", string> = {
-  done: "bg-emerald-500 text-white",
-  current: "bg-blue-600 text-white shadow-sm shadow-blue-500/30",
-  pending: "bg-slate-100 text-slate-400 ring-1 ring-slate-200",
+  done: "bg-[#1a6fd4] text-white shadow-[0_12px_28px_rgba(26,111,212,0.22)]",
+  current: "bg-white text-[#1a6fd4] ring-1 ring-white shadow-[0_14px_30px_rgba(31,38,135,0.16)]",
+  pending: "bg-white/70 text-slate-900/50 ring-1 ring-white/80",
 };
 
-const surfaceCardClassName = "rounded-xl border border-slate-100 bg-white p-5 shadow-sm";
-const subtleCardClassName = "rounded-xl border border-slate-100 bg-slate-50 p-4";
+const surfaceCardClassName = "depth-card rounded-xl p-5";
+const subtleCardClassName = "depth-subtle rounded-xl p-4";
 const fieldClassName =
-  "mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20";
+  "depth-subtle mt-1.5 w-full rounded-lg px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-[#1a6fd4]/55 focus:ring-2 focus:ring-[#1a6fd4]/18";
 const fieldErrorClassName =
-  "mt-1.5 w-full rounded-lg border border-red-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-red-400 focus:ring-2 focus:ring-red-200";
+  "mt-1.5 w-full rounded-lg border border-[#1a6fd4]/35 bg-white/82 px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-[#1a6fd4]/55 focus:ring-2 focus:ring-[#1a6fd4]/18";
 const textareaClassName = `${fieldClassName} min-h-28`;
 
 const rolePermissions = {
@@ -1229,8 +1229,8 @@ async function requestJson<T>(input: string, init?: RequestInit) {
 function SectionHeader({ title, description }: { title: string; description?: string }) {
   return (
     <div className="space-y-2">
-      <div className="inline-flex items-center gap-2 rounded-md bg-[#EAF1FB] px-3 py-2">
-        <div className="h-4 w-1 rounded-full bg-[#0B3B8A]" />
+      <div className="depth-emphasis inline-flex items-center gap-2 px-3 py-2">
+        <div className="h-4 w-1 rounded-full bg-[#1a6fd4]" />
         <h2 className="text-2xl font-bold text-slate-900">{title}</h2>
       </div>
       {description ? <p className="text-sm leading-6 text-slate-500">{description}</p> : null}
@@ -1239,7 +1239,7 @@ function SectionHeader({ title, description }: { title: string; description?: st
 }
 
 function DemoResetNote() {
-  return <p className="text-xs leading-6 text-slate-400">当前数据已保存到云端数据库，可跨设备同步</p>;
+  return <p className="text-xs leading-6 text-slate-500">当前数据已保存到云端数据库，可跨设备同步</p>;
 }
 
 function Modal({
@@ -1273,18 +1273,18 @@ function Modal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/40 p-4"
+      className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-slate-950/28 p-4 backdrop-blur-[2px]"
       onMouseDown={(event) => {
         if (event.target === event.currentTarget) {
           onClose();
         }
       }}
-    >
+      >
       <div
-        className={`flex max-h-[calc(100vh-2rem)] w-full flex-col overflow-hidden rounded-xl bg-white shadow-xl ${sizeClassName} ${panelClassName ?? ""}`.trim()}
+        className={`depth-card flex max-h-[calc(100vh-2rem)] w-full flex-col overflow-hidden rounded-xl ${sizeClassName} ${panelClassName ?? ""}`.trim()}
         onMouseDown={(event) => event.stopPropagation()}
       >
-        <div className="flex shrink-0 items-center justify-between border-b border-slate-200 px-6 pb-4 pt-6">
+        <div className="flex shrink-0 items-center justify-between border-b border-white/55 px-6 pb-4 pt-6">
           <h3 className="text-lg font-semibold text-slate-900">{title}</h3>
           <button className="text-sm text-slate-500" onClick={onClose} type="button">
             关闭
@@ -1371,10 +1371,10 @@ function SuccessToast({ toast }: { toast: SuccessToastState }) {
 
   return (
     <div className="pointer-events-none fixed top-5 right-5 z-[80] w-[min(360px,calc(100vw-2rem))]">
-      <div className="rounded-2xl border border-emerald-200 bg-white/95 px-4 py-3 shadow-lg shadow-emerald-100/60 backdrop-blur">
+      <div className="depth-emphasis px-4 py-3">
         <div className="flex items-start gap-3">
-          <div className="relative mt-0.5 flex h-10 w-10 items-center justify-center rounded-full bg-emerald-50 text-emerald-600">
-            <span className="absolute inset-0 rounded-full bg-emerald-400/20 animate-ping" />
+          <div className="relative mt-0.5 flex h-10 w-10 items-center justify-center rounded-full bg-white text-[#1a6fd4] shadow-[0_12px_28px_rgba(26,111,212,0.18)]">
+            <span className="absolute inset-0 rounded-full bg-[#1a6fd4]/12 animate-ping" />
             <CheckCircle2 className="relative h-5 w-5" />
           </div>
           <div className="min-w-0">
@@ -1408,14 +1408,14 @@ function ActionButton({
 }) {
   const variantClassName =
     variant === "primary"
-      ? "border border-[#0B3B8A] bg-[#0B3B8A] text-white hover:bg-[#0A3277]"
+      ? "depth-button-primary"
       : variant === "danger"
         ? "border border-red-200 bg-red-50 text-red-700 hover:bg-red-100"
-        : "border border-slate-200 bg-white text-slate-700 hover:border-[#C9D9F3] hover:bg-[#F7FAFE] hover:text-[#0B3B8A]";
+        : "depth-button-secondary text-slate-900 hover:border-white/70 hover:bg-white/70 hover:text-[#1a6fd4]";
 
   return (
     <button
-      className={`inline-flex h-10 shrink-0 items-center justify-center whitespace-nowrap rounded-lg px-4 text-sm shadow-sm transition duration-200 focus-visible:ring-2 focus-visible:ring-[#0B3B8A]/20 focus-visible:outline-none ${variantClassName} ${
+      className={`inline-flex h-10 shrink-0 items-center justify-center whitespace-nowrap rounded-lg px-4 text-sm shadow-sm transition duration-200 focus-visible:ring-2 focus-visible:ring-[#1a6fd4]/20 focus-visible:outline-none ${variantClassName} ${
         disabled || loading
           ? "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400 hover:bg-slate-100"
           : "hover:-translate-y-px active:translate-y-0 active:scale-[0.98]"
@@ -4878,24 +4878,24 @@ export function WorkspaceDashboard({
     const countdownStatus = !nearestEvent
       ? {
           label: "待配置",
-          className: "border-slate-200 bg-slate-50 text-slate-500",
+          className: "border-white/90 bg-white text-slate-900/70 shadow-[0_12px_28px_rgba(31,38,135,0.12)]",
           hint: "补充节点后自动预警",
         }
       : countdownTotalHours <= 24
         ? {
             label: "紧急",
-            className: "border-red-200 bg-red-50 text-red-600",
+            className: "border-white/90 bg-white text-[#1a6fd4] shadow-[0_14px_32px_rgba(31,38,135,0.16)]",
             hint: "进入最后 24 小时",
           }
         : countdown.days <= 3
           ? {
               label: "临近",
-              className: "border-amber-200 bg-amber-50 text-amber-700",
+              className: "border-white/90 bg-white text-[#1a6fd4] shadow-[0_14px_32px_rgba(31,38,135,0.16)]",
               hint: "建议开始集中检查",
             }
           : {
               label: "推进中",
-              className: "border-blue-100 bg-blue-50 text-[#1d4ed8]",
+              className: "border-white/90 bg-white text-[#1a6fd4] shadow-[0_14px_32px_rgba(31,38,135,0.16)]",
               hint: "按计划持续推进",
             };
 
@@ -5128,19 +5128,19 @@ export function WorkspaceDashboard({
     return (
       <div className="space-y-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="flex min-w-0 flex-1 flex-wrap items-center gap-2 rounded-[18px] border border-[#D9E5F7] bg-white px-4 py-3 shadow-sm">
-            <div className="h-4 w-1 rounded-full bg-[#0B3B8A]" />
+          <div className="depth-mid flex min-w-0 flex-1 flex-wrap items-center gap-2 rounded-[18px] px-4 py-3">
+            <div className="h-4 w-1 rounded-full bg-[#1a6fd4]" />
             <p className="truncate text-sm font-semibold text-slate-900">中国国际大学生创新大赛管理系统</p>
-            <span className="rounded-full border border-[#DCE7F6] bg-[#F7FAFE] px-3 py-1 text-xs text-slate-500">
+            <span className="depth-emphasis px-3 py-1 text-xs text-slate-500">
               南京铁道职业技术学院
             </span>
-            <span className="rounded-full border border-[#DCE7F6] bg-[#F7FAFE] px-3 py-1 text-xs text-slate-500">
+            <span className="depth-emphasis px-3 py-1 text-xs text-slate-500">
               {formatFriendlyDate(currentDateTime)}
             </span>
-            <span className="rounded-full border border-[#DCE7F6] bg-[#F7FAFE] px-3 py-1 text-xs text-[#0B3B8A]">
+            <span className="depth-emphasis px-3 py-1 text-xs text-[#1a6fd4]">
               {currentUser?.roleLabel ?? roleLabels[currentRole]}
             </span>
-            <span className="rounded-full border border-[#DCE7F6] bg-[#F7FAFE] px-3 py-1 text-xs text-slate-500">
+            <span className="depth-emphasis px-3 py-1 text-xs text-slate-500">
               {portalScopeText}
             </span>
           </div>
@@ -5161,12 +5161,12 @@ export function WorkspaceDashboard({
         </div>
 
         <section className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_360px]">
-          <article className="overflow-hidden rounded-[20px] border border-[#D9E5F7] bg-white shadow-sm">
-            <div className="border-b border-slate-100 bg-[linear-gradient(180deg,#F9FBFF_0%,#FFFFFF_100%)] px-6 py-5">
+          <article className="depth-card overflow-hidden rounded-[20px]">
+            <div className="border-b border-white/55 bg-white/18 px-6 py-5">
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0">
-                  <div className="inline-flex items-center gap-2 rounded-full border border-[#D7E4F7] bg-white px-3 py-1 text-xs font-medium tracking-[0.08em] text-[#0B3B8A]">
-                    <span className="h-2 w-2 rounded-full bg-[#0B3B8A]" />
+                  <div className="depth-emphasis inline-flex items-center gap-2 px-3 py-1 text-xs font-medium tracking-[0.08em] text-[#1a6fd4]">
+                    <span className="h-2 w-2 rounded-full bg-[#1a6fd4]" />
                     今日总览
                   </div>
                   <h3 className="mt-4 text-[30px] font-bold tracking-[-0.04em] text-slate-900">
@@ -5185,7 +5185,7 @@ export function WorkspaceDashboard({
                   </p>
                 </div>
                 <button
-                  className="hidden shrink-0 rounded-full border border-[#D9E5F7] bg-[#F8FBFF] px-4 py-2 text-sm font-medium text-[#0B3B8A] transition hover:border-[#BDD0EF] hover:bg-white lg:inline-flex"
+                  className="depth-emphasis hidden shrink-0 px-4 py-2 text-sm font-medium text-[#1a6fd4] transition hover:-translate-y-px lg:inline-flex"
                   onClick={() => setNotificationsOpen(true)}
                   type="button"
                 >
@@ -5197,7 +5197,7 @@ export function WorkspaceDashboard({
               {overviewMetrics.map((item) => (
                 <article
                   key={item.label}
-                  className="rounded-2xl border border-[#E3ECF8] bg-[#FBFDFF] px-4 py-4 shadow-sm shadow-slate-100/70"
+                  className="depth-emphasis rounded-2xl px-4 py-4"
                 >
                   <p className="text-xs tracking-[0.08em] text-slate-400">{item.label}</p>
                   <p className="mt-2 text-[28px] font-bold tracking-[-0.03em] text-slate-900">{item.value}</p>
@@ -5207,10 +5207,10 @@ export function WorkspaceDashboard({
             </div>
           </article>
 
-          <article className="overflow-hidden rounded-[20px] border border-slate-100 bg-white shadow-sm">
-            <div className="border-b border-slate-100 bg-[#F7FAFE] px-4 py-3">
+          <article className="depth-card overflow-hidden rounded-[20px]">
+            <div className="border-b border-white/55 bg-white/18 px-4 py-3">
               <div className="flex items-center gap-2">
-                <div className="h-4 w-1 rounded-full bg-[#0B3B8A]" />
+                <div className="h-4 w-1 rounded-full bg-[#1a6fd4]" />
                 <h3 className="text-lg font-semibold text-slate-900">今日工作提示</h3>
               </div>
             </div>
@@ -5218,18 +5218,18 @@ export function WorkspaceDashboard({
               {priorityFocusItems.map((item, index) => (
                 <div
                   key={item}
-                  className="rounded-xl border border-[#E4ECF8] bg-[#FBFDFF] px-4 py-3 shadow-sm shadow-slate-100/60"
+                  className="depth-subtle rounded-xl px-4 py-3"
                 >
                   <div className="flex items-start gap-3">
-                    <span className="mt-0.5 inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-[#EAF1FB] px-2 text-xs font-semibold text-[#0B3B8A]">
+                    <span className="depth-emphasis mt-0.5 inline-flex h-6 min-w-6 items-center justify-center px-2 text-xs font-semibold text-[#1a6fd4]">
                       {index + 1}
                     </span>
-                    <p className="text-sm leading-6 text-slate-600">{item}</p>
+                    <p className="text-sm leading-6 text-slate-500">{item}</p>
                   </div>
                 </div>
               ))}
               <button
-                className="flex w-full items-center justify-between rounded-xl border border-[#D9E5F7] bg-white px-4 py-3 text-left transition hover:border-[#BDD0EF] hover:bg-[#F9FBFF]"
+                className="depth-card flex w-full items-center justify-between rounded-xl px-4 py-3 text-left transition"
                 onClick={() => setNotificationsOpen(true)}
                 type="button"
               >
@@ -5237,7 +5237,7 @@ export function WorkspaceDashboard({
                   <p className="text-sm font-semibold text-slate-900">进入待办中心</p>
                   <p className="mt-1 text-xs text-slate-500">统一查看待办、提醒与审批通知</p>
                 </div>
-                <span className="rounded-full bg-[#EAF1FB] px-2.5 py-1 text-xs font-medium text-[#0B3B8A]">
+                <span className="depth-emphasis px-2.5 py-1 text-xs font-medium text-[#1a6fd4]">
                   {todoItemCount} 项
                 </span>
               </button>
@@ -5246,11 +5246,11 @@ export function WorkspaceDashboard({
         </section>
 
         <section className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.85fr)]">
-          <article className="overflow-hidden rounded-[20px] border border-slate-100 bg-white shadow-sm">
-            <div className="border-b border-slate-100 bg-[#F7FAFE] px-4 py-3">
+          <article className="depth-card overflow-hidden rounded-[20px]">
+            <div className="border-b border-white/55 bg-white/18 px-4 py-3">
               <div className="flex items-center justify-between gap-3">
                 <div className="flex items-center gap-2">
-                  <div className="h-4 w-1 rounded-full bg-[#0B3B8A]" />
+                  <div className="h-4 w-1 rounded-full bg-[#1a6fd4]" />
                   <h3 className="text-lg font-semibold text-slate-900">业务办理</h3>
                 </div>
                 <span className="text-xs text-slate-400">常用业务入口</span>
@@ -5260,8 +5260,8 @@ export function WorkspaceDashboard({
                   <button
                     className={`rounded-t-xl border px-3 py-2 text-sm transition ${
                       index === 0
-                        ? "border-[#BFD2F0] bg-white text-[#0B3B8A] shadow-sm"
-                        : "border-transparent bg-transparent text-slate-500 hover:border-[#D9E4F5] hover:bg-white"
+                        ? "border-white/90 bg-white text-[#1a6fd4] shadow-[0_14px_32px_rgba(31,38,135,0.14)]"
+                        : "border-transparent bg-transparent text-slate-500 hover:border-white/65 hover:bg-white/55"
                     }`}
                     key={item.key}
                     onClick={item.onClick}
@@ -5279,14 +5279,14 @@ export function WorkspaceDashboard({
                   const Icon = item.icon;
                   return (
                     <button
-                      className="group rounded-2xl border border-slate-100 bg-white px-4 py-4 text-left shadow-sm transition hover:border-[#C9D9F3] hover:bg-[#F9FBFF]"
+                      className="depth-card group rounded-2xl px-4 py-4 text-left transition"
                       key={item.title}
                       onClick={item.onAction}
                       type="button"
                     >
                       <div className="flex items-center justify-between gap-3">
                         <div className="flex items-center gap-3">
-                          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-[#F1F6FE] text-[#0B3B8A]">
+                          <div className="depth-emphasis flex h-11 w-11 items-center justify-center rounded-xl text-[#1a6fd4]">
                             <Icon className="h-5 w-5" />
                           </div>
                           <div>
@@ -5294,7 +5294,7 @@ export function WorkspaceDashboard({
                             <p className="mt-1 text-2xl font-bold tracking-[-0.02em] text-slate-900">{item.metric}</p>
                           </div>
                         </div>
-                        <span className="rounded-md bg-slate-50 px-2 py-1 text-xs text-slate-500 transition group-hover:bg-white">
+                        <span className="depth-emphasis px-2 py-1 text-xs text-slate-500 transition">
                           进入
                         </span>
                       </div>
@@ -5308,14 +5308,14 @@ export function WorkspaceDashboard({
                   const Icon = item.icon;
                   return (
                     <button
-                      className="group rounded-2xl border border-slate-100 bg-[#FBFDFF] px-4 py-4 text-left shadow-sm transition hover:border-[#C9D9F3] hover:bg-white"
+                      className="depth-subtle group rounded-2xl px-4 py-4 text-left transition"
                       key={item.title}
                       onClick={item.onAction}
                       type="button"
                     >
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex items-center gap-3">
-                          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[#F1F6FE] text-[#0B3B8A]">
+                          <div className="depth-emphasis flex h-10 w-10 items-center justify-center rounded-xl text-[#1a6fd4]">
                             <Icon className="h-5 w-5" />
                           </div>
                           <div>
@@ -5323,7 +5323,7 @@ export function WorkspaceDashboard({
                             <p className="mt-1 text-lg font-bold tracking-[-0.02em] text-slate-900">{item.metric}</p>
                           </div>
                         </div>
-                        <span className="rounded-md bg-white px-2 py-1 text-xs text-slate-500 transition group-hover:bg-[#F8FBFF]">
+                        <span className="depth-emphasis px-2 py-1 text-xs text-slate-500 transition">
                           进入
                         </span>
                       </div>
@@ -5331,19 +5331,19 @@ export function WorkspaceDashboard({
                   );
                 })}
               </div>
-              <div className="rounded-2xl border border-dashed border-[#D9E5F7] bg-[#F8FBFF] px-4 py-3">
+              <div className="depth-subtle rounded-2xl border-dashed px-4 py-3">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <p className="text-sm font-semibold text-slate-900">快捷办理提示</p>
                     <p className="mt-1 text-sm text-slate-500">优先从待办事项进入，可减少重复查找模块的时间。</p>
                   </div>
                   <button
-                    className="inline-flex shrink-0 items-center gap-2 rounded-lg border border-[#D0DFF5] bg-white px-3 py-2 text-sm font-medium text-[#0B3B8A] transition hover:border-[#B7CDEE] hover:bg-[#F9FBFF]"
+                    className="depth-emphasis inline-flex shrink-0 items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-[#1a6fd4] transition"
                     onClick={() => setNotificationsOpen(true)}
                     type="button"
                   >
                     查看待办
-                    <span className="rounded-full bg-[#EAF1FB] px-2 py-0.5 text-xs">{todoItemCount}</span>
+                    <span className="rounded-full bg-[#1a6fd4]/10 px-2 py-0.5 text-xs">{todoItemCount}</span>
                   </button>
                 </div>
               </div>
@@ -5351,11 +5351,11 @@ export function WorkspaceDashboard({
           </article>
 
           <div className="space-y-4">
-            <article className="overflow-hidden rounded-[20px] border border-slate-100 bg-white shadow-sm">
-              <div className="border-b border-slate-100 bg-[#F7FAFE] px-4 py-3">
+            <article className="depth-card overflow-hidden rounded-[20px]">
+              <div className="border-b border-white/55 bg-white/18 px-4 py-3">
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
-                    <div className="h-4 w-1 rounded-full bg-[#0B3B8A]" />
+                    <div className="h-4 w-1 rounded-full bg-[#1a6fd4]" />
                     <h3 className="text-lg font-semibold text-slate-900">通知公告</h3>
                   </div>
                   <span className="text-xs text-slate-400">{announcements.length} 条</span>
@@ -5363,11 +5363,11 @@ export function WorkspaceDashboard({
               </div>
               <div className="divide-y divide-slate-100">
                 {announcements.slice(0, 5).map((item) => (
-                  <article className="px-4 py-3 transition hover:bg-[#FAFCFF]" key={item.id}>
+                  <article className="px-4 py-3 transition hover:bg-white/35" key={item.id}>
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0 flex-1">
                         <div className="flex items-start gap-3">
-                          <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-[#0B3B8A]" />
+                          <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-[#1a6fd4]" />
                           <div className="min-w-0">
                             <p className="line-clamp-1 text-sm font-semibold text-slate-900">{item.title}</p>
                             <p className="mt-1 line-clamp-2 text-sm leading-6 text-slate-500">{item.detail}</p>
@@ -5375,7 +5375,7 @@ export function WorkspaceDashboard({
                         </div>
                       </div>
                       <div className="shrink-0 text-right">
-                        <span className="inline-flex rounded-md bg-slate-50 px-2 py-1 text-xs text-slate-400">
+                        <span className="depth-emphasis inline-flex px-2 py-1 text-xs text-slate-500">
                           通知公告
                         </span>
                       </div>
@@ -5388,11 +5388,11 @@ export function WorkspaceDashboard({
               </div>
             </article>
 
-            <article className="overflow-hidden rounded-[20px] border border-slate-100 bg-white shadow-sm">
-              <div className="border-b border-slate-100 bg-[#F7FAFE] px-4 py-3">
+            <article className="depth-card overflow-hidden rounded-[20px]">
+              <div className="border-b border-white/55 bg-white/18 px-4 py-3">
                 <div className="flex items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
-                    <div className="h-4 w-1 rounded-full bg-[#0B3B8A]" />
+                    <div className="h-4 w-1 rounded-full bg-[#1a6fd4]" />
                     <h3 className="text-lg font-semibold text-slate-900">关键节点</h3>
                   </div>
                   <span className={`rounded-full border px-2.5 py-1 text-xs ${countdownStatus.className}`}>
@@ -5401,7 +5401,7 @@ export function WorkspaceDashboard({
                 </div>
               </div>
               <div className="space-y-3 p-4">
-                <div className="rounded-xl border border-[#DDE8F7] bg-[#F8FBFF] px-4 py-3">
+                <div className="depth-emphasis rounded-xl px-4 py-3">
                   <p className="text-xs text-slate-400">节点倒计时</p>
                   <p className="mt-1 text-sm font-semibold text-slate-900">
                     {nearestEvent
@@ -5409,18 +5409,18 @@ export function WorkspaceDashboard({
                       : "当前还没有配置关键节点"}
                   </p>
                 </div>
-                <div className="space-y-0 rounded-xl border border-slate-100 bg-white">
+                <div className="depth-subtle space-y-0 rounded-xl">
                   {keyEventItems.map((item, index) => (
                     <button
-                      className={`block w-full px-4 py-3 text-left transition hover:bg-[#F9FBFF] ${index !== keyEventItems.length - 1 ? "border-b border-slate-100" : ""}`}
+                      className={`block w-full px-4 py-3 text-left transition hover:bg-white/42 ${index !== keyEventItems.length - 1 ? "border-b border-white/55" : ""}`}
                       key={item.id}
                       onClick={() => router.push("/workspace?tab=timeline")}
                       type="button"
                     >
                       <div className="flex items-start gap-3">
                         <div className="flex flex-col items-center pt-1">
-                          <span className="h-2.5 w-2.5 rounded-full bg-[#0B3B8A]" />
-                          {index !== keyEventItems.length - 1 ? <span className="mt-1 h-10 w-px bg-[#D7E4F7]" /> : null}
+                          <span className="h-2.5 w-2.5 rounded-full bg-[#1a6fd4]" />
+                          {index !== keyEventItems.length - 1 ? <span className="mt-1 h-10 w-px bg-[#1a6fd4]/18" /> : null}
                         </div>
                         <div className="min-w-0 flex-1">
                           <div className="flex items-start justify-between gap-3">
@@ -5439,10 +5439,10 @@ export function WorkspaceDashboard({
         </section>
 
         <section className="grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]">
-          <article className="overflow-hidden rounded-[20px] border border-slate-100 bg-white shadow-sm">
-            <div className="border-b border-slate-100 bg-[#F7FAFE] px-4 py-3">
+          <article className="depth-card overflow-hidden rounded-[20px]">
+            <div className="border-b border-white/55 bg-white/18 px-4 py-3">
               <div className="flex items-center gap-2">
-                <div className="h-4 w-1 rounded-full bg-[#0B3B8A]" />
+                <div className="h-4 w-1 rounded-full bg-[#1a6fd4]" />
                 <h3 className="text-lg font-semibold text-slate-900">今日任务摘要</h3>
               </div>
             </div>
@@ -5451,10 +5451,10 @@ export function WorkspaceDashboard({
                 todayTaskSummaryTasks.map((item, index) => (
                 <div
                   key={item.id}
-                    className="flex flex-col gap-3 rounded-xl border border-slate-100 bg-[#FBFDFF] px-4 py-3 lg:flex-row lg:items-center lg:justify-between"
+                    className="depth-subtle flex flex-col gap-3 rounded-xl px-4 py-3 lg:flex-row lg:items-center lg:justify-between"
                   >
                     <div className="flex items-start gap-3">
-                      <span className="mt-0.5 flex h-6 w-6 items-center justify-center rounded-md bg-[#EAF1FB] text-xs font-semibold text-[#0B3B8A]">
+                      <span className="depth-emphasis mt-0.5 flex h-6 w-6 items-center justify-center text-xs font-semibold text-[#1a6fd4]">
                         {index + 1}
                       </span>
                       <div>
@@ -5470,7 +5470,7 @@ export function WorkspaceDashboard({
                       </ActionButton>
                     ) : (
                       <button
-                        className="self-start text-sm font-medium text-[#0B3B8A] transition hover:text-[#0A3277] lg:self-center"
+                        className="self-start text-sm font-medium text-[#1a6fd4] transition hover:opacity-80 lg:self-center"
                         onClick={() => router.push("/workspace?tab=board")}
                         type="button"
                       >
@@ -5485,23 +5485,23 @@ export function WorkspaceDashboard({
             </div>
           </article>
 
-          <article className="overflow-hidden rounded-[20px] border border-slate-100 bg-white shadow-sm">
-            <div className="border-b border-slate-100 bg-[#F7FAFE] px-4 py-3">
+          <article className="depth-card overflow-hidden rounded-[20px]">
+            <div className="border-b border-white/55 bg-white/18 px-4 py-3">
               <div className="flex items-center gap-2">
-                <div className="h-4 w-1 rounded-full bg-[#0B3B8A]" />
+                <div className="h-4 w-1 rounded-full bg-[#1a6fd4]" />
                 <h3 className="text-lg font-semibold text-slate-900">优先关注</h3>
               </div>
             </div>
             <div className="space-y-3 p-4">
               {priorityFocusItems.map((item) => (
-                <div className="rounded-xl border border-slate-100 bg-[#FBFDFF] px-4 py-3" key={item}>
+                <div className="depth-subtle rounded-xl px-4 py-3" key={item}>
                   <div className="flex gap-3">
-                    <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-[#0B3B8A]" />
-                    <p className="text-sm leading-6 text-slate-600">{item}</p>
+                    <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-[#1a6fd4]" />
+                    <p className="text-sm leading-6 text-slate-500">{item}</p>
                   </div>
                 </div>
               ))}
-              <div className="rounded-xl border border-[#E4ECF8] bg-[#F8FBFF] px-4 py-3">
+              <div className="depth-emphasis rounded-xl px-4 py-3">
                 <p className="text-xs text-slate-400">节点提示</p>
                 <p className="mt-1 text-sm font-medium text-slate-900">{countdownStatus.hint}</p>
               </div>
@@ -5696,14 +5696,14 @@ export function WorkspaceDashboard({
               ].map((item) => {
                 const active = boardStatusFilter === item.id;
                 const dotClassName =
-                  item.id === "all" ? "bg-slate-500" : boardStatusMeta[item.id as BoardStatus].dotClassName;
+                  item.id === "all" ? "bg-[#1a6fd4]/55" : boardStatusMeta[item.id as BoardStatus].dotClassName;
 
                 return (
                   <button
                     className={`shrink-0 rounded-lg border px-3.5 py-2 text-left transition ${
                       active
-                        ? "border-[#C9D9F3] bg-[#EAF1FB] text-[#0B3B8A] shadow-sm"
-                        : "border-slate-200 bg-white text-slate-600 hover:border-[#D9E3F2] hover:bg-[#F7FAFE]"
+                        ? "border-white/90 bg-white text-[#1a6fd4] shadow-[0_14px_32px_rgba(31,38,135,0.14)]"
+                        : "border-white/65 bg-white/55 text-slate-500 hover:border-white/90 hover:bg-white/70"
                     }`}
                     key={item.id}
                     onClick={() => setBoardStatusFilter(item.id)}
@@ -5845,7 +5845,7 @@ export function WorkspaceDashboard({
                             <div className="rounded-xl border border-[#D9E4F5] bg-[#F5F9FF] px-4 py-3 shadow-sm 2xl:w-56">
                               <p className="text-[11px] font-medium tracking-[0.08em] text-slate-400">当前环节</p>
                               <p className="mt-1 text-sm font-semibold leading-6 text-slate-900">{nextStepLabel}</p>
-                              <p className="mt-2 text-xs text-[#0B3B8A]">
+                              <p className="mt-2 text-xs text-[#1a6fd4]">
                                 已完成 {completedWorkflowCount}/4 个节点
                               </p>
                             </div>
@@ -5886,9 +5886,9 @@ export function WorkspaceDashboard({
                                     <p
                                       className={`mt-2 text-sm font-semibold ${
                                         step.state === "done"
-                                          ? "text-[#0B3B8A]"
+                                          ? "text-[#1a6fd4]"
                                           : step.state === "current"
-                                            ? "text-[#0B3B8A]"
+                                            ? "text-[#1a6fd4]"
                                             : "text-slate-500"
                                       }`}
                                     >
@@ -7340,14 +7340,14 @@ export function WorkspaceDashboard({
               key={category}
               className={`rounded-xl border p-5 text-left shadow-sm transition ${
                 isActive
-                  ? "border-[#C9D9F3] bg-[#EAF1FB]"
-                  : "border-slate-100 bg-white hover:border-[#D9E3F2] hover:bg-[#F7FAFE]"
+                  ? "border-white/90 bg-white shadow-[0_14px_32px_rgba(31,38,135,0.14)]"
+                  : "border-white/65 bg-white/55 hover:border-white/90 hover:bg-white/72"
               }`}
               onClick={() => setSelectedCategory((current) => (current === category ? null : category))}
               type="button"
             >
               <div className="inline-flex items-center gap-2">
-                <div className="h-4 w-1 rounded-full bg-[#0B3B8A]" />
+                <div className="h-4 w-1 rounded-full bg-[#1a6fd4]" />
                 <h3 className="text-base font-semibold text-slate-900">{category}</h3>
               </div>
               <p className="mt-3 text-2xl font-bold text-slate-900">{count}</p>
@@ -7767,7 +7767,7 @@ export function WorkspaceDashboard({
                   <span className="font-medium text-slate-800">{group.name}</span>
                   <span className="text-xs text-slate-400">{group.memberCount} 人</span>
                   <button
-                    className="rounded-md px-1.5 py-1 text-xs text-[#0B3B8A] transition hover:bg-[#F3F8FF]"
+                    className="rounded-md px-1.5 py-1 text-xs text-[#1a6fd4] transition hover:bg-[#F3F8FF]"
                     onClick={() => editTeamGroup(group)}
                     type="button"
                   >
@@ -8243,15 +8243,14 @@ export function WorkspaceDashboard({
 
   if (isBooting) {
     return (
-      <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-slate-100 px-4">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(37,99,235,0.08),_transparent_45%)]" />
-        <div className="relative w-full max-w-xl rounded-2xl border border-slate-200 bg-white/95 px-6 py-7 shadow-sm backdrop-blur sm:px-8 sm:py-8">
-          <div className="inline-flex items-center rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-xs font-medium tracking-[0.08em] text-blue-600">
+      <main className="workspace-depth-bg relative flex min-h-screen items-center justify-center overflow-hidden px-4">
+        <div className="relative depth-card w-full max-w-xl rounded-2xl px-6 py-7 sm:px-8 sm:py-8">
+          <div className="depth-emphasis inline-flex items-center px-3 py-1 text-xs font-medium tracking-[0.08em] text-[#1a6fd4]">
             中国国际大学生创新大赛管理系统
           </div>
           <div className="mt-5 flex items-start gap-4">
-            <div className="relative flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
-              <span className="absolute inset-0 rounded-2xl border border-blue-100 animate-pulse" />
+            <div className="relative flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-[#1a6fd4] shadow-[0_16px_34px_rgba(26,111,212,0.18)]">
+              <span className="absolute inset-0 rounded-2xl border border-white/80 animate-pulse" />
               <Loader2 className="relative h-6 w-6 animate-spin" />
             </div>
             <div className="min-w-0">
@@ -8264,7 +8263,7 @@ export function WorkspaceDashboard({
           <div className="mt-6 grid grid-cols-3 gap-3">
             {[0, 1, 2].map((item) => (
               <div
-                className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-4"
+                className="depth-subtle rounded-xl px-4 py-4"
                 key={item}
               >
                 <div className="h-2.5 w-16 rounded-full bg-slate-200 animate-pulse" />
@@ -8273,8 +8272,8 @@ export function WorkspaceDashboard({
               </div>
             ))}
           </div>
-          <div className="mt-6 inline-flex items-center gap-2 rounded-full bg-slate-100 px-3 py-1.5 text-xs text-slate-500">
-            <span className="h-2 w-2 rounded-full bg-blue-600 animate-pulse" />
+          <div className="depth-emphasis mt-6 inline-flex items-center gap-2 px-3 py-1.5 text-xs text-[#1a6fd4]">
+            <span className="h-2 w-2 rounded-full bg-[#1a6fd4] animate-pulse" />
             <span>正在加载工作台数据...</span>
           </div>
         </div>
@@ -8292,7 +8291,7 @@ export function WorkspaceDashboard({
 
   return (
     <>
-      <main className="min-h-screen bg-slate-50 p-4 md:p-6">
+      <main className="workspace-depth-bg min-h-screen p-4 md:p-6">
         <div className="mx-auto flex max-w-[1500px] flex-col gap-4 xl:flex-row">
           {mobileSidebarOpen ? (
             <div
@@ -8302,7 +8301,7 @@ export function WorkspaceDashboard({
           ) : null}
 
           <aside className="hidden xl:block xl:w-[280px] xl:flex-none">
-            <div className="rounded-xl bg-[#0B3B8A] px-5 py-6 text-white shadow-sm xl:sticky xl:top-4 xl:flex xl:h-[calc(100vh-2rem)] xl:flex-col">
+            <div className="depth-sidebar rounded-xl px-5 py-6 text-white xl:sticky xl:top-4 xl:flex xl:h-[calc(100vh-2rem)] xl:flex-col">
               <div className="border-b border-white/15 pb-4">
                 <div className="flex items-center gap-3">
                   <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white/10 ring-1 ring-white/20 backdrop-blur-sm">
@@ -8325,14 +8324,9 @@ export function WorkspaceDashboard({
                   return (
                     <Link
                       key={item.key}
-                      className={`relative flex items-center gap-3 rounded-lg px-4 py-3 text-sm no-underline transition ${
-                        isActive
-                          ? "bg-blue-800 text-white shadow-sm"
-                          : "text-white/80 hover:bg-white/8 hover:text-white"
-                      }`}
+                      className={`sidebar-item relative flex items-center gap-3 rounded-lg px-4 py-3 text-sm no-underline ${isActive ? "sidebar-item-active" : ""}`}
                       href={href}
                     >
-                      {isActive ? <span className="absolute inset-y-2 left-0 w-[3px] rounded-full bg-white" /> : null}
                       <Icon className="h-[18px] w-[18px]" strokeWidth={2.1} />
                       <span>{item.label}</span>
                     </Link>
@@ -8370,7 +8364,7 @@ export function WorkspaceDashboard({
           </aside>
 
           <aside
-            className={`fixed inset-y-0 left-0 z-50 w-[280px] bg-[#0B3B8A] px-5 py-6 text-white shadow-xl transition-transform duration-200 xl:hidden ${
+            className={`depth-sidebar fixed inset-y-0 left-0 z-50 w-[280px] px-5 py-6 text-white shadow-xl transition-transform duration-200 xl:hidden ${
               mobileSidebarOpen ? "translate-x-0" : "-translate-x-full"
             }`}
           >
@@ -8404,15 +8398,10 @@ export function WorkspaceDashboard({
                   return (
                     <Link
                       key={`mobile-${item.key}`}
-                      className={`relative flex items-center gap-3 rounded-lg px-4 py-3 text-sm no-underline transition ${
-                        isActive
-                          ? "bg-blue-800 text-white shadow-sm"
-                          : "text-white/80 hover:bg-white/8 hover:text-white"
-                      }`}
+                      className={`sidebar-item relative flex items-center gap-3 rounded-lg px-4 py-3 text-sm no-underline ${isActive ? "sidebar-item-active" : ""}`}
                       href={href}
                       onClick={() => setMobileSidebarOpen(false)}
                     >
-                      {isActive ? <span className="absolute inset-y-2 left-0 w-[3px] rounded-full bg-white" /> : null}
                       <Icon className="h-[18px] w-[18px]" strokeWidth={2.1} />
                       <span>{item.label}</span>
                     </Link>
@@ -8683,8 +8672,8 @@ export function WorkspaceDashboard({
                       <label
                         className={`flex items-center gap-3 rounded-xl border px-3 py-2 text-sm transition ${
                           checked
-                            ? "border-[#BFD2F0] bg-white text-[#0B3B8A] shadow-sm"
-                            : "border-slate-200 bg-white text-slate-600 hover:border-[#D9E3F2]"
+                            ? "border-white/90 bg-white text-[#1a6fd4] shadow-[0_14px_32px_rgba(31,38,135,0.14)]"
+                            : "border-white/65 bg-white/55 text-slate-500 hover:border-white/90"
                         }`}
                         key={member.id}
                       >

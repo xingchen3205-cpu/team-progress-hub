@@ -357,20 +357,20 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
 
   if (isCheckingSession) {
     return (
-      <main className="flex min-h-screen items-center justify-center bg-[#f1f8ff] px-4">
-        <div className="w-full max-w-md rounded-2xl border border-[#dbeafe] bg-white/95 px-6 py-7 text-center shadow-[0_12px_36px_rgba(48,145,242,0.10)] backdrop-blur">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-[#e9f3ff] text-[#3091f2]">
+      <main className="workspace-depth-bg flex min-h-screen items-center justify-center px-4">
+        <div className="depth-card w-full max-w-md rounded-2xl px-6 py-7 text-center">
+          <div className="depth-emphasis mx-auto flex h-12 w-12 items-center justify-center rounded-2xl text-[#1a6fd4]">
             <Loader2 className="h-6 w-6 animate-spin" />
           </div>
           <p className="mt-4 text-base font-semibold text-[#13161b]">正在进入系统</p>
-          <p className="mt-2 text-sm leading-6 text-[#6b7280]">正在检查登录状态，请稍候片刻。</p>
+          <p className="mt-2 text-sm leading-6 text-slate-500">正在检查登录状态，请稍候片刻。</p>
         </div>
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-slate-100 text-slate-900">
+    <main className="workspace-depth-bg min-h-screen text-slate-900">
       <div className="min-h-screen lg:grid lg:grid-cols-[11fr_9fr]">
         <section className="relative min-h-[42vh] overflow-hidden lg:min-h-screen">
           <div
@@ -387,7 +387,7 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
           <div className="absolute inset-0 opacity-25 [background-image:linear-gradient(135deg,rgba(255,255,255,0.07)_0,rgba(255,255,255,0.07)_1px,transparent_1px,transparent_24px)] [background-size:28px_28px]" />
           <div className="relative flex h-full flex-col justify-between px-8 py-8 lg:px-14 lg:py-10">
             <div className="mx-auto w-full max-w-3xl">
-              <div className="inline-flex items-center gap-2.5 rounded-full border border-white/18 bg-white/11 px-3.5 py-2 text-white shadow-[0_18px_44px_rgba(15,23,42,0.18)] backdrop-blur-xl">
+              <div className="depth-mid inline-flex items-center gap-2.5 px-3.5 py-2 text-white shadow-[0_18px_44px_rgba(15,23,42,0.18)] backdrop-blur-xl">
                 <Image
                   alt="南京铁道职业技术学院官方标识"
                   className="h-8 w-auto object-contain"
@@ -415,7 +415,7 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
           </div>
         </section>
 
-        <section className="flex min-h-screen flex-col bg-slate-50">
+        <section className="flex min-h-screen flex-col bg-white/18 backdrop-blur-[4px]">
           <div className="flex-1 px-6 py-10 sm:px-10 lg:px-14">
             <div className="mx-auto flex min-h-full w-full max-w-[27rem] flex-col justify-center">
               <div className="mb-10">
@@ -440,9 +440,9 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
               </div>
 
               {successMessage ? (
-                <div className="mb-4 flex items-start gap-3 rounded-2xl border border-[#bbf7d0] bg-[#ecfdf5] px-4 py-3 text-sm leading-6 text-[#047857]">
-                  <div className="relative mt-0.5 flex h-6 w-6 items-center justify-center rounded-full bg-[#d1fae5] text-[#059669]">
-                    <span className="absolute inset-0 animate-ping rounded-full bg-[#6ee7b7]/40" />
+                <div className="depth-emphasis mb-4 flex items-start gap-3 px-4 py-3 text-sm leading-6 text-[#1a6fd4]">
+                  <div className="relative mt-0.5 flex h-6 w-6 items-center justify-center rounded-full bg-white text-[#1a6fd4] shadow-[0_12px_24px_rgba(26,111,212,0.18)]">
+                    <span className="absolute inset-0 animate-ping rounded-full bg-[#1a6fd4]/16" />
                     <CheckCircle2 className="relative h-4 w-4" />
                   </div>
                   <p>{successMessage}</p>
@@ -559,7 +559,7 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
                   ) : null}
 
                   <button
-                    className="flex h-14 w-full items-center justify-center gap-2 rounded-2xl border border-[#172554] bg-[#172554] text-base font-medium text-white transition duration-300 hover:bg-[#1e3a8a] hover:shadow-lg hover:shadow-[#172554]/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#172554]/20 active:scale-[0.98] disabled:cursor-not-allowed disabled:border-[#86c0f7] disabled:bg-[#86c0f7] disabled:hover:translate-y-0 disabled:active:scale-100"
+                    className="flex h-14 w-full items-center justify-center gap-2 rounded-2xl border border-[#1a6fd4] bg-[#1a6fd4] text-base font-medium text-white transition duration-300 hover:bg-[#155cad] hover:shadow-lg hover:shadow-[#1a6fd4]/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1a6fd4]/20 active:scale-[0.98] disabled:cursor-not-allowed disabled:border-[#86c0f7] disabled:bg-[#86c0f7] disabled:hover:translate-y-0 disabled:active:scale-100"
                     disabled={isSubmitting}
                     type="submit"
                   >
@@ -578,7 +578,7 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
                   <label className="block text-sm leading-6 text-[#60656e]">
                     账号名或邮箱
                     <input
-                      className={`mt-1 h-12 w-full rounded-2xl border bg-white px-3 text-base leading-7 text-[#13161b] outline-none placeholder:text-[#64748b] focus:border-[#172554] focus:bg-white focus:ring-4 focus:ring-[#172554]/10 ${
+                      className={`mt-1 h-12 w-full rounded-2xl border bg-white px-3 text-base leading-7 text-[#13161b] outline-none placeholder:text-[#64748b] focus:border-[#1a6fd4] focus:bg-white focus:ring-4 focus:ring-[#1a6fd4]/10 ${
                         forgotErrors.account ? "border-[#f93b3b]" : "border-[#d5d7db]"
                       }`}
                       placeholder="请输入注册时填写的账号名或邮箱"
@@ -609,7 +609,7 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
                   ) : null}
 
                   <button
-                    className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl border border-[#172554] bg-[#172554] text-base leading-[42px] text-white transition duration-300 hover:bg-[#1e3a8a] hover:shadow-lg hover:shadow-[#172554]/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#172554]/20 active:scale-[0.98] disabled:cursor-not-allowed disabled:border-[#86c0f7] disabled:bg-[#86c0f7] disabled:hover:translate-y-0 disabled:active:scale-100"
+                    className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl border border-[#1a6fd4] bg-[#1a6fd4] text-base leading-[42px] text-white transition duration-300 hover:bg-[#155cad] hover:shadow-lg hover:shadow-[#1a6fd4]/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1a6fd4]/20 active:scale-[0.98] disabled:cursor-not-allowed disabled:border-[#86c0f7] disabled:bg-[#86c0f7] disabled:hover:translate-y-0 disabled:active:scale-100"
                     disabled={isSubmitting}
                     type="submit"
                   >
@@ -628,7 +628,7 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
                   <label className="block text-sm leading-6 text-[#60656e]">
                     新密码
                     <input
-                      className={`mt-1 h-12 w-full rounded-2xl border bg-white px-3 text-base leading-7 text-[#13161b] outline-none placeholder:text-[#64748b] focus:border-[#172554] focus:bg-white focus:ring-4 focus:ring-[#172554]/10 ${
+                      className={`mt-1 h-12 w-full rounded-2xl border bg-white px-3 text-base leading-7 text-[#13161b] outline-none placeholder:text-[#64748b] focus:border-[#1a6fd4] focus:bg-white focus:ring-4 focus:ring-[#1a6fd4]/10 ${
                         resetErrors.password ? "border-[#f93b3b]" : "border-[#d5d7db]"
                       }`}
                       placeholder="请设置新的登录密码"
@@ -651,7 +651,7 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
                   <label className="block text-sm leading-6 text-[#60656e]">
                     确认密码
                     <input
-                      className={`mt-1 h-12 w-full rounded-2xl border bg-white px-3 text-base leading-7 text-[#13161b] outline-none placeholder:text-[#64748b] focus:border-[#172554] focus:bg-white focus:ring-4 focus:ring-[#172554]/10 ${
+                      className={`mt-1 h-12 w-full rounded-2xl border bg-white px-3 text-base leading-7 text-[#13161b] outline-none placeholder:text-[#64748b] focus:border-[#1a6fd4] focus:bg-white focus:ring-4 focus:ring-[#1a6fd4]/10 ${
                         resetErrors.confirmPassword ? "border-[#f93b3b]" : "border-[#d5d7db]"
                       }`}
                       placeholder="请再次输入新密码"
@@ -678,7 +678,7 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
                   ) : null}
 
                   <button
-                    className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl border border-[#172554] bg-[#172554] text-base leading-[42px] text-white transition duration-300 hover:bg-[#1e3a8a] hover:shadow-lg hover:shadow-[#172554]/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#172554]/20 active:scale-[0.98] disabled:cursor-not-allowed disabled:border-[#86c0f7] disabled:bg-[#86c0f7] disabled:hover:translate-y-0 disabled:active:scale-100"
+                    className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl border border-[#1a6fd4] bg-[#1a6fd4] text-base leading-[42px] text-white transition duration-300 hover:bg-[#155cad] hover:shadow-lg hover:shadow-[#1a6fd4]/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1a6fd4]/20 active:scale-[0.98] disabled:cursor-not-allowed disabled:border-[#86c0f7] disabled:bg-[#86c0f7] disabled:hover:translate-y-0 disabled:active:scale-100"
                     disabled={isSubmitting}
                     type="submit"
                   >
@@ -697,7 +697,7 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
                   <label className="block text-sm leading-6 text-[#60656e]">
                     选择身份
                     <select
-                      className={`mt-1 h-12 w-full rounded-2xl border bg-white px-3 text-base leading-7 text-[#13161b] outline-none focus:border-[#172554] focus:bg-white focus:ring-4 focus:ring-[#172554]/10 ${
+                      className={`mt-1 h-12 w-full rounded-2xl border bg-white px-3 text-base leading-7 text-[#13161b] outline-none focus:border-[#1a6fd4] focus:bg-white focus:ring-4 focus:ring-[#1a6fd4]/10 ${
                         registerErrors.role ? "border-[#f93b3b]" : "border-[#d5d7db]"
                       }`}
                       value={registerValues.role}
@@ -724,7 +724,7 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
                   <label className="block text-sm leading-6 text-[#60656e]">
                     姓名 <span className="text-[#f93b3b]">*</span>
                     <input
-                      className={`mt-1 h-12 w-full rounded-2xl border bg-white px-3 text-base leading-7 text-[#13161b] outline-none placeholder:text-[#8d949f] focus:border-[#172554] focus:bg-white focus:ring-4 focus:ring-[#172554]/10 ${
+                      className={`mt-1 h-12 w-full rounded-2xl border bg-white px-3 text-base leading-7 text-[#13161b] outline-none placeholder:text-[#8d949f] focus:border-[#1a6fd4] focus:bg-white focus:ring-4 focus:ring-[#1a6fd4]/10 ${
                         registerErrors.name ? "border-[#f93b3b]" : "border-[#d5d7db]"
                       }`}
                       placeholder="请输入真实姓名"
@@ -747,7 +747,7 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
                   <label className="block text-sm leading-6 text-[#60656e]">
                     账号名 <span className="text-[#f93b3b]">*</span>
                     <input
-                      className={`mt-1 h-12 w-full rounded-2xl border bg-white px-3 text-base leading-7 text-[#13161b] outline-none placeholder:text-[#8d949f] focus:border-[#172554] focus:bg-white focus:ring-4 focus:ring-[#172554]/10 ${
+                      className={`mt-1 h-12 w-full rounded-2xl border bg-white px-3 text-base leading-7 text-[#13161b] outline-none placeholder:text-[#8d949f] focus:border-[#1a6fd4] focus:bg-white focus:ring-4 focus:ring-[#1a6fd4]/10 ${
                         registerErrors.username ? "border-[#f93b3b]" : "border-[#d5d7db]"
                       }`}
                       placeholder="请输入登录账号名"
@@ -772,7 +772,7 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
                   <label className="block text-sm leading-6 text-[#60656e]">
                     邮箱 <span className="text-[#f93b3b]">*</span>
                     <input
-                      className={`mt-1 h-12 w-full rounded-2xl border bg-white px-3 text-base leading-7 text-[#13161b] outline-none placeholder:text-[#8d949f] focus:border-[#172554] focus:bg-white focus:ring-4 focus:ring-[#172554]/10 ${
+                      className={`mt-1 h-12 w-full rounded-2xl border bg-white px-3 text-base leading-7 text-[#13161b] outline-none placeholder:text-[#8d949f] focus:border-[#1a6fd4] focus:bg-white focus:ring-4 focus:ring-[#1a6fd4]/10 ${
                         registerErrors.email ? "border-[#f93b3b]" : "border-[#d5d7db]"
                       }`}
                       placeholder="用于接收任务和日程提醒"
@@ -797,7 +797,7 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
                   <label className="block text-sm leading-6 text-[#60656e]">
                     密码 <span className="text-[#f93b3b]">*</span>
                     <input
-                      className={`mt-1 h-12 w-full rounded-2xl border bg-white px-3 text-base leading-7 text-[#13161b] outline-none placeholder:text-[#8d949f] focus:border-[#172554] focus:bg-white focus:ring-4 focus:ring-[#172554]/10 ${
+                      className={`mt-1 h-12 w-full rounded-2xl border bg-white px-3 text-base leading-7 text-[#13161b] outline-none placeholder:text-[#8d949f] focus:border-[#1a6fd4] focus:bg-white focus:ring-4 focus:ring-[#1a6fd4]/10 ${
                         registerErrors.password ? "border-[#f93b3b]" : "border-[#d5d7db]"
                       }`}
                       placeholder="请设置登录密码"
@@ -824,7 +824,7 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
                   ) : null}
 
                   <button
-                    className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl border border-[#172554] bg-[#172554] text-base leading-[42px] text-white transition duration-300 hover:bg-[#1e3a8a] hover:shadow-lg hover:shadow-[#172554]/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#172554]/20 active:scale-[0.98] disabled:cursor-not-allowed disabled:border-[#86c0f7] disabled:bg-[#86c0f7] disabled:hover:translate-y-0 disabled:active:scale-100"
+                    className="flex h-12 w-full items-center justify-center gap-2 rounded-2xl border border-[#1a6fd4] bg-[#1a6fd4] text-base leading-[42px] text-white transition duration-300 hover:bg-[#155cad] hover:shadow-lg hover:shadow-[#1a6fd4]/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#1a6fd4]/20 active:scale-[0.98] disabled:cursor-not-allowed disabled:border-[#86c0f7] disabled:bg-[#86c0f7] disabled:hover:translate-y-0 disabled:active:scale-100"
                     disabled={isSubmitting}
                     type="submit"
                   >
@@ -851,7 +851,7 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
                         : "重置完成后，可返回登录并使用新密码进入系统。"}
                 </p>
                 <button
-                  className="text-sm font-medium text-[#326ca6] transition hover:text-[#255686] hover:underline"
+                  className="text-sm font-medium text-[#1a6fd4] transition hover:text-[#155cad] hover:underline"
                   onClick={() =>
                     switchMode(
                       mode === "login"
