@@ -5305,7 +5305,7 @@ export function WorkspaceDashboard({
           </article>
         </section>
 
-        <section className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(320px,0.85fr)]">
+        <section className="mid-row grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_380px]">
           <article className="depth-card overflow-hidden rounded-[20px]">
             <div className="border-b border-white/55 bg-white/18 px-4 py-3">
               <div className="flex items-center justify-between gap-3">
@@ -8390,7 +8390,7 @@ export function WorkspaceDashboard({
           ) : null}
 
           <aside className="hidden xl:block xl:w-[280px] xl:flex-none">
-            <div className="depth-sidebar rounded-xl px-5 py-6 text-white xl:sticky xl:top-4 xl:flex xl:h-[calc(100vh-2rem)] xl:flex-col">
+            <div className="sidebar depth-sidebar rounded-xl px-5 py-6 text-white xl:sticky xl:top-4 xl:flex xl:h-[calc(100vh-2rem)] xl:flex-col">
               <div className="sidebar-header border-b border-white/15 pb-4">
                 <div className="sidebar-logo flex items-center gap-3">
                   <div className="sidebar-logo-wrapper flex h-12 w-12 items-center justify-center">
@@ -8403,7 +8403,7 @@ export function WorkspaceDashboard({
                 </div>
               </div>
 
-              <nav className="mt-5 space-y-1.5">
+              <nav className="sidebar-nav mt-5 space-y-1.5">
                 {sidebarTabs.map((item) => {
                   const Icon = item.icon;
                   const isActive = item.key === safeActiveTab;
@@ -8457,7 +8457,7 @@ export function WorkspaceDashboard({
               mobileSidebarOpen ? "translate-x-0" : "-translate-x-full"
             }`}
           >
-            <div className="flex h-full flex-col">
+            <div className="sidebar flex h-full flex-col">
               <div className="sidebar-header flex items-center justify-between border-b border-white/15 pb-4">
                 <div className="sidebar-logo flex items-center gap-3">
                   <div className="sidebar-logo-wrapper flex h-11 w-11 items-center justify-center">
@@ -8477,7 +8477,7 @@ export function WorkspaceDashboard({
                 </button>
               </div>
 
-              <nav className="mt-5 space-y-1.5">
+              <nav className="sidebar-nav mt-5 space-y-1.5">
                 {sidebarTabs.map((item) => {
                   const Icon = item.icon;
                   const isActive = item.key === safeActiveTab;

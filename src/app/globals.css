@@ -176,6 +176,14 @@ a:hover {
   -webkit-backdrop-filter: blur(8px) saturate(160%);
 }
 
+.sidebar {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  position: sticky;
+  top: 0;
+}
+
 .depth-sidebar::after {
   content: "";
   position: absolute;
@@ -216,10 +224,16 @@ a:hover {
 }
 
 .sidebar-user-area {
+  flex-shrink: 0;
   border-top: 1px solid rgba(255, 255, 255, 0.10);
-  padding-top: 12px;
+  padding: 12px 16px;
   margin-top: auto;
   background: transparent;
+}
+
+.sidebar-nav {
+  flex: 1;
+  overflow-y: auto;
 }
 
 .sidebar-user-name {
@@ -330,6 +344,7 @@ a:hover {
 }
 
 .quick-tips-card {
+  align-self: start;
   height: auto;
   min-height: unset;
   padding-bottom: 20px;
@@ -363,6 +378,11 @@ a:hover {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 16px;
+}
+
+.mid-row {
+  display: grid;
+  align-items: start;
 }
 
 .task-index {
