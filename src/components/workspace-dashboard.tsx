@@ -2488,6 +2488,22 @@ export function WorkspaceDashboard({
     setDismissedTodoIds((current) => (current.includes(itemId) ? current : [...current, itemId]));
   };
 
+  const markAllTodoItemsAsRead = async () => {
+    if (visibleRoleTodoItems.length > 0) {
+      setDismissedTodoIds((current) => {
+        const next = new Set(current);
+        for (const item of visibleRoleTodoItems) {
+          next.add(item.id);
+        }
+        return Array.from(next);
+      });
+    }
+
+    if (todoNotifications.length > 0) {
+      await markAllNotificationsAsRead();
+    }
+  };
+
   const canSendDirectiveToMember = (member: TeamMember) => {
     if (!permissions.canSendDirective) {
       return false;
@@ -9444,6 +9460,14 @@ export function WorkspaceDashboard({
                 <span>当前共 {todoItemCount} 项待处理</span>
               </div>
             </div>
+
+            {todoItemCount > 0 ? (
+              <div className="flex justify-end">
+                <ActionButton onClick={() => void markAllTodoItemsAsRead()}>
+                  一键已读
+                </ActionButton>
+              </div>
+            ) : null}
 
             {visibleRoleTodoItems.length > 0 ? (
               <section className="space-y-3">
