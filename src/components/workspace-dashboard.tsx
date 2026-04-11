@@ -832,6 +832,15 @@ const teamRoleToRoleKey: Record<TeamRoleLabel, RoleKey> = {
   评审专家: "expert",
 };
 
+const teamRoleSortOrder: Record<TeamRoleLabel, number> = {
+  系统管理员: 0,
+  校级管理员: 1,
+  指导教师: 2,
+  项目负责人: 3,
+  团队成员: 4,
+  评审专家: 5,
+};
+
 const formatDateTime = (value: string) => formatBeijingDateTimeShort(value);
 
 const formatShortDate = (value: string) => {
@@ -2269,10 +2278,13 @@ export function WorkspaceDashboard({
       ? "lg:grid-cols-[minmax(0,1.4fr)_180px_140px_minmax(280px,1fr)]"
       : "lg:grid-cols-[minmax(0,1.6fr)_180px_140px]";
 
-  const teamFilterOptions = useMemo(
-    () => ["全部", ...new Set(activeTeamMembers.map((member) => member.systemRole))] as Array<"全部" | TeamRoleLabel>,
-    [activeTeamMembers],
-  );
+  const teamFilterOptions = useMemo(() => {
+    const roleOptions = [...new Set(activeTeamMembers.map((member) => member.systemRole))] as TeamRoleLabel[];
+    if (isSystemAdmin) {
+      roleOptions.sort((left, right) => teamRoleSortOrder[left] - teamRoleSortOrder[right]);
+    }
+    return ["全部", ...roleOptions] as Array<"全部" | TeamRoleLabel>;
+  }, [activeTeamMembers, isSystemAdmin]);
 
   const filteredTeamMembers = activeTeamMembers.filter((member) => {
     const normalizedKeyword = teamSearch.trim().toLowerCase();
@@ -2289,6 +2301,31 @@ export function WorkspaceDashboard({
       (teamGroupFilter === "未分组" ? !member.teamGroupId : member.teamGroupId === teamGroupFilter);
     return matchesKeyword && matchesRole && matchesGroup;
   });
+  const displayedTeamMembers = useMemo(() => {
+    if (!isSystemAdmin) {
+      return filteredTeamMembers;
+    }
+
+    return [...filteredTeamMembers].sort((left, right) => {
+      const roleOrder = teamRoleSortOrder[left.systemRole] - teamRoleSortOrder[right.systemRole];
+      if (roleOrder !== 0) {
+        return roleOrder;
+      }
+
+      const approvalOrder =
+        (left.approvalStatus === "pending" ? 0 : 1) - (right.approvalStatus === "pending" ? 0 : 1);
+      if (approvalOrder !== 0) {
+        return approvalOrder;
+      }
+
+      const groupOrder = (left.teamGroupName ?? "未分组").localeCompare(right.teamGroupName ?? "未分组", "zh-CN");
+      if (groupOrder !== 0) {
+        return groupOrder;
+      }
+
+      return left.name.localeCompare(right.name, "zh-CN");
+    });
+  }, [filteredTeamMembers, isSystemAdmin]);
   const canBatchCreateExperts = hasGlobalAdminRole || currentRole === "teacher";
 
   useEffect(() => {
@@ -7960,7 +7997,7 @@ export function WorkspaceDashboard({
               当前共 {activeTeamMembers.length} 个账号
             </span>
             <span className="rounded-full bg-blue-50 px-3 py-1 text-blue-600">
-              已筛选 {filteredTeamMembers.length} 个结果
+              已筛选 {displayedTeamMembers.length} 个结果
             </span>
             {pendingApprovalMembers.length > 0 ? (
               <span className="rounded-full bg-amber-50 px-3 py-1 text-amber-700">
@@ -7985,8 +8022,8 @@ export function WorkspaceDashboard({
           {showTeamActions ? <span className="text-right">操作</span> : null}
         </div>
 
-        {filteredTeamMembers.length > 0 ? (
-          filteredTeamMembers.map((member) => {
+        {displayedTeamMembers.length > 0 ? (
+          displayedTeamMembers.map((member) => {
             const editable = canManageMember(member);
             const isSystemAccount = member.systemRole === "系统管理员";
             const isSchoolAdminAccount = member.systemRole === "校级管理员";
