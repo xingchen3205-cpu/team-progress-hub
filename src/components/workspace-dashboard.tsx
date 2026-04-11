@@ -8245,31 +8245,36 @@ export function WorkspaceDashboard({
             中国国际大学生创新大赛管理系统
           </div>
           <div className="mt-5 flex items-start gap-4">
-            <div className="relative flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-[#1a6fd4] shadow-[0_16px_34px_rgba(26,111,212,0.18)]">
-              <span className="absolute inset-0 rounded-2xl border border-white/80 animate-pulse" />
-              <Loader2 className="relative h-6 w-6 animate-spin" />
+            <div className="relative flex h-12 w-12 items-center justify-center rounded-2xl bg-white shadow-[0_16px_34px_rgba(26,111,212,0.12)]">
+              <div className="loading-spinner" />
             </div>
             <div className="min-w-0">
-              <p className="text-xl font-semibold tracking-[-0.02em] text-slate-900">正在进入管理中心</p>
-              <p className="mt-2 text-sm leading-7 text-slate-500">
+              <p className="loading-title tracking-[-0.02em]">正在进入管理中心</p>
+              <p className="loading-sub leading-7">
                 正在同步角色权限、任务概览和最近通知，马上就好。
               </p>
             </div>
           </div>
           <div className="mt-6 grid grid-cols-3 gap-3">
             {[0, 1, 2].map((item) => (
-              <div
-                className="depth-subtle rounded-xl px-4 py-4"
-                key={item}
-              >
-                <div className="h-2.5 w-16 rounded-full bg-slate-200 animate-pulse" />
-                <div className="mt-3 h-3 rounded-full bg-slate-200/80 animate-pulse" />
-                <div className="mt-2 h-3 w-2/3 rounded-full bg-slate-200/70 animate-pulse" />
+              <div className="skeleton-card depth-subtle rounded-xl px-4 py-4" key={item}>
+                {item === 2 ? (
+                  <>
+                    <div className="skeleton-icon skeleton-line" />
+                    <div className="skeleton-line" />
+                    <div className="skeleton-line" />
+                  </>
+                ) : (
+                  <>
+                    <div className="skeleton-line" />
+                    <div className="skeleton-line" />
+                    <div className="skeleton-line" />
+                  </>
+                )}
               </div>
             ))}
           </div>
-          <div className="depth-emphasis mt-6 inline-flex items-center gap-2 px-3 py-1.5 text-xs text-[#1a6fd4]">
-            <span className="h-2 w-2 rounded-full bg-[#1a6fd4] animate-pulse" />
+          <div className="loading-status depth-emphasis inline-flex px-3 py-1.5">
             <span>正在加载工作台数据...</span>
           </div>
         </div>
