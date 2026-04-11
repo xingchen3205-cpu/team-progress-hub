@@ -675,9 +675,9 @@ const getDocumentStatusHint = (statusKey: DocumentStatusKey) => {
 };
 
 const taskPriorityStyles: Record<TaskDraft["priority"], string> = {
-  高优先级: "border border-white/90 bg-white text-[#1a6fd4] shadow-[0_12px_28px_rgba(31,38,135,0.14)]",
-  中优先级: "border border-white/90 bg-white text-slate-900 shadow-[0_12px_28px_rgba(31,38,135,0.12)]",
-  低优先级: "border border-white/90 bg-white text-slate-900/70 shadow-[0_12px_28px_rgba(31,38,135,0.1)]",
+  高优先级: "depth-emphasis text-[#1a6fd4]",
+  中优先级: "depth-emphasis text-[#1a6fd4]/80",
+  低优先级: "depth-emphasis text-[#1a6fd4]/65",
 };
 
 const taskWorkflowDotClassNames: Record<"done" | "current" | "pending", string> = {
@@ -1724,6 +1724,7 @@ export function WorkspaceDashboard({
         }
 
         setCurrentUser(mePayload.user);
+        setIsBooting(false);
 
         if (mePayload.user.role === "expert") {
           const reviewPayload = await requestJson<{
@@ -5195,13 +5196,10 @@ export function WorkspaceDashboard({
             </div>
             <div className="grid gap-3 px-6 py-5 md:grid-cols-3">
               {overviewMetrics.map((item) => (
-                <article
-                  key={item.label}
-                  className="depth-emphasis rounded-2xl px-4 py-4"
-                >
-                  <p className="text-xs tracking-[0.08em] text-slate-400">{item.label}</p>
-                  <p className="mt-2 text-[28px] font-bold tracking-[-0.03em] text-slate-900">{item.value}</p>
-                  <p className="mt-2 text-xs leading-5 text-slate-500">{item.hint}</p>
+                <article className="stat-card depth-emphasis" key={item.label}>
+                  <p className="label-top tracking-[0.08em]">{item.label}</p>
+                  <p className="number tracking-[-0.03em] text-slate-900">{item.value}</p>
+                  <p className="label-bottom leading-5">{item.hint}</p>
                 </article>
               ))}
             </div>
@@ -5216,15 +5214,12 @@ export function WorkspaceDashboard({
             </div>
             <div className="space-y-3 p-4">
               {priorityFocusItems.map((item, index) => (
-                <div
-                  key={item}
-                  className="depth-subtle rounded-xl px-4 py-3"
-                >
+                <div className="work-tip-item" key={item}>
                   <div className="flex items-start gap-3">
-                    <span className="depth-emphasis mt-0.5 inline-flex h-6 min-w-6 items-center justify-center px-2 text-xs font-semibold text-[#1a6fd4]">
+                    <span className="work-tip-index mt-0.5 inline-flex items-center justify-center">
                       {index + 1}
                     </span>
-                    <p className="text-sm leading-6 text-slate-500">{item}</p>
+                    <p className="work-tip-text leading-6">{item}</p>
                   </div>
                 </div>
               ))}
@@ -5258,10 +5253,10 @@ export function WorkspaceDashboard({
               <div className="mt-3 flex flex-wrap gap-2">
                 {businessTabs.map((item, index) => (
                   <button
-                    className={`rounded-t-xl border px-3 py-2 text-sm transition ${
+                    className={`tab-item border-b-2 px-3 py-2 transition ${
                       index === 0
-                        ? "border-white/90 bg-white text-[#1a6fd4] shadow-[0_14px_32px_rgba(31,38,135,0.14)]"
-                        : "border-transparent bg-transparent text-slate-500 hover:border-white/65 hover:bg-white/55"
+                        ? "active border-[#1a6fd4]"
+                        : "border-transparent hover:text-[#1a6fd4]"
                     }`}
                     key={item.key}
                     onClick={item.onClick}
@@ -8244,7 +8239,8 @@ export function WorkspaceDashboard({
   if (isBooting) {
     return (
       <main className="workspace-depth-bg relative flex min-h-screen items-center justify-center overflow-hidden px-4">
-        <div className="relative depth-card w-full max-w-xl rounded-2xl px-6 py-7 sm:px-8 sm:py-8">
+        <div aria-hidden className="workspace-orb-field" />
+        <div className="relative z-[1] depth-card w-full max-w-xl rounded-2xl px-6 py-7 sm:px-8 sm:py-8">
           <div className="depth-emphasis inline-flex items-center px-3 py-1 text-xs font-medium tracking-[0.08em] text-[#1a6fd4]">
             中国国际大学生创新大赛管理系统
           </div>
@@ -8292,7 +8288,8 @@ export function WorkspaceDashboard({
   return (
     <>
       <main className="workspace-depth-bg min-h-screen p-4 md:p-6">
-        <div className="mx-auto flex max-w-[1500px] flex-col gap-4 xl:flex-row">
+        <div aria-hidden className="workspace-orb-field" />
+        <div className="relative z-[1] mx-auto flex max-w-[1500px] flex-col gap-4 xl:flex-row">
           {mobileSidebarOpen ? (
             <div
               className="fixed inset-0 z-40 bg-slate-950/40 xl:hidden"
@@ -8302,14 +8299,14 @@ export function WorkspaceDashboard({
 
           <aside className="hidden xl:block xl:w-[280px] xl:flex-none">
             <div className="depth-sidebar rounded-xl px-5 py-6 text-white xl:sticky xl:top-4 xl:flex xl:h-[calc(100vh-2rem)] xl:flex-col">
-              <div className="border-b border-white/15 pb-4">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white/10 ring-1 ring-white/20 backdrop-blur-sm">
+              <div className="sidebar-header border-b border-white/15 pb-4">
+                <div className="sidebar-logo flex items-center gap-3">
+                  <div className="sidebar-logo-wrapper flex h-12 w-12 items-center justify-center">
                     <Image alt="南铁校徽" className="h-9 w-auto object-contain" height={77} src="/official-logo.png" width={430} />
                   </div>
                   <div className="min-w-0">
-                    <h1 className="text-base font-semibold tracking-[0.02em] text-white">管理中心</h1>
-                    <p className="mt-1 text-[11px] tracking-[0.12em] text-white/70">南京铁道职业技术学院</p>
+                    <h1 className="school-name text-base tracking-[0.02em]">管理中心</h1>
+                    <p className="school-sub mt-1 tracking-[0.12em]">南京铁道职业技术学院</p>
                   </div>
                 </div>
               </div>
@@ -8334,7 +8331,7 @@ export function WorkspaceDashboard({
                 })}
               </nav>
 
-              <div className="mt-auto border-t border-white/10 pt-4">
+              <div className="sidebar-user-area mt-auto">
                 <div className="flex items-center gap-3">
                 <UserAvatar
                   avatar={currentUser.profile.avatar}
@@ -8344,8 +8341,8 @@ export function WorkspaceDashboard({
                   textClassName="text-sm font-semibold text-white"
                 />
                   <div className="min-w-0">
-                    <p className="truncate text-sm text-white">{currentUser.profile.name}</p>
-                    <p className="mt-1 text-xs text-white/60">{roleLabels[currentRole]}</p>
+                    <p className="sidebar-user-name truncate">{currentUser.profile.name}</p>
+                    <p className="sidebar-user-role mt-1">{roleLabels[currentRole]}</p>
                     {currentUser.teamGroupName ? (
                       <p className="mt-1 truncate text-xs text-white/50">{currentUser.teamGroupName}</p>
                     ) : null}
@@ -8369,14 +8366,14 @@ export function WorkspaceDashboard({
             }`}
           >
             <div className="flex h-full flex-col">
-              <div className="flex items-center justify-between border-b border-white/15 pb-4">
-                <div className="flex items-center gap-3">
-                  <div className="flex h-11 w-11 items-center justify-center rounded-full bg-white/10 ring-1 ring-white/20 backdrop-blur-sm">
+              <div className="sidebar-header flex items-center justify-between border-b border-white/15 pb-4">
+                <div className="sidebar-logo flex items-center gap-3">
+                  <div className="sidebar-logo-wrapper flex h-11 w-11 items-center justify-center">
                     <Image alt="南铁校徽" className="h-8 w-auto object-contain" height={77} src="/official-logo.png" width={430} />
                   </div>
                   <div>
-                    <h1 className="text-base font-semibold tracking-[0.02em] text-white">管理中心</h1>
-                    <p className="mt-1 text-[11px] tracking-[0.12em] text-white/70">南京铁道职业技术学院</p>
+                    <h1 className="school-name text-base tracking-[0.02em]">管理中心</h1>
+                    <p className="school-sub mt-1 tracking-[0.12em]">南京铁道职业技术学院</p>
                   </div>
                 </div>
                 <button
@@ -8409,7 +8406,7 @@ export function WorkspaceDashboard({
                 })}
               </nav>
 
-              <div className="mt-auto border-t border-white/10 pt-4">
+              <div className="sidebar-user-area mt-auto">
                 <div className="flex items-center gap-3">
                 <UserAvatar
                   avatar={currentUser.profile.avatar}
@@ -8419,8 +8416,8 @@ export function WorkspaceDashboard({
                   textClassName="text-sm font-semibold text-white"
                 />
                   <div className="min-w-0">
-                    <p className="truncate text-sm text-white">{currentUser.profile.name}</p>
-                    <p className="mt-1 text-xs text-white/60">{roleLabels[currentRole]}</p>
+                    <p className="sidebar-user-name truncate">{currentUser.profile.name}</p>
+                    <p className="sidebar-user-role mt-1">{roleLabels[currentRole]}</p>
                     {currentUser.teamGroupName ? (
                       <p className="mt-1 truncate text-xs text-white/50">{currentUser.teamGroupName}</p>
                     ) : null}
@@ -8439,11 +8436,11 @@ export function WorkspaceDashboard({
           </aside>
 
           <section className="min-w-0 flex-1">
-            <header className="rounded-xl border border-slate-100 bg-white px-5 py-4 shadow-sm">
-              <div className="mx-auto flex max-w-[1200px] flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+            <header className="depth-mid rounded-xl">
+              <div className="topbar mx-auto flex max-w-[1200px] flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
                 <div className="flex min-h-10 items-center gap-3">
                   <button
-                    className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 shadow-sm xl:hidden"
+                    className="depth-button-secondary inline-flex h-10 w-10 items-center justify-center rounded-lg text-slate-700 xl:hidden"
                     onClick={() => setMobileSidebarOpen(true)}
                     type="button"
                   >
@@ -8454,7 +8451,7 @@ export function WorkspaceDashboard({
 
                 <div className="flex flex-wrap items-center gap-3">
                   <button
-                    className="relative inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-slate-600 shadow-sm hover:bg-slate-50"
+                    className="depth-button-secondary relative inline-flex h-10 items-center gap-2 rounded-lg px-3 text-slate-700"
                     onClick={() => setNotificationsOpen(true)}
                     type="button"
                   >
@@ -8467,7 +8464,7 @@ export function WorkspaceDashboard({
                     ) : null}
                   </button>
                   <button
-                    className="flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2 text-left shadow-sm transition hover:bg-slate-50"
+                    className="depth-button-secondary flex items-center gap-3 rounded-lg px-3 py-2 text-left transition"
                     onClick={openProfilePage}
                     type="button"
                   >
