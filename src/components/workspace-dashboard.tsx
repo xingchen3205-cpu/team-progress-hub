@@ -5100,31 +5100,80 @@ export function WorkspaceDashboard({
     const priorityFocusItems =
       currentRole === "member"
         ? [
-            myReportSubmitted ? "今日日程汇报已提交。" : "今日日程汇报还未提交，建议先补齐。",
-            myOpenTasks.length > 0
-              ? `当前有 ${myOpenTasks.length} 项个人任务待推进。`
-              : "当前没有个人待办任务。",
-            reviewScoreCount > 0
-              ? `专家评审已有 ${reviewScoreCount} 条评分/评语可查看。`
-              : "当前暂无专家评审结果。",
+            {
+              status: myReportSubmitted ? "done" : "pending",
+              text: myReportSubmitted ? "今日日程汇报已提交。" : "今日日程汇报还未提交，建议先补齐。",
+            },
+            {
+              status: myOpenTasks.length > 0 ? "pending" : "done",
+              text:
+                myOpenTasks.length > 0
+                  ? `当前有 ${myOpenTasks.length} 项个人任务待推进。`
+                  : "当前没有个人待办任务。",
+            },
+            {
+              status: reviewScoreCount > 0 ? "pending" : "done",
+              text:
+                reviewScoreCount > 0
+                  ? `专家评审已有 ${reviewScoreCount} 条评分/评语可查看。`
+                  : "当前暂无专家评审结果。",
+            },
           ]
         : currentRole === "leader"
           ? [
-              unsubmittedReportCount > 0 ? `今天还有 ${unsubmittedReportCount} 人未提交汇报。` : "今天团队汇报已基本收齐。",
-              openTasks.length > 0 ? `工单台账仍有 ${openTasks.length} 项待推进。` : "工单台账当前没有未完成事项。",
-              reviewScoreCount > 0 ? `专家评审已有 ${reviewScoreCount} 条评分/评语。` : "专家评审结果暂未形成。",
+              {
+                status: unsubmittedReportCount > 0 ? "pending" : "done",
+                text: unsubmittedReportCount > 0 ? `今天还有 ${unsubmittedReportCount} 人未提交汇报。` : "今天团队汇报已基本收齐。",
+              },
+              {
+                status: openTasks.length > 0 ? "pending" : "done",
+                text: openTasks.length > 0 ? `工单台账仍有 ${openTasks.length} 项待推进。` : "工单台账当前没有未完成事项。",
+              },
+              {
+                status: reviewScoreCount > 0 ? "pending" : "done",
+                text: reviewScoreCount > 0 ? `专家评审已有 ${reviewScoreCount} 条评分/评语。` : "专家评审结果暂未形成。",
+              },
             ]
           : [
-              pendingApprovalMembers.length > 0
-                ? `当前有 ${pendingApprovalMembers.length} 个账号等待审核。`
-                : "当前没有新的账号审核积压。",
-              pendingLeaderReviewCount + pendingTeacherReviewCount > 0
-                ? `文档中心共有 ${pendingLeaderReviewCount + pendingTeacherReviewCount} 份材料待审批。`
-                : "文档中心当前没有待审批材料。",
-              reviewScoreCount > 0 ? `专家评审已有 ${reviewScoreCount} 条评分/评语。` : "专家评审暂无已提交评分。",
+              {
+                status: pendingApprovalMembers.length > 0 ? "pending" : "done",
+                text:
+                  pendingApprovalMembers.length > 0
+                    ? `当前有 ${pendingApprovalMembers.length} 个账号等待审核。`
+                    : "当前没有新的账号审核积压。",
+              },
+              {
+                status: pendingLeaderReviewCount + pendingTeacherReviewCount > 0 ? "pending" : "done",
+                text:
+                  pendingLeaderReviewCount + pendingTeacherReviewCount > 0
+                    ? `文档中心共有 ${pendingLeaderReviewCount + pendingTeacherReviewCount} 份材料待审批。`
+                    : "文档中心当前没有待审批材料。",
+              },
+              {
+                status: reviewScoreCount > 0 ? "pending" : "done",
+                text: reviewScoreCount > 0 ? `专家评审已有 ${reviewScoreCount} 条评分/评语。` : "专家评审暂无已提交评分。",
+              },
             ];
 
     const keyEventItems = events.slice(0, 4);
+    const quickActionEntries =
+      currentRole === "expert"
+        ? [
+            { label: "评审任务", onClick: () => router.push("/workspace?tab=review") },
+            { label: "训练中心", onClick: () => router.push("/workspace?tab=training") },
+            { label: "待办中心", onClick: () => setNotificationsOpen(true) },
+          ]
+        : currentRole === "member"
+          ? [
+              { label: "任务工单", onClick: () => router.push("/workspace?tab=board") },
+              { label: "文档中心", onClick: () => router.push("/workspace?tab=documents") },
+              { label: "日程汇报", onClick: () => router.push("/workspace?tab=reports") },
+            ]
+          : [
+              { label: "工单流转", onClick: () => router.push("/workspace?tab=board") },
+              { label: "文档审批", onClick: () => router.push("/workspace?tab=documents") },
+              { label: "日程汇报", onClick: () => router.push("/workspace?tab=reports") },
+            ];
 
     return (
       <div className="space-y-5">
@@ -5214,12 +5263,12 @@ export function WorkspaceDashboard({
             </div>
             <div className="space-y-3 p-4">
               {priorityFocusItems.map((item, index) => (
-                <div className="work-tip-item" key={item}>
+                <div className="work-tip-item" key={`${item.status}-${item.text}`}>
                   <div className="flex items-start gap-3">
                     <span className="work-tip-index mt-0.5 inline-flex items-center justify-center">
                       {index + 1}
                     </span>
-                    <p className="work-tip-text leading-6">{item}</p>
+                    <p className="work-tip-text leading-6">{item.text}</p>
                   </div>
                 </div>
               ))}
@@ -5232,7 +5281,7 @@ export function WorkspaceDashboard({
                   <p className="text-sm font-semibold text-slate-900">进入待办中心</p>
                   <p className="mt-1 text-xs text-slate-500">统一查看待办、提醒与审批通知</p>
                 </div>
-                <span className="depth-emphasis px-2.5 py-1 text-xs font-medium text-[#1a6fd4]">
+                <span className="pending-badge px-2.5 py-1 text-xs font-medium">
                   {todoItemCount} 项
                 </span>
               </button>
@@ -5326,7 +5375,7 @@ export function WorkspaceDashboard({
                   );
                 })}
               </div>
-              <div className="depth-subtle rounded-2xl border-dashed px-4 py-3">
+              <div className="quick-tips-card depth-subtle rounded-2xl border-dashed px-4 py-3">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <p className="text-sm font-semibold text-slate-900">快捷办理提示</p>
@@ -5338,8 +5387,20 @@ export function WorkspaceDashboard({
                     type="button"
                   >
                     查看待办
-                    <span className="rounded-full bg-[#1a6fd4]/10 px-2 py-0.5 text-xs">{todoItemCount}</span>
+                    <span className="pending-badge">{todoItemCount}项</span>
                   </button>
+                </div>
+                <div className="quick-actions-grid">
+                  {quickActionEntries.map((item) => (
+                    <button
+                      className="quick-action-btn"
+                      key={item.label}
+                      onClick={item.onClick}
+                      type="button"
+                    >
+                      {item.label}
+                    </button>
+                  ))}
                 </div>
               </div>
             </div>
@@ -5433,7 +5494,7 @@ export function WorkspaceDashboard({
           </div>
         </section>
 
-        <section className="grid gap-4 xl:grid-cols-[minmax(0,1.1fr)_minmax(320px,0.9fr)]">
+        <section className="bottom-grid grid gap-4 xl:grid-cols-2">
           <article className="depth-card overflow-hidden rounded-[20px]">
             <div className="border-b border-white/55 bg-white/18 px-4 py-3">
               <div className="flex items-center gap-2">
@@ -5448,14 +5509,19 @@ export function WorkspaceDashboard({
                   key={item.id}
                     className="depth-subtle flex flex-col gap-3 rounded-xl px-4 py-3 lg:flex-row lg:items-center lg:justify-between"
                   >
-                    <div className="flex items-start gap-3">
-                      <span className="depth-emphasis mt-0.5 flex h-6 w-6 items-center justify-center text-xs font-semibold text-[#1a6fd4]">
+                    <div className="flex min-w-0 items-start gap-3">
+                      <span className="task-index mt-0.5">
                         {index + 1}
                       </span>
-                      <div>
-                        <p className="text-sm font-medium leading-6 text-slate-900">{item.title}</p>
-                        <p className="mt-1 text-sm leading-6 text-slate-500">
-                          负责人：{getTaskAssigneeName(item)} · 截止：{formatDateTime(item.dueDate)}
+                      <div className="min-w-0 flex-1">
+                        <p className="task-title leading-6 text-slate-900" title={item.title}>{item.title}</p>
+                        <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm leading-6 text-slate-500">
+                          <span>负责人：{getTaskAssigneeName(item)}</span>
+                          <span
+                            className={`task-deadline ${new Date(item.dueDate).getTime() < Date.now() ? "overdue" : ""}`}
+                          >
+                            截止：{formatDateTime(item.dueDate)}
+                          </span>
                         </p>
                       </div>
                     </div>
@@ -5465,7 +5531,7 @@ export function WorkspaceDashboard({
                       </ActionButton>
                     ) : (
                       <button
-                        className="self-start text-sm font-medium text-[#1a6fd4] transition hover:opacity-80 lg:self-center"
+                        className="shrink-0 self-start text-sm font-medium text-[#1a6fd4] transition hover:opacity-80 lg:self-center"
                         onClick={() => router.push("/workspace?tab=board")}
                         type="button"
                       >
@@ -5489,16 +5555,16 @@ export function WorkspaceDashboard({
             </div>
             <div className="space-y-3 p-4">
               {priorityFocusItems.map((item) => (
-                <div className="depth-subtle rounded-xl px-4 py-3" key={item}>
+                <div className="depth-subtle rounded-xl px-4 py-3" key={`${item.status}-${item.text}`}>
                   <div className="flex gap-3">
-                    <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-[#1a6fd4]" />
-                    <p className="text-sm leading-6 text-slate-500">{item}</p>
+                    <span className={`priority-dot mt-2 ${item.status}`} />
+                    <p className="text-sm leading-6 text-slate-500">{item.text}</p>
                   </div>
                 </div>
               ))}
-              <div className="depth-emphasis rounded-xl px-4 py-3">
-                <p className="text-xs text-slate-400">节点提示</p>
-                <p className="mt-1 text-sm font-medium text-slate-900">{countdownStatus.hint}</p>
+              <div className="node-tip">
+                <p className="label">节点提示</p>
+                <p className="content">{countdownStatus.hint}</p>
               </div>
             </div>
           </article>
@@ -8256,9 +8322,14 @@ export function WorkspaceDashboard({
             </div>
           </div>
           <div className="mt-6 grid grid-cols-3 gap-3">
-            {[0, 1, 2].map((item) => (
-              <div className="skeleton-card depth-subtle rounded-xl px-4 py-4" key={item}>
-                {item === 2 ? (
+            {[
+              { key: "metric", label: "概览数据" },
+              { key: "list", label: "待办列表" },
+              { key: "shortcut", label: "快捷入口" },
+            ].map((item) => (
+              <div className={`skeleton-card skeleton-card-${item.key} depth-subtle rounded-xl px-4 py-4`} key={item.key}>
+                <p className="skeleton-caption">{item.label}</p>
+                {item.key === "shortcut" ? (
                   <>
                     <div className="skeleton-icon skeleton-line" />
                     <div className="skeleton-line" />

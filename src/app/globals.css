@@ -310,15 +310,139 @@ a:hover {
 }
 
 .work-tip-index {
-  min-width: 18px;
+  width: 20px;
+  height: 20px;
+  min-width: 20px;
+  border-radius: 50%;
+  background: rgba(26, 111, 212, 0.10);
   color: #1a6fd4;
-  font-size: 13px;
+  font-size: 11px;
   font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
 }
 
 .work-tip-text {
   font-size: 13px;
   color: rgba(0, 0, 0, 0.75);
+}
+
+.quick-tips-card {
+  height: auto;
+  min-height: unset;
+  padding-bottom: 20px;
+}
+
+.quick-actions-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+  margin-top: 16px;
+}
+
+.quick-action-btn {
+  border: 1px solid rgba(200, 215, 235, 0.70);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.60);
+  padding: 12px;
+  font-size: 12px;
+  color: rgba(0, 0, 0, 0.65);
+  text-align: center;
+  cursor: pointer;
+}
+
+.quick-action-btn:hover {
+  border-color: rgba(26, 111, 212, 0.25);
+  background: rgba(26, 111, 212, 0.06);
+  color: #1a6fd4;
+}
+
+.bottom-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.task-index {
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: rgba(26, 111, 212, 0.10);
+  color: #1a6fd4;
+  font-size: 11px;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.task-title {
+  max-width: calc(100% - 120px);
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  font-size: 13px;
+  font-weight: 500;
+}
+
+.task-deadline {
+  font-size: 11px;
+  color: rgba(0, 0, 0, 0.35);
+}
+
+.task-deadline.overdue {
+  color: #c0392b;
+  font-weight: 500;
+}
+
+.priority-dot.pending {
+  width: 7px;
+  height: 7px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: #1a6fd4;
+}
+
+.priority-dot.done {
+  width: 7px;
+  height: 7px;
+  flex-shrink: 0;
+  border: 1.5px solid rgba(0, 0, 0, 0.25);
+  border-radius: 50%;
+  background: transparent;
+}
+
+.node-tip {
+  margin-top: 8px;
+  border: 1px solid rgba(255, 180, 0, 0.25);
+  border-radius: 8px;
+  background: rgba(255, 200, 50, 0.08);
+  padding: 10px 12px;
+}
+
+.node-tip .label {
+  margin-bottom: 3px;
+  font-size: 11px;
+  color: rgba(180, 120, 0, 0.80);
+}
+
+.node-tip .content {
+  font-size: 13px;
+  font-weight: 500;
+  color: rgba(0, 0, 0, 0.75);
+}
+
+.pending-badge {
+  border: 1px solid rgba(26, 111, 212, 0.20);
+  border-radius: 10px;
+  background: rgba(26, 111, 212, 0.10);
+  padding: 1px 8px;
+  font-size: 11px;
+  font-weight: 500;
+  color: #1a6fd4;
 }
 
 .skeleton-line {
@@ -335,52 +459,60 @@ a:hover {
   animation: shimmer 1.5s infinite;
 }
 
-.skeleton-card:nth-child(1) .skeleton-line:nth-child(1) {
+.skeleton-caption {
+  margin-bottom: 12px;
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.08em;
+  color: rgba(0, 0, 0, 0.32);
+}
+
+.skeleton-card-metric .skeleton-line:nth-of-type(1) {
   width: 40%;
   height: 10px;
 }
 
-.skeleton-card:nth-child(1) .skeleton-line:nth-child(2) {
+.skeleton-card-metric .skeleton-line:nth-of-type(2) {
   width: 70%;
   height: 22px;
   margin: 10px 0;
 }
 
-.skeleton-card:nth-child(1) .skeleton-line:nth-child(3) {
+.skeleton-card-metric .skeleton-line:nth-of-type(3) {
   width: 55%;
   height: 10px;
 }
 
-.skeleton-card:nth-child(2) .skeleton-line:nth-child(1) {
+.skeleton-card-list .skeleton-line:nth-of-type(1) {
   width: 60%;
   height: 10px;
 }
 
-.skeleton-card:nth-child(2) .skeleton-line:nth-child(2) {
+.skeleton-card-list .skeleton-line:nth-of-type(2) {
   width: 90%;
   height: 10px;
   margin-top: 10px;
 }
 
-.skeleton-card:nth-child(2) .skeleton-line:nth-child(3) {
+.skeleton-card-list .skeleton-line:nth-of-type(3) {
   width: 75%;
   height: 10px;
   margin-top: 8px;
 }
 
-.skeleton-card:nth-child(3) .skeleton-icon {
+.skeleton-card-shortcut .skeleton-icon {
   width: 32px;
   height: 32px;
   border-radius: 8px;
 }
 
-.skeleton-card:nth-child(3) .skeleton-line:nth-child(2) {
+.skeleton-card-shortcut .skeleton-line:nth-of-type(1) {
   width: 65%;
   height: 10px;
   margin-top: 12px;
 }
 
-.skeleton-card:nth-child(3) .skeleton-line:nth-child(3) {
+.skeleton-card-shortcut .skeleton-line:nth-of-type(2) {
   width: 45%;
   height: 10px;
   margin-top: 8px;

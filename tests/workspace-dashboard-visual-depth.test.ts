@@ -117,9 +117,14 @@ test("boot loading shell uses shimmer skeletons and dedicated loading chrome", (
   assert.match(dashboardSource, /loading-sub/);
   assert.match(dashboardSource, /loading-status/);
   assert.match(dashboardSource, /skeleton-card/);
+  assert.match(dashboardSource, /概览数据/);
+  assert.match(dashboardSource, /待办列表/);
+  assert.match(dashboardSource, /快捷入口/);
+  assert.match(dashboardSource, /skeleton-caption/);
   assert.match(dashboardSource, /skeleton-line/);
   assert.match(dashboardSource, /skeleton-icon/);
   assert.match(globalsSource, /\.skeleton-line\s*\{[\s\S]*animation:\s*shimmer 1\.5s infinite/);
+  assert.match(globalsSource, /\.skeleton-caption\s*\{/);
   assert.match(globalsSource, /@keyframes shimmer/);
   assert.match(globalsSource, /\.loading-spinner\s*\{[\s\S]*border-top-color:\s*#1a6fd4/);
   assert.match(globalsSource, /\.loading-status::before\s*\{[\s\S]*animation:\s*loading-pulse 1\.2s ease-in-out infinite/);
