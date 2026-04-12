@@ -111,6 +111,29 @@ test("overview detail classes tighten the stat and work-tip styling", () => {
   assert.match(globalsSource, /\.topbar\s*\{[\s\S]*border-bottom:\s*1px solid rgba\(200,\s*215,\s*235,\s*0\.50\)/);
 });
 
+test("overview summary and priority panels use rails, tags, banner, and footer link", () => {
+  assert.match(dashboardSource, /const getOverviewDeadlineMeta =/);
+  assert.match(dashboardSource, /const priorityFocusTagMeta/);
+  assert.match(dashboardSource, /task-priority-rail/);
+  assert.match(dashboardSource, /priority-focus-tag/);
+  assert.match(dashboardSource, /node-tip-banner/);
+  assert.match(dashboardSource, /查看全部通知/);
+  assert.doesNotMatch(dashboardSource, /task-index/);
+  assert.doesNotMatch(dashboardSource, /priority-dot/);
+  assert.match(globalsSource, /\.task-priority-rail\.danger\s*\{/);
+  assert.match(globalsSource, /\.task-priority-rail\.warning\s*\{/);
+  assert.match(globalsSource, /\.task-priority-rail\.normal\s*\{/);
+  assert.match(globalsSource, /\.priority-focus-tag\s*\{/);
+  assert.match(globalsSource, /\.priority-focus-tag\.pending-approval\s*\{/);
+  assert.match(globalsSource, /\.priority-focus-tag\.pending-review\s*\{/);
+  assert.match(globalsSource, /\.priority-focus-tag\.pending-view\s*\{/);
+  assert.match(globalsSource, /\.priority-focus-tag\.clear\s*\{/);
+  assert.match(globalsSource, /\.node-tip-banner\s*\{/);
+  assert.match(globalsSource, /\.task-summary-link\s*\{/);
+  assert.match(globalsSource, /\.task-assignee-meta\s*\{/);
+  assert.match(globalsSource, /\.task-summary-footer-link\s*\{/);
+});
+
 test("boot loading shell uses a minimal loading card and workspace fade-in", () => {
   assert.match(dashboardSource, /loading-spinner/);
   assert.match(dashboardSource, /loading-title/);

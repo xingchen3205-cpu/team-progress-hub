@@ -319,6 +319,19 @@ type TodoCenterItem = {
   documentId?: string | null;
 };
 
+type OverviewDeadlineTone = "danger" | "warning" | "normal";
+type PriorityFocusTagTone =
+  | "pending-approval"
+  | "pending-review"
+  | "pending-action"
+  | "pending-view"
+  | "clear";
+
+type PriorityFocusItem = {
+  tag: PriorityFocusTagTone;
+  text: string;
+};
+
 const imagePreviewExtensions = [".png", ".jpg", ".jpeg", ".gif", ".webp"] as const;
 const wordPreviewExtensions = [".docx"] as const;
 
@@ -946,6 +959,91 @@ const getCountdown = (target: string) => {
     minutes: Math.floor((totalSeconds % 3600) / 60),
     seconds: totalSeconds % 60,
   };
+};
+
+const getOverviewDeadlineMeta = (
+  dueDate: string,
+  now: Date,
+): { tone: OverviewDeadlineTone; label: string } => {
+  const parsedDueDate = parseDateLikeValue(dueDate);
+  if (!parsedDueDate) {
+    return {
+      tone: "normal",
+      label: "未设置截止时间",
+    };
+  }
+
+  const difference = parsedDueDate.getTime() - now.getTime();
+  const absoluteMinutes = Math.max(1, Math.floor(Math.abs(difference) / 60000));
+  const absoluteHours = Math.max(1, Math.floor(absoluteMinutes / 60));
+  const absoluteDays = Math.max(1, Math.floor(absoluteHours / 24));
+
+  const formatRelativeLabel = (prefix: string) => {
+    if (absoluteMinutes < 60) {
+      return `${prefix} ${absoluteMinutes} 分钟`;
+    }
+
+    if (absoluteHours < 24) {
+      return `${prefix} ${absoluteHours} 小时`;
+    }
+
+    if (absoluteDays <= 2) {
+      const remainingHours = absoluteHours % 24;
+      if (remainingHours > 0) {
+        return `${prefix} ${absoluteDays} 天 ${remainingHours} 小时`;
+      }
+    }
+
+    return `${prefix} ${absoluteDays} 天`;
+  };
+
+  if (difference < 0) {
+    return {
+      tone: "danger",
+      label: formatRelativeLabel("已超期"),
+    };
+  }
+
+  if (difference <= 24 * 60 * 60 * 1000) {
+    return {
+      tone: "warning",
+      label: formatRelativeLabel("还剩"),
+    };
+  }
+
+  return {
+    tone: "normal",
+    label: formatRelativeLabel("还剩"),
+  };
+};
+
+const priorityFocusTagMeta: Record<
+  PriorityFocusTagTone,
+  {
+    label: string;
+    className: string;
+  }
+> = {
+  "pending-approval": {
+    label: "待审批",
+    className: "pending-approval",
+  },
+  "pending-review": {
+    label: "待评审",
+    className: "pending-review",
+  },
+  "pending-action": {
+    label: "待处理",
+    className: "pending-action",
+  },
+  "pending-view": {
+    label: "待查看",
+    className: "pending-view",
+  },
+  clear: {
+    label: "无积压",
+    className: "clear",
+  },
 };
 
 const getNearestUpcomingIndex = (events: EventItem[]) => {
@@ -5155,24 +5253,26 @@ export function WorkspaceDashboard({
       },
     ];
 
-    const priorityFocusItems =
+    const priorityFocusItems: PriorityFocusItem[] =
       currentRole === "member"
         ? [
             {
-              status: myReportSubmitted ? "done" : "pending",
+              tag: myReportSubmitted ? "clear" : "pending-action",
               text: myReportSubmitted ? "今日日程汇报已提交。" : "今日日程汇报还未提交，建议先补齐。",
             },
             {
-              status: myOpenTasks.length > 0 ? "pending" : "done",
+              tag: myOpenTasks.length > 0 ? "pending-action" : "clear",
               text:
                 myOpenTasks.length > 0
                   ? `当前有 ${myOpenTasks.length} 项个人任务待推进。`
                   : "当前没有个人待办任务。",
             },
             {
-              status: reviewScoreCount > 0 ? "pending" : "done",
+              tag: pendingExpertReviewCount > 0 ? "pending-review" : reviewScoreCount > 0 ? "pending-view" : "clear",
               text:
-                reviewScoreCount > 0
+                pendingExpertReviewCount > 0
+                  ? `专家评审仍有 ${pendingExpertReviewCount} 项正在进行中。`
+                  : reviewScoreCount > 0
                   ? `专家评审已有 ${reviewScoreCount} 条评分/评语可查看。`
                   : "当前暂无专家评审结果。",
             },
@@ -5180,36 +5280,46 @@ export function WorkspaceDashboard({
         : currentRole === "leader"
           ? [
               {
-                status: unsubmittedReportCount > 0 ? "pending" : "done",
+                tag: unsubmittedReportCount > 0 ? "pending-action" : "clear",
                 text: unsubmittedReportCount > 0 ? `今天还有 ${unsubmittedReportCount} 人未提交汇报。` : "今天团队汇报已基本收齐。",
               },
               {
-                status: openTasks.length > 0 ? "pending" : "done",
+                tag: openTasks.length > 0 ? "pending-action" : "clear",
                 text: openTasks.length > 0 ? `工单台账仍有 ${openTasks.length} 项待推进。` : "工单台账当前没有未完成事项。",
               },
               {
-                status: reviewScoreCount > 0 ? "pending" : "done",
-                text: reviewScoreCount > 0 ? `专家评审已有 ${reviewScoreCount} 条评分/评语。` : "专家评审结果暂未形成。",
+                tag: pendingExpertReviewCount > 0 ? "pending-review" : reviewScoreCount > 0 ? "pending-view" : "clear",
+                text:
+                  pendingExpertReviewCount > 0
+                    ? `专家评审仍有 ${pendingExpertReviewCount} 项正在评分。`
+                    : reviewScoreCount > 0
+                      ? `专家评审已有 ${reviewScoreCount} 条评分/评语。`
+                      : "专家评审结果暂未形成。",
               },
             ]
           : [
               {
-                status: pendingApprovalMembers.length > 0 ? "pending" : "done",
+                tag: pendingApprovalMembers.length > 0 ? "pending-approval" : "clear",
                 text:
                   pendingApprovalMembers.length > 0
                     ? `当前有 ${pendingApprovalMembers.length} 个账号等待审核。`
                     : "当前没有新的账号审核积压。",
               },
               {
-                status: pendingLeaderReviewCount + pendingTeacherReviewCount > 0 ? "pending" : "done",
+                tag: pendingLeaderReviewCount + pendingTeacherReviewCount > 0 ? "pending-approval" : "clear",
                 text:
                   pendingLeaderReviewCount + pendingTeacherReviewCount > 0
                     ? `文档中心共有 ${pendingLeaderReviewCount + pendingTeacherReviewCount} 份材料待审批。`
                     : "文档中心当前没有待审批材料。",
               },
               {
-                status: reviewScoreCount > 0 ? "pending" : "done",
-                text: reviewScoreCount > 0 ? `专家评审已有 ${reviewScoreCount} 条评分/评语。` : "专家评审暂无已提交评分。",
+                tag: pendingExpertReviewCount > 0 ? "pending-review" : reviewScoreCount > 0 ? "pending-view" : "clear",
+                text:
+                  pendingExpertReviewCount > 0
+                    ? `专家评审仍有 ${pendingExpertReviewCount} 项正在进行中。`
+                    : reviewScoreCount > 0
+                      ? `专家评审已有 ${reviewScoreCount} 条评分/评语。`
+                      : "专家评审暂无已提交评分。",
               },
             ];
 
@@ -5321,7 +5431,7 @@ export function WorkspaceDashboard({
             </div>
             <div className="space-y-3 p-4">
               {priorityFocusItems.map((item, index) => (
-                <div className="work-tip-item" key={`${item.status}-${item.text}`}>
+                <div className="work-tip-item" key={`${item.tag}-${item.text}`}>
                   <div className="flex items-start gap-3">
                     <span className="work-tip-index mt-0.5 inline-flex items-center justify-center">
                       {index + 1}
@@ -5562,42 +5672,43 @@ export function WorkspaceDashboard({
             </div>
             <div className="space-y-3 p-4">
               {todayTaskSummaryTasks.length > 0 ? (
-                todayTaskSummaryTasks.map((item, index) => (
-                <div
-                  key={item.id}
-                    className="depth-subtle flex flex-col gap-3 rounded-xl px-4 py-3 lg:flex-row lg:items-center lg:justify-between"
-                  >
-                    <div className="flex min-w-0 items-start gap-3">
-                      <span className="task-index mt-0.5">
-                        {index + 1}
-                      </span>
-                      <div className="min-w-0 flex-1">
-                        <p className="task-title leading-6 text-slate-900" title={item.title}>{item.title}</p>
-                        <p className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm leading-6 text-slate-500">
-                          <span>负责人：{getTaskAssigneeName(item)}</span>
-                          <span
-                            className={`task-deadline ${new Date(item.dueDate).getTime() < Date.now() ? "overdue" : ""}`}
-                          >
-                            截止：{formatDateTime(item.dueDate)}
-                          </span>
-                        </p>
+                todayTaskSummaryTasks.map((item) => {
+                  const deadlineMeta = getOverviewDeadlineMeta(item.dueDate, currentDateTime);
+
+                  return (
+                    <div
+                      key={item.id}
+                      className="depth-subtle flex flex-col gap-3 rounded-xl px-4 py-3 lg:flex-row lg:items-center lg:justify-between"
+                    >
+                      <div className="flex min-w-0 items-start gap-3">
+                        <span className={`task-priority-rail ${deadlineMeta.tone}`} />
+                        <div className="min-w-0 flex-1">
+                          <p className="task-title leading-6 text-slate-900" title={item.title}>
+                            {item.title}
+                          </p>
+                          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
+                            <span className="task-assignee-meta">负责人：{getTaskAssigneeName(item)}</span>
+                            <span className={`task-deadline ${deadlineMeta.tone === "danger" ? "overdue" : deadlineMeta.tone === "warning" ? "warning" : ""}`} title={`截止时间：${formatDateTime(item.dueDate)}`}>
+                              {deadlineMeta.label}
+                            </span>
+                          </div>
+                        </div>
                       </div>
-                    </div>
-                    {canMoveTask(item) ? (
-                      <ActionButton disabled={isSaving} onClick={() => void completeTaskFromOverview(item)}>
-                        勾选完成
-                      </ActionButton>
-                    ) : (
                       <button
-                        className="shrink-0 self-start text-sm font-medium text-[#1a6fd4] transition hover:opacity-80 lg:self-center"
-                        onClick={() => router.push("/workspace?tab=board")}
+                        className="task-summary-link shrink-0 self-start lg:self-center"
+                        disabled={isSaving}
+                        onClick={() =>
+                          canMoveTask(item)
+                            ? void completeTaskFromOverview(item)
+                            : router.push("/workspace?tab=board")
+                        }
                         type="button"
                       >
-                        查看工单 →
+                        {canMoveTask(item) ? "勾选完成" : "查看工单"}
                       </button>
-                    )}
-                  </div>
-                ))
+                    </div>
+                  );
+                })
               ) : (
                 <p className="text-sm leading-7 text-slate-500">当前暂无待处理任务。</p>
               )}
@@ -5612,18 +5723,38 @@ export function WorkspaceDashboard({
               </div>
             </div>
             <div className="space-y-3 p-4">
+              <div className="node-tip-banner">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="label">节点提示</p>
+                    <p className="content">
+                      {nearestEvent
+                        ? `距 ${nearestEvent.title} 还剩 ${countdown.days > 0 ? `${countdown.days}天 ` : ""}${countdown.hours}小时`
+                        : countdownStatus.hint}
+                    </p>
+                  </div>
+                  <span className={`priority-focus-tag ${countdownTotalHours <= 24 ? "pending-review" : countdown.days <= 3 ? "pending-action" : "clear"}`}>
+                    {countdownStatus.label}
+                  </span>
+                </div>
+              </div>
               {priorityFocusItems.map((item) => (
-                <div className="depth-subtle rounded-xl px-4 py-3" key={`${item.status}-${item.text}`}>
-                  <div className="flex gap-3">
-                    <span className={`priority-dot mt-2 ${item.status}`} />
+                <div className="depth-subtle rounded-xl px-4 py-3" key={`${item.tag}-${item.text}`}>
+                  <div className="flex items-start gap-3">
+                    <span className={`priority-focus-tag ${priorityFocusTagMeta[item.tag].className}`}>
+                      {priorityFocusTagMeta[item.tag].label}
+                    </span>
                     <p className="text-sm leading-6 text-slate-500">{item.text}</p>
                   </div>
                 </div>
               ))}
-              <div className="node-tip">
-                <p className="label">节点提示</p>
-                <p className="content">{countdownStatus.hint}</p>
-              </div>
+              <button
+                className="task-summary-footer-link"
+                onClick={() => setNotificationsOpen(true)}
+                type="button"
+              >
+                查看全部通知
+              </button>
             </div>
           </article>
         </section>

@@ -385,32 +385,42 @@ a:hover {
   align-items: start;
 }
 
-.task-index {
-  width: 20px;
-  height: 20px;
-  flex-shrink: 0;
-  border-radius: 50%;
-  background: rgba(26, 111, 212, 0.10);
-  color: #1a6fd4;
-  font-size: 11px;
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
 .task-title {
-  max-width: calc(100% - 120px);
+  max-width: 100%;
   overflow: hidden;
   white-space: nowrap;
   text-overflow: ellipsis;
   font-size: 13px;
-  font-weight: 500;
+  font-weight: 600;
+}
+
+.task-priority-rail {
+  width: 4px;
+  min-width: 4px;
+  align-self: stretch;
+  border-radius: 999px;
+}
+
+.task-priority-rail.danger {
+  background: #dc2626;
+}
+
+.task-priority-rail.warning {
+  background: #f59e0b;
+}
+
+.task-priority-rail.normal {
+  background: #1a6fd4;
+}
+
+.task-assignee-meta {
+  font-size: 12px;
+  color: rgba(15, 23, 42, 0.42);
 }
 
 .task-deadline {
-  font-size: 11px;
-  color: rgba(0, 0, 0, 0.35);
+  font-size: 12px;
+  color: rgba(15, 23, 42, 0.42);
 }
 
 .task-deadline.overdue {
@@ -418,41 +428,117 @@ a:hover {
   font-weight: 500;
 }
 
-.priority-dot.pending {
-  width: 7px;
-  height: 7px;
+.task-deadline.warning {
+  color: #d97706;
+  font-weight: 500;
+}
+
+.task-summary-link {
+  border: 1px solid rgba(26, 111, 212, 0.18);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.94);
+  padding: 8px 14px;
+  font-size: 12px;
+  font-weight: 600;
+  color: #1a6fd4;
+  box-shadow: 0 1px 2px rgba(30, 60, 120, 0.06);
+  transition:
+    transform 180ms ease,
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    background-color 180ms ease;
+}
+
+.task-summary-link:hover {
+  border-color: rgba(26, 111, 212, 0.28);
+  background: rgba(26, 111, 212, 0.06);
+  transform: translateY(-1px);
+}
+
+.task-summary-link:disabled {
+  cursor: not-allowed;
+  opacity: 0.7;
+  transform: none;
+}
+
+.priority-focus-tag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   flex-shrink: 0;
-  border-radius: 50%;
-  background: #1a6fd4;
-}
-
-.priority-dot.done {
-  width: 7px;
-  height: 7px;
-  flex-shrink: 0;
-  border: 1.5px solid rgba(0, 0, 0, 0.25);
-  border-radius: 50%;
-  background: transparent;
-}
-
-.node-tip {
-  margin-top: 8px;
-  border: 1px solid rgba(255, 180, 0, 0.25);
-  border-radius: 8px;
-  background: rgba(255, 200, 50, 0.08);
-  padding: 10px 12px;
-}
-
-.node-tip .label {
-  margin-bottom: 3px;
+  border-radius: 999px;
+  padding: 4px 10px;
   font-size: 11px;
-  color: rgba(180, 120, 0, 0.80);
+  font-weight: 600;
+  line-height: 1.2;
 }
 
-.node-tip .content {
+.priority-focus-tag.pending-approval {
+  background: rgba(26, 111, 212, 0.12);
+  color: #1a6fd4;
+}
+
+.priority-focus-tag.pending-review {
+  background: rgba(234, 88, 12, 0.12);
+  color: #c2410c;
+}
+
+.priority-focus-tag.pending-action {
+  background: rgba(245, 158, 11, 0.14);
+  color: #b45309;
+}
+
+.priority-focus-tag.pending-view {
+  background: rgba(14, 165, 233, 0.12);
+  color: #0369a1;
+}
+
+.priority-focus-tag.clear {
+  background: rgba(148, 163, 184, 0.14);
+  color: rgba(15, 23, 42, 0.58);
+}
+
+.node-tip-banner {
+  border: 1px solid rgba(255, 196, 72, 0.34);
+  border-radius: 12px;
+  background: rgba(255, 225, 134, 0.16);
+  padding: 12px 14px;
+}
+
+.node-tip-banner .label {
+  margin-bottom: 4px;
+  font-size: 11px;
+  color: rgba(180, 120, 0, 0.82);
+}
+
+.node-tip-banner .content {
   font-size: 13px;
   font-weight: 500;
   color: rgba(0, 0, 0, 0.75);
+}
+
+.task-summary-footer-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  border-radius: 12px;
+  border: 1px solid rgba(200, 215, 235, 0.7);
+  background: rgba(255, 255, 255, 0.66);
+  padding: 12px 14px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #1a6fd4;
+  transition:
+    border-color 180ms ease,
+    background-color 180ms ease,
+    transform 180ms ease;
+}
+
+.task-summary-footer-link:hover {
+  border-color: rgba(26, 111, 212, 0.24);
+  background: rgba(26, 111, 212, 0.06);
+  transform: translateY(-1px);
 }
 
 .pending-badge {
