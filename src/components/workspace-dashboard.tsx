@@ -91,7 +91,12 @@ import {
   expertReviewMaterialLabels,
 } from "@/lib/expert-review";
 import type { TrainingQuestionImportCandidate } from "@/lib/training-import";
-import { buildTaskWorkflowSteps, getTaskAcceptedTimeLabel, getTaskReviewerLabel } from "@/lib/task-workflow";
+import {
+  buildTaskWorkflowSteps,
+  getTaskAcceptedTimeLabel,
+  getTaskReminderActionLabel,
+  getTaskReviewerLabel,
+} from "@/lib/task-workflow";
 
 type BoardStatus = (typeof boardColumns)[number]["id"];
 type BoardStatusFilter = BoardStatus | "all";
@@ -5844,6 +5849,10 @@ export function WorkspaceDashboard({
                 const attachmentCount = task.attachments?.length ?? 0;
                 const assignmentSummary = getTaskAssignmentSummary(task);
                 const isUnassignedTask = task.status === "todo" && assignmentSummary.total === 0;
+                const taskReminderLabel = getTaskReminderActionLabel({
+                  status: task.status,
+                  assigneeId: assignmentSummary.total > 0 ? getTaskAssigneeIds(task)[0] ?? null : null,
+                });
                 const canPromptDispatch =
                   isUnassignedTask &&
                   Boolean(task.teamGroupId) &&
@@ -6044,11 +6053,6 @@ export function WorkspaceDashboard({
                                 分配处理人
                               </ActionButton>
                             ) : null}
-                            {canPromptDispatch ? (
-                              <ActionButton disabled={isSaving} onClick={() => void remindTaskDispatch(task)}>
-                                提醒分配
-                              </ActionButton>
-                            ) : null}
                             {canAcceptTask(task) ? (
                               <ActionButton disabled={isSaving} onClick={() => void acceptTask(task)} variant="secondary">
                                 接取
@@ -6069,9 +6073,14 @@ export function WorkspaceDashboard({
                                 </ActionButton>
                               </>
                             ) : null}
-                            {permissions.canSendDirective && getTaskAssigneeIds(task).some((assigneeId) => assigneeId !== currentMemberId) ? (
-                              <ActionButton disabled={isSaving} onClick={() => sendTaskReminder(task)}>
-                                提醒
+                            {canPromptDispatch ||
+                            (permissions.canSendDirective &&
+                              getTaskAssigneeIds(task).some((assigneeId) => assigneeId !== currentMemberId)) ? (
+                              <ActionButton
+                                disabled={isSaving}
+                                onClick={() => (canPromptDispatch ? void remindTaskDispatch(task) : sendTaskReminder(task))}
+                              >
+                                {taskReminderLabel}
                               </ActionButton>
                             ) : null}
                             <ActionButton

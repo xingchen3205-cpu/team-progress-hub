@@ -60,6 +60,9 @@ export const pickTaskDispatchRecipientIds = ({
 export const canRemindTaskDispatch = (task: TaskDispatchReminderTarget) =>
   task.status === "todo" && !task.assigneeId;
 
+export const getTaskReminderActionLabel = (task: TaskDispatchReminderTarget) =>
+  canRemindTaskDispatch(task) ? "提醒分配" : "提醒";
+
 export const summarizeTaskAssignments = ({
   assigneeIds,
   acceptedAtValues = [],

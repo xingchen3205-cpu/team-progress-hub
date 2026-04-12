@@ -5,6 +5,7 @@ import {
   buildTaskWorkflowSteps,
   canRemindTaskDispatch,
   deriveTaskStatusFromAssignments,
+  getTaskReminderActionLabel,
   getTaskAcceptedTimeLabel,
   getTaskReviewerLabel,
   pickTaskDispatchRecipientIds,
@@ -55,6 +56,12 @@ describe("task workflow recipients", () => {
     assert.equal(canRemindTaskDispatch({ status: "todo", assigneeId: null }), true);
     assert.equal(canRemindTaskDispatch({ status: "todo", assigneeId: "member-1" }), false);
     assert.equal(canRemindTaskDispatch({ status: "doing", assigneeId: null }), false);
+  });
+
+  it("labels dispatch reminder actions clearly for unassigned work orders", () => {
+    assert.equal(getTaskReminderActionLabel({ status: "todo", assigneeId: null }), "提醒分配");
+    assert.equal(getTaskReminderActionLabel({ status: "todo", assigneeId: "member-1" }), "提醒");
+    assert.equal(getTaskReminderActionLabel({ status: "doing", assigneeId: "member-1" }), "提醒");
   });
 
   it("describes the current workflow step and reviewer clearly", () => {
