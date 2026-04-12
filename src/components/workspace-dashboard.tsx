@@ -6893,7 +6893,7 @@ export function WorkspaceDashboard({
 
       <section className={surfaceCardClassName}>
         <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px] xl:items-start">
-          <div className="space-y-4">
+          <div className="report-filter-column flex h-full flex-col space-y-4 self-stretch">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
               <div className="min-w-0 flex-1">
                 <p className="text-sm font-semibold text-slate-900">选择查看日期</p>
@@ -6954,6 +6954,14 @@ export function WorkspaceDashboard({
                 );
               })}
             </div>
+            {hasGlobalAdminRole ? (
+              <div className="report-record-legend mt-auto rounded-xl border border-dashed border-slate-200 bg-slate-50/70 px-4 py-3">
+                <p className="text-sm font-medium text-slate-700">日期标签说明</p>
+                <p className="mt-1 text-sm text-slate-500">
+                  右上角带蓝点代表该日期已有汇报记录；未标记的日期表示当前还没有保存内容。
+                </p>
+              </div>
+            ) : null}
           </div>
 
           <aside className="flex flex-col justify-between rounded-xl border border-slate-200 bg-slate-50 p-4">
@@ -8685,7 +8693,7 @@ export function WorkspaceDashboard({
     <>
       <main
         className={`workspace-depth-bg workspace-shell-fade-in p-4 md:p-6 ${
-          safeActiveTab === "timeline" ? "h-auto" : "min-h-screen"
+          safeActiveTab === "timeline" || safeActiveTab === "reports" ? "h-auto pb-8" : "min-h-screen"
         }`}
       >
         <div aria-hidden className="workspace-orb-field" />

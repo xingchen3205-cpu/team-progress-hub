@@ -192,6 +192,8 @@ test("reports view uses dot-based date chips, colored stats, isolated admin clea
   assert.match(reportsBlock, /report-stat-card/);
   assert.match(reportsBlock, /report-stats-divider/);
   assert.match(reportsBlock, /report-admin-danger-zone/);
+  assert.match(reportsBlock, /report-filter-column/);
+  assert.match(reportsBlock, /report-record-legend/);
   assert.match(reportsBlock, /removeTeamReports/);
   assert.match(reportsBlock, /发送提醒/);
   assert.match(reportsBlock, /提交人：/);
@@ -205,6 +207,7 @@ test("reports view uses dot-based date chips, colored stats, isolated admin clea
   assert.match(globalsSource, /\.report-stat-card\.missing\s*\{/);
   assert.match(globalsSource, /\.report-stats-divider\s*\{/);
   assert.match(globalsSource, /\.report-admin-danger-zone\s*\{/);
+  assert.match(globalsSource, /\.report-record-legend\s*\{/);
   assert.match(globalsSource, /\.report-remind-button\s*\{/);
   assert.match(globalsSource, /\.report-empty-hint\s*\{/);
 });
@@ -270,4 +273,8 @@ test("boot loading shell uses a minimal loading card and workspace fade-in", () 
   assert.match(globalsSource, /@keyframes workspace-fade-in/);
   assert.match(globalsSource, /\.loading-spinner\s*\{[\s\S]*border-top-color:\s*#1a6fd4/);
   assert.match(globalsSource, /\.loading-status::before\s*\{[\s\S]*animation:\s*loading-pulse 1\.2s ease-in-out infinite/);
+});
+
+test("reports and timeline tabs use content-driven shell height instead of forcing min-h-screen", () => {
+  assert.match(dashboardSource, /safeActiveTab === "timeline" \|\| safeActiveTab === "reports" \? "h-auto pb-8" : "min-h-screen"/);
 });
