@@ -8,6 +8,7 @@ import type { LucideIcon } from "lucide-react";
 import {
   BellPlus,
   CalendarDays,
+  Check,
   CheckCircle2,
   ChevronDown,
   ChevronUp,
@@ -1765,6 +1766,9 @@ export function WorkspaceDashboard({
   const [reviewComment, setReviewComment] = useState("");
   const [highlightedDocId, setHighlightedDocId] = useState<string | null>(null);
   const [openDocumentViewMenuId, setOpenDocumentViewMenuId] = useState<string | null>(null);
+  const [editingTeamRowId, setEditingTeamRowId] = useState<string | null>(null);
+  const [editingTeamRowRole, setEditingTeamRowRole] = useState<TeamRoleLabel | null>(null);
+  const [editingTeamRowGroupId, setEditingTeamRowGroupId] = useState<string>("");
 
   const role = currentUser?.role ?? null;
   const currentRole = role ?? "member";
@@ -4920,47 +4924,16 @@ export function WorkspaceDashboard({
     });
   };
 
-  const updateMemberRole = async (memberId: string, roleLabel: TeamRoleLabel) => {
-    try {
-      await requestJson(`/api/team/${memberId}`, {
-        method: "PATCH",
-        body: JSON.stringify({ role: roleLabel }),
-      });
-      refreshWorkspace();
-    } catch (error) {
-      setLoadError(error instanceof Error ? error.message : "角色更新失败");
-    }
+  const openTeamRowEditor = (member: TeamMember) => {
+    setEditingTeamRowId(member.id);
+    setEditingTeamRowRole(member.systemRole);
+    setEditingTeamRowGroupId(member.teamGroupId ?? "");
   };
 
-  const confirmUpdateMemberRole = (member: TeamMember, roleLabel: TeamRoleLabel) => {
-    if (member.systemRole === roleLabel) {
-      return;
-    }
-
-    const copy = buildTeamManagementConfirmation({
-      type: "roleChange",
-      memberName: member.name,
-      fromRole: member.systemRole,
-      toRole: roleLabel,
-    });
-
-    setConfirmDialog({
-      open: true,
-      ...copy,
-      onConfirm: () => updateMemberRole(member.id, roleLabel),
-    });
-  };
-
-  const updateMemberGroup = async (memberId: string, teamGroupId: string) => {
-    try {
-      await requestJson(`/api/team/${memberId}`, {
-        method: "PATCH",
-        body: JSON.stringify({ teamGroupId: teamGroupId || null }),
-      });
-      refreshWorkspace();
-    } catch (error) {
-      setLoadError(error instanceof Error ? error.message : "分组更新失败");
-    }
+  const cancelTeamRowEditor = () => {
+    setEditingTeamRowId(null);
+    setEditingTeamRowRole(null);
+    setEditingTeamRowGroupId("");
   };
 
   const getTeamGroupDisplayName = (teamGroupId?: string | null) => {
@@ -4971,23 +4944,43 @@ export function WorkspaceDashboard({
     return teamGroups.find((group) => group.id === teamGroupId)?.name ?? "未知分组";
   };
 
-  const confirmUpdateMemberGroup = (member: TeamMember, teamGroupId: string) => {
-    const normalizedTeamGroupId = teamGroupId || null;
-    if ((member.teamGroupId ?? null) === normalizedTeamGroupId) {
+  const saveTeamRowEditor = (member: TeamMember) => {
+    const nextRole = editingTeamRowRole ?? member.systemRole;
+    const nextTeamGroupId = editingTeamRowGroupId;
+    const roleChanged = nextRole !== member.systemRole;
+    const groupChanged = (member.teamGroupId ?? "") !== nextTeamGroupId;
+
+    if (!roleChanged && !groupChanged) {
+      cancelTeamRowEditor();
       return;
     }
 
-    const copy = buildTeamManagementConfirmation({
-      type: "groupChange",
-      memberName: member.name,
-      fromGroupName: getTeamGroupDisplayName(member.teamGroupId),
-      toGroupName: getTeamGroupDisplayName(normalizedTeamGroupId),
-    });
+    const changeSummary = [
+      roleChanged ? `角色：${member.systemRole} → ${nextRole}` : null,
+      groupChanged ? `分组：${getTeamGroupDisplayName(member.teamGroupId)} → ${getTeamGroupDisplayName(nextTeamGroupId || null)}` : null,
+    ]
+      .filter(Boolean)
+      .join("；");
 
     setConfirmDialog({
       open: true,
-      ...copy,
-      onConfirm: () => updateMemberGroup(member.id, teamGroupId),
+      title: "确认保存账号调整",
+      message: `确认更新「${member.name}」的账号设置？${changeSummary}`,
+      confirmLabel: "确认保存",
+      confirmVariant: "primary",
+      successTitle: "账号设置已更新",
+      successDetail: "角色和分组已同步生效。",
+      onConfirm: async () => {
+        await requestJson(`/api/team/${member.id}`, {
+          method: "PATCH",
+          body: JSON.stringify({
+            role: nextRole,
+            teamGroupId: nextTeamGroupId || null,
+          }),
+        });
+        cancelTeamRowEditor();
+        refreshWorkspace();
+      },
     });
   };
 
@@ -7913,9 +7906,8 @@ export function WorkspaceDashboard({
           title="团队管理"
         />
         <div className="flex flex-wrap items-center gap-3">
-          <DemoResetNote />
           {permissions.canSendDirective ? (
-            <ActionButton onClick={openSentRemindersModal}>
+            <ActionButton className="team-toolbar-secondary" onClick={openSentRemindersModal}>
               <span className="inline-flex items-center gap-2">
                 <BellPlus className="h-4 w-4" />
                 <span>邮件提醒</span>
@@ -7923,7 +7915,7 @@ export function WorkspaceDashboard({
             </ActionButton>
           ) : null}
           {hasGlobalAdminRole ? (
-            <ActionButton onClick={() => void openEmailSettingsModal()}>
+            <ActionButton className="team-toolbar-secondary" onClick={() => void openEmailSettingsModal()}>
               <span className="inline-flex items-center gap-2">
                 <BellPlus className="h-4 w-4" />
                 <span>邮件设置</span>
@@ -7931,7 +7923,7 @@ export function WorkspaceDashboard({
             </ActionButton>
           ) : null}
           {canBatchCreateExperts ? (
-            <ActionButton onClick={() => setBatchExpertModalOpen(true)}>
+            <ActionButton className="team-toolbar-secondary" onClick={() => setBatchExpertModalOpen(true)}>
               <span className="inline-flex items-center gap-2">
                 <Users className="h-4 w-4" />
                 <span>批量添加专家</span>
@@ -8073,24 +8065,26 @@ export function WorkspaceDashboard({
             <div className="flex flex-wrap gap-2">
               {teamGroups.map((group) => (
                 <div
-                  className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-600"
+                  className="team-group-chip"
                   key={group.id}
                 >
-                  <span className="font-medium text-slate-800">{group.name}</span>
-                  <span className="text-xs text-slate-400">{group.memberCount} 人</span>
+                  <span className="team-group-name">{group.name}</span>
+                  <span className="team-group-count-badge">{group.memberCount} 人</span>
                   <button
-                    className="rounded-md px-1.5 py-1 text-xs text-[#1a6fd4] transition hover:bg-[#F3F8FF]"
+                    className="team-icon-button"
                     onClick={() => editTeamGroup(group)}
+                    title="编辑分组"
                     type="button"
                   >
-                    编辑
+                    <Pencil className="h-3.5 w-3.5" />
                   </button>
                   <button
-                    className="rounded-md px-1.5 py-1 text-xs text-slate-400 transition hover:bg-red-50 hover:text-red-600"
+                    className="team-icon-button danger"
                     onClick={() => deleteTeamGroup(group)}
+                    title="删除分组"
                     type="button"
                   >
-                    删除
+                    <Trash2 className="h-3.5 w-3.5" />
                   </button>
                 </div>
               ))}
@@ -8183,7 +8177,7 @@ export function WorkspaceDashboard({
                 type="button"
               >
                 {item.label}
-                <span className="ml-2 rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">
+                <span className="team-tab-count ml-2">
                   {item.count}
                 </span>
               </button>
@@ -8232,7 +8226,7 @@ export function WorkspaceDashboard({
             return (
               <article
                 key={member.id}
-                className="border-b border-slate-200 px-5 py-4 last:border-b-0"
+                className="border-b border-slate-200 px-5 py-5 last:border-b-0"
               >
                 <div className={`grid gap-4 ${teamListGridClassName} lg:items-center`}>
                   <div className="flex min-w-0 items-center gap-3">
@@ -8247,15 +8241,15 @@ export function WorkspaceDashboard({
                       <div className="flex flex-wrap items-center gap-2">
                         <h3 className="truncate text-sm font-semibold text-slate-900">{member.name}</h3>
                         {isSystemAccount ? (
-                          <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-600">
+                          <span className="system-account-tag">
                             最高权限
                           </span>
                         ) : isSchoolAdminAccount ? (
-                          <span className="rounded-full bg-indigo-50 px-2.5 py-1 text-xs font-medium text-indigo-600">
+                          <span className="system-account-tag school-admin">
                             全局管理员
                           </span>
                         ) : member.systemRole === "评审专家" ? (
-                          <span className="rounded-full bg-violet-50 px-2.5 py-1 text-xs font-medium text-violet-600">
+                          <span className="system-account-tag expert">
                             评审专家
                           </span>
                         ) : null}
@@ -8270,11 +8264,11 @@ export function WorkspaceDashboard({
 
                   <div>
                     <p className="mb-2 text-xs text-slate-400 lg:hidden">角色</p>
-                    {permissions.canManageTeam && !roleDisabled ? (
+                    {permissions.canManageTeam && !roleDisabled && editingTeamRowId === member.id ? (
                       <select
                         className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
-                        value={member.systemRole}
-                        onChange={(event) => confirmUpdateMemberRole(member, event.target.value as TeamRoleLabel)}
+                        value={editingTeamRowRole ?? member.systemRole}
+                        onChange={(event) => setEditingTeamRowRole(event.target.value as TeamRoleLabel)}
                       >
                         {availableRoleOptions.map((roleOption) => (
                           <option key={roleOption} value={roleOption}>
@@ -8283,7 +8277,7 @@ export function WorkspaceDashboard({
                         ))}
                       </select>
                     ) : (
-                      <span className="inline-flex rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-600">
+                      <span className="team-inline-value">
                         {member.systemRole}
                       </span>
                     )}
@@ -8292,39 +8286,66 @@ export function WorkspaceDashboard({
                   {canUseTeamGroups ? (
                     <div>
                       <p className="mb-2 text-xs text-slate-400 lg:hidden">分组</p>
-                      <select
-                        className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
-                        disabled={groupAssignmentLocked}
-                        value={member.teamGroupId ?? ""}
-                        onChange={(event) => confirmUpdateMemberGroup(member, event.target.value)}
-                      >
-                        <option value="">未分组</option>
-                        {teamGroups.map((group) => (
-                          <option key={group.id} value={group.id}>
-                            {group.name}
-                          </option>
-                        ))}
-                      </select>
+                      {editingTeamRowId === member.id && !groupAssignmentLocked ? (
+                        <select
+                          className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                          value={editingTeamRowGroupId}
+                          onChange={(event) => setEditingTeamRowGroupId(event.target.value)}
+                        >
+                          <option value="">未分组</option>
+                          {teamGroups.map((group) => (
+                            <option key={group.id} value={group.id}>
+                              {group.name}
+                            </option>
+                          ))}
+                        </select>
+                      ) : (
+                        <span className="team-inline-value">{member.teamGroupName ?? "未分组"}</span>
+                      )}
                     </div>
                   ) : null}
 
                   <div>
                     <p className="mb-2 text-xs text-slate-400 lg:hidden">状态</p>
                     <span
-                      className={`inline-flex rounded-full px-3 py-1 text-xs font-medium ${
-                        isSystemAccount
-                          ? "bg-blue-50 text-blue-600"
-                          : isSchoolAdminAccount
-                            ? "bg-indigo-50 text-indigo-600"
-                          : "bg-emerald-50 text-emerald-700"
-                      }`}
+                      className={`system-status-tag ${isSchoolAdminAccount ? "school-admin" : member.systemRole === "评审专家" ? "expert" : ""}`}
                     >
                       {isSystemAccount ? "系统保留账号" : isSchoolAdminAccount ? "全局管理员" : "已启用"}
                     </span>
                   </div>
 
                   {showTeamActions ? (
-                    <div className="flex flex-wrap gap-2 lg:justify-end">
+                    <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+                      {permissions.canManageTeam && editable && !protectedGlobalAccount && editingTeamRowId !== member.id ? (
+                        <button
+                          className="team-icon-button"
+                          onClick={() => openTeamRowEditor(member)}
+                          title="编辑角色和分组"
+                          type="button"
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </button>
+                      ) : null}
+                      {permissions.canManageTeam && editingTeamRowId === member.id ? (
+                        <>
+                          <button
+                            className="team-icon-button confirm"
+                            onClick={() => saveTeamRowEditor(member)}
+                            title="确认保存"
+                            type="button"
+                          >
+                            <Check className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            className="team-icon-button"
+                            onClick={cancelTeamRowEditor}
+                            title="取消编辑"
+                            type="button"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </>
+                      ) : null}
                       {canSendDirectiveToMember(member) ? (
                         <ActionButton onClick={() => openReminderModal(member)}>
                           发送提醒
@@ -8341,10 +8362,10 @@ export function WorkspaceDashboard({
                       ) : null}
                       {permissions.canManageTeam ? (
                         <ActionButton
+                          className="team-delete-button"
                           disabled={!editable || protectedGlobalAccount}
                           onClick={() => removeMember(member.id, member.name)}
                           title="无权限"
-                          variant="danger"
                         >
                           删除账号
                         </ActionButton>

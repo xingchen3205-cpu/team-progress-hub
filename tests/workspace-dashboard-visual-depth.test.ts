@@ -180,6 +180,34 @@ test("documents view uses compact category cards, pulsing current node, menu-bas
   assert.match(globalsSource, /\.document-view-menu\s*\{/);
 });
 
+test("team management view uses muted toolbar actions, inline edit mode, and unified account actions", () => {
+  const teamBlock = dashboardSource.slice(
+    dashboardSource.indexOf("const renderTeam = () => ("),
+    dashboardSource.indexOf("const renderProfile = () => {"),
+  );
+
+  assert.doesNotMatch(teamBlock, /<DemoResetNote \/>/);
+  assert.match(teamBlock, /team-toolbar-secondary/);
+  assert.match(teamBlock, /team-group-chip/);
+  assert.match(teamBlock, /team-group-count-badge/);
+  assert.match(teamBlock, /team-icon-button/);
+  assert.match(teamBlock, /editingTeamRowId === member\.id/);
+  assert.match(teamBlock, /team-inline-value/);
+  assert.match(teamBlock, /发送提醒/);
+  assert.match(teamBlock, /重置密码/);
+  assert.match(teamBlock, /删除账号/);
+  assert.match(teamBlock, /team-delete-button/);
+  assert.match(teamBlock, /system-account-tag/);
+  assert.match(teamBlock, /system-status-tag/);
+  assert.match(teamBlock, /team-tab-count/);
+  assert.match(globalsSource, /\.team-toolbar-secondary\s*\{/);
+  assert.match(globalsSource, /\.team-group-chip\s*\{/);
+  assert.match(globalsSource, /\.team-icon-button\s*\{/);
+  assert.match(globalsSource, /\.team-inline-value\s*\{/);
+  assert.match(globalsSource, /\.team-delete-button\s*\{/);
+  assert.match(globalsSource, /\.team-delete-button:hover\s*\{/);
+});
+
 test("boot loading shell uses a minimal loading card and workspace fade-in", () => {
   assert.match(dashboardSource, /loading-spinner/);
   assert.match(dashboardSource, /loading-title/);

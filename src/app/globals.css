@@ -651,6 +651,132 @@ a:hover {
   color: #1a6fd4;
 }
 
+.team-toolbar-secondary {
+  border: 1px solid rgba(203, 213, 225, 0.9);
+  background: rgba(255, 255, 255, 0.92);
+  color: rgba(51, 65, 85, 0.82);
+}
+
+.team-toolbar-secondary:hover {
+  border-color: rgba(148, 163, 184, 0.95);
+  background: rgba(255, 255, 255, 1);
+  color: rgb(30 41 59);
+}
+
+.team-group-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid rgba(226, 232, 240, 0.95);
+  border-radius: 9999px;
+  background: rgba(255, 255, 255, 0.72);
+  padding: 8px 10px;
+}
+
+.team-group-name {
+  border-radius: 9999px;
+  background: rgba(26, 111, 212, 0.08);
+  padding: 5px 10px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #1a6fd4;
+}
+
+.team-group-count-badge {
+  border-radius: 9999px;
+  background: rgba(26, 111, 212, 0.08);
+  padding: 3px 8px;
+  font-size: 12px;
+  color: #1a6fd4;
+}
+
+.team-icon-button {
+  display: inline-flex;
+  height: 28px;
+  width: 28px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  color: rgba(51, 65, 85, 0.4);
+  opacity: 0.4;
+  transition: all 0.2s ease;
+}
+
+.team-icon-button:hover {
+  background: rgba(26, 111, 212, 0.08);
+  color: rgba(51, 65, 85, 0.85);
+  opacity: 1;
+}
+
+.team-icon-button.danger:hover {
+  background: rgba(254, 242, 242, 0.95);
+  color: rgb(220 38 38);
+}
+
+.team-icon-button.confirm:hover {
+  background: rgba(239, 246, 255, 0.95);
+  color: #1a6fd4;
+}
+
+.team-inline-value {
+  display: inline-flex;
+  align-items: center;
+  min-height: 42px;
+  font-size: 14px;
+  color: rgba(15, 23, 42, 0.76);
+}
+
+.team-delete-button {
+  border: 1px solid rgba(203, 213, 225, 0.95);
+  background: rgba(255, 255, 255, 0.95);
+  color: rgba(71, 85, 105, 0.82);
+}
+
+.team-delete-button:hover {
+  border-color: rgba(248, 113, 113, 0.65);
+  background: rgba(254, 242, 242, 0.95);
+  color: rgb(220 38 38);
+}
+
+.team-delete-button:disabled,
+.team-delete-button:disabled:hover {
+  border-color: rgb(226 232 240);
+  background: rgb(241 245 249);
+  color: rgb(148 163 184);
+}
+
+.system-account-tag,
+.system-status-tag {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 4px;
+  background: rgba(239, 246, 255, 0.95);
+  padding: 4px 9px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #1a6fd4;
+}
+
+.system-account-tag.school-admin,
+.system-status-tag.school-admin {
+  background: rgba(238, 242, 255, 0.95);
+  color: rgb(79 70 229);
+}
+
+.system-account-tag.expert,
+.system-status-tag.expert {
+  background: rgba(245, 243, 255, 0.95);
+  color: rgb(124 58 237);
+}
+
+.team-tab-count {
+  border-radius: 9999px;
+  background: rgba(26, 111, 212, 0.08);
+  padding: 2px 8px;
+  font-size: 11px;
+  color: currentColor;
+}
+
 .timeline-shell {
   min-height: 150px;
 }
