@@ -24,6 +24,7 @@ import {
   Menu,
   MessageSquareText,
   Pause,
+  Pencil,
   Play,
   Plus,
   RotateCcw,
@@ -331,6 +332,8 @@ type PriorityFocusItem = {
   tag: PriorityFocusTagTone;
   text: string;
 };
+
+type TimelineNodeTone = "past" | "current" | "future";
 
 const imagePreviewExtensions = [".png", ".jpg", ".jpeg", ".gif", ".webp"] as const;
 const wordPreviewExtensions = [".docx"] as const;
@@ -1044,6 +1047,49 @@ const priorityFocusTagMeta: Record<
     label: "无积压",
     className: "clear",
   },
+};
+
+const getTimelinePointStyle = (
+  events: EventItem[],
+  index: number,
+  reservePercent = 10,
+  startPercent = 4,
+): { left: string } => {
+  if (events.length <= 1) {
+    return { left: `${startPercent}%` };
+  }
+
+  const timestamps = events.map((item) => new Date(item.dateTime).getTime());
+  const start = timestamps[0];
+  const end = timestamps[timestamps.length - 1];
+  const span = Math.max(end - start, 1);
+  const usablePercent = 100 - reservePercent - startPercent;
+  const ratio = (timestamps[index] - start) / span;
+
+  return {
+    left: `${startPercent + usablePercent * ratio}%`,
+  };
+};
+
+const getTimelineDateTag = (value: string) => {
+  const parsed = parseDateLikeValue(value);
+  if (!parsed) {
+    return {
+      dateLabel: "预计时间",
+      timeLabel: "具体时间待定",
+    };
+  }
+
+  const dateLabel = `预计时间 ${padDatePart(parsed.getMonth() + 1)}/${padDatePart(parsed.getDate())}`;
+  const hasSpecificTime = /T\d{2}:\d{2}/.test(value);
+  const timeLabel = hasSpecificTime
+    ? `具体时间 ${padDatePart(parsed.getHours())}:${padDatePart(parsed.getMinutes())}`
+    : "具体时间待定";
+
+  return {
+    dateLabel,
+    timeLabel,
+  };
 };
 
 const getNearestUpcomingIndex = (events: EventItem[]) => {
@@ -5764,80 +5810,91 @@ export function WorkspaceDashboard({
 
   const renderTimeline = () => (
     <div className="space-y-4">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <SectionHeader
-          description="用横向时间轴统一查看比赛节点推进情况，关键节点会被重点高亮。"
-          title="时间进度"
-        />
-        <div className="flex flex-wrap items-center gap-3">
-          <DemoResetNote />
-          <ActionButton
-            disabled={!permissions.canEditTimeline}
-            onClick={() => openEventModal()}
-            title="无权限"
-            variant="primary"
-          >
-            <span className="inline-flex items-center gap-2">
-              <Plus className="h-4 w-4" />
-              <span>新增节点</span>
-            </span>
-          </ActionButton>
-        </div>
-      </div>
+      <SectionHeader
+        description="用横向时间轴统一查看比赛节点推进情况，关键节点会被重点高亮。"
+        title="时间进度"
+      />
 
       <section className={`overflow-x-auto ${surfaceCardClassName}`}>
         {events.length === 0 ? (
           <p className="text-sm leading-7 text-slate-500">当前还没有时间节点，请先新增比赛关键节点。</p>
         ) : null}
         <div className="min-w-[860px]">
-          <div className="relative px-6 pt-8">
-            <div className="absolute left-6 right-6 top-[44px] h-[2px] bg-slate-300" />
-            <div className="relative grid grid-cols-4 gap-4">
-              {events.map((item, index) => {
-                const isPast = index < nearestUpcomingIndex;
-                const isCurrent = index === nearestUpcomingIndex;
-                const dotClass = isPast
-                    ? "border-slate-400 bg-slate-400"
-                    : isCurrent
-                      ? "border-blue-600 bg-blue-600 ring-4 ring-blue-100"
-                      : "border-slate-400 bg-white";
+          <div className="timeline-shell relative px-6 pt-8">
+            <div className="timeline-axis">
+              {events.slice(0, -1).map((item, index) => {
+                const leftPoint = getTimelinePointStyle(events, index);
+                const rightPoint = getTimelinePointStyle(events, index + 1);
+                const segmentTone =
+                  index < nearestUpcomingIndex ? "solid" : "dashed";
 
                 return (
-                  <div key={item.id} className="relative">
-                    <div className="flex flex-col items-center">
-                      <div className={`h-5 w-5 rounded-full border-2 ${dotClass}`}>
-                        {isCurrent ? (
-                          <span className="block h-full w-full animate-ping rounded-full bg-[#2563eb]/40" />
-                        ) : null}
-                      </div>
-                      <p className="mt-4 text-center text-sm font-medium text-slate-900">{item.title}</p>
-                      <p className="mt-2 text-center text-sm text-slate-500">{formatDateTime(item.dateTime)}</p>
+                  <span
+                    className={`timeline-segment ${segmentTone}`}
+                    key={`${item.id}-segment`}
+                    style={{
+                      left: leftPoint.left,
+                      width: `calc(${rightPoint.left} - ${leftPoint.left})`,
+                    }}
+                  />
+                );
+              })}
+              {events.map((item, index) => {
+                const tone: TimelineNodeTone =
+                  index < nearestUpcomingIndex ? "past" : index === nearestUpcomingIndex ? "current" : "future";
+                const pointStyle = getTimelinePointStyle(events, index);
+
+                return (
+                  <div key={item.id} className="timeline-point" style={pointStyle}>
+                    <div className={`timeline-node ${tone}`}>
+                      {tone === "current" ? <span className="timeline-node-ping" /> : null}
                     </div>
+                    <p className="timeline-node-title">{item.title}</p>
+                    <p className="timeline-node-time">{formatDateTime(item.dateTime)}</p>
                   </div>
                 );
               })}
+              {permissions.canEditTimeline ? (
+                <button
+                  className="timeline-add-button"
+                  onClick={() => openEventModal()}
+                  title="新增节点"
+                  type="button"
+                >
+                  <Plus className="h-4 w-4" />
+                </button>
+              ) : null}
             </div>
           </div>
 
           <div className="mt-8 grid grid-cols-4 gap-4">
-            {events.map((item) => (
+            {events.map((item) => {
+              const { dateLabel, timeLabel } = getTimelineDateTag(item.dateTime);
+              const description = item.description.trim().length > 2 ? item.description : "暂无描述，点击编辑补充";
+
+              return (
               <article key={item.id} className={subtleCardClassName}>
                 <div className="flex items-start justify-between gap-4">
-                  <span className="rounded-md bg-blue-50 px-3 py-1 text-sm text-blue-600">
-                    {item.type}
-                  </span>
-                  <ActionButton
+                  <div className="flex flex-wrap gap-2">
+                    <span className="timeline-tag">{item.type}</span>
+                    <span className="timeline-tag">{dateLabel}</span>
+                    <span className="timeline-tag">{timeLabel}</span>
+                  </div>
+                  <button
+                    className="timeline-edit-button"
                     disabled={!permissions.canEditTimeline}
                     onClick={() => openEventModal(item)}
-                    title="无权限"
+                    title={permissions.canEditTimeline ? "编辑节点" : "无权限"}
+                    type="button"
                   >
-                    编辑
-                  </ActionButton>
+                    <Pencil className="h-4 w-4" />
+                  </button>
                 </div>
                 <h3 className="mt-4 text-base font-semibold text-slate-900">{item.title}</h3>
-                <p className="mt-3 text-sm leading-7 text-slate-500">{item.description}</p>
+                <p className={`mt-3 text-sm leading-7 ${item.description.trim().length > 2 ? "text-slate-500" : "text-slate-400"}`}>{description}</p>
               </article>
-            ))}
+              );
+            })}
           </div>
         </div>
       </section>

@@ -134,6 +134,28 @@ test("overview summary and priority panels use rails, tags, banner, and footer l
   assert.match(globalsSource, /\.task-summary-footer-link\s*\{/);
 });
 
+test("timeline view uses proportional positioning, inline add button, and refined node cards", () => {
+  assert.match(dashboardSource, /const getTimelinePointStyle =/);
+  assert.match(dashboardSource, /timeline-axis/);
+  assert.match(dashboardSource, /timeline-segment/);
+  assert.match(dashboardSource, /segmentTone =/);
+  assert.match(dashboardSource, /timeline-node/);
+  assert.match(dashboardSource, /timeline-add-button/);
+  assert.match(dashboardSource, /Pencil/);
+  assert.match(dashboardSource, /暂无描述，点击编辑补充/);
+  assert.match(dashboardSource, /查看时间进度/);
+  const timelineBlock = dashboardSource.slice(
+    dashboardSource.indexOf("const renderTimeline = () => ("),
+    dashboardSource.indexOf("const renderBoard = () => {"),
+  );
+  assert.doesNotMatch(timelineBlock, /当前数据已保存到云端数据库，可跨设备同步/);
+  assert.match(globalsSource, /\.timeline-segment\.dashed\s*\{/);
+  assert.match(globalsSource, /\.timeline-node\.future\s*\{/);
+  assert.match(globalsSource, /\.timeline-tag\s*\{/);
+  assert.match(globalsSource, /\.timeline-edit-button\s*\{/);
+  assert.match(globalsSource, /\.timeline-add-button\s*\{/);
+});
+
 test("boot loading shell uses a minimal loading card and workspace fade-in", () => {
   assert.match(dashboardSource, /loading-spinner/);
   assert.match(dashboardSource, /loading-title/);
