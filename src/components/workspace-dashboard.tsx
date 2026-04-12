@@ -531,7 +531,7 @@ type DocumentReviewActionKey =
 type DocumentActionButton = {
   key: DocumentReviewActionKey;
   label: string;
-  variant: "secondary" | "danger";
+  variant: "primary" | "secondary" | "danger";
 };
 
 type ConfirmDialogState = {
@@ -675,23 +675,6 @@ const getDocumentStepCaption = (stepState: DocumentStepState) => {
     case "pending":
     default:
       return "等待中";
-  }
-};
-
-const getDocumentStatusHint = (statusKey: DocumentStatusKey) => {
-  switch (statusKey) {
-    case "pending":
-      return "当前正等待项目负责人审批。";
-    case "leader_approved":
-      return "负责人已通过，等待指导教师终审。";
-    case "approved":
-      return "文档已完成终审，可用于正式提交。";
-    case "leader_revision":
-      return "负责人已打回，等待成员修改后重新提交负责人审批。";
-    case "revision":
-      return "教师已打回，等待负责人修改后重新提交教师终审。";
-    default:
-      return "当前审批状态已更新。";
   }
 };
 
@@ -1781,6 +1764,7 @@ export function WorkspaceDashboard({
   const [reviewAction, setReviewAction] = useState<DocumentReviewActionKey | null>(null);
   const [reviewComment, setReviewComment] = useState("");
   const [highlightedDocId, setHighlightedDocId] = useState<string | null>(null);
+  const [openDocumentViewMenuId, setOpenDocumentViewMenuId] = useState<string | null>(null);
 
   const role = currentUser?.role ?? null;
   const currentRole = role ?? "member";
@@ -2830,12 +2814,12 @@ export function WorkspaceDashboard({
         {
           key: "leaderApprove",
           label: "负责人通过",
-          variant: "secondary" as const,
+          variant: "primary" as const,
         },
         {
           key: "leaderRevision",
           label: "负责人打回",
-          variant: "danger" as const,
+          variant: "secondary" as const,
         },
       ];
     }
@@ -2939,6 +2923,23 @@ export function WorkspaceDashboard({
     }
 
     window.location.href = downloadUrl;
+  };
+
+  const handleDocumentViewAction = (
+    action: "preview" | "download",
+    documentLike: Pick<DocumentItem, "downloadUrl" | "currentFileName" | "currentMimeType">,
+  ) => {
+    setOpenDocumentViewMenuId(null);
+    if (action === "download") {
+      handleDownload(documentLike.downloadUrl);
+      return;
+    }
+
+    handlePreviewDocument({
+      downloadUrl: documentLike.downloadUrl,
+      fileName: documentLike.currentFileName,
+      mimeType: documentLike.currentMimeType,
+    });
   };
 
   const openPreviewAsset = (asset?: PreviewAsset | null) => {
@@ -7626,7 +7627,6 @@ export function WorkspaceDashboard({
           title="文档中心"
         />
         <div className="flex flex-wrap items-center gap-3">
-          <DemoResetNote />
           <ActionButton
             disabled={!permissions.canUploadDocument}
             onClick={openDocumentModal}
@@ -7649,10 +7649,10 @@ export function WorkspaceDashboard({
           return (
             <button
               key={category}
-              className={`rounded-xl border p-5 text-left shadow-sm transition ${
+              className={`document-category-card ${count === 0 ? "empty" : ""} ${
                 isActive
-                  ? "border-white/90 bg-white shadow-[0_14px_32px_rgba(31,38,135,0.14)]"
-                  : "border-white/65 bg-white/55 hover:border-white/90 hover:bg-white/72"
+                  ? "active"
+                  : ""
               }`}
               onClick={() => setSelectedCategory((current) => (current === category ? null : category))}
               type="button"
@@ -7661,8 +7661,7 @@ export function WorkspaceDashboard({
                 <div className="h-4 w-1 rounded-full bg-[#1a6fd4]" />
                 <h3 className="text-base font-semibold text-slate-900">{category}</h3>
               </div>
-              <p className="mt-3 text-2xl font-bold text-slate-900">{count}</p>
-              <p className="mt-2 text-sm text-slate-500">点击筛选该分类文档</p>
+              <p className="mt-3 text-2xl font-bold">{count} 份</p>
             </button>
           );
         })}
@@ -7674,21 +7673,21 @@ export function WorkspaceDashboard({
             <article
               id={`doc-${doc.id}`}
               key={doc.id}
-              className={`${surfaceCardClassName} transition ${
+              className={`relative ${surfaceCardClassName} transition ${
                 highlightedDocId === doc.id ? "ring-2 ring-blue-500 ring-offset-2" : ""
               }`}
             >
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <div className="document-step-panel rounded-xl border border-slate-200 bg-slate-50">
               <div className="grid gap-4 md:grid-cols-3">
                 {documentStepLabels.map((label, index) => {
                   const states = getDocumentWorkflowState(doc.statusKey ?? "pending");
                   const stepState = states[index];
                   const dotClassName =
                     stepState === "complete"
-                      ? "border-blue-600 bg-blue-600"
+                      ? "complete"
                       : stepState === "current"
-                        ? "border-blue-600 bg-blue-600 ring-4 ring-blue-100"
-                        : "border-slate-300 bg-white";
+                        ? "current"
+                        : "pending";
                   const lineClassName =
                     index < documentStepLabels.length - 1 &&
                     stepState === "complete" &&
@@ -7707,11 +7706,7 @@ export function WorkspaceDashboard({
                       {index < documentStepLabels.length - 1 ? (
                         <div className={`absolute left-4 right-0 top-4 hidden h-[2px] md:block ${lineClassName}`} />
                       ) : null}
-                      <span
-                        className={`relative z-10 h-8 w-8 rounded-full border-2 ${dotClassName} ${
-                          stepState === "current" ? "animate-pulse" : ""
-                        }`}
-                      />
+                      <span className={`document-step-node relative z-10 ${dotClassName}`} />
                       <div className="relative z-10">
                         <p className={`text-xs font-medium ${textClassName}`}>{label}</p>
                         <p className={`mt-1 text-xs ${textClassName}`}>{getDocumentStepCaption(stepState)}</p>
@@ -7720,13 +7715,12 @@ export function WorkspaceDashboard({
                   );
                 })}
               </div>
-              <p className="mt-4 text-sm text-slate-500">{getDocumentStatusHint(doc.statusKey ?? "pending")}</p>
             </div>
 
-            <div className="mt-4 flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+            <div className="mt-3 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
               <div className="min-w-0 flex-1">
                 <h3 className="text-base font-semibold text-slate-900">{doc.name}</h3>
-                <div className="mt-3 grid gap-2 text-sm text-slate-500 sm:grid-cols-2 xl:grid-cols-4">
+                <div className="mt-2 grid gap-2 text-sm text-slate-500 sm:grid-cols-2 xl:grid-cols-4">
                   {[
                     { label: "文档分类", value: doc.category },
                     { label: "当前版本", value: doc.currentVersion },
@@ -7741,7 +7735,7 @@ export function WorkspaceDashboard({
                 </div>
                 <p className="mt-2 text-sm leading-7 text-slate-500">批注：{doc.comment}</p>
               </div>
-              <div className="flex flex-wrap items-center gap-3">
+              <div className="flex flex-wrap items-start gap-3">
                   <span className={`rounded-md px-3 py-1 text-sm ${docStatusStyles[doc.status]}`}>
                     {doc.status}
                   </span>
@@ -7755,53 +7749,50 @@ export function WorkspaceDashboard({
                     <span>上传新版本</span>
                   </span>
                 </ActionButton>
-                <ActionButton
-                  onClick={() =>
-                    handlePreviewDocument({
-                      downloadUrl: doc.downloadUrl,
-                      fileName: doc.currentFileName,
-                      mimeType: doc.currentMimeType,
-                    })
-                  }
-                >
-                  <span className="inline-flex items-center gap-2">
-                    <Eye className="h-4 w-4" />
-                    <span>在线预览</span>
-                  </span>
-                </ActionButton>
-                <ActionButton
-                  disabled={!doc.downloadUrl}
-                  onClick={() => handleDownload(doc.downloadUrl)}
-                  title={doc.downloadUrl ? undefined : "当前文件尚未生成下载链接"}
-                >
-                  <span className="inline-flex items-center gap-2">
-                    <Download className="h-4 w-4" />
-                    <span>下载</span>
-                  </span>
-                </ActionButton>
-                <ActionButton
-                  disabled={!canDeleteDocument(doc)}
-                  onClick={() => removeDocument(doc.id, doc.name)}
-                  title="无权限"
-                  variant="danger"
-                >
-                  <span className="inline-flex items-center gap-2">
-                    <Trash2 className="h-4 w-4" />
-                    <span>删除文档</span>
-                  </span>
-                </ActionButton>
+                <div className="relative">
+                  <ActionButton
+                    disabled={!doc.downloadUrl}
+                    onClick={() => setOpenDocumentViewMenuId((current) => (current === doc.id ? null : doc.id))}
+                    title={doc.downloadUrl ? undefined : "当前文件尚未生成下载链接"}
+                  >
+                    <span className="inline-flex items-center gap-2">
+                      <Eye className="h-4 w-4" />
+                      <span>查看</span>
+                      <ChevronDown className="h-4 w-4" />
+                    </span>
+                  </ActionButton>
+                  {openDocumentViewMenuId === doc.id ? (
+                    <div className="document-view-menu absolute right-0 top-full z-20 mt-2 min-w-[140px] rounded-xl p-1">
+                      <button
+                        className="document-view-menu-item"
+                        onClick={() => handleDocumentViewAction("preview", doc)}
+                        type="button"
+                      >
+                        在线预览
+                      </button>
+                      <button
+                        className="document-view-menu-item"
+                        onClick={() => handleDocumentViewAction("download", doc)}
+                        type="button"
+                      >
+                        下载
+                      </button>
+                    </div>
+                  ) : null}
+                </div>
               </div>
             </div>
 
-            <div className="mt-4 flex flex-wrap gap-3">
+            <div className="mt-3 flex flex-wrap gap-3">
               {getDocumentActionButtons(doc).map((actionButton) => (
                 <ActionButton
                   key={`${doc.id}-${actionButton.key}`}
+                  className={actionButton.key === "leaderRevision" ? "border border-red-200 bg-white text-red-600 hover:bg-red-50" : undefined}
                   onClick={() => openReviewModal(doc.id, actionButton.key)}
                   variant={actionButton.variant}
                 >
                   <span className="inline-flex items-center gap-2">
-                    {actionButton.variant === "danger" ? null : <FileCheck className="h-4 w-4" />}
+                    {actionButton.key === "leaderRevision" ? null : <FileCheck className="h-4 w-4" />}
                     <span>{actionButton.label}</span>
                   </span>
                 </ActionButton>
@@ -7824,6 +7815,16 @@ export function WorkspaceDashboard({
                 )}
               </button>
             </div>
+            {canDeleteDocument(doc) ? (
+              <button
+                className="document-card-delete-button"
+                onClick={() => removeDocument(doc.id, doc.name)}
+                title="删除文档"
+                type="button"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+            ) : null}
 
             {expandedDocs.includes(doc.id) ? (
               <div className="mt-4 space-y-3 rounded-xl bg-slate-50 p-4">

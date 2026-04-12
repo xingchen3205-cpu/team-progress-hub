@@ -541,6 +541,116 @@ a:hover {
   transform: translateY(-1px);
 }
 
+.document-category-card {
+  border: 1px solid rgba(255, 255, 255, 0.65);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.55);
+  padding: 20px;
+  text-align: left;
+  box-shadow: 0 2px 8px rgba(30, 60, 120, 0.06);
+  transition: all 0.2s ease;
+}
+
+.document-category-card p {
+  color: rgb(15 23 42);
+}
+
+.document-category-card:hover {
+  border-color: rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.document-category-card.active {
+  border-color: rgba(255, 255, 255, 0.9);
+  background: rgba(255, 255, 255, 1);
+  box-shadow: 0 14px 32px rgba(31, 38, 135, 0.14);
+}
+
+.document-category-card.empty {
+  border: 1px dashed #ddd;
+}
+
+.document-category-card.empty h3,
+.document-category-card.empty p {
+  color: #bbb;
+}
+
+.document-step-panel {
+  padding: 13px;
+}
+
+.document-step-node {
+  height: 32px;
+  width: 32px;
+  border-radius: 9999px;
+  border: 2px solid rgb(203 213 225);
+  background: #ffffff;
+}
+
+.document-step-node.complete {
+  border-color: #2563eb;
+  background: #2563eb;
+}
+
+.document-step-node.current {
+  border-color: #2563eb;
+  background: rgba(37, 99, 235, 0.4);
+  animation: document-node-pulse 1.2s ease-in-out infinite;
+}
+
+.document-step-node.pending {
+  border-color: rgb(203 213 225);
+  background: #ffffff;
+}
+
+@keyframes document-node-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+
+.document-card-delete-button {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  display: inline-flex;
+  height: 34px;
+  width: 34px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  color: rgba(15, 23, 42, 0.3);
+  transition: all 0.2s ease;
+}
+
+.document-card-delete-button:hover {
+  background: rgba(254, 242, 242, 0.95);
+  color: rgb(220 38 38);
+  opacity: 1;
+}
+
+.document-view-menu {
+  border: 1px solid rgba(200, 215, 235, 0.8);
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 8px 24px rgba(30, 60, 120, 0.12);
+  backdrop-filter: blur(12px);
+}
+
+.document-view-menu-item {
+  display: block;
+  width: 100%;
+  border-radius: 10px;
+  padding: 9px 12px;
+  text-align: left;
+  font-size: 13px;
+  color: rgba(15, 23, 42, 0.74);
+  transition: all 0.2s ease;
+}
+
+.document-view-menu-item:hover {
+  background: rgba(26, 111, 212, 0.08);
+  color: #1a6fd4;
+}
+
 .timeline-shell {
   min-height: 150px;
 }

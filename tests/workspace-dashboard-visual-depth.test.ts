@@ -156,6 +156,30 @@ test("timeline view uses proportional positioning, inline add button, and refine
   assert.match(globalsSource, /\.timeline-add-button\s*\{/);
 });
 
+test("documents view uses compact category cards, pulsing current node, menu-based view action, and no persistent sync hint", () => {
+  const documentsBlock = dashboardSource.slice(
+    dashboardSource.indexOf("const renderDocuments = () => ("),
+    dashboardSource.indexOf("const renderTeam = () => ("),
+  );
+
+  assert.match(documentsBlock, /document-category-card/);
+  assert.match(documentsBlock, /count} 份/);
+  assert.doesNotMatch(documentsBlock, /点击筛选该分类文档/);
+  assert.doesNotMatch(documentsBlock, /getDocumentStatusHint/);
+  assert.match(documentsBlock, /document-step-node/);
+  assert.match(documentsBlock, /\?\s*"current"/);
+  assert.match(documentsBlock, /document-card-delete-button/);
+  assert.match(documentsBlock, /查看</);
+  assert.match(documentsBlock, /在线预览/);
+  assert.match(documentsBlock, /下载/);
+  assert.doesNotMatch(documentsBlock, /<DemoResetNote \/>/);
+  assert.match(globalsSource, /\.document-category-card\.empty\s*\{/);
+  assert.match(globalsSource, /\.document-step-node\.current\s*\{[\s\S]*animation:\s*document-node-pulse/);
+  assert.match(globalsSource, /@keyframes document-node-pulse/);
+  assert.match(globalsSource, /\.document-card-delete-button\s*\{/);
+  assert.match(globalsSource, /\.document-view-menu\s*\{/);
+});
+
 test("boot loading shell uses a minimal loading card and workspace fade-in", () => {
   assert.match(dashboardSource, /loading-spinner/);
   assert.match(dashboardSource, /loading-title/);
