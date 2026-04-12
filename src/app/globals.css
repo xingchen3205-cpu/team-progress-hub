@@ -777,6 +777,94 @@ a:hover {
   color: currentColor;
 }
 
+.expert-session-card:hover .expert-delete-button {
+  opacity: 1;
+}
+
+.expert-attachment-trigger {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border-radius: 9999px;
+  border: 1px solid rgba(203, 213, 225, 0.85);
+  background: rgba(255, 255, 255, 0.92);
+  padding: 8px 12px;
+  font-size: 13px;
+  color: rgba(51, 65, 85, 0.82);
+  transition: all 0.2s ease;
+}
+
+.expert-attachment-trigger:hover {
+  border-color: rgba(26, 111, 212, 0.24);
+  background: rgba(26, 111, 212, 0.06);
+  color: #1a6fd4;
+}
+
+.expert-delete-button {
+  position: absolute;
+  top: 18px;
+  right: 18px;
+  display: inline-flex;
+  height: 34px;
+  width: 34px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+  color: rgba(15, 23, 42, 0.3);
+  opacity: 0.3;
+  transition: all 0.2s ease;
+}
+
+.expert-delete-button:hover {
+  background: rgba(254, 242, 242, 0.95);
+  color: rgb(220 38 38);
+  opacity: 1;
+}
+
+.expert-detail-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  border-radius: 12px;
+  border-left: 3px solid rgba(26, 111, 212, 0.2);
+  background: rgba(248, 250, 252, 0.8);
+  padding: 12px 14px;
+}
+
+.expert-detail-row.summary {
+  border-left-color: rgba(26, 111, 212, 0.32);
+}
+
+.expert-detail-row.action {
+  border-left-color: rgba(34, 197, 94, 0.28);
+}
+
+.expert-detail-row.summary svg {
+  color: rgba(26, 111, 212, 0.7);
+}
+
+.expert-detail-row.action svg {
+  color: rgba(34, 197, 94, 0.7);
+}
+
+.expert-upload-guide {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 14px;
+  border: 1px dashed rgba(148, 163, 184, 0.45);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.55);
+  padding: 18px 20px;
+  text-align: left;
+  transition: all 0.2s ease;
+}
+
+.expert-upload-guide:hover {
+  border-color: rgba(26, 111, 212, 0.28);
+  background: rgba(255, 255, 255, 0.78);
+}
+
 .timeline-shell {
   min-height: 150px;
 }

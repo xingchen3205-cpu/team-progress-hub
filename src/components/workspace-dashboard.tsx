@@ -24,6 +24,7 @@ import {
   LogOut,
   Menu,
   MessageSquareText,
+  Paperclip,
   Pause,
   Pencil,
   Play,
@@ -1766,6 +1767,7 @@ export function WorkspaceDashboard({
   const [reviewComment, setReviewComment] = useState("");
   const [highlightedDocId, setHighlightedDocId] = useState<string | null>(null);
   const [openDocumentViewMenuId, setOpenDocumentViewMenuId] = useState<string | null>(null);
+  const [openExpertAttachmentMenuId, setOpenExpertAttachmentMenuId] = useState<string | null>(null);
   const [editingTeamRowId, setEditingTeamRowId] = useState<string | null>(null);
   const [editingTeamRowRole, setEditingTeamRowRole] = useState<TeamRoleLabel | null>(null);
   const [editingTeamRowGroupId, setEditingTeamRowGroupId] = useState<string>("");
@@ -7138,7 +7140,6 @@ export function WorkspaceDashboard({
           title="专家意见"
         />
         <div className="flex flex-wrap items-center gap-3">
-          <DemoResetNote />
           <ActionButton
             disabled={!permissions.canUploadExpert}
             onClick={() => {
@@ -7163,56 +7164,99 @@ export function WorkspaceDashboard({
           experts.map((session) => (
             <article
               key={session.id}
-              className={surfaceCardClassName}
+              className={`expert-session-card relative ${surfaceCardClassName}`}
             >
               <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                 <div>
                   <p className="text-sm font-medium text-blue-600">
                     {session.date} · {session.format}
                   </p>
-                  <h3 className="mt-3 text-base font-semibold text-slate-900">
+                  <h3 className="mt-1 text-base font-semibold text-slate-900">
                     {session.expert} · {session.topic}
                   </h3>
                 </div>
-                <div className="mt-3 flex flex-col items-start gap-3 md:mt-0 md:items-end">
-                  <div className="flex flex-wrap gap-2">
-                    {session.attachments.map((attachment) => (
+                <div className="mt-1 flex flex-col items-start gap-3 md:mt-0 md:items-end">
+                  {session.attachments.length > 0 ? (
+                    <div className="relative">
                       <button
-                        key={attachment.id}
-                        className={`inline-flex items-center gap-2 rounded-md px-3 py-1 text-sm ${
-                          attachment.downloadUrl
-                            ? "bg-slate-100 text-slate-600 hover:bg-slate-200"
-                            : "bg-slate-100 text-slate-400"
-                        }`}
-                        disabled={!attachment.downloadUrl}
-                        onClick={() => {
-                          if (attachment.downloadUrl) {
-                            handlePreviewDocument({
-                              downloadUrl: attachment.downloadUrl,
-                              fileName: attachment.fileName,
-                              mimeType: attachment.mimeType,
-                            });
-                          }
-                        }}
+                        className="expert-attachment-trigger"
+                        onClick={() =>
+                          setOpenExpertAttachmentMenuId((current) => (current === session.id ? null : session.id))
+                        }
                         type="button"
                       >
-                        <Eye className="h-4 w-4" />
-                        {attachment.fileName}
+                        <Paperclip className="h-4 w-4" />
+                        <span>查看附件</span>
+                        <ChevronDown className="h-4 w-4" />
                       </button>
-                    ))}
-                  </div>
-                  {permissions.canDeleteExpert ? (
-                    <ActionButton onClick={() => removeExpert(session.id, session.topic)} variant="danger">
-                      <span className="inline-flex items-center gap-2">
-                        <Trash2 className="h-4 w-4" />
-                        <span>删除意见</span>
-                      </span>
-                    </ActionButton>
+                      {openExpertAttachmentMenuId === session.id ? (
+                        <div className="document-view-menu absolute right-0 top-full z-20 mt-2 min-w-[260px] rounded-xl p-1">
+                          {session.attachments.map((attachment) => (
+                            <div className="flex items-center gap-2" key={attachment.id}>
+                              <button
+                                className="document-view-menu-item min-w-0 flex-1"
+                                disabled={!attachment.downloadUrl}
+                                onClick={() => {
+                                  setOpenExpertAttachmentMenuId(null);
+                                  if (attachment.downloadUrl) {
+                                    handlePreviewDocument({
+                                      downloadUrl: attachment.downloadUrl,
+                                      fileName: attachment.fileName,
+                                      mimeType: attachment.mimeType,
+                                    });
+                                  }
+                                }}
+                                title={attachment.fileName}
+                                type="button"
+                              >
+                                <span className="block truncate">{attachment.fileName}</span>
+                              </button>
+                              <button
+                                className="team-icon-button opacity-100"
+                                disabled={!attachment.downloadUrl}
+                                onClick={() => {
+                                  setOpenExpertAttachmentMenuId(null);
+                                  handleDownload(attachment.downloadUrl);
+                                }}
+                                title="下载附件"
+                                type="button"
+                              >
+                                <Download className="h-4 w-4" />
+                              </button>
+                            </div>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
                   ) : null}
                 </div>
               </div>
-              <p className="mt-4 text-sm leading-7 text-slate-600">反馈摘要：{session.summary}</p>
-              <p className="mt-2 text-sm leading-7 text-slate-600">落实动作：{session.nextAction}</p>
+              <div className="mt-4 space-y-2">
+                <div className="expert-detail-row summary">
+                  <MessageSquareText className="h-4 w-4 shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-xs font-medium text-slate-400">反馈摘要</p>
+                    <p className="mt-1 text-sm leading-7 text-slate-600">{session.summary}</p>
+                  </div>
+                </div>
+                <div className="expert-detail-row action">
+                  <CheckCircle2 className="h-4 w-4 shrink-0" />
+                  <div className="min-w-0">
+                    <p className="text-xs font-medium text-slate-400">落实动作</p>
+                    <p className="mt-1 text-sm leading-7 text-slate-600">{session.nextAction}</p>
+                  </div>
+                </div>
+              </div>
+              {permissions.canDeleteExpert ? (
+                <button
+                  className="expert-delete-button"
+                  onClick={() => removeExpert(session.id, session.topic)}
+                  title="删除意见"
+                  type="button"
+                >
+                  <Trash2 className="h-4 w-4" />
+                </button>
+              ) : null}
             </article>
           ))
         ) : (
@@ -7222,6 +7266,24 @@ export function WorkspaceDashboard({
             title="暂无专家意见"
           />
         )}
+        {permissions.canUploadExpert ? (
+          <button
+            className="expert-upload-guide"
+            onClick={() => {
+              setExpertDraft(defaultExpertDraft);
+              setExpertFiles([]);
+              setExpertDraftErrors(defaultExpertDraftErrors());
+              setExpertModalOpen(true);
+            }}
+            type="button"
+          >
+            <Upload className="h-5 w-5 text-[#1a6fd4]" />
+            <div>
+              <p className="text-sm font-medium text-slate-700">上传更多专家意见</p>
+              <p className="mt-1 text-xs text-slate-400">继续补充新的专家反馈、附件与落实动作。</p>
+            </div>
+          </button>
+        ) : null}
       </section>
     </div>
   );

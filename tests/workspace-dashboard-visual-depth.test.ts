@@ -208,6 +208,24 @@ test("team management view uses muted toolbar actions, inline edit mode, and uni
   assert.match(globalsSource, /\.team-delete-button:hover\s*\{/);
 });
 
+test("experts view uses attachment entry, hover delete affordance, and upload-more guide area", () => {
+  const expertsBlock = dashboardSource.slice(
+    dashboardSource.indexOf("const renderExperts = () => ("),
+    dashboardSource.indexOf("const renderReview = () => {"),
+  );
+
+  assert.doesNotMatch(expertsBlock, /<DemoResetNote \/>/);
+  assert.match(expertsBlock, /openExpertAttachmentMenuId/);
+  assert.match(expertsBlock, /查看附件/);
+  assert.match(expertsBlock, /expert-delete-button/);
+  assert.match(expertsBlock, /expert-detail-row/);
+  assert.match(expertsBlock, /上传更多专家意见/);
+  assert.match(globalsSource, /\.expert-attachment-trigger\s*\{/);
+  assert.match(globalsSource, /\.expert-delete-button\s*\{/);
+  assert.match(globalsSource, /\.expert-detail-row\s*\{/);
+  assert.match(globalsSource, /\.expert-upload-guide\s*\{/);
+});
+
 test("boot loading shell uses a minimal loading card and workspace fade-in", () => {
   assert.match(dashboardSource, /loading-spinner/);
   assert.match(dashboardSource, /loading-title/);
