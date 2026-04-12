@@ -8589,7 +8589,11 @@ export function WorkspaceDashboard({
 
   return (
     <>
-      <main className="workspace-depth-bg workspace-shell-fade-in min-h-screen p-4 md:p-6">
+      <main
+        className={`workspace-depth-bg workspace-shell-fade-in p-4 md:p-6 ${
+          safeActiveTab === "timeline" ? "h-auto" : "min-h-screen"
+        }`}
+      >
         <div aria-hidden className="workspace-orb-field" />
         <div className="relative z-[1] mx-auto flex max-w-[1500px] flex-col gap-4 xl:flex-row">
           {mobileSidebarOpen ? (
