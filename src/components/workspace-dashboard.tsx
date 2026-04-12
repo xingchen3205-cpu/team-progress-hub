@@ -8383,31 +8383,7 @@ export function WorkspaceDashboard({
               </p>
             </div>
           </div>
-          <div className="mt-6 grid grid-cols-3 gap-3">
-            {[
-              { key: "metric", label: "概览数据" },
-              { key: "list", label: "待办列表" },
-              { key: "shortcut", label: "快捷入口" },
-            ].map((item) => (
-              <div className={`skeleton-card skeleton-card-${item.key} depth-subtle rounded-xl px-4 py-4`} key={item.key}>
-                <p className="skeleton-caption">{item.label}</p>
-                {item.key === "shortcut" ? (
-                  <>
-                    <div className="skeleton-icon skeleton-line" />
-                    <div className="skeleton-line" />
-                    <div className="skeleton-line" />
-                  </>
-                ) : (
-                  <>
-                    <div className="skeleton-line" />
-                    <div className="skeleton-line" />
-                    <div className="skeleton-line" />
-                  </>
-                )}
-              </div>
-            ))}
-          </div>
-          <div className="loading-status depth-emphasis inline-flex px-3 py-1.5">
+          <div className="loading-status mt-6 depth-emphasis inline-flex px-3 py-1.5">
             <span>正在加载工作台数据...</span>
           </div>
         </div>
@@ -8425,7 +8401,7 @@ export function WorkspaceDashboard({
 
   return (
     <>
-      <main className="workspace-depth-bg min-h-screen p-4 md:p-6">
+      <main className="workspace-depth-bg workspace-shell-fade-in min-h-screen p-4 md:p-6">
         <div aria-hidden className="workspace-orb-field" />
         <div className="relative z-[1] mx-auto flex max-w-[1500px] flex-col gap-4 xl:flex-row">
           {mobileSidebarOpen ? (

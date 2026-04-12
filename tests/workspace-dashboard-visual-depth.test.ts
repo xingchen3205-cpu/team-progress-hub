@@ -111,21 +111,19 @@ test("overview detail classes tighten the stat and work-tip styling", () => {
   assert.match(globalsSource, /\.topbar\s*\{[\s\S]*border-bottom:\s*1px solid rgba\(200,\s*215,\s*235,\s*0\.50\)/);
 });
 
-test("boot loading shell uses shimmer skeletons and dedicated loading chrome", () => {
+test("boot loading shell uses a minimal loading card and workspace fade-in", () => {
   assert.match(dashboardSource, /loading-spinner/);
   assert.match(dashboardSource, /loading-title/);
   assert.match(dashboardSource, /loading-sub/);
   assert.match(dashboardSource, /loading-status/);
-  assert.match(dashboardSource, /skeleton-card/);
-  assert.match(dashboardSource, /概览数据/);
-  assert.match(dashboardSource, /待办列表/);
-  assert.match(dashboardSource, /快捷入口/);
-  assert.match(dashboardSource, /skeleton-caption/);
-  assert.match(dashboardSource, /skeleton-line/);
-  assert.match(dashboardSource, /skeleton-icon/);
-  assert.match(globalsSource, /\.skeleton-line\s*\{[\s\S]*animation:\s*shimmer 1\.5s infinite/);
-  assert.match(globalsSource, /\.skeleton-caption\s*\{/);
-  assert.match(globalsSource, /@keyframes shimmer/);
+  assert.doesNotMatch(dashboardSource, /skeleton-card/);
+  assert.doesNotMatch(dashboardSource, /概览数据/);
+  assert.doesNotMatch(dashboardSource, /待办列表/);
+  assert.doesNotMatch(dashboardSource, /快捷入口/);
+  assert.match(dashboardSource, /workspace-shell-fade-in/);
+  assert.match(globalsSource, /\.workspace-shell-fade-in\s*\{/);
+  assert.match(globalsSource, /\.workspace-shell-fade-in\s*\{[\s\S]*animation:\s*workspace-fade-in 320ms ease-out/);
+  assert.match(globalsSource, /@keyframes workspace-fade-in/);
   assert.match(globalsSource, /\.loading-spinner\s*\{[\s\S]*border-top-color:\s*#1a6fd4/);
   assert.match(globalsSource, /\.loading-status::before\s*\{[\s\S]*animation:\s*loading-pulse 1\.2s ease-in-out infinite/);
 });

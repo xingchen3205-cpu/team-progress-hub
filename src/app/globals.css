@@ -579,6 +579,22 @@ a:hover {
   animation: loading-pulse 1.2s ease-in-out infinite;
 }
 
+@keyframes workspace-fade-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.workspace-shell-fade-in {
+  animation: workspace-fade-in 320ms ease-out;
+}
+
 .depth-button-primary {
   border: 1px solid rgba(255, 255, 255, 0.5);
   background: linear-gradient(135deg, rgba(26, 111, 212, 0.84), rgba(14, 72, 166, 0.76));
