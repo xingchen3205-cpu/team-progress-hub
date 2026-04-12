@@ -1231,6 +1231,95 @@ a:hover {
   border-bottom: 1px solid rgba(200, 215, 235, 0.50);
 }
 
+.report-date-chip {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 40px;
+  border: 1px solid rgba(200, 215, 235, 0.8);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.82);
+  padding: 0 14px;
+  font-size: 13px;
+  color: rgba(15, 23, 42, 0.82);
+  transition:
+    opacity 180ms ease,
+    border-color 180ms ease,
+    color 180ms ease,
+    background-color 180ms ease;
+}
+
+.report-date-chip:hover {
+  border-color: rgba(26, 111, 212, 0.24);
+  color: #1a6fd4;
+}
+
+.report-date-chip.selected {
+  border-color: rgba(26, 111, 212, 0.22);
+  background: rgba(26, 111, 212, 0.08);
+  color: #1a6fd4;
+}
+
+.report-date-chip.muted {
+  opacity: 0.5;
+}
+
+.report-date-dot {
+  position: absolute;
+  top: 7px;
+  right: 7px;
+  width: 7px;
+  height: 7px;
+  border-radius: 999px;
+  background: #1a6fd4;
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.95);
+}
+
+.report-stat-card {
+  border: 1px solid rgba(200, 215, 235, 0.8);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.92);
+  padding: 12px;
+  box-shadow: 0 1px 2px rgba(30, 60, 120, 0.05);
+}
+
+.report-stat-card.submitted {
+  border-color: rgba(31, 157, 87, 0.18);
+}
+
+.report-stat-card.submitted p:last-child {
+  color: #1f9d57;
+}
+
+.report-stat-card.missing {
+  border-color: rgba(192, 57, 43, 0.16);
+}
+
+.report-stat-card.missing p:last-child {
+  color: #c0392b;
+}
+
+.report-stats-divider {
+  margin-top: 16px;
+  border-top: 1px solid rgba(200, 215, 235, 0.45);
+}
+
+.report-admin-danger-zone {
+  border: 1px solid rgba(239, 68, 68, 0.22);
+  border-radius: 12px;
+  background: #fff5f5;
+  padding: 12px;
+}
+
+.report-remind-button {
+  gap: 6px;
+}
+
+.report-empty-hint {
+  padding-top: 4px;
+}
+
 :where(.card, .panel, .stat-card, .work-tip-item, .notice-card) {
   border-radius: 14px;
 }

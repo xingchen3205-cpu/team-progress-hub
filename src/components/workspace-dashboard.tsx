@@ -3885,6 +3885,17 @@ export function WorkspaceDashboard({
     }
   };
 
+  const sendReportReminder = (member: TeamMember) => {
+    void sendDirectReminderToUsers({
+      userIds: [member.id],
+      title: `汇报提醒：${formatShortDate(selectedDate)} 日程汇报待提交`,
+      detail: `请及时补交 ${formatShortDate(selectedDate)} 的工作汇报，提交后会进入历史归档。`,
+      targetTab: "reports",
+      successTitle: "汇报提醒已发送",
+      successDetail: `已提醒 ${member.name} 尽快补交当日汇报。`,
+    });
+  };
+
   const openCreateReportModal = () => {
     const storedDraft = readStoredReportDraft(selectedDate);
     setEditingReportDate(null);
@@ -6878,13 +6889,10 @@ export function WorkspaceDashboard({
           }
           title="日程汇报"
         />
-        <div className="flex flex-wrap items-center gap-3 text-right">
-          <DemoResetNote />
-        </div>
       </div>
 
       <section className={surfaceCardClassName}>
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px] xl:items-stretch">
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px] xl:items-start">
           <div className="space-y-4">
             <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
               <div className="min-w-0 flex-1">
@@ -6935,19 +6943,13 @@ export function WorkspaceDashboard({
 
                 return (
                   <button
-                    className={`rounded-lg border px-3 py-2 text-sm transition ${
-                      isSelected
-                        ? "border-blue-600 bg-blue-600 text-white shadow-sm"
-                        : hasReport
-                          ? "border-blue-100 bg-blue-50 text-blue-700 hover:border-blue-200"
-                          : "border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:text-slate-700"
-                    }`}
+                    className={`report-date-chip ${isSelected ? "selected" : ""} ${hasReport ? "has-record" : "muted"}`}
                     key={date}
                     onClick={() => setSelectedDate(date)}
                     type="button"
                   >
                     {date === todayDateKey ? "今天" : formatShortDate(date)}
-                    {hasReport ? <span className="ml-1 text-xs opacity-75">有记录</span> : null}
+                    {hasReport ? <span className="report-date-dot" /> : null}
                   </button>
                 );
               })}
@@ -6959,17 +6961,17 @@ export function WorkspaceDashboard({
               <p className="text-sm text-slate-500">当前日期</p>
               <h3 className="mt-1 text-xl font-bold text-slate-900">{formatShortDate(selectedDate)}</h3>
               <div className="mt-4 grid grid-cols-3 gap-2">
-                <div className="rounded-lg bg-white p-3 ring-1 ring-slate-200">
+                <div className="report-stat-card expected">
                   <p className="text-xs text-slate-400">应提交</p>
                   <p className="mt-1 text-lg font-semibold text-slate-900">{selectedReportExpectedCount}</p>
                 </div>
-                <div className="rounded-lg bg-white p-3 ring-1 ring-slate-200">
+                <div className="report-stat-card submitted">
                   <p className="text-xs text-slate-400">已提交</p>
-                  <p className="mt-1 text-lg font-semibold text-blue-700">{selectedReportSubmittedCount}</p>
+                  <p className="mt-1 text-lg font-semibold">{selectedReportSubmittedCount}</p>
                 </div>
-                <div className="rounded-lg bg-white p-3 ring-1 ring-slate-200">
+                <div className="report-stat-card missing">
                   <p className="text-xs text-slate-400">未提交</p>
-                  <p className="mt-1 text-lg font-semibold text-rose-600">{selectedReportMissingCount}</p>
+                  <p className="mt-1 text-lg font-semibold">{selectedReportMissingCount}</p>
                 </div>
               </div>
               <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-200">
@@ -6984,6 +6986,7 @@ export function WorkspaceDashboard({
                 />
               </div>
             </div>
+            <div className="report-stats-divider" />
             {permissions.canSubmitReport ? (
               <ActionButton
                 className="mt-4 w-full justify-center"
@@ -6997,13 +7000,13 @@ export function WorkspaceDashboard({
                 {currentUserSelectedReport ? "修改我的汇报" : "提交这天汇报"}
               </ActionButton>
             ) : (
-              <p className="mt-4 rounded-lg bg-white px-3 py-2 text-sm text-slate-500 ring-1 ring-slate-200">
+              <p className="mt-4 text-sm text-slate-500">
                 当前角色只查看归档，不需要提交汇报。
               </p>
             )}
             {hasGlobalAdminRole ? (
-              <div className="mt-4 rounded-lg border border-rose-100 bg-white p-3">
-                <p className="text-xs font-semibold text-rose-600">管理员清理</p>
+              <div className="report-admin-danger-zone mt-4">
+                <p className="text-xs font-semibold text-rose-700">管理员清理</p>
                 <p className="mt-1 text-xs leading-5 text-slate-500">
                   只删除指定项目组在当前日期的汇报记录。
                 </p>
@@ -7023,7 +7026,7 @@ export function WorkspaceDashboard({
                   className="mt-2 w-full justify-center"
                   disabled={!reportDeleteTeamGroupId}
                   onClick={removeTeamReports}
-                  variant="danger"
+                  variant="secondary"
                 >
                   删除该组本日汇报
                 </ActionButton>
@@ -7057,9 +7060,7 @@ export function WorkspaceDashboard({
                         </span>
                       ) : null}
                     </div>
-                    <p className="mt-2 text-sm text-slate-500">
-                      {formatShortDate(selectedDate)} 汇报记录 · 提交人 {member.name}
-                    </p>
+                    <p className="mt-2 text-sm text-slate-500">提交人：{member.name}</p>
                   </div>
                   {report ? (
                     <span className="shrink-0 rounded-md bg-blue-50 px-3 py-1 text-sm text-blue-600">
@@ -7107,6 +7108,15 @@ export function WorkspaceDashboard({
                           ? "可以补交这一天的工作汇报，保存后会进入历史记录。"
                           : `该成员在 ${formatShortDate(selectedDate)} 尚未提交当日汇报。`}
                       </p>
+                      {permissions.canSendDirective && member.id !== currentMemberId ? (
+                        <ActionButton
+                          className="report-remind-button mt-3"
+                          onClick={() => sendReportReminder(member)}
+                        >
+                          <BellPlus className="h-4 w-4" />
+                          发送提醒
+                        </ActionButton>
+                      ) : null}
                     </div>
                   )}
                 </div>
@@ -7125,7 +7135,7 @@ export function WorkspaceDashboard({
       </section>
 
       {!selectedDateHasSavedReports && visibleReportMembers.length > 0 ? (
-        <p className="rounded-xl border border-slate-200 bg-white px-5 py-4 text-sm text-slate-500 shadow-sm">
+        <p className="report-empty-hint text-center text-sm text-slate-400">
           {formatShortDate(selectedDate)} 暂无保存记录。选择其他历史日期，或点击“提交这天汇报”补录保存。
         </p>
       ) : null}

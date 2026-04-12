@@ -180,6 +180,35 @@ test("documents view uses compact category cards, pulsing current node, menu-bas
   assert.match(globalsSource, /\.document-view-menu\s*\{/);
 });
 
+test("reports view uses dot-based date chips, colored stats, isolated admin cleanup, reminder action, and compact footer hint", () => {
+  const reportsBlock = dashboardSource.slice(
+    dashboardSource.indexOf("const renderReports = () => ("),
+    dashboardSource.indexOf("const renderExperts = () => ("),
+  );
+
+  assert.doesNotMatch(reportsBlock, /<DemoResetNote \/>/);
+  assert.match(reportsBlock, /report-date-chip/);
+  assert.match(reportsBlock, /report-date-dot/);
+  assert.match(reportsBlock, /report-stat-card/);
+  assert.match(reportsBlock, /report-stats-divider/);
+  assert.match(reportsBlock, /report-admin-danger-zone/);
+  assert.match(reportsBlock, /removeTeamReports/);
+  assert.match(reportsBlock, /发送提醒/);
+  assert.match(reportsBlock, /提交人：/);
+  assert.doesNotMatch(reportsBlock, /汇报记录 · 提交人/);
+  assert.match(reportsBlock, /report-empty-hint/);
+
+  assert.match(globalsSource, /\.report-date-chip\s*\{/);
+  assert.match(globalsSource, /\.report-date-chip\.muted\s*\{/);
+  assert.match(globalsSource, /\.report-date-dot\s*\{/);
+  assert.match(globalsSource, /\.report-stat-card\.submitted\s*\{/);
+  assert.match(globalsSource, /\.report-stat-card\.missing\s*\{/);
+  assert.match(globalsSource, /\.report-stats-divider\s*\{/);
+  assert.match(globalsSource, /\.report-admin-danger-zone\s*\{/);
+  assert.match(globalsSource, /\.report-remind-button\s*\{/);
+  assert.match(globalsSource, /\.report-empty-hint\s*\{/);
+});
+
 test("team management view uses muted toolbar actions, inline edit mode, and unified account actions", () => {
   const teamBlock = dashboardSource.slice(
     dashboardSource.indexOf("const renderTeam = () => ("),
