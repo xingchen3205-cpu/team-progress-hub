@@ -17,10 +17,12 @@ export const buildTeamScopedResourceWhere = ({
   actor,
   ownerField,
   teamGroupField = "teamGroupId",
+  includeUnassignedForGroupedUsers = false,
 }: {
   actor: TeamScopedActor;
   ownerField: string;
   teamGroupField?: string;
+  includeUnassignedForGroupedUsers?: boolean;
 }) => {
   if (hasGlobalAdminPrivileges(actor.role)) {
     return {};
@@ -31,6 +33,7 @@ export const buildTeamScopedResourceWhere = ({
       OR: [
         { [ownerField]: actor.id },
         { [teamGroupField]: actor.teamGroupId },
+        ...(includeUnassignedForGroupedUsers ? [{ [teamGroupField]: null }] : []),
       ],
     };
   }
@@ -68,6 +71,7 @@ export const buildExpertReviewAssignmentVisibilityWhere = (actor: TeamScopedActo
     reviewPackage: buildTeamScopedResourceWhere({
       actor,
       ownerField: "createdById",
+      includeUnassignedForGroupedUsers: true,
     }),
   };
 };
@@ -75,12 +79,19 @@ export const buildExpertReviewAssignmentVisibilityWhere = (actor: TeamScopedActo
 export const canAccessTeamScopedResource = (
   actor: TeamScopedActor,
   resource: TeamScopedResource,
+  options?: {
+    allowUnassignedForGroupedUsers?: boolean;
+  },
 ) => {
   if (hasGlobalAdminPrivileges(actor.role)) {
     return true;
   }
 
   if (resource.ownerId && resource.ownerId === actor.id) {
+    return true;
+  }
+
+  if (options?.allowUnassignedForGroupedUsers && actor.teamGroupId && resource.teamGroupId == null) {
     return true;
   }
 

@@ -2660,6 +2660,7 @@ export function WorkspaceDashboard({
 
   const visibleRoleTodoItems = roleTodoItems.filter((item) => !dismissedTodoIds.includes(item.id));
   const todoItemCount = visibleRoleTodoItems.length + todoNotifications.length;
+  const urgentTodoCount = visibleRoleTodoItems.filter((item) => item.priority === "danger").length;
 
   useEffect(() => {
     if (isBooting || !dismissedTodosReady || todoAutoOpened || todoItemCount <= 0) {
@@ -9858,52 +9859,65 @@ export function WorkspaceDashboard({
       {notificationsOpen ? (
         <Modal
           onClose={() => setNotificationsOpen(false)}
-          panelClassName="max-w-[min(92vw,860px)]"
+          panelClassName="max-h-[min(88vh,860px)] max-w-[min(92vw,860px)]"
           title="今日待办"
         >
-          <div className="space-y-5">
-            <div className={`${subtleCardClassName} flex flex-col gap-3 md:flex-row md:items-center md:justify-between`}>
-              <div>
-                <p className="text-sm font-medium text-slate-900">
-                  {currentUser.profile.name}，今天先把最关键的几件事推进掉。
-                </p>
-                <p className="mt-1 text-sm leading-6 text-slate-500">
-                  你可以把当前待办先标记为已读，未读提醒点开后也不会重复弹出。
-                </p>
+          <div className="space-y-5 overflow-hidden">
+            <div className={`todo-modal-summary-card ${subtleCardClassName}`}>
+              <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                <div>
+                  <p className="text-base font-semibold text-slate-900">待处理事项总览</p>
+                  <p className="mt-1 text-sm leading-6 text-slate-500">
+                    未标记为已读的内容会继续保留在待办入口；通知点开后自动标记为已读。
+                  </p>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <span className="todo-modal-count-chip">
+                    <span className="todo-modal-count-value">{visibleRoleTodoItems.length}</span>
+                    <span>待办</span>
+                  </span>
+                  <span className="todo-modal-count-chip">
+                    <span className="todo-modal-count-value">{todoNotifications.length}</span>
+                    <span>提醒</span>
+                  </span>
+                  {urgentTodoCount > 0 ? (
+                    <span className="todo-modal-count-chip urgent">
+                      <span className="todo-modal-count-value">{urgentTodoCount}</span>
+                      <span>紧急</span>
+                    </span>
+                  ) : null}
+                </div>
               </div>
-              <div className="inline-flex items-center gap-2 rounded-full bg-white px-3 py-1 text-xs text-slate-500 shadow-sm">
-                <BellPlus className="h-3.5 w-3.5 text-blue-600" />
-                <span>当前共 {todoItemCount} 项待处理</span>
-              </div>
+              {todoItemCount > 0 ? (
+                <div className="mt-4 flex justify-end">
+                  <ActionButton onClick={() => void markAllTodoItemsAsRead()}>
+                    全部标记已读
+                  </ActionButton>
+                </div>
+              ) : null}
             </div>
-
-            {todoItemCount > 0 ? (
-              <div className="flex justify-end">
-                <ActionButton onClick={() => void markAllTodoItemsAsRead()}>
-                  一键已读
-                </ActionButton>
-              </div>
-            ) : null}
 
             {visibleRoleTodoItems.length > 0 ? (
               <section className="space-y-3">
-                <div>
-                  <p className="text-base font-semibold text-slate-900">角色待办</p>
-                  <p className="mt-1 text-sm text-slate-400">先点已读收起也可以，需要时再从待办入口打开。</p>
+                <div className="todo-modal-section-header">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-900">待办事项</p>
+                    <p className="mt-1 text-xs text-slate-400">需要主动推进的事项，收起后仍可从待办入口再次查看。</p>
+                  </div>
                 </div>
                 <div className="space-y-3">
                   {visibleRoleTodoItems.map((item) => (
                     <div
-                      className={`rounded-xl border px-4 py-4 shadow-sm ${
+                      className={`todo-modal-role-card ${
                         item.priority === "danger"
-                          ? "border-red-200 bg-red-50/70"
+                          ? "danger"
                           : item.priority === "warning"
-                            ? "border-amber-200 bg-amber-50/70"
-                            : "border-slate-200 bg-white"
+                            ? "warning"
+                            : "normal"
                       }`}
                       key={item.id}
                     >
-                      <div className="flex flex-col gap-4 md:grid md:grid-cols-[minmax(0,1fr)_auto] md:items-start md:gap-4">
+                      <div className="flex flex-col gap-4 md:grid md:grid-cols-[minmax(0,1fr)_136px] md:items-start md:gap-4">
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
                             <p className="text-sm font-semibold text-slate-900">{item.title}</p>
@@ -9919,9 +9933,9 @@ export function WorkspaceDashboard({
                           </div>
                           <p className="mt-2 text-sm leading-6 text-slate-500">{item.detail}</p>
                         </div>
-                        <div className="flex flex-wrap items-center gap-2 md:justify-end">
-                          <ActionButton onClick={() => dismissTodoItem(item.id)}>
-                            已读
+                        <div className="todo-modal-action">
+                          <ActionButton className="todo-modal-dismiss" onClick={() => dismissTodoItem(item.id)}>
+                            收起
                           </ActionButton>
                           <ActionButton onClick={() => void openTodoItem(item)} variant="primary">
                             {item.actionLabel}
@@ -9936,34 +9950,26 @@ export function WorkspaceDashboard({
 
             {todoNotifications.length > 0 ? (
               <section className="space-y-3">
-                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div className="todo-modal-section-header">
                   <div>
-                    <p className="text-base font-semibold text-slate-900">未读提醒</p>
-                    <p className="mt-1 text-sm text-slate-400">这些提醒处理后会自动标记，不会反复打扰。</p>
+                    <p className="text-sm font-semibold text-slate-900">未读提醒</p>
+                    <p className="mt-1 text-xs text-slate-400">点击提醒进入处理页后会自动标记为已读。</p>
                   </div>
-                  <button
-                    className="text-sm font-medium text-blue-600"
-                    onClick={() => void markAllNotificationsAsRead()}
-                    type="button"
-                  >
-                    全部已读
-                  </button>
                 </div>
-                <div className="space-y-3">
+                <div className="todo-modal-notice-list space-y-3">
                   {todoNotifications.map((item) => (
                     <button
-                      className="w-full rounded-xl border border-blue-100 bg-blue-50/40 px-4 py-4 text-left shadow-sm transition hover:bg-blue-50"
+                      className="todo-modal-notice-card w-full text-left transition"
                       key={item.id}
                       onClick={() => void openTodoItem(item)}
                       type="button"
                     >
-                      <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                      <div className="flex flex-col gap-3 md:grid md:grid-cols-[minmax(0,1fr)_120px] md:items-start md:gap-4">
                         <div className="min-w-0">
                           <p className="text-sm font-semibold text-slate-900">{item.title}</p>
                           <p className="mt-2 text-sm leading-6 text-slate-500">{item.detail}</p>
                         </div>
-                        <div className="flex items-center gap-3 md:pl-4">
-                          <span className="h-2.5 w-2.5 rounded-full bg-blue-600" />
+                        <div className="todo-modal-action">
                           <span className="text-sm font-medium text-blue-600">{item.actionLabel}</span>
                         </div>
                       </div>

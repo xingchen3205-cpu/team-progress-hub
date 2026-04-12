@@ -43,7 +43,13 @@ export async function GET(
     return NextResponse.json({ message: "专家意见不存在" }, { status: 404 });
   }
 
-  if (!canAccessTeamScopedResource(user, { ownerId: feedback.createdById, teamGroupId: feedback.teamGroupId })) {
+  if (
+    !canAccessTeamScopedResource(
+      user,
+      { ownerId: feedback.createdById, teamGroupId: feedback.teamGroupId },
+      { allowUnassignedForGroupedUsers: true },
+    )
+  ) {
     return NextResponse.json({ message: "无权限查看该专家意见" }, { status: 403 });
   }
 

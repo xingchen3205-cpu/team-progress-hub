@@ -46,7 +46,7 @@ describe("team-scoped workspace visibility", () => {
       }),
       {
         reviewPackage: {
-          OR: [{ createdById: "leader-1" }, { teamGroupId: "group-a" }],
+          OR: [{ createdById: "leader-1" }, { teamGroupId: "group-a" }, { teamGroupId: null }],
         },
       },
     );
@@ -96,6 +96,34 @@ describe("team-scoped workspace visibility", () => {
         { ownerId: "other-user", teamGroupId: "group-a" },
       ),
       true,
+    );
+    assert.equal(
+      canAccessTeamScopedResource(
+        { id: "teacher-1", role: "teacher", teamGroupId: "group-a" },
+        { ownerId: "admin-1", teamGroupId: null },
+        { allowUnassignedForGroupedUsers: true },
+      ),
+      true,
+    );
+  });
+
+  it("can include unassigned global records for grouped viewers when explicitly enabled", () => {
+    assert.deepEqual(
+      buildTeamScopedResourceWhere({
+        actor: { id: "teacher-1", role: "teacher", teamGroupId: "group-a" },
+        ownerField: "createdById",
+        includeUnassignedForGroupedUsers: true,
+      }),
+      { OR: [{ createdById: "teacher-1" }, { teamGroupId: "group-a" }, { teamGroupId: null }] },
+    );
+
+    assert.deepEqual(
+      buildTeamScopedResourceWhere({
+        actor: { id: "teacher-without-team", role: "teacher", teamGroupId: null },
+        ownerField: "createdById",
+        includeUnassignedForGroupedUsers: true,
+      }),
+      { createdById: "teacher-without-team" },
     );
   });
 });

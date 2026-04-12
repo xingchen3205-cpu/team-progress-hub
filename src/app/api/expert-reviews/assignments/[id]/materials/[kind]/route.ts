@@ -55,10 +55,14 @@ export async function GET(
 
   if (
     user.role !== "expert" &&
-    !canAccessTeamScopedResource(user, {
-      ownerId: assignment.reviewPackage.createdById,
-      teamGroupId: assignment.reviewPackage.teamGroupId,
-    })
+    !canAccessTeamScopedResource(
+      user,
+      {
+        ownerId: assignment.reviewPackage.createdById,
+        teamGroupId: assignment.reviewPackage.teamGroupId,
+      },
+      { allowUnassignedForGroupedUsers: true },
+    )
   ) {
     return NextResponse.json({ message: "无权限查看该材料" }, { status: 403 });
   }

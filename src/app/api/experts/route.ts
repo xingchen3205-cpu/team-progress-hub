@@ -37,6 +37,7 @@ export async function GET(request: NextRequest) {
     where: buildTeamScopedResourceWhere({
       actor: user,
       ownerField: "createdById",
+      includeUnassignedForGroupedUsers: true,
     }),
     orderBy: [{ date: "desc" }, { createdAt: "desc" }],
     include: {

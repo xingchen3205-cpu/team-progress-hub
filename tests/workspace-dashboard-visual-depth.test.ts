@@ -291,6 +291,37 @@ test("review view uses unified review cards, collapsed scoring, contextual mater
   assert.match(globalsSource, /\.review-score-toggle\s*\{/);
 });
 
+test("todo modal keeps a single dialog with stronger sectioning and unified read action", () => {
+  const todoModalBlock = dashboardSource.slice(
+    dashboardSource.indexOf('{notificationsOpen ? ('),
+    dashboardSource.indexOf('{reminderModalOpen ? ('),
+  );
+
+  assert.match(todoModalBlock, /todo-modal-summary-card/);
+  assert.match(todoModalBlock, /待办事项/);
+  assert.match(todoModalBlock, /未读提醒/);
+  assert.match(todoModalBlock, /全部标记已读/);
+  assert.match(todoModalBlock, /todo-modal-count-chip/);
+  assert.match(todoModalBlock, /todo-modal-section-header/);
+  assert.match(todoModalBlock, /todo-modal-role-card/);
+  assert.match(todoModalBlock, /todo-modal-notice-list/);
+  assert.match(todoModalBlock, /todo-modal-notice-card/);
+  assert.match(todoModalBlock, /todo-modal-action/);
+  assert.match(todoModalBlock, /todo-modal-dismiss/);
+  assert.doesNotMatch(todoModalBlock, /今天先把最关键的几件事推进掉/);
+  assert.doesNotMatch(todoModalBlock, /一键已读/);
+  assert.doesNotMatch(todoModalBlock, /全部已读/);
+
+  assert.match(globalsSource, /\.todo-modal-summary-card\s*\{/);
+  assert.match(globalsSource, /\.todo-modal-count-chip\s*\{/);
+  assert.match(globalsSource, /\.todo-modal-section-header\s*\{/);
+  assert.match(globalsSource, /\.todo-modal-role-card\s*\{/);
+  assert.match(globalsSource, /\.todo-modal-notice-list\s*\{/);
+  assert.match(globalsSource, /\.todo-modal-notice-card\s*\{/);
+  assert.match(globalsSource, /\.todo-modal-action\s*\{/);
+  assert.match(globalsSource, /\.todo-modal-dismiss\s*\{/);
+});
+
 test("boot loading shell uses a minimal loading card and workspace fade-in", () => {
   assert.match(dashboardSource, /loading-spinner/);
   assert.match(dashboardSource, /loading-title/);
