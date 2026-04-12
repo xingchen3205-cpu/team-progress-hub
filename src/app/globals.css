@@ -865,6 +865,202 @@ a:hover {
   background: rgba(255, 255, 255, 0.78);
 }
 
+.review-header-toolbar {
+  align-items: center;
+}
+
+.review-todo-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid rgba(200, 215, 235, 0.8);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.88);
+  padding: 8px 12px;
+  font-size: 13px;
+  color: rgba(15, 23, 42, 0.78);
+}
+
+.review-todo-count {
+  display: inline-flex;
+  min-width: 20px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: rgba(26, 111, 212, 0.1);
+  padding: 2px 7px;
+  font-size: 11px;
+  font-weight: 600;
+  color: #1a6fd4;
+}
+
+.review-package-card {
+  padding: 20px;
+}
+
+.review-material-card {
+  border: 1px solid rgba(200, 215, 235, 0.8);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: 0 1px 2px rgba(30, 60, 120, 0.04);
+}
+
+.review-score-detail-card {
+  border: 1px solid rgba(200, 215, 235, 0.8);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: 0 1px 2px rgba(30, 60, 120, 0.04);
+}
+
+.review-score-summary-item {
+  border: 1px solid rgba(200, 215, 235, 0.8);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: 0 1px 2px rgba(30, 60, 120, 0.04);
+}
+
+.review-score-summary-card {
+  border: 1px solid rgba(200, 215, 235, 0.8);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: 0 1px 2px rgba(30, 60, 120, 0.04);
+}
+
+.review-score-summary-card {
+  padding: 16px;
+}
+
+.review-score-summary-item {
+  padding: 14px;
+}
+
+.review-status-chip {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(26, 111, 212, 0.16);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.88);
+  padding: 5px 10px;
+  font-size: 12px;
+  font-weight: 500;
+  line-height: 1.2;
+}
+
+.review-status-chip.pending {
+  color: #b45309;
+  border-color: rgba(180, 83, 9, 0.2);
+  background: rgba(245, 158, 11, 0.08);
+}
+
+.review-status-chip.completed {
+  color: #1a6fd4;
+}
+
+.review-status-chip.locked {
+  color: rgba(15, 23, 42, 0.56);
+  border-color: rgba(148, 163, 184, 0.32);
+  background: rgba(241, 245, 249, 0.86);
+}
+
+.review-deadline-chip {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 8px;
+  border: 1px solid rgba(200, 215, 235, 0.85);
+  background: rgba(255, 255, 255, 0.88);
+  padding: 5px 10px;
+  font-size: 12px;
+  color: rgba(15, 23, 42, 0.64);
+}
+
+.review-deadline-chip.warning {
+  color: #b45309;
+  border-color: rgba(180, 83, 9, 0.24);
+  background: rgba(245, 158, 11, 0.08);
+}
+
+.review-deadline-chip.expired {
+  color: #c0392b;
+  border-color: rgba(192, 57, 43, 0.22);
+  background: rgba(255, 245, 245, 0.96);
+}
+
+.review-deadline-chip.subtle {
+  opacity: 0.88;
+}
+
+.review-delete-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  color: rgba(15, 23, 42, 0.34);
+  opacity: 0.3;
+  transition:
+    opacity 180ms ease,
+    color 180ms ease,
+    background-color 180ms ease;
+}
+
+.review-package-card:hover .review-delete-icon {
+  opacity: 1;
+}
+
+.review-delete-icon:hover {
+  color: #c0392b;
+  background: rgba(192, 57, 43, 0.08);
+}
+
+.review-material-actions {
+  align-items: center;
+}
+
+.review-score-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid rgba(200, 215, 235, 0.8);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.92);
+  padding: 8px 12px;
+  font-size: 13px;
+  color: rgba(15, 23, 42, 0.72);
+  transition:
+    border-color 180ms ease,
+    color 180ms ease,
+    transform 180ms ease;
+}
+
+.review-score-toggle:hover {
+  border-color: rgba(26, 111, 212, 0.22);
+  color: #1a6fd4;
+  transform: translateY(-1px);
+}
+
+.review-score-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.96);
+  padding: 5px 10px;
+  font-size: 12px;
+  color: rgba(15, 23, 42, 0.58);
+  box-shadow: 0 1px 2px rgba(30, 60, 120, 0.06);
+}
+
+.review-danger-button {
+  border-color: rgba(192, 57, 43, 0.18) !important;
+  color: rgba(192, 57, 43, 0.88) !important;
+}
+
+.review-danger-button:hover {
+  border-color: rgba(192, 57, 43, 0.28) !important;
+  background: rgba(255, 245, 245, 0.96) !important;
+}
+
 .timeline-shell {
   min-height: 150px;
 }

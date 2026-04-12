@@ -258,6 +258,39 @@ test("experts view uses attachment entry, hover delete affordance, and upload-mo
   assert.match(globalsSource, /\.expert-upload-guide\s*\{/);
 });
 
+test("review view uses unified review cards, collapsed scoring, contextual material actions, and warning chips", () => {
+  const reviewBlock = dashboardSource.slice(
+    dashboardSource.indexOf("const renderReview = () => {"),
+    dashboardSource.indexOf("const renderDocuments = () => ("),
+  );
+
+  assert.doesNotMatch(reviewBlock, /<DemoResetNote \/>/);
+  assert.match(reviewBlock, /const reviewPendingCount =/);
+  assert.match(reviewBlock, /review-header-toolbar/);
+  assert.match(reviewBlock, /review-todo-pill/);
+  assert.match(reviewBlock, /expandedReviewPackageKeys/);
+  assert.match(reviewBlock, /toggleReviewPackageExpanded/);
+  assert.match(reviewBlock, /review-package-card/);
+  assert.match(reviewBlock, /review-material-card/);
+  assert.match(reviewBlock, /review-status-chip/);
+  assert.match(reviewBlock, /review-deadline-chip/);
+  assert.match(reviewBlock, /review-material-actions/);
+  assert.match(reviewBlock, /review-delete-icon/);
+  assert.match(reviewBlock, /review-score-toggle/);
+  assert.match(reviewBlock, /暂无描述，点击编辑补充/);
+  assert.match(reviewBlock, /支持 PDF 在线预览/);
+  assert.match(reviewBlock, /删除整包评审数据/);
+
+  assert.match(globalsSource, /\.review-header-toolbar\s*\{/);
+  assert.match(globalsSource, /\.review-todo-pill\s*\{/);
+  assert.match(globalsSource, /\.review-package-card\s*\{/);
+  assert.match(globalsSource, /\.review-material-card\s*\{/);
+  assert.match(globalsSource, /\.review-status-chip\s*\{/);
+  assert.match(globalsSource, /\.review-deadline-chip\.expired\s*\{/);
+  assert.match(globalsSource, /\.review-delete-icon\s*\{/);
+  assert.match(globalsSource, /\.review-score-toggle\s*\{/);
+});
+
 test("boot loading shell uses a minimal loading card and workspace fade-in", () => {
   assert.match(dashboardSource, /loading-spinner/);
   assert.match(dashboardSource, /loading-title/);
