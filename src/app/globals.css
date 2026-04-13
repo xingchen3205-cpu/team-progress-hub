@@ -575,37 +575,144 @@ a:hover {
   color: #bbb;
 }
 
-.document-step-panel {
-  padding: 13px;
-}
-
-.document-step-node {
-  height: 32px;
-  width: 32px;
+.document-status-badge {
+  display: inline-flex;
+  align-items: center;
   border-radius: 9999px;
-  border: 2px solid rgb(203 213 225);
-  background: #ffffff;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  line-height: 1;
 }
 
-.document-step-node.complete {
-  border-color: #2563eb;
-  background: #2563eb;
+.document-status-badge.warning {
+  border: 1px solid rgba(249, 115, 22, 0.35);
+  color: rgb(194 65 12);
+  background: rgba(255, 247, 237, 0.95);
 }
 
-.document-step-node.current {
-  border-color: #2563eb;
-  background: rgba(37, 99, 235, 0.4);
+.document-status-badge.success {
+  border: 1px solid rgba(34, 197, 94, 0.12);
+  color: rgb(22 101 52);
+  background: rgb(220 252 231);
+}
+
+.document-status-badge.danger {
+  border: 1px solid rgba(239, 68, 68, 0.35);
+  color: rgb(185 28 28);
+  background: rgba(255, 255, 255, 0.96);
+}
+
+.document-step-compact {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-height: 28px;
+}
+
+.document-step-item {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+  flex: 1 1 180px;
+}
+
+.document-step-marker {
+  display: inline-flex;
+  height: 18px;
+  width: 18px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9999px;
+}
+
+.document-step-marker.complete {
+  background: #1a6fd4;
+  color: #ffffff;
+}
+
+.document-step-marker.current {
+  border: 1px solid rgba(26, 111, 212, 0.32);
+  background: rgba(26, 111, 212, 0.18);
+  color: #1a6fd4;
   animation: document-node-pulse 1.2s ease-in-out infinite;
 }
 
-.document-step-node.pending {
-  border-color: rgb(203 213 225);
-  background: #ffffff;
+.document-step-marker.pending {
+  border: 1px solid rgba(148, 163, 184, 0.5);
+  background: transparent;
+}
+
+.document-step-segment {
+  height: 1px;
+  flex: 1 1 32px;
+}
+
+.document-step-segment.complete {
+  background: rgba(26, 111, 212, 0.55);
+}
+
+.document-step-segment.pending {
+  background: rgba(203, 213, 225, 0.9);
 }
 
 @keyframes document-node-pulse {
   0%, 100% { opacity: 1; }
   50% { opacity: 0.5; }
+}
+
+.document-meta-grid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  border-radius: 12px;
+  border: 1px solid rgba(226, 232, 240, 0.9);
+  background: rgba(248, 250, 252, 0.9);
+  padding: 12px;
+}
+
+.document-meta-item {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: 120px minmax(0, 1fr);
+  align-items: center;
+}
+
+.document-meta-label {
+  font-size: 12px;
+  color: rgba(100, 116, 139, 0.82);
+}
+
+.document-meta-value {
+  min-width: 0;
+  font-size: 14px;
+  font-weight: 500;
+  color: #1a6fd4;
+}
+
+.document-comment-panel {
+  display: flex;
+  gap: 12px;
+  border-left: 3px solid rgba(26, 111, 212, 0.85);
+  border-radius: 10px;
+  background: rgba(239, 246, 255, 0.82);
+  padding: 12px 14px;
+}
+
+.document-comment-label {
+  flex-shrink: 0;
+  font-size: 13px;
+  font-weight: 600;
+  color: #1a6fd4;
+}
+
+.document-comment-text {
+  font-size: 13px;
+  line-height: 1.6;
+  color: rgba(71, 85, 105, 0.88);
 }
 
 .document-card-delete-button {
@@ -620,8 +727,10 @@ a:hover {
   border-radius: 9999px;
   color: rgba(15, 23, 42, 0.3);
   transition: all 0.2s ease;
+  opacity: 0;
 }
 
+.group:hover .document-card-delete-button,
 .document-card-delete-button:hover {
   background: rgba(254, 242, 242, 0.95);
   color: rgb(220 38 38);
@@ -649,6 +758,16 @@ a:hover {
 .document-view-menu-item:hover {
   background: rgba(26, 111, 212, 0.08);
   color: #1a6fd4;
+}
+
+@media (max-width: 767px) {
+  .document-meta-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .document-meta-item {
+    grid-template-columns: 88px minmax(0, 1fr);
+  }
 }
 
 .team-toolbar-secondary {

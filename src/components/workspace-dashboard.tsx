@@ -516,12 +516,33 @@ const getBoardStatusLabel = (task: BoardTask) => {
   return boardStatusMeta[task.status].label;
 };
 
-const docStatusStyles: Record<DocumentItem["status"], string> = {
-  待负责人审批: "border border-white/90 bg-white text-slate-900 shadow-[0_12px_28px_rgba(31,38,135,0.12)]",
-  待教师终审: "border border-white/90 bg-white text-[#1a6fd4] shadow-[0_12px_28px_rgba(31,38,135,0.14)]",
-  终审通过: "border border-white/90 bg-white text-[#1a6fd4] shadow-[0_12px_28px_rgba(31,38,135,0.14)]",
-  负责人打回: "border border-white/90 bg-white text-slate-900 shadow-[0_12px_28px_rgba(31,38,135,0.12)]",
-  教师打回: "border border-white/90 bg-white text-slate-900 shadow-[0_12px_28px_rgba(31,38,135,0.12)]",
+const docStatusMeta: Record<
+  DocumentStatusKey,
+  {
+    label: string;
+    className: "warning" | "success" | "danger";
+  }
+> = {
+  pending: {
+    label: "待负责人审批",
+    className: "warning",
+  },
+  leader_approved: {
+    label: "审批通过",
+    className: "success",
+  },
+  approved: {
+    label: "终审通过",
+    className: "success",
+  },
+  leader_revision: {
+    label: "负责人打回",
+    className: "danger",
+  },
+  revision: {
+    label: "教师打回",
+    className: "danger",
+  },
 };
 
 type DocumentStatusKey = NonNullable<DocumentItem["statusKey"]>;
@@ -533,7 +554,6 @@ type DocumentReviewActionKey =
 type DocumentActionButton = {
   key: DocumentReviewActionKey;
   label: string;
-  variant: "primary" | "secondary" | "danger";
 };
 
 type ConfirmDialogState = {
@@ -2862,12 +2882,10 @@ export function WorkspaceDashboard({
         {
           key: "leaderApprove",
           label: "负责人通过",
-          variant: "primary" as const,
         },
         {
           key: "leaderRevision",
           label: "负责人打回",
-          variant: "secondary" as const,
         },
       ];
     }
@@ -2877,12 +2895,10 @@ export function WorkspaceDashboard({
         {
           key: "teacherApprove",
           label: "教师终审通过",
-          variant: "secondary" as const,
         },
         {
           key: "teacherRevision",
           label: "教师打回",
-          variant: "danger" as const,
         },
       ];
     }
@@ -2974,10 +2990,15 @@ export function WorkspaceDashboard({
   };
 
   const handleDocumentViewAction = (
-    action: "preview" | "download",
-    documentLike: Pick<DocumentItem, "downloadUrl" | "currentFileName" | "currentMimeType">,
+    action: "preview" | "download" | "history",
+    documentLike: Pick<DocumentItem, "id" | "downloadUrl" | "currentFileName" | "currentMimeType">,
   ) => {
     setOpenDocumentViewMenuId(null);
+    if (action === "history") {
+      toggleDocExpand(documentLike.id);
+      return;
+    }
+
     if (action === "download") {
       handleDownload(documentLike.downloadUrl);
       return;
@@ -7899,165 +7920,153 @@ export function WorkspaceDashboard({
 
       <section className="space-y-4">
         {filteredDocuments.length > 0 ? (
-          filteredDocuments.map((doc) => (
-            <article
-              id={`doc-${doc.id}`}
-              key={doc.id}
-              className={`relative ${surfaceCardClassName} transition ${
-                highlightedDocId === doc.id ? "ring-2 ring-blue-500 ring-offset-2" : ""
-              }`}
-            >
-            <div className="document-step-panel rounded-xl border border-slate-200 bg-slate-50">
-              <div className="grid gap-4 md:grid-cols-3">
-                {documentStepLabels.map((label, index) => {
-                  const states = getDocumentWorkflowState(doc.statusKey ?? "pending");
-                  const stepState = states[index];
-                  const dotClassName =
-                    stepState === "complete"
-                      ? "complete"
-                      : stepState === "current"
-                        ? "current"
-                        : "pending";
-                  const lineClassName =
-                    index < documentStepLabels.length - 1 &&
-                    stepState === "complete" &&
-                    states[index + 1] === "complete"
-                      ? "bg-blue-600"
-                      : "bg-slate-300";
-                  const textClassName =
-                    stepState === "current"
-                        ? "text-blue-600"
-                        : stepState === "pending"
-                          ? "text-slate-400"
-                        : "text-slate-700";
+          filteredDocuments.map((doc) => {
+            const statusMeta = docStatusMeta[doc.statusKey ?? "pending"];
+            const workflowStates = getDocumentWorkflowState(doc.statusKey ?? "pending");
+            const isExpanded = expandedDocs.includes(doc.id);
+            const metadataItems = [
+              { label: "文档分类", value: doc.category },
+              { label: "当前版本", value: doc.currentVersion },
+              { label: "上传人", value: doc.ownerName ?? getMemberName(doc.ownerId) },
+              { label: "上传时间", value: doc.createdAt ?? "未记录" },
+            ];
 
-                  return (
-                    <div className="relative flex items-center gap-3" key={`${doc.id}-${label}`}>
-                      {index < documentStepLabels.length - 1 ? (
-                        <div className={`absolute left-4 right-0 top-4 hidden h-[2px] md:block ${lineClassName}`} />
-                      ) : null}
-                      <span className={`document-step-node relative z-10 ${dotClassName}`} />
-                      <div className="relative z-10">
-                        <p className={`text-xs font-medium ${textClassName}`}>{label}</p>
-                        <p className={`mt-1 text-xs ${textClassName}`}>{getDocumentStepCaption(stepState)}</p>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
+            return (
+              <article
+                id={`doc-${doc.id}`}
+                key={doc.id}
+                className={`group relative rounded-xl border border-white/70 bg-white/82 p-4 shadow-[0_6px_18px_rgba(30,60,120,0.08)] transition ${
+                  highlightedDocId === doc.id ? "ring-2 ring-blue-500 ring-offset-2" : ""
+                }`}
+              >
+                <div className="flex items-start justify-between gap-3 pr-10">
+                  <div className="document-step-compact min-w-0 flex-1">
+                    {documentStepLabels.map((label, index) => {
+                      const stepState = workflowStates[index];
+                      const segmentClassName =
+                        index < documentStepLabels.length - 1
+                          ? workflowStates[index] === "complete" && workflowStates[index + 1] === "complete"
+                            ? "complete"
+                            : "pending"
+                          : null;
 
-            <div className="mt-3 flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-              <div className="min-w-0 flex-1">
-                <h3 className="text-base font-semibold text-slate-900">{doc.name}</h3>
-                <div className="mt-2 grid gap-2 text-sm text-slate-500 sm:grid-cols-2 xl:grid-cols-4">
-                  {[
-                    { label: "文档分类", value: doc.category },
-                    { label: "当前版本", value: doc.currentVersion },
-                    { label: "上传人", value: doc.ownerName ?? getMemberName(doc.ownerId) },
-                    { label: "上传时间", value: doc.createdAt ?? "未记录" },
-                  ].map((item) => (
-                    <div className="rounded-lg bg-slate-50 px-3 py-2 ring-1 ring-slate-200" key={item.label}>
-                      <span className="block text-xs text-slate-400">{item.label}</span>
-                      <span className="mt-1 block font-medium text-slate-700">{item.value}</span>
+                      return (
+                        <div className="document-step-item" key={`${doc.id}-${label}`}>
+                          <span className={`document-step-marker ${stepState}`}>
+                            {stepState === "complete" ? <Check className="h-3.5 w-3.5" /> : null}
+                          </span>
+                          <span className="truncate text-[12px] font-medium text-slate-700">
+                            {label} · {getDocumentStepCaption(stepState)}
+                          </span>
+                          {segmentClassName ? <span className={`document-step-segment ${segmentClassName}`} /> : null}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  <span className={`document-status-badge ${statusMeta.className}`}>{statusMeta.label}</span>
+                </div>
+
+                <div className="mt-3">
+                  <h3 className="text-base font-semibold text-slate-900">{doc.name}</h3>
+                </div>
+
+                <div className="document-meta-grid mt-3">
+                  {metadataItems.map((item) => (
+                    <div className="document-meta-item" key={item.label}>
+                      <span className="document-meta-label">{item.label}</span>
+                      <span className="document-meta-value">{item.value}</span>
                     </div>
                   ))}
                 </div>
-                <p className="mt-2 text-sm leading-7 text-slate-500">批注：{doc.comment}</p>
-              </div>
-              <div className="flex flex-wrap items-start gap-3">
-                  <span className={`rounded-md px-3 py-1 text-sm ${docStatusStyles[doc.status]}`}>
-                    {doc.status}
-                  </span>
-                <ActionButton
-                  onClick={() => openVersionUploadModal(doc.id)}
-                  disabled={!permissions.canUploadDocument}
-                  title="无权限"
-                >
-                  <span className="inline-flex items-center gap-2">
+
+                <div className="document-comment-panel mt-3">
+                  <span className="document-comment-label">批注</span>
+                  <p className="document-comment-text">{doc.comment || "暂无批注"}</p>
+                </div>
+
+                <div className="mt-4 flex flex-wrap items-center gap-3">
+                  {getDocumentActionButtons(doc).map((actionButton) => (
+                    <ActionButton
+                      key={`${doc.id}-${actionButton.key}`}
+                      className={
+                        actionButton.key === "leaderRevision" || actionButton.key === "teacherRevision"
+                          ? "border border-red-200 bg-white text-red-600 hover:border-red-300 hover:bg-red-50"
+                          : "border border-[#1a6fd4]/28 bg-white text-[#1a6fd4] hover:border-[#1a6fd4]/45 hover:bg-[#1a6fd4]/5"
+                      }
+                      onClick={() => openReviewModal(doc.id, actionButton.key)}
+                      variant="secondary"
+                    >
+                      <span className="inline-flex items-center gap-2">
+                        {actionButton.key === "leaderRevision" || actionButton.key === "teacherRevision" ? null : (
+                          <FileCheck className="h-4 w-4" />
+                        )}
+                        <span>{actionButton.label}</span>
+                      </span>
+                    </ActionButton>
+                  ))}
+                  <button
+                    className="inline-flex items-center gap-2 rounded-lg px-2 py-2 text-sm font-medium text-slate-500 transition hover:bg-slate-100 hover:text-[#1a6fd4]"
+                    disabled={!permissions.canUploadDocument}
+                    onClick={() => openVersionUploadModal(doc.id)}
+                    title={!permissions.canUploadDocument ? "无权限" : undefined}
+                    type="button"
+                  >
                     <Upload className="h-4 w-4" />
                     <span>上传新版本</span>
-                  </span>
-                </ActionButton>
-                <div className="relative">
-                  <ActionButton
-                    disabled={!doc.downloadUrl}
-                    onClick={() => setOpenDocumentViewMenuId((current) => (current === doc.id ? null : doc.id))}
-                    title={doc.downloadUrl ? undefined : "当前文件尚未生成下载链接"}
-                  >
-                    <span className="inline-flex items-center gap-2">
-                      <Eye className="h-4 w-4" />
-                      <span>查看</span>
-                      <ChevronDown className="h-4 w-4" />
-                    </span>
-                  </ActionButton>
-                  {openDocumentViewMenuId === doc.id ? (
-                    <div className="document-view-menu absolute right-0 top-full z-20 mt-2 min-w-[140px] rounded-xl p-1">
-                      <button
-                        className="document-view-menu-item"
-                        onClick={() => handleDocumentViewAction("preview", doc)}
-                        type="button"
-                      >
-                        在线预览
-                      </button>
-                      <button
-                        className="document-view-menu-item"
-                        onClick={() => handleDocumentViewAction("download", doc)}
-                        type="button"
-                      >
-                        下载
-                      </button>
-                    </div>
-                  ) : null}
+                  </button>
+                  <div className="relative">
+                    <ActionButton
+                      disabled={!doc.downloadUrl}
+                      onClick={() => setOpenDocumentViewMenuId((current) => (current === doc.id ? null : doc.id))}
+                      title={doc.downloadUrl ? undefined : "当前文件尚未生成下载链接"}
+                      variant="secondary"
+                    >
+                      <span className="inline-flex items-center gap-2">
+                        <Eye className="h-4 w-4" />
+                        <span>查看</span>
+                        <ChevronDown className="h-4 w-4" />
+                      </span>
+                    </ActionButton>
+                    {openDocumentViewMenuId === doc.id ? (
+                      <div className="document-view-menu absolute right-0 top-full z-20 mt-2 min-w-[156px] rounded-xl p-1">
+                        <button
+                          className="document-view-menu-item"
+                          onClick={() => handleDocumentViewAction("preview", doc)}
+                          type="button"
+                        >
+                          在线预览
+                        </button>
+                        <button
+                          className="document-view-menu-item"
+                          onClick={() => handleDocumentViewAction("download", doc)}
+                          type="button"
+                        >
+                          下载
+                        </button>
+                        <button
+                          className="document-view-menu-item"
+                          onClick={() => handleDocumentViewAction("history", doc)}
+                          type="button"
+                        >
+                          {isExpanded ? "历史版本（收起）" : "历史版本"}
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
                 </div>
-              </div>
-            </div>
+                {canDeleteDocument(doc) ? (
+                  <button
+                    className="document-card-delete-button"
+                    onClick={() => removeDocument(doc.id, doc.name)}
+                    title="删除文档"
+                    type="button"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </button>
+                ) : null}
 
-            <div className="mt-3 flex flex-wrap gap-3">
-              {getDocumentActionButtons(doc).map((actionButton) => (
-                <ActionButton
-                  key={`${doc.id}-${actionButton.key}`}
-                  className={actionButton.key === "leaderRevision" ? "border border-red-200 bg-white text-red-600 hover:bg-red-50" : undefined}
-                  onClick={() => openReviewModal(doc.id, actionButton.key)}
-                  variant={actionButton.variant}
-                >
-                  <span className="inline-flex items-center gap-2">
-                    {actionButton.key === "leaderRevision" ? null : <FileCheck className="h-4 w-4" />}
-                    <span>{actionButton.label}</span>
-                  </span>
-                </ActionButton>
-              ))}
-              <button
-                className="inline-flex items-center gap-2 text-sm text-blue-600"
-                onClick={() => toggleDocExpand(doc.id)}
-                type="button"
-              >
-                {expandedDocs.includes(doc.id) ? (
-                  <>
-                    <ChevronUp className="h-4 w-4" />
-                    <span>收起历史版本</span>
-                  </>
-                ) : (
-                  <>
-                    <ChevronDown className="h-4 w-4" />
-                    <span>展开历史版本</span>
-                  </>
-                )}
-              </button>
-            </div>
-            {canDeleteDocument(doc) ? (
-              <button
-                className="document-card-delete-button"
-                onClick={() => removeDocument(doc.id, doc.name)}
-                title="删除文档"
-                type="button"
-              >
-                <Trash2 className="h-4 w-4" />
-              </button>
-            ) : null}
-
-            {expandedDocs.includes(doc.id) ? (
-              <div className="mt-4 space-y-3 rounded-xl bg-slate-50 p-4">
+                {isExpanded ? (
+                  <div className="mt-4 space-y-3 rounded-xl bg-slate-50 p-4">
                 {doc.versions.map((version) => (
                   <div
                     key={`${doc.id}-${version.version}`}
@@ -8112,10 +8121,11 @@ export function WorkspaceDashboard({
                     </div>
                   </div>
                 ))}
-              </div>
-            ) : null}
-            </article>
-          ))
+                  </div>
+                ) : null}
+              </article>
+            );
+          })
         ) : (
           <EmptyState
             description={
