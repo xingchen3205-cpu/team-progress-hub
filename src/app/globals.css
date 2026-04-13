@@ -11,6 +11,11 @@
   --color-accent: #1a6fd4;
   --color-success: #15803d;
   --color-warning: #b45309;
+  --color-text-secondary: rgba(15, 23, 42, 0.72);
+  --color-text-tertiary: rgba(15, 23, 42, 0.5);
+  --color-background-secondary: rgba(255, 255, 255, 0.62);
+  --color-border-tertiary: rgba(200, 215, 235, 0.8);
+  --border-radius-lg: 14px;
 }
 
 @theme inline {
@@ -219,8 +224,8 @@ a:hover {
 }
 
 .school-sub {
-  color: rgba(255, 255, 255, 0.45);
-  font-size: 11px;
+  color: rgba(255, 255, 255, 0.52);
+  font-size: 12px;
 }
 
 .sidebar-user-area {
@@ -248,11 +253,10 @@ a:hover {
 }
 
 .depth-card {
-  border: 1px solid rgba(200, 215, 235, 0.80);
+  border: 0.5px solid var(--color-border-tertiary);
+  border-radius: var(--border-radius-lg);
   background: rgba(255, 255, 255, 0.82);
-  box-shadow:
-    0 2px 8px rgba(30, 60, 120, 0.06),
-    0 1px 2px rgba(30, 60, 120, 0.04);
+  box-shadow: 0 2px 8px rgba(30, 60, 120, 0.06);
   backdrop-filter: blur(10px) saturate(145%);
   -webkit-backdrop-filter: blur(10px) saturate(145%);
   transition:
@@ -270,35 +274,32 @@ a:hover {
 }
 
 .depth-subtle {
-  border: 1px solid rgba(208, 220, 238, 0.75);
+  border: 0.5px solid var(--color-border-tertiary);
+  border-radius: var(--border-radius-lg);
   background: rgba(255, 255, 255, 0.76);
-  box-shadow:
-    0 2px 6px rgba(30, 60, 120, 0.05),
-    0 1px 2px rgba(30, 60, 120, 0.04);
+  box-shadow: 0 2px 6px rgba(30, 60, 120, 0.05);
   backdrop-filter: blur(8px) saturate(140%);
   -webkit-backdrop-filter: blur(8px) saturate(140%);
 }
 
 .depth-emphasis {
   border: 1px solid rgba(255, 255, 255, 0.95);
-  border-radius: 12px;
+  border-radius: var(--border-radius-lg);
   background: #ffffff;
-  box-shadow:
-    0 18px 44px rgba(31, 38, 135, 0.18),
-    inset 0 1px 0 rgba(255, 255, 255, 0.95);
+  box-shadow: 0 10px 24px rgba(31, 38, 135, 0.1);
 }
 
 .stat-card {
-  border: 1px solid rgba(200, 215, 235, 0.80);
-  border-radius: 14px;
+  border: 0.5px solid var(--color-border-tertiary);
+  border-radius: var(--border-radius-lg);
   background: rgba(255, 255, 255, 0.82);
-  padding: 20px 20px 16px;
+  padding: 20px 24px;
   box-shadow: 0 2px 8px rgba(30, 60, 120, 0.06);
 }
 
 .stat-card .label-top {
   font-size: 12px;
-  color: rgba(0, 0, 0, 0.45);
+  color: var(--color-text-tertiary);
   margin-bottom: 10px;
 }
 
@@ -312,30 +313,53 @@ a:hover {
 .stat-card .label-bottom {
   font-size: 12px;
   margin-top: 8px;
-  color: rgba(0, 0, 0, 0.35);
+  color: var(--color-text-tertiary);
+}
+
+.stat-card.muted {
+  background: var(--color-background-secondary);
+}
+
+.stat-card.muted .label-top,
+.stat-card.muted .label-bottom {
+  color: var(--color-text-tertiary);
+}
+
+.stat-card.muted .number {
+  color: var(--color-text-secondary);
 }
 
 .work-tip-item {
   margin-bottom: 6px;
-  border: 1px solid rgba(200, 215, 235, 0.60);
-  border-radius: 8px;
+  border: 0.5px solid var(--color-border-tertiary);
+  border-radius: var(--border-radius-lg);
   background: rgba(255, 255, 255, 0.70);
-  padding: 10px 14px;
+  padding: 12px 16px;
+  transition:
+    background-color 180ms ease,
+    border-color 180ms ease,
+    transform 180ms ease;
 }
 
-.work-tip-index {
-  width: 20px;
-  height: 20px;
-  min-width: 20px;
+.work-tip-item:hover {
+  border-color: rgba(26, 111, 212, 0.18);
+  background: rgba(26, 111, 212, 0.04);
+}
+
+.work-tip-dot {
+  width: 8px;
+  height: 8px;
+  min-width: 8px;
   border-radius: 50%;
-  background: rgba(26, 111, 212, 0.10);
-  color: #1a6fd4;
-  font-size: 11px;
-  font-weight: 600;
-  display: flex;
-  align-items: center;
-  justify-content: center;
   flex-shrink: 0;
+}
+
+.work-tip-dot.actionable {
+  background: #f59e0b;
+}
+
+.work-tip-dot.muted {
+  background: rgba(148, 163, 184, 0.95);
 }
 
 .work-tip-text {
@@ -1426,6 +1450,12 @@ a:hover {
   color: #1a6fd4;
 }
 
+.pending-badge.muted {
+  border-color: rgba(203, 213, 225, 0.9);
+  background: rgba(241, 245, 249, 0.92);
+  color: rgba(100, 116, 139, 0.88);
+}
+
 .skeleton-line {
   width: 100%;
   height: 10px;
@@ -1594,13 +1624,14 @@ a:hover {
 
 .sidebar-item:hover {
   color: #ffffff;
-  background: rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .sidebar-item-active {
   color: #ffffff;
   background: rgba(255, 255, 255, 0.08);
   box-shadow: none;
+  font-weight: 500;
 }
 
 .sidebar-item-active::before {
@@ -1609,7 +1640,7 @@ a:hover {
   inset: 0 auto 0 0;
   width: 3px;
   border-radius: 999px;
-  background: #ffffff;
+  background: #1a6fd4;
 }
 
 .tab-item {
@@ -1629,8 +1660,69 @@ a:hover {
   display: flex;
   min-height: 60px;
   align-items: center;
-  padding: 16px 24px;
+  padding: 0 24px;
   border-bottom: 1px solid rgba(200, 215, 235, 0.50);
+}
+
+.header-sync-indicator {
+  align-items: center;
+}
+
+.header-sync-tooltip {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 8px);
+  pointer-events: none;
+  border: 0.5px solid var(--color-border-tertiary);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.96);
+  padding: 8px 10px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+  box-shadow: 0 10px 24px rgba(31, 38, 135, 0.08);
+  opacity: 0;
+  transform: translateY(-2px);
+  transition:
+    opacity 180ms ease,
+    transform 180ms ease;
+}
+
+.group:hover .header-sync-tooltip {
+  opacity: 1;
+  transform: translateY(0);
+}
+
+.header-profile-menu-panel {
+  border: 0.5px solid var(--color-border-tertiary);
+  background: rgba(255, 255, 255, 0.96);
+  box-shadow: 0 10px 24px rgba(31, 38, 135, 0.08);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+.header-profile-menu-item {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  border-radius: 10px;
+  padding: 10px 12px;
+  text-align: left;
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  transition:
+    background-color 180ms ease,
+    color 180ms ease;
+}
+
+.header-profile-menu-item:hover {
+  background: rgba(26, 111, 212, 0.06);
+  color: #1a6fd4;
+}
+
+.header-profile-menu-item.danger:hover {
+  background: rgba(254, 242, 242, 0.95);
+  color: rgb(220 38 38);
 }
 
 .report-date-chip {
@@ -1821,7 +1913,7 @@ a:hover {
 }
 
 :where(.card, .panel, .stat-card, .work-tip-item, .notice-card) {
-  border-radius: 14px;
+  border-radius: var(--border-radius-lg);
 }
 
 :where(.text-slate-400, .text-slate-500, .text-slate-600) {

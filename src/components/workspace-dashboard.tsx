@@ -12,6 +12,7 @@ import {
   CheckCircle2,
   ChevronDown,
   ChevronUp,
+  Cloud,
   Download,
   Eye,
   FileCheck,
@@ -338,6 +339,14 @@ type PriorityFocusTagTone =
 type PriorityFocusItem = {
   tag: PriorityFocusTagTone;
   text: string;
+  targetTab?: TabKey | "notifications";
+};
+
+type OverviewMetric = {
+  label: string;
+  value: string;
+  guide: string;
+  isMuted: boolean;
 };
 
 type TimelineNodeTone = "past" | "current" | "future";
@@ -1732,6 +1741,7 @@ export function WorkspaceDashboard({
   const [dismissedTodosReady, setDismissedTodosReady] = useState(false);
   const [dismissedTodoIds, setDismissedTodoIds] = useState<string[]>([]);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState>(null);
   const [successToast, setSuccessToast] = useState<SuccessToastState>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -1811,6 +1821,7 @@ export function WorkspaceDashboard({
   const [profileMessage, setProfileMessage] = useState<string | null>(null);
   const [isAvatarUploading, setIsAvatarUploading] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement | null>(null);
+  const profileMenuRef = useRef<HTMLDivElement | null>(null);
   const [passwordModalOpen, setPasswordModalOpen] = useState(false);
   const [passwordTargetMember, setPasswordTargetMember] = useState<TeamMember | null>(null);
   const [passwordDraft, setPasswordDraft] = useState("");
@@ -2144,6 +2155,32 @@ export function WorkspaceDashboard({
   }, []);
 
   useEffect(() => {
+    if (!profileMenuOpen) {
+      return undefined;
+    }
+
+    const handlePointerDown = (event: MouseEvent) => {
+      if (!profileMenuRef.current?.contains(event.target as Node)) {
+        setProfileMenuOpen(false);
+      }
+    };
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setProfileMenuOpen(false);
+      }
+    };
+
+    document.addEventListener("mousedown", handlePointerDown);
+    document.addEventListener("keydown", handleEscape);
+
+    return () => {
+      document.removeEventListener("mousedown", handlePointerDown);
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [profileMenuOpen]);
+
+  useEffect(() => {
     if (!trainingTimerRunning) {
       return undefined;
     }
@@ -2188,6 +2225,7 @@ export function WorkspaceDashboard({
   useEffect(() => {
     setMobileSidebarOpen(false);
     setLoadError(null);
+    setProfileMenuOpen(false);
   }, [safeActiveTab]);
 
   useEffect(() => {
@@ -4906,7 +4944,19 @@ export function WorkspaceDashboard({
 
   const openProfilePage = () => {
     setProfileMessage(null);
+    setProfileMenuOpen(false);
     router.push("/workspace?tab=profile");
+  };
+
+  const openOverviewTarget = (target?: TabKey | "notifications") => {
+    if (target === "notifications") {
+      setNotificationsOpen(true);
+      return;
+    }
+
+    if (target) {
+      router.push(target === "overview" ? "/workspace" : `/workspace?tab=${target}`);
+    }
   };
 
   const applyUpdatedCurrentUser = (user: CurrentUser) => {
@@ -5224,23 +5274,35 @@ export function WorkspaceDashboard({
     const reviewScoreCount = reviewAssignments.filter((assignment) => assignment.score).length;
     const pendingExpertReviewCount = reviewAssignments.filter((assignment) => assignment.statusKey === "pending").length;
 
-    const overviewMetrics =
+    const overviewMetrics: OverviewMetric[] =
       hasGlobalAdminRole
         ? [
             {
               label: "待审核账号",
               value: `${pendingApprovalMembers.length} 个`,
-              hint: pendingApprovalMembers.length > 0 ? "等待全局管理员审核处理" : "当前没有待审核账号",
+              guide:
+                pendingApprovalMembers.length > 0
+                  ? "存在待审核账号，可前往账号管理处理 →"
+                  : "暂无待处理，可前往账号管理查看 →",
+              isMuted: pendingApprovalMembers.length === 0,
             },
             {
               label: "待办提醒",
               value: `${todoItemCount} 项`,
-              hint: todoItemCount > 0 ? "建议优先处理站内待办与提醒" : "当前无新增待办",
+              guide:
+                todoItemCount > 0
+                  ? "建议优先处理站内待办与提醒 →"
+                  : "暂无待处理，可前往待办中心查看 →",
+              isMuted: todoItemCount === 0,
             },
             {
               label: "未读消息",
               value: `${unreadTodoNotifications.length} 条`,
-              hint: unreadTodoNotifications.length > 0 ? "含系统提醒与审批通知" : "消息已基本处理完成",
+              guide:
+                unreadTodoNotifications.length > 0
+                  ? "存在未读消息，可前往待办中心查看 →"
+                  : "暂无未读消息，可前往待办中心查看 →",
+              isMuted: unreadTodoNotifications.length === 0,
             },
           ]
         : currentRole === "teacher"
@@ -5248,20 +5310,29 @@ export function WorkspaceDashboard({
               {
                 label: "待审材料",
                 value: `${pendingLeaderReviewCount + pendingTeacherReviewCount} 份`,
-                hint:
+                guide:
                   pendingLeaderReviewCount + pendingTeacherReviewCount > 0
-                    ? "文档中心仍有待审批材料"
-                    : "当前没有待审批材料",
+                    ? "存在待审批材料，可前往文档中心处理 →"
+                    : "暂无待审批材料，可前往文档中心查看 →",
+                isMuted: pendingLeaderReviewCount + pendingTeacherReviewCount === 0,
               },
               {
                 label: "未交汇报",
                 value: `${unsubmittedReportCount} 人`,
-                hint: unsubmittedReportCount > 0 ? "建议尽快督促项目组补齐汇报" : "团队汇报已基本收齐",
+                guide:
+                  unsubmittedReportCount > 0
+                    ? "存在未交汇报，可前往日程汇报督办 →"
+                    : "暂无未交汇报，可前往日程汇报查看 →",
+                isMuted: unsubmittedReportCount === 0,
               },
               {
                 label: "待办提醒",
                 value: `${todoItemCount} 项`,
-                hint: todoItemCount > 0 ? "有事项待处理" : "当前无新增待办",
+                guide:
+                  todoItemCount > 0
+                    ? "存在待办提醒，可前往待办中心处理 →"
+                    : "暂无待办提醒，可前往待办中心查看 →",
+                isMuted: todoItemCount === 0,
               },
             ]
           : currentRole === "leader"
@@ -5269,17 +5340,29 @@ export function WorkspaceDashboard({
                 {
                   label: "待分配工单",
                   value: `${tasks.filter((task) => task.status === "todo" && !task.assigneeId).length} 项`,
-                  hint: "本队待分配任务需尽快落到责任人",
+                  guide:
+                    tasks.filter((task) => task.status === "todo" && !task.assigneeId).length > 0
+                      ? "存在待分配工单，可前往任务中心处理 →"
+                      : "暂无待分配工单，可前往任务中心查看 →",
+                  isMuted: tasks.filter((task) => task.status === "todo" && !task.assigneeId).length === 0,
                 },
                 {
                   label: "待验收工单",
                   value: `${tasks.filter((task) => task.status === "review").length} 项`,
-                  hint: "已提交待验收的事项请及时闭环",
+                  guide:
+                    tasks.filter((task) => task.status === "review").length > 0
+                      ? "存在待验收工单，可前往任务中心处理 →"
+                      : "暂无待验收工单，可前往任务中心查看 →",
+                  isMuted: tasks.filter((task) => task.status === "review").length === 0,
                 },
                 {
                   label: "未交汇报",
                   value: `${unsubmittedReportCount} 人`,
-                  hint: unsubmittedReportCount > 0 ? "团队汇报尚未收齐" : "今天团队汇报已基本收齐",
+                  guide:
+                    unsubmittedReportCount > 0
+                      ? "存在未交汇报，可前往日程汇报督办 →"
+                      : "暂无未交汇报，可前往日程汇报查看 →",
+                  isMuted: unsubmittedReportCount === 0,
                 },
               ]
             : currentRole === "expert"
@@ -5287,34 +5370,55 @@ export function WorkspaceDashboard({
                   {
                     label: "待评任务",
                     value: `${pendingExpertReviewCount} 项`,
-                    hint: pendingExpertReviewCount > 0 ? "请按时完成评审打分" : "当前没有待评分配任务",
+                    guide:
+                      pendingExpertReviewCount > 0
+                        ? "存在待评任务，可前往专家评审处理 →"
+                        : "暂无待评任务，可前往专家评审查看 →",
+                    isMuted: pendingExpertReviewCount === 0,
                   },
                   {
                     label: "已交评分",
                     value: `${reviewScoreCount} 条`,
-                    hint: reviewScoreCount > 0 ? "已完成的评审结果会保留存档" : "当前尚未提交评分",
+                    guide:
+                      reviewScoreCount > 0
+                        ? "已提交评分结果，可前往专家评审查看 →"
+                        : "暂无已交评分，可前往专家评审查看 →",
+                    isMuted: reviewScoreCount === 0,
                   },
                   {
                     label: "待办提醒",
                     value: `${todoItemCount} 项`,
-                    hint: todoItemCount > 0 ? "仍有待办需要查看" : "当前无新增待办",
+                    guide:
+                      todoItemCount > 0
+                        ? "存在待办提醒，可前往待办中心处理 →"
+                        : "暂无待办提醒，可前往待办中心查看 →",
+                    isMuted: todoItemCount === 0,
                   },
                 ]
               : [
                   {
                     label: "我的任务",
                     value: `${myOpenTasks.length} 项`,
-                    hint: myOpenTasks.length > 0 ? "优先推进分配给自己的任务" : "当前没有个人未完成任务",
+                    guide:
+                      myOpenTasks.length > 0
+                        ? "存在个人任务，可前往任务中心处理 →"
+                        : "暂无个人任务，可前往任务中心查看 →",
+                    isMuted: myOpenTasks.length === 0,
                   },
                   {
                     label: "今日日报",
                     value: myReportSubmitted ? "已提交" : "待提交",
-                    hint: myReportSubmitted ? "今天的日程汇报已完成" : "请先提交今日工作汇报",
+                    guide: myReportSubmitted ? "今日日报已完成，可前往日程汇报查看 →" : "请先提交今日工作汇报 →",
+                    isMuted: myReportSubmitted,
                   },
                   {
                     label: "未读消息",
                     value: `${unreadTodoNotifications.length} 条`,
-                    hint: unreadTodoNotifications.length > 0 ? "有新提醒待查看" : "当前没有未读消息",
+                    guide:
+                      unreadTodoNotifications.length > 0
+                        ? "存在未读消息，可前往待办中心查看 →"
+                        : "暂无未读消息，可前往待办中心查看 →",
+                    isMuted: unreadTodoNotifications.length === 0,
                   },
                 ];
 
@@ -5419,6 +5523,7 @@ export function WorkspaceDashboard({
             {
               tag: myReportSubmitted ? "clear" : "pending-action",
               text: myReportSubmitted ? "今日日程汇报已提交。" : "今日日程汇报还未提交，建议先补齐。",
+              targetTab: "reports",
             },
             {
               tag: myOpenTasks.length > 0 ? "pending-action" : "clear",
@@ -5426,6 +5531,7 @@ export function WorkspaceDashboard({
                 myOpenTasks.length > 0
                   ? `当前有 ${myOpenTasks.length} 项个人任务待推进。`
                   : "当前没有个人待办任务。",
+              targetTab: "board",
             },
             {
               tag: pendingExpertReviewCount > 0 ? "pending-review" : reviewScoreCount > 0 ? "pending-view" : "clear",
@@ -5435,53 +5541,60 @@ export function WorkspaceDashboard({
                   : reviewScoreCount > 0
                   ? `专家评审已有 ${reviewScoreCount} 条评分/评语可查看。`
                   : "当前暂无专家评审结果。",
+              targetTab: "review",
             },
           ]
         : currentRole === "leader"
           ? [
-              {
-                tag: unsubmittedReportCount > 0 ? "pending-action" : "clear",
-                text: unsubmittedReportCount > 0 ? `今天还有 ${unsubmittedReportCount} 人未提交汇报。` : "今天团队汇报已基本收齐。",
-              },
-              {
-                tag: openTasks.length > 0 ? "pending-action" : "clear",
-                text: openTasks.length > 0 ? `工单台账仍有 ${openTasks.length} 项待推进。` : "工单台账当前没有未完成事项。",
-              },
-              {
-                tag: pendingExpertReviewCount > 0 ? "pending-review" : reviewScoreCount > 0 ? "pending-view" : "clear",
-                text:
-                  pendingExpertReviewCount > 0
+            {
+              tag: unsubmittedReportCount > 0 ? "pending-action" : "clear",
+              text: unsubmittedReportCount > 0 ? `今天还有 ${unsubmittedReportCount} 人未提交汇报。` : "今天团队汇报已基本收齐。",
+              targetTab: "reports",
+            },
+            {
+              tag: openTasks.length > 0 ? "pending-action" : "clear",
+              text: openTasks.length > 0 ? `工单台账仍有 ${openTasks.length} 项待推进。` : "工单台账当前没有未完成事项。",
+              targetTab: "board",
+            },
+            {
+              tag: pendingExpertReviewCount > 0 ? "pending-review" : reviewScoreCount > 0 ? "pending-view" : "clear",
+              text:
+                pendingExpertReviewCount > 0
                     ? `专家评审仍有 ${pendingExpertReviewCount} 项正在评分。`
                     : reviewScoreCount > 0
                       ? `专家评审已有 ${reviewScoreCount} 条评分/评语。`
                       : "专家评审结果暂未形成。",
-              },
-            ]
-          : [
-              {
-                tag: pendingApprovalMembers.length > 0 ? "pending-approval" : "clear",
-                text:
-                  pendingApprovalMembers.length > 0
+              targetTab: "review",
+            },
+          ]
+        : [
+            {
+              tag: pendingApprovalMembers.length > 0 ? "pending-approval" : "clear",
+              text:
+                pendingApprovalMembers.length > 0
                     ? `当前有 ${pendingApprovalMembers.length} 个账号等待审核。`
                     : "当前没有新的账号审核积压。",
-              },
-              {
-                tag: pendingLeaderReviewCount + pendingTeacherReviewCount > 0 ? "pending-approval" : "clear",
-                text:
-                  pendingLeaderReviewCount + pendingTeacherReviewCount > 0
+              targetTab: "team",
+            },
+            {
+              tag: pendingLeaderReviewCount + pendingTeacherReviewCount > 0 ? "pending-approval" : "clear",
+              text:
+                pendingLeaderReviewCount + pendingTeacherReviewCount > 0
                     ? `文档中心共有 ${pendingLeaderReviewCount + pendingTeacherReviewCount} 份材料待审批。`
                     : "文档中心当前没有待审批材料。",
-              },
-              {
-                tag: pendingExpertReviewCount > 0 ? "pending-review" : reviewScoreCount > 0 ? "pending-view" : "clear",
-                text:
-                  pendingExpertReviewCount > 0
+              targetTab: "documents",
+            },
+            {
+              tag: pendingExpertReviewCount > 0 ? "pending-review" : reviewScoreCount > 0 ? "pending-view" : "clear",
+              text:
+                pendingExpertReviewCount > 0
                     ? `专家评审仍有 ${pendingExpertReviewCount} 项正在进行中。`
                     : reviewScoreCount > 0
                       ? `专家评审已有 ${reviewScoreCount} 条评分/评语。`
                       : "专家评审暂无已提交评分。",
-              },
-            ];
+              targetTab: "review",
+            },
+          ];
 
     const keyEventItems = events.slice(0, 4);
     const quickActionEntries =
@@ -5506,7 +5619,7 @@ export function WorkspaceDashboard({
     return (
       <div className="space-y-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="depth-mid flex min-w-0 flex-1 flex-wrap items-center gap-2 rounded-[18px] px-4 py-3">
+          <div className="depth-mid flex min-w-0 flex-1 flex-wrap items-center gap-2 rounded-[var(--border-radius-lg)] px-4 py-3">
             <div className="h-4 w-1 rounded-full bg-[#1a6fd4]" />
             <p className="truncate text-sm font-semibold text-slate-900">中国国际大学生创新大赛管理系统</p>
             <span className="depth-emphasis px-3 py-1 text-xs text-slate-500">
@@ -5522,35 +5635,21 @@ export function WorkspaceDashboard({
               {portalScopeText}
             </span>
           </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <DemoResetNote />
-            <ActionButton
-              disabled={!permissions.canPublishAnnouncement}
-              onClick={() => setAnnouncementModalOpen(true)}
-              title="无权限"
-              variant="primary"
-            >
-              <span className="inline-flex items-center gap-2">
-                <BellPlus className="h-4 w-4" />
-                <span>发布公告</span>
-              </span>
-            </ActionButton>
-          </div>
         </div>
 
         <section className="grid gap-4 xl:grid-cols-[minmax(0,1.2fr)_360px]">
-          <article className="depth-card overflow-hidden rounded-[20px]">
-            <div className="border-b border-white/55 bg-white/18 px-6 py-5">
+          <article className="depth-card overflow-hidden rounded-[var(--border-radius-lg)]">
+            <div className="border-b border-white/55 bg-white/18 px-6 py-3">
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0">
                   <div className="depth-emphasis inline-flex items-center gap-2 px-3 py-1 text-xs font-medium tracking-[0.08em] text-[#1a6fd4]">
                     <span className="h-2 w-2 rounded-full bg-[#1a6fd4]" />
                     今日总览
                   </div>
-                  <h3 className="mt-4 text-[30px] font-bold tracking-[-0.04em] text-slate-900">
-                    欢迎登录，{currentUser?.profile.name ?? currentUser?.name ?? "用户"}。
+                  <h3 className="mt-3 text-base font-medium text-[var(--color-text-secondary)]">
+                    欢迎登录，{currentUser?.roleLabel ?? roleLabels[currentRole]}。
                   </h3>
-                  <p className="mt-3 max-w-3xl text-sm leading-7 text-slate-500">
+                  <p className="mt-2 max-w-3xl text-[13px] leading-6 text-[var(--color-text-tertiary)]">
                     {hasGlobalAdminRole
                       ? "当前为全局管理视角，请优先关注账号审核、站内待办和公告发布。"
                       : currentRole === "teacher"
@@ -5571,18 +5670,18 @@ export function WorkspaceDashboard({
                 </button>
               </div>
             </div>
-            <div className="grid gap-3 px-6 py-5 md:grid-cols-3">
+            <div className="grid gap-3 px-6 py-4 md:grid-cols-3">
               {overviewMetrics.map((item) => (
-                <article className="stat-card depth-emphasis" key={item.label}>
+                <article className={`stat-card ${item.isMuted ? "muted" : ""}`} key={item.label}>
                   <p className="label-top tracking-[0.08em]">{item.label}</p>
-                  <p className="number tracking-[-0.03em] text-slate-900">{item.value}</p>
-                  <p className="label-bottom leading-5">{item.hint}</p>
+                  <p className="number tracking-[-0.03em]">{item.value}</p>
+                  <p className="label-bottom leading-5">{item.guide}</p>
                 </article>
               ))}
             </div>
           </article>
 
-          <article className="depth-card overflow-hidden rounded-[20px]">
+          <article className="depth-card overflow-hidden rounded-[var(--border-radius-lg)]">
             <div className="border-b border-white/55 bg-white/18 px-4 py-3">
               <div className="flex items-center gap-2">
                 <div className="h-4 w-1 rounded-full bg-[#1a6fd4]" />
@@ -5590,18 +5689,21 @@ export function WorkspaceDashboard({
               </div>
             </div>
             <div className="space-y-3 p-4">
-              {priorityFocusItems.map((item, index) => (
-                <div className="work-tip-item" key={`${item.tag}-${item.text}`}>
+              {priorityFocusItems.map((item) => (
+                <button
+                  className="work-tip-item w-full text-left"
+                  key={`${item.tag}-${item.text}`}
+                  onClick={() => openOverviewTarget(item.targetTab)}
+                  type="button"
+                >
                   <div className="flex items-start gap-3">
-                    <span className="work-tip-index mt-0.5 inline-flex items-center justify-center">
-                      {index + 1}
-                    </span>
+                    <span className={`work-tip-dot ${item.tag === "clear" ? "muted" : "actionable"}`} />
                     <p className="work-tip-text leading-6">{item.text}</p>
                   </div>
-                </div>
+                </button>
               ))}
               <button
-                className="depth-card flex w-full items-center justify-between rounded-xl px-4 py-3 text-left transition"
+                className="depth-card flex w-full items-center justify-between rounded-[var(--border-radius-lg)] px-4 py-3 text-left transition"
                 onClick={() => setNotificationsOpen(true)}
                 type="button"
               >
@@ -5609,7 +5711,7 @@ export function WorkspaceDashboard({
                   <p className="text-sm font-semibold text-slate-900">进入待办中心</p>
                   <p className="mt-1 text-xs text-slate-500">统一查看待办、提醒与审批通知</p>
                 </div>
-                <span className="pending-badge px-2.5 py-1 text-xs font-medium">
+                <span className={`pending-badge px-2.5 py-1 text-xs font-medium ${todoItemCount === 0 ? "muted" : ""}`}>
                   {todoItemCount} 项
                 </span>
               </button>
@@ -8932,16 +9034,16 @@ export function WorkspaceDashboard({
             />
           ) : null}
 
-          <aside className="hidden xl:block xl:w-[280px] xl:flex-none">
-            <div className="sidebar depth-sidebar rounded-xl px-5 py-6 text-white xl:sticky xl:top-4 xl:flex xl:h-[calc(100vh-2rem)] xl:flex-col">
-              <div className="sidebar-header border-b border-white/15 pb-4">
+          <aside className="hidden xl:block xl:w-[220px] xl:flex-none">
+            <div className="sidebar depth-sidebar rounded-xl px-4 py-6 text-white xl:sticky xl:top-4 xl:flex xl:h-[calc(100vh-2rem)] xl:flex-col">
+              <div className="sidebar-header pb-5">
                 <div className="sidebar-logo flex items-center gap-3">
-                  <div className="sidebar-logo-wrapper flex h-12 w-12 items-center justify-center">
+                  <div className="sidebar-logo-wrapper flex h-10 w-10 items-center justify-center">
                     <Image alt="南铁校徽" className="h-9 w-auto object-contain" height={77} src="/official-logo.png" width={430} />
                   </div>
                   <div className="min-w-0">
                     <h1 className="school-name text-base tracking-[0.02em]">管理中心</h1>
-                    <p className="school-sub mt-1 tracking-[0.12em]">南京铁道职业技术学院</p>
+                    <p className="school-sub mt-1">南京铁道职业技术学院</p>
                   </div>
                 </div>
               </div>
@@ -8956,7 +9058,7 @@ export function WorkspaceDashboard({
                   return (
                     <Link
                       key={item.key}
-                      className={`sidebar-item relative flex items-center gap-3 rounded-lg px-4 py-3 text-sm no-underline ${isActive ? "sidebar-item-active" : ""}`}
+                      className={`sidebar-item relative flex items-center gap-2.5 rounded-lg px-4 py-3 text-sm no-underline ${isActive ? "sidebar-item-active" : ""}`}
                       href={href}
                     >
                       <Icon className="h-[18px] w-[18px]" strokeWidth={2.1} />
@@ -8996,19 +9098,19 @@ export function WorkspaceDashboard({
           </aside>
 
           <aside
-            className={`depth-sidebar fixed inset-y-0 left-0 z-50 w-[280px] px-5 py-6 text-white shadow-xl transition-transform duration-200 xl:hidden ${
+            className={`depth-sidebar fixed inset-y-0 left-0 z-50 w-[220px] px-4 py-6 text-white shadow-xl transition-transform duration-200 xl:hidden ${
               mobileSidebarOpen ? "translate-x-0" : "-translate-x-full"
             }`}
           >
             <div className="sidebar flex h-full flex-col">
-              <div className="sidebar-header flex items-center justify-between border-b border-white/15 pb-4">
+              <div className="sidebar-header flex items-center justify-between pb-5">
                 <div className="sidebar-logo flex items-center gap-3">
-                  <div className="sidebar-logo-wrapper flex h-11 w-11 items-center justify-center">
+                  <div className="sidebar-logo-wrapper flex h-10 w-10 items-center justify-center">
                     <Image alt="南铁校徽" className="h-8 w-auto object-contain" height={77} src="/official-logo.png" width={430} />
                   </div>
                   <div>
                     <h1 className="school-name text-base tracking-[0.02em]">管理中心</h1>
-                    <p className="school-sub mt-1 tracking-[0.12em]">南京铁道职业技术学院</p>
+                    <p className="school-sub mt-1">南京铁道职业技术学院</p>
                   </div>
                 </div>
                 <button
@@ -9030,7 +9132,7 @@ export function WorkspaceDashboard({
                   return (
                     <Link
                       key={`mobile-${item.key}`}
-                      className={`sidebar-item relative flex items-center gap-3 rounded-lg px-4 py-3 text-sm no-underline ${isActive ? "sidebar-item-active" : ""}`}
+                      className={`sidebar-item relative flex items-center gap-2.5 rounded-lg px-4 py-3 text-sm no-underline ${isActive ? "sidebar-item-active" : ""}`}
                       href={href}
                       onClick={() => setMobileSidebarOpen(false)}
                     >
@@ -9085,6 +9187,15 @@ export function WorkspaceDashboard({
                 </div>
 
                 <div className="flex flex-wrap items-center gap-3">
+                  <span className="header-date hidden text-[13px] text-slate-500 md:inline-flex">
+                    {formatFriendlyDate(currentDateTime)}
+                  </span>
+                  <div className="header-sync-indicator group relative hidden md:inline-flex">
+                    <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/65 bg-white/70 text-slate-500">
+                      <Cloud className="h-3.5 w-3.5" />
+                    </span>
+                    <span className="header-sync-tooltip">数据自动同步至云端数据库</span>
+                  </div>
                   <button
                     className="depth-button-secondary relative inline-flex h-10 items-center gap-2 rounded-lg px-3 text-slate-700"
                     onClick={() => setNotificationsOpen(true)}
@@ -9098,39 +9209,56 @@ export function WorkspaceDashboard({
                       </span>
                     ) : null}
                   </button>
-                  <button
-                    className="depth-button-secondary flex items-center gap-3 rounded-lg px-3 py-2 text-left transition"
-                    onClick={openProfilePage}
-                    type="button"
-                  >
-                    <UserAvatar
-                      avatar={currentUser.profile.avatar}
-                      avatarUrl={currentUser.profile.avatarUrl}
-                      className="flex h-10 w-10 items-center justify-center rounded-full bg-[#2563eb] text-sm font-semibold text-white"
-                      name={currentUser.profile.name}
-                      textClassName="text-sm font-semibold text-white"
-                    />
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <p className="text-sm font-medium text-slate-900">{currentUser.profile.name}</p>
-                        <span className="rounded-md bg-blue-50 px-2.5 py-1 text-xs text-blue-600">
-                          {roleLabels[currentRole]}
-                        </span>
+                  <div className="header-profile-menu relative" ref={profileMenuRef}>
+                    <button
+                      className="depth-button-secondary flex items-center gap-3 rounded-lg px-3 py-2 text-left transition"
+                      onClick={() => setProfileMenuOpen((current) => !current)}
+                      type="button"
+                    >
+                      <UserAvatar
+                        avatar={currentUser.profile.avatar}
+                        avatarUrl={currentUser.profile.avatarUrl}
+                        className="flex h-10 w-10 items-center justify-center rounded-full bg-[#2563eb] text-sm font-semibold text-white"
+                        name={currentUser.profile.name}
+                        textClassName="text-sm font-semibold text-white"
+                      />
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium text-slate-900">{currentUser.profile.name}</p>
+                        <p className="mt-1 text-xs text-slate-400">查看个人信息</p>
                       </div>
-                      <p className="mt-1 text-xs text-slate-400">点击查看个人信息</p>
-                      {currentUser.teamGroupName ? (
-                        <p className="mt-1 text-xs text-slate-500">当前队伍：{currentUser.teamGroupName}</p>
-                      ) : null}
-                    </div>
-                  </button>
-                  <button
-                    className="inline-flex h-10 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-4 text-sm text-slate-700 no-underline shadow-sm hover:bg-slate-50"
-                    onClick={() => void handleLogout()}
-                    type="button"
+                      <ChevronDown className={`h-4 w-4 text-slate-400 transition ${profileMenuOpen ? "rotate-180" : ""}`} />
+                    </button>
+                    {profileMenuOpen ? (
+                      <div className="header-profile-menu-panel absolute right-0 top-full z-30 mt-2 min-w-[180px] rounded-xl p-1">
+                        <button
+                          className="header-profile-menu-item"
+                          onClick={openProfilePage}
+                          type="button"
+                        >
+                          查看个人信息
+                        </button>
+                        <button
+                          className="header-profile-menu-item danger"
+                          onClick={() => void handleLogout()}
+                          type="button"
+                        >
+                          退出登录
+                        </button>
+                      </div>
+                    ) : null}
+                  </div>
+                  <div className="header-toolbar-divider hidden h-8 w-px bg-slate-200 md:block" />
+                  <ActionButton
+                    disabled={!permissions.canPublishAnnouncement}
+                    onClick={() => setAnnouncementModalOpen(true)}
+                    title="无权限"
+                    variant="primary"
                   >
-                    <LogOut className="h-4 w-4" />
-                    <span>退出登录</span>
-                  </button>
+                    <span className="inline-flex items-center gap-2">
+                      <BellPlus className="h-4 w-4" />
+                      <span>发布公告</span>
+                    </span>
+                  </ActionButton>
                 </div>
               </div>
             </header>

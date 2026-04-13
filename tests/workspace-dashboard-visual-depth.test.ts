@@ -21,6 +21,7 @@ const readCssBlock = (source: string, selector: string) => {
 
 test("workspace shell uses layered-depth sidebar styling", () => {
   assert.match(dashboardSource, /depth-sidebar/);
+  assert.match(dashboardSource, /xl:w-\[220px\]/);
   assert.doesNotMatch(dashboardSource, /bg-\[#0B3B8A\]/);
   assert.doesNotMatch(dashboardSource, /bg-blue-800 text-white shadow-sm/);
 });
@@ -36,10 +37,15 @@ test("body and shared depth classes use the cleaned blue-white depth palette", (
   assert.match(globalsSource, /\.depth-mid\s*\{[\s\S]*background:\s*rgba\(255,\s*255,\s*255,\s*0\.75\)/);
   assert.match(globalsSource, /\.depth-mid\s*\{[\s\S]*backdrop-filter:\s*blur\(8px\)/);
   assert.match(globalsSource, /\.depth-card\s*\{[\s\S]*background:\s*rgba\(255,\s*255,\s*255,\s*0\.82\)/);
-  assert.match(globalsSource, /\.depth-card\s*\{[\s\S]*border:\s*1px solid rgba\(200,\s*215,\s*235,\s*0\.80\)/);
-  assert.match(globalsSource, /\.depth-card\s*\{[\s\S]*box-shadow:\s*0 2px 8px rgba\(30,\s*60,\s*120,\s*0\.06\),\s*0 1px 2px rgba\(30,\s*60,\s*120,\s*0\.04\)/);
+  assert.match(globalsSource, /\.depth-card\s*\{[\s\S]*border:\s*0\.5px solid var\(--color-border-tertiary\)/);
+  assert.match(globalsSource, /\.depth-card\s*\{[\s\S]*box-shadow:\s*0 2px 8px rgba\(30,\s*60,\s*120,\s*0\.06\)/);
   assert.doesNotMatch(depthCardBlock, /\binset 0 1px 0/);
   assert.match(globalsSource, /\.depth-emphasis\s*\{[\s\S]*background:\s*#ffffff/);
+  assert.match(globalsSource, /--color-text-secondary:/);
+  assert.match(globalsSource, /--color-text-tertiary:/);
+  assert.match(globalsSource, /--color-background-secondary:/);
+  assert.match(globalsSource, /--color-border-tertiary:/);
+  assert.match(globalsSource, /--border-radius-lg:/);
 });
 
 test("sidebar styling uses dark midground glass and white active rails", () => {
@@ -48,10 +54,11 @@ test("sidebar styling uses dark midground glass and white active rails", () => {
   assert.match(globalsSource, /\.depth-sidebar::after\s*\{/);
   assert.match(globalsSource, /\.depth-sidebar::after\s*\{[\s\S]*linear-gradient\(\s*to right,\s*rgba\(20,\s*50,\s*120,\s*0\.06\),\s*transparent/);
   assert.match(globalsSource, /\.sidebar-item\s*\{[\s\S]*color:\s*rgba\(255,\s*255,\s*255,\s*0\.78\)/);
-  assert.match(globalsSource, /\.sidebar-item:hover\s*\{[\s\S]*background:\s*rgba\(255,\s*255,\s*255,\s*0\.18\)/);
+  assert.match(globalsSource, /\.sidebar-item:hover\s*\{[\s\S]*background:\s*rgba\(255,\s*255,\s*255,\s*0\.08\)/);
   assert.match(globalsSource, /\.sidebar-item-active\s*\{[\s\S]*color:\s*#ffffff/);
   assert.match(globalsSource, /\.sidebar-item-active\s*\{[\s\S]*background:\s*rgba\(255,\s*255,\s*255,\s*0\.08\)/);
-  assert.match(globalsSource, /\.sidebar-item-active::before\s*\{[\s\S]*background:\s*#ffffff/);
+  assert.match(globalsSource, /\.sidebar-item-active\s*\{[\s\S]*font-weight:\s*500/);
+  assert.match(globalsSource, /\.sidebar-item-active::before\s*\{[\s\S]*background:\s*#1a6fd4/);
 });
 
 test("workspace chrome consumes depth utility classes instead of flat white panels", () => {
@@ -69,10 +76,12 @@ test("workspace chrome consumes depth utility classes instead of flat white pane
   assert.match(dashboardSource, /school-name/);
   assert.match(dashboardSource, /school-sub/);
   assert.match(dashboardSource, /work-tip-item/);
-  assert.match(dashboardSource, /work-tip-index/);
+  assert.match(dashboardSource, /work-tip-dot/);
   assert.match(dashboardSource, /work-tip-text/);
   assert.match(dashboardSource, /tab-item/);
   assert.match(dashboardSource, /topbar/);
+  assert.match(dashboardSource, /header-sync-indicator/);
+  assert.match(dashboardSource, /header-profile-menu/);
 });
 
 test("workspace stops boot blocking immediately after current user resolves", () => {
@@ -97,18 +106,23 @@ test("sidebar logo area uses transparent shell and white-treated logo", () => {
   assert.match(globalsSource, /\.sidebar-logo img\s*\{[\s\S]*filter:\s*brightness\(0\)\s*invert\(1\)/);
   assert.match(globalsSource, /\.sidebar-logo img\s*\{[\s\S]*opacity:\s*0\.90/);
   assert.match(globalsSource, /\.school-name\s*\{[\s\S]*rgba\(255,\s*255,\s*255,\s*0\.92\)/);
-  assert.match(globalsSource, /\.school-sub\s*\{[\s\S]*rgba\(255,\s*255,\s*255,\s*0\.45\)/);
+  assert.match(globalsSource, /\.school-sub\s*\{[\s\S]*rgba\(255,\s*255,\s*255,\s*0\.52\)/);
+  assert.match(globalsSource, /\.school-sub\s*\{[\s\S]*font-size:\s*12px/);
 });
 
 test("overview detail classes tighten the stat and work-tip styling", () => {
   assert.match(globalsSource, /\.sidebar-user-area\s*\{[\s\S]*background:\s*transparent/);
-  assert.match(globalsSource, /\.stat-card\s*\{[\s\S]*padding:\s*20px 20px 16px/);
+  assert.match(globalsSource, /\.stat-card\s*\{[\s\S]*padding:\s*20px 24px/);
   assert.match(globalsSource, /\.stat-card \.label-top\s*\{[\s\S]*margin-bottom:\s*10px/);
-  assert.match(globalsSource, /\.stat-card \.label-bottom\s*\{[\s\S]*rgba\(0,\s*0,\s*0,\s*0\.35\)/);
+  assert.match(globalsSource, /\.stat-card\.muted\s*\{/);
   assert.match(globalsSource, /\.work-tip-item\s*\{[\s\S]*background:\s*rgba\(255,\s*255,\s*255,\s*0\.70\)/);
-  assert.match(globalsSource, /\.work-tip-index\s*\{[\s\S]*color:\s*#1a6fd4/);
+  assert.match(globalsSource, /\.work-tip-dot\.actionable\s*\{/);
+  assert.match(globalsSource, /\.work-tip-dot\.muted\s*\{/);
+  assert.match(globalsSource, /\.pending-badge\.muted\s*\{/);
   assert.match(globalsSource, /\.tab-item\.active\s*\{[\s\S]*border-bottom:\s*2px solid #1a6fd4/);
   assert.match(globalsSource, /\.topbar\s*\{[\s\S]*border-bottom:\s*1px solid rgba\(200,\s*215,\s*235,\s*0\.50\)/);
+  assert.match(globalsSource, /\.header-sync-tooltip\s*\{/);
+  assert.match(globalsSource, /\.header-profile-menu-panel\s*\{/);
 });
 
 test("overview summary and priority panels use rails, tags, banner, and footer link", () => {
