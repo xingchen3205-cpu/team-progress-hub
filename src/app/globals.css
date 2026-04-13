@@ -1065,6 +1065,93 @@ a:hover {
   min-height: 150px;
 }
 
+.timeline-mobile-list {
+  display: grid;
+  gap: 14px;
+}
+
+.timeline-mobile-card {
+  display: flex;
+  gap: 14px;
+  border: 1px solid rgba(200, 215, 235, 0.8);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.9);
+  padding: 16px;
+  box-shadow:
+    0 2px 8px rgba(30, 60, 120, 0.06),
+    0 1px 2px rgba(30, 60, 120, 0.04);
+}
+
+.timeline-mobile-node {
+  position: relative;
+  display: flex;
+  width: 24px;
+  flex-shrink: 0;
+  justify-content: center;
+}
+
+.timeline-mobile-dot {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  height: 14px;
+  width: 14px;
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background: rgba(226, 232, 240, 0.95);
+}
+
+.timeline-mobile-node.past .timeline-mobile-dot {
+  border-color: rgba(51, 65, 85, 0.9);
+  background: rgba(51, 65, 85, 0.9);
+}
+
+.timeline-mobile-node.current .timeline-mobile-dot {
+  border-color: #1a6fd4;
+  background: #1a6fd4;
+  box-shadow: 0 0 0 5px rgba(26, 111, 212, 0.12);
+}
+
+.timeline-mobile-node.future .timeline-mobile-dot {
+  border-color: rgba(26, 111, 212, 0.55);
+  border-style: dashed;
+}
+
+.timeline-mobile-line {
+  position: absolute;
+  top: 14px;
+  bottom: -16px;
+  left: 50%;
+  width: 0;
+  transform: translateX(-50%);
+  border-left: 2px dashed rgba(26, 111, 212, 0.24);
+}
+
+.timeline-mobile-node.past .timeline-mobile-line {
+  border-left-style: solid;
+  border-left-color: rgba(51, 65, 85, 0.28);
+}
+
+.timeline-mobile-add {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  border: 1.5px dashed rgba(26, 111, 212, 0.35);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.78);
+  padding: 12px 14px;
+  color: #1a6fd4;
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.timeline-mobile-add:hover {
+  border-color: rgba(26, 111, 212, 0.55);
+  background: rgba(26, 111, 212, 0.05);
+}
+
 .timeline-axis {
   position: relative;
   min-height: 118px;
@@ -1602,6 +1689,16 @@ a:hover {
 
 .todo-modal-dismiss {
   color: rgb(15 23 42 / 62%);
+}
+
+@media (max-width: 767px) {
+  .todo-modal-action {
+    min-width: 0;
+  }
+
+  .todo-modal-action > * {
+    min-height: 40px;
+  }
 }
 
 :where(.card, .panel, .stat-card, .work-tip-item, .notice-card) {

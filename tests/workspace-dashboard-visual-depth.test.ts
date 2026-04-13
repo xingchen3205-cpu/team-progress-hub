@@ -258,6 +258,50 @@ test("experts view uses attachment entry, hover delete affordance, and upload-mo
   assert.match(globalsSource, /\.expert-upload-guide\s*\{/);
 });
 
+test("mobile layout uses stacked timeline, responsive forms, and non-cramped modal actions", () => {
+  const timelineBlock = dashboardSource.slice(
+    dashboardSource.indexOf("const renderTimeline = () => ("),
+    dashboardSource.indexOf("const renderBoard = () => {"),
+  );
+  const reportsBlock = dashboardSource.slice(
+    dashboardSource.indexOf("const renderReports = () => ("),
+    dashboardSource.indexOf("const renderExperts = () => ("),
+  );
+  const reviewBlock = dashboardSource.slice(
+    dashboardSource.indexOf("const renderReview = () => {"),
+    dashboardSource.indexOf("const renderDocuments = () => ("),
+  );
+  const teamBlock = dashboardSource.slice(
+    dashboardSource.indexOf("const renderTeam = () => ("),
+    dashboardSource.indexOf("const renderProfile = () => {"),
+  );
+  const todoModalBlock = dashboardSource.slice(
+    dashboardSource.indexOf('{notificationsOpen ? ('),
+    dashboardSource.indexOf('{reminderModalOpen ? ('),
+  );
+
+  assert.match(timelineBlock, /md:hidden/);
+  assert.match(timelineBlock, /hidden md:block/);
+  assert.match(timelineBlock, /md:min-w-\[860px\]/);
+  assert.doesNotMatch(timelineBlock, /className="min-w-\[860px\]"/);
+  assert.match(globalsSource, /\.timeline-mobile-list\s*\{/);
+  assert.match(globalsSource, /\.timeline-mobile-card\s*\{/);
+  assert.match(globalsSource, /\.timeline-mobile-node\s*\{/);
+
+  assert.match(reportsBlock, /w-full md:min-w-56/);
+  assert.match(teamBlock, /w-full sm:min-w-\[240px\]/);
+  assert.match(teamBlock, /w-full sm:min-w-\[160px\]/);
+  assert.match(teamBlock, /w-full sm:min-w-\[180px\]/);
+
+  assert.match(reviewBlock, /grid-cols-2 sm:grid-cols-3 lg:grid-cols-5/);
+  assert.match(reviewBlock, /grid-cols-1 sm:grid-cols-2 xl:grid-cols-3/);
+  assert.match(reviewBlock, /grid-cols-1 sm:grid-cols-2 md:grid-cols-3/);
+
+  assert.match(todoModalBlock, /max-h-\[min\(92vh,860px\)\] max-w-\[min\(94vw,860px\)\] sm:max-w-\[min\(92vw,860px\)\]/);
+  assert.match(todoModalBlock, /grid-cols-1 sm:grid-cols-\[minmax\(0,1fr\)_136px\]/);
+  assert.match(todoModalBlock, /grid-cols-1 sm:grid-cols-\[minmax\(0,1fr\)_120px\]/);
+});
+
 test("review view uses unified review cards, collapsed scoring, contextual material actions, and warning chips", () => {
   const reviewBlock = dashboardSource.slice(
     dashboardSource.indexOf("const renderReview = () => {"),

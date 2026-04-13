@@ -5864,92 +5864,148 @@ export function WorkspaceDashboard({
         title="时间进度"
       />
 
-      <section className={`overflow-x-auto ${surfaceCardClassName}`}>
+      <section className={surfaceCardClassName}>
         {events.length === 0 ? (
           <p className="text-sm leading-7 text-slate-500">当前还没有时间节点，请先新增比赛关键节点。</p>
         ) : null}
-        <div className="min-w-[860px]">
-          <div className="timeline-shell relative px-6 pt-8">
-            <div className="timeline-axis">
-              {events.slice(0, -1).map((item, index) => {
-                const leftPoint = getTimelinePointStyle(events, index);
-                const rightPoint = getTimelinePointStyle(events, index + 1);
-                const segmentTone =
-                  index < nearestUpcomingIndex ? "solid" : "dashed";
+        <div className="timeline-mobile-list md:hidden">
+          {events.map((item, index) => {
+            const tone: TimelineNodeTone =
+              index < nearestUpcomingIndex ? "past" : index === nearestUpcomingIndex ? "current" : "future";
+            const { dateLabel, timeLabel } = getTimelineDateTag(item.dateTime);
+            const description = item.description.trim().length > 2 ? item.description : "暂无描述，点击编辑补充";
 
-                return (
-                  <span
-                    className={`timeline-segment ${segmentTone}`}
-                    key={`${item.id}-segment`}
-                    style={{
-                      left: leftPoint.left,
-                      width: `calc(${rightPoint.left} - ${leftPoint.left})`,
-                    }}
-                  />
-                );
-              })}
-              {events.map((item, index) => {
-                const tone: TimelineNodeTone =
-                  index < nearestUpcomingIndex ? "past" : index === nearestUpcomingIndex ? "current" : "future";
-                const pointStyle = getTimelinePointStyle(events, index);
-
-                return (
-                  <div key={item.id} className="timeline-point" style={pointStyle}>
-                    <div className={`timeline-node ${tone}`}>
-                      {tone === "current" ? <span className="timeline-node-ping" /> : null}
-                    </div>
-                    <p className="timeline-node-title">{item.title}</p>
-                    <p className="timeline-node-time">{formatDateTime(item.dateTime)}</p>
-                  </div>
-                );
-              })}
-              {permissions.canEditTimeline ? (
-                <button
-                  className="timeline-add-button"
-                  onClick={() => openEventModal()}
-                  title="新增节点"
-                  type="button"
-                >
-                  <Plus className="h-4 w-4" />
-                </button>
-              ) : null}
-            </div>
-          </div>
-
-          <div className="mt-8 grid grid-cols-4 gap-4">
-            {events.map((item) => {
-              const { dateLabel, timeLabel } = getTimelineDateTag(item.dateTime);
-              const description = item.description.trim().length > 2 ? item.description : "暂无描述，点击编辑补充";
-
-              return (
-              <article key={item.id} className={subtleCardClassName}>
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex flex-wrap gap-2">
-                    <span className="timeline-tag">{item.type}</span>
-                    <span className="timeline-tag">{dateLabel}</span>
-                    <span className="timeline-tag">{timeLabel}</span>
-                  </div>
-                  <button
-                    className="timeline-edit-button"
-                    disabled={!permissions.canEditTimeline}
-                    onClick={() => openEventModal(item)}
-                    title={permissions.canEditTimeline ? "编辑节点" : "无权限"}
-                    type="button"
-                  >
-                    <Pencil className="h-4 w-4" />
-                  </button>
+            return (
+              <article key={`${item.id}-mobile`} className="timeline-mobile-card">
+                <div className={`timeline-mobile-node ${tone}`}>
+                  <span className="timeline-mobile-dot" />
+                  {index < events.length - 1 ? <span className="timeline-mobile-line" /> : null}
                 </div>
-                <h3 className="mt-4 text-base font-semibold text-slate-900">{item.title}</h3>
-                <p className={`mt-3 text-sm leading-7 ${item.description.trim().length > 2 ? "text-slate-500" : "text-slate-400"}`}>{description}</p>
+                <div className="min-w-0 flex-1">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-sm font-semibold text-slate-900">{item.title}</p>
+                      <div className="mt-2 flex flex-wrap gap-2">
+                        <span className="timeline-tag">{item.type}</span>
+                        <span className="timeline-tag">{dateLabel}</span>
+                        <span className="timeline-tag">{timeLabel}</span>
+                      </div>
+                    </div>
+                    <button
+                      className="timeline-edit-button"
+                      disabled={!permissions.canEditTimeline}
+                      onClick={() => openEventModal(item)}
+                      title={permissions.canEditTimeline ? "编辑节点" : "无权限"}
+                      type="button"
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </button>
+                  </div>
+                  <p className={`mt-3 text-sm leading-6 ${item.description.trim().length > 2 ? "text-slate-500" : "text-slate-400"}`}>
+                    {description}
+                  </p>
+                </div>
               </article>
-              );
-            })}
+            );
+          })}
+          {permissions.canEditTimeline ? (
+            <button
+              className="timeline-mobile-add"
+              onClick={() => openEventModal()}
+              type="button"
+            >
+              <Plus className="h-4 w-4" />
+              <span>新增节点</span>
+            </button>
+          ) : null}
+        </div>
+
+        <div className="hidden md:block">
+          <div className="overflow-x-auto">
+            <div className="md:min-w-[860px]">
+              <div className="timeline-shell relative px-6 pt-8">
+                <div className="timeline-axis">
+                  {events.slice(0, -1).map((item, index) => {
+                    const leftPoint = getTimelinePointStyle(events, index);
+                    const rightPoint = getTimelinePointStyle(events, index + 1);
+                    const segmentTone =
+                      index < nearestUpcomingIndex ? "solid" : "dashed";
+
+                    return (
+                      <span
+                        className={`timeline-segment ${segmentTone}`}
+                        key={`${item.id}-segment`}
+                        style={{
+                          left: leftPoint.left,
+                          width: `calc(${rightPoint.left} - ${leftPoint.left})`,
+                        }}
+                      />
+                    );
+                  })}
+                  {events.map((item, index) => {
+                    const tone: TimelineNodeTone =
+                      index < nearestUpcomingIndex ? "past" : index === nearestUpcomingIndex ? "current" : "future";
+                    const pointStyle = getTimelinePointStyle(events, index);
+
+                    return (
+                      <div key={item.id} className="timeline-point" style={pointStyle}>
+                        <div className={`timeline-node ${tone}`}>
+                          {tone === "current" ? <span className="timeline-node-ping" /> : null}
+                        </div>
+                        <p className="timeline-node-title">{item.title}</p>
+                        <p className="timeline-node-time">{formatDateTime(item.dateTime)}</p>
+                      </div>
+                    );
+                  })}
+                  {permissions.canEditTimeline ? (
+                    <button
+                      className="timeline-add-button"
+                      onClick={() => openEventModal()}
+                      title="新增节点"
+                      type="button"
+                    >
+                      <Plus className="h-4 w-4" />
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+
+              <div className="mt-8 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+                {events.map((item) => {
+                  const { dateLabel, timeLabel } = getTimelineDateTag(item.dateTime);
+                  const description = item.description.trim().length > 2 ? item.description : "暂无描述，点击编辑补充";
+
+                  return (
+                  <article key={item.id} className={subtleCardClassName}>
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex flex-wrap gap-2">
+                        <span className="timeline-tag">{item.type}</span>
+                        <span className="timeline-tag">{dateLabel}</span>
+                        <span className="timeline-tag">{timeLabel}</span>
+                      </div>
+                      <button
+                        className="timeline-edit-button"
+                        disabled={!permissions.canEditTimeline}
+                        onClick={() => openEventModal(item)}
+                        title={permissions.canEditTimeline ? "编辑节点" : "无权限"}
+                        type="button"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </button>
+                    </div>
+                    <h3 className="mt-4 text-base font-semibold text-slate-900">{item.title}</h3>
+                    <p className={`mt-3 text-sm leading-7 ${item.description.trim().length > 2 ? "text-slate-500" : "text-slate-400"}`}>{description}</p>
+                  </article>
+                  );
+                })}
+              </div>
+            </div>
           </div>
         </div>
       </section>
     </div>
   );
-
+ 
   const renderBoard = () => {
     const normalizedBoardSearch = boardSearch.trim().toLowerCase();
     const taskStatusCounts = boardColumns.reduce(
@@ -6945,7 +7001,7 @@ export function WorkspaceDashboard({
               </div>
               <div className="flex flex-col gap-3 md:flex-row md:items-end">
                 {hasGlobalAdminRole ? (
-                  <label className="block min-w-56 text-sm font-medium text-slate-600">
+                  <label className="block w-full md:min-w-56 text-sm font-medium text-slate-600">
                     项目组
                     <select
                       className={`${fieldClassName} mt-1.5`}
@@ -6961,7 +7017,7 @@ export function WorkspaceDashboard({
                     </select>
                   </label>
                 ) : null}
-                <label className="block min-w-56 text-sm font-medium text-slate-600">
+                <label className="block w-full md:min-w-56 text-sm font-medium text-slate-600">
                   日期
                   <input
                     className={`${fieldClassName} mt-1.5`}
@@ -7516,7 +7572,7 @@ export function WorkspaceDashboard({
                                   : "请选择等级"}
                               </span>
                             </div>
-                            <div className="mt-4 grid grid-cols-5 gap-2">
+                            <div className="mt-4 grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
                               {choices.map((choice) => {
                                 const isSelected = selectedGrade === choice.grade;
                                 return (
@@ -7637,7 +7693,7 @@ export function WorkspaceDashboard({
                 </div>
 
                 {currentRole === "member" ? null : (
-                  <div className="mt-5 grid gap-4 md:grid-cols-3">
+                  <div className="mt-5 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
                     {(["plan", "ppt", "video"] as const).map((kind) => {
                       const material = group.items[0]?.materials[kind];
                       const missingHint =
@@ -7713,7 +7769,7 @@ export function WorkspaceDashboard({
                   {!isExpanded ? (
                     <div className="review-score-summary-card">
                       <p className="text-sm font-medium text-slate-500">评分概览</p>
-                      <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                      <div className="mt-3 grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-3 gap-3">
                         {group.items.map((assignment) => (
                           <div key={`${assignment.id}-summary`} className="review-score-summary-item">
                             <div className="flex items-center justify-between gap-3">
@@ -8294,7 +8350,7 @@ export function WorkspaceDashboard({
               </p>
             </div>
             <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
-              <label className="relative block min-w-[240px] text-sm text-slate-500">
+              <label className="relative block w-full sm:min-w-[240px] text-sm text-slate-500">
                 <span className="sr-only">搜索账号</span>
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                 <input
@@ -8308,7 +8364,7 @@ export function WorkspaceDashboard({
               <label className="text-sm text-slate-500">
                 <span className="sr-only">按角色筛选</span>
                 <select
-                  className="w-full min-w-[160px] rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                  className="w-full sm:min-w-[160px] rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
                   value={teamRoleFilter}
                   onChange={(event) => setTeamRoleFilter(event.target.value as "全部" | TeamRoleLabel)}
                 >
@@ -8323,7 +8379,7 @@ export function WorkspaceDashboard({
                 <label className="text-sm text-slate-500">
                   <span className="sr-only">按分组筛选</span>
                   <select
-                    className="w-full min-w-[180px] rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                    className="w-full sm:min-w-[180px] rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
                     value={teamGroupFilter}
                     onChange={(event) => setTeamGroupFilter(event.target.value)}
                   >
@@ -9859,7 +9915,7 @@ export function WorkspaceDashboard({
       {notificationsOpen ? (
         <Modal
           onClose={() => setNotificationsOpen(false)}
-          panelClassName="max-h-[min(88vh,860px)] max-w-[min(92vw,860px)]"
+          panelClassName="max-h-[min(92vh,860px)] max-w-[min(94vw,860px)] sm:max-w-[min(92vw,860px)]"
           title="今日待办"
         >
           <div className="space-y-5 overflow-hidden">
@@ -9917,7 +9973,7 @@ export function WorkspaceDashboard({
                       }`}
                       key={item.id}
                     >
-                      <div className="flex flex-col gap-4 md:grid md:grid-cols-[minmax(0,1fr)_136px] md:items-start md:gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_136px] gap-4 sm:items-start sm:gap-4">
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
                             <p className="text-sm font-semibold text-slate-900">{item.title}</p>
@@ -9964,7 +10020,7 @@ export function WorkspaceDashboard({
                       onClick={() => void openTodoItem(item)}
                       type="button"
                     >
-                      <div className="flex flex-col gap-3 md:grid md:grid-cols-[minmax(0,1fr)_120px] md:items-start md:gap-4">
+                      <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_120px] gap-3 sm:items-start sm:gap-4">
                         <div className="min-w-0">
                           <p className="text-sm font-semibold text-slate-900">{item.title}</p>
                           <p className="mt-2 text-sm leading-6 text-slate-500">{item.detail}</p>
