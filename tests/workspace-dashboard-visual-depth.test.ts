@@ -175,6 +175,7 @@ test("documents view uses compact category cards, pulsing current node, menu-bas
   assert.match(documentsBlock, /document-meta-grid/);
   assert.match(documentsBlock, /document-meta-item/);
   assert.match(documentsBlock, /document-comment-panel/);
+  assert.match(documentsBlock, /getDocumentReminderLabel/);
   assert.doesNotMatch(documentsBlock, /展开历史版本/);
   assert.match(documentsBlock, /document-card-delete-button/);
   assert.match(documentsBlock, /查看</);

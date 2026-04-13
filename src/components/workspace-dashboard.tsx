@@ -93,6 +93,11 @@ import {
   mapExpertReviewGradeToScore,
   expertReviewMaterialLabels,
 } from "@/lib/expert-review";
+import {
+  canTriggerDocumentReminder,
+  getDocumentReminderLabel,
+  getDocumentReminderRecipientIds,
+} from "@/lib/document-reminder";
 import type { TrainingQuestionImportCandidate } from "@/lib/training-import";
 import {
   buildTaskWorkflowSteps,
@@ -3956,6 +3961,45 @@ export function WorkspaceDashboard({
       targetTab: "reports",
       successTitle: "汇报提醒已发送",
       successDetail: `已提醒 ${member.name} 尽快补交当日汇报。`,
+    });
+  };
+
+  const sendDocumentReminder = (doc: DocumentItem) => {
+    const statusKey = doc.statusKey ?? "pending";
+    const docTeamGroupId =
+      members.find((member) => member.id === doc.ownerId)?.teamGroupId ?? currentUser?.teamGroupId ?? null;
+    if (
+      !canTriggerDocumentReminder({
+        actorRole: currentRole,
+        statusKey,
+      })
+    ) {
+      setLoadError("当前账号没有发送该文档审批提醒的权限");
+      return;
+    }
+
+    const recipientIds = getDocumentReminderRecipientIds({
+      statusKey,
+      currentUserId: currentMemberId,
+      currentTeamGroupId: docTeamGroupId,
+      teamMembers: members,
+    });
+
+    if (recipientIds.length === 0) {
+      setLoadError("当前阶段没有可提醒的审批人");
+      return;
+    }
+
+    void sendDirectReminderToUsers({
+      userIds: recipientIds,
+      title: `文档审批提醒：${doc.name}`,
+      detail:
+        statusKey === "pending"
+          ? `《${doc.name}》当前正等待负责人审批，请及时进入文档中心处理。`
+          : `《${doc.name}》已进入教师终审阶段，请及时进入文档中心处理。`,
+      targetTab: "documents",
+      successTitle: "文档审批提醒已发送",
+      successDetail: `已提醒当前审批节点处理《${doc.name}》。`,
     });
   };
 
@@ -7924,6 +7968,10 @@ export function WorkspaceDashboard({
             const statusMeta = docStatusMeta[doc.statusKey ?? "pending"];
             const workflowStates = getDocumentWorkflowState(doc.statusKey ?? "pending");
             const isExpanded = expandedDocs.includes(doc.id);
+            const canRemindDocument = canTriggerDocumentReminder({
+              actorRole: currentRole,
+              statusKey: doc.statusKey ?? "pending",
+            });
             const metadataItems = [
               { label: "文档分类", value: doc.category },
               { label: "当前版本", value: doc.currentVersion },
@@ -8004,6 +8052,18 @@ export function WorkspaceDashboard({
                       </span>
                     </ActionButton>
                   ))}
+                  {canRemindDocument ? (
+                    <ActionButton
+                      className="border border-slate-200 bg-white text-slate-600 hover:border-[#1a6fd4]/35 hover:bg-[#1a6fd4]/5 hover:text-[#1a6fd4]"
+                      onClick={() => sendDocumentReminder(doc)}
+                      variant="secondary"
+                    >
+                      <span className="inline-flex items-center gap-2">
+                        <BellPlus className="h-4 w-4" />
+                        <span>{getDocumentReminderLabel(doc.statusKey ?? "pending")}</span>
+                      </span>
+                    </ActionButton>
+                  ) : null}
                   <button
                     className="inline-flex items-center gap-2 rounded-lg px-2 py-2 text-sm font-medium text-slate-500 transition hover:bg-slate-100 hover:text-[#1a6fd4]"
                     disabled={!permissions.canUploadDocument}
