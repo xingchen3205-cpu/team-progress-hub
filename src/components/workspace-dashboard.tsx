@@ -9021,12 +9021,12 @@ export function WorkspaceDashboard({
   return (
     <>
       <main
-        className={`workspace-depth-bg workspace-shell-fade-in p-4 md:p-6 ${
+        className={`workspace-depth-bg workspace-shell-fade-in overflow-x-hidden p-4 md:p-6 ${
           safeActiveTab === "timeline" || safeActiveTab === "reports" ? "h-auto pb-8" : "min-h-screen"
         }`}
       >
         <div aria-hidden className="workspace-orb-field" />
-        <div className="relative z-[1] mx-auto flex max-w-[1500px] flex-col gap-4 xl:flex-row">
+        <div className="relative z-[1] mx-auto flex max-w-[1500px] flex-col gap-4 overflow-x-hidden xl:flex-row">
           {mobileSidebarOpen ? (
             <div
               className="fixed inset-0 z-40 bg-slate-950/40 xl:hidden"
@@ -9098,8 +9098,10 @@ export function WorkspaceDashboard({
           </aside>
 
           <aside
-            className={`depth-sidebar fixed inset-y-0 left-0 z-50 w-[min(82vw,260px)] overflow-hidden px-4 py-6 text-white shadow-xl transition-transform duration-200 xl:hidden ${
-              mobileSidebarOpen ? "translate-x-0" : "-translate-x-full"
+            className={`depth-sidebar fixed inset-y-0 left-0 z-50 w-[min(82vw,260px)] overflow-hidden px-4 py-6 text-white transition-all duration-200 xl:hidden ${
+              mobileSidebarOpen
+                ? "translate-x-0 opacity-100 shadow-xl"
+                : "-translate-x-[calc(100%+2rem)] opacity-0 shadow-none pointer-events-none"
             }`}
           >
             <div className="sidebar flex h-full flex-col">
@@ -9172,7 +9174,7 @@ export function WorkspaceDashboard({
             </div>
           </aside>
 
-          <section className="min-w-0 flex-1">
+          <section className="min-w-0 flex-1 overflow-x-hidden">
             <header className="depth-mid rounded-xl">
               <div className="topbar mx-auto flex max-w-[1200px] flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                 <div className="flex min-h-10 items-center gap-3">

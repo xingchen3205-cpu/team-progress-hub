@@ -1903,6 +1903,15 @@ a:hover {
 }
 
 @media (max-width: 767px) {
+  .workspace-orb-field {
+    inset: -8vh -22vw;
+    opacity: 0.44;
+    background:
+      radial-gradient(circle, rgba(180, 210, 255, 0.42) 0 16%, transparent 58%) 2% 6% / 360px 360px no-repeat,
+      radial-gradient(circle, rgba(160, 200, 245, 0.34) 0 16%, transparent 60%) 96% 10% / 420px 420px no-repeat,
+      radial-gradient(circle, rgba(145, 198, 235, 0.22) 0 16%, transparent 60%) 50% 88% / 400px 400px no-repeat;
+  }
+
   .depth-sidebar::after {
     display: none;
   }
@@ -1910,6 +1919,10 @@ a:hover {
   .topbar {
     min-height: 0;
     padding: 14px 16px;
+  }
+
+  .workspace-shell-fade-in {
+    animation-duration: 180ms;
   }
 
   .header-profile-menu-panel {
