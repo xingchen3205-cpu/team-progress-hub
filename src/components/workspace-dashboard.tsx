@@ -1899,6 +1899,7 @@ export function WorkspaceDashboard({
     setLoadError(null);
     setPreviewAsset(null);
     setSentRemindersOpen(false);
+    window.scrollTo({ top: 0, left: 0, behavior: "auto" });
   }, [safeActiveTab]);
 
   useEffect(() => {

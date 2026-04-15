@@ -164,7 +164,10 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
       }
 
       startTransition(() => {
-        router.push("/workspace");
+        if (typeof window !== "undefined") {
+          window.scrollTo({ top: 0, left: 0, behavior: "auto" });
+        }
+        router.push("/workspace", { scroll: true });
       });
     } catch {
       setLoginErrors((current) => ({
