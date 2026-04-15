@@ -1903,6 +1903,19 @@ a:hover {
 }
 
 @media (max-width: 767px) {
+  .depth-sidebar::after {
+    display: none;
+  }
+
+  .topbar {
+    min-height: 0;
+    padding: 14px 16px;
+  }
+
+  .header-profile-menu-panel {
+    min-width: 160px;
+  }
+
   .todo-modal-action {
     min-width: 0;
   }

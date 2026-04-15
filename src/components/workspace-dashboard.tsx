@@ -8985,9 +8985,9 @@ export function WorkspaceDashboard({
 
   if (isBooting) {
     return (
-      <main className="workspace-depth-bg relative flex min-h-screen items-center justify-center overflow-hidden px-4">
+      <main className="workspace-depth-bg relative flex min-h-screen items-center justify-center overflow-hidden px-4 py-6">
         <div aria-hidden className="workspace-orb-field" />
-        <div className="relative z-[1] depth-card w-full max-w-xl rounded-2xl px-6 py-7 sm:px-8 sm:py-8">
+        <div className="relative z-[1] depth-card w-full max-w-[calc(100vw-2rem)] rounded-2xl px-5 py-6 sm:max-w-xl sm:px-8 sm:py-8">
           <div className="depth-emphasis inline-flex items-center px-3 py-1 text-xs font-medium tracking-[0.08em] text-[#1a6fd4]">
             中国国际大学生创新大赛管理系统
           </div>
@@ -9098,7 +9098,7 @@ export function WorkspaceDashboard({
           </aside>
 
           <aside
-            className={`depth-sidebar fixed inset-y-0 left-0 z-50 w-[220px] px-4 py-6 text-white shadow-xl transition-transform duration-200 xl:hidden ${
+            className={`depth-sidebar fixed inset-y-0 left-0 z-50 w-[min(82vw,260px)] overflow-hidden px-4 py-6 text-white shadow-xl transition-transform duration-200 xl:hidden ${
               mobileSidebarOpen ? "translate-x-0" : "-translate-x-full"
             }`}
           >
@@ -9174,7 +9174,7 @@ export function WorkspaceDashboard({
 
           <section className="min-w-0 flex-1">
             <header className="depth-mid rounded-xl">
-              <div className="topbar mx-auto flex max-w-[1200px] flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+              <div className="topbar mx-auto flex max-w-[1200px] flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                 <div className="flex min-h-10 items-center gap-3">
                   <button
                     className="depth-button-secondary inline-flex h-10 w-10 items-center justify-center rounded-lg text-slate-700 xl:hidden"
@@ -9186,7 +9186,7 @@ export function WorkspaceDashboard({
                   <p className="text-lg font-semibold text-slate-900">{activeTabItem.label}</p>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-3">
+                <div className="flex w-full flex-wrap items-center justify-between gap-2 sm:w-auto sm:justify-end sm:gap-3">
                   <span className="header-date hidden text-[13px] text-slate-500 md:inline-flex">
                     {formatFriendlyDate(currentDateTime)}
                   </span>
@@ -9202,7 +9202,7 @@ export function WorkspaceDashboard({
                     type="button"
                   >
                     <BellPlus className="h-4 w-4" />
-                    <span className="text-sm font-medium">待办</span>
+                    <span className="hidden text-sm font-medium sm:inline">待办</span>
                     {todoItemCount > 0 ? (
                       <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-[#ef4444] px-1.5 text-[10px] font-semibold text-white">
                         {todoItemCount}
@@ -9211,7 +9211,7 @@ export function WorkspaceDashboard({
                   </button>
                   <div className="header-profile-menu relative" ref={profileMenuRef}>
                     <button
-                      className="depth-button-secondary flex items-center gap-3 rounded-lg px-3 py-2 text-left transition"
+                      className="depth-button-secondary flex items-center gap-2 rounded-lg px-2.5 py-2 text-left transition sm:gap-3 sm:px-3"
                       onClick={() => setProfileMenuOpen((current) => !current)}
                       type="button"
                     >
@@ -9222,7 +9222,7 @@ export function WorkspaceDashboard({
                         name={currentUser.profile.name}
                         textClassName="text-sm font-semibold text-white"
                       />
-                      <div className="min-w-0">
+                      <div className="hidden min-w-0 sm:block">
                         <p className="truncate text-sm font-medium text-slate-900">{currentUser.profile.name}</p>
                         <p className="mt-1 text-xs text-slate-400">查看个人信息</p>
                       </div>
@@ -9249,6 +9249,7 @@ export function WorkspaceDashboard({
                   </div>
                   <div className="header-toolbar-divider hidden h-8 w-px bg-slate-200 md:block" />
                   <ActionButton
+                    className="px-3 sm:px-4"
                     disabled={!permissions.canPublishAnnouncement}
                     onClick={() => setAnnouncementModalOpen(true)}
                     title="无权限"
@@ -9256,7 +9257,7 @@ export function WorkspaceDashboard({
                   >
                     <span className="inline-flex items-center gap-2">
                       <BellPlus className="h-4 w-4" />
-                      <span>发布公告</span>
+                      <span className="hidden sm:inline">发布公告</span>
                     </span>
                   </ActionButton>
                 </div>

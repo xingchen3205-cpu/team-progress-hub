@@ -357,8 +357,8 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
 
   if (isCheckingSession) {
     return (
-      <main className="workspace-depth-bg flex min-h-screen items-center justify-center px-4">
-        <div className="depth-card w-full max-w-md rounded-2xl px-6 py-7 text-center">
+      <main className="workspace-depth-bg flex min-h-screen items-center justify-center px-4 py-6">
+        <div className="depth-card w-full max-w-[calc(100vw-2rem)] rounded-2xl px-5 py-6 text-center sm:max-w-md sm:px-6 sm:py-7">
           <div className="depth-emphasis mx-auto flex h-12 w-12 items-center justify-center rounded-2xl text-[#1a6fd4]">
             <Loader2 className="h-6 w-6 animate-spin" />
           </div>
@@ -372,7 +372,7 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
   return (
     <main className="workspace-depth-bg min-h-screen text-slate-900">
       <div className="min-h-screen lg:grid lg:grid-cols-[11fr_9fr]">
-        <section className="relative min-h-[42vh] overflow-hidden lg:min-h-screen">
+        <section className="relative min-h-[30vh] overflow-hidden sm:min-h-[36vh] lg:min-h-screen">
           <div
             aria-hidden="true"
             className="absolute inset-0 bg-cover bg-center"
@@ -385,12 +385,12 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
           <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(255,255,255,0.09),transparent_40%)]" />
           <div className="absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.08)_0%,transparent_22%,transparent_52%,rgba(125,211,252,0.08)_78%,transparent_100%)] opacity-70" />
           <div className="absolute inset-0 opacity-25 [background-image:linear-gradient(135deg,rgba(255,255,255,0.07)_0,rgba(255,255,255,0.07)_1px,transparent_1px,transparent_24px)] [background-size:28px_28px]" />
-          <div className="relative flex h-full flex-col justify-between px-8 py-8 lg:px-14 lg:py-10">
+          <div className="relative flex h-full flex-col justify-between px-5 py-5 sm:px-8 sm:py-8 lg:px-14 lg:py-10">
             <div className="mx-auto w-full max-w-3xl">
-              <div className="depth-mid inline-flex items-center gap-2.5 px-3.5 py-2 text-white shadow-[0_18px_44px_rgba(15,23,42,0.18)] backdrop-blur-xl">
+              <div className="depth-mid inline-flex items-center gap-2 px-3 py-1.5 text-white shadow-[0_18px_44px_rgba(15,23,42,0.18)] backdrop-blur-xl sm:gap-2.5 sm:px-3.5 sm:py-2">
                 <Image
                   alt="南京铁道职业技术学院官方标识"
-                  className="h-8 w-auto object-contain"
+                  className="h-7 w-auto object-contain sm:h-8"
                   height={77}
                   priority
                   src="/official-logo.png"
@@ -399,26 +399,26 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
               </div>
             </div>
 
-            <div className="flex flex-1 items-center justify-center px-4">
+            <div className="flex flex-1 items-center justify-center px-2 sm:px-4">
               <div className="max-w-3xl text-center">
                 <div className="flex flex-col items-center">
-                  <h1 className="text-4xl font-extrabold leading-[1.08] tracking-[0.045em] text-white drop-shadow-[0_10px_28px_rgba(15,23,42,0.42)] sm:text-5xl lg:text-[4.1rem]">
-                    <span className="block whitespace-nowrap">南京铁道职业技术学院</span>
-                    <span className="mt-1 block whitespace-nowrap">大赛管理系统</span>
+                  <h1 className="text-[1.75rem] font-extrabold leading-[1.12] tracking-[0.02em] text-white drop-shadow-[0_10px_28px_rgba(15,23,42,0.42)] sm:text-5xl sm:tracking-[0.045em] lg:text-[4.1rem]">
+                    <span className="block text-balance">南京铁道职业技术学院</span>
+                    <span className="mt-1 block">大赛管理系统</span>
                   </h1>
-                  <div className="mt-7 h-px w-24 bg-gradient-to-r from-transparent via-white/80 to-transparent" />
+                  <div className="mt-4 h-px w-20 bg-gradient-to-r from-transparent via-white/80 to-transparent sm:mt-7 sm:w-24" />
                 </div>
               </div>
             </div>
 
-            <div className="mx-auto h-16 w-full max-w-3xl lg:h-20" />
+            <div className="mx-auto h-8 w-full max-w-3xl sm:h-12 lg:h-20" />
           </div>
         </section>
 
-        <section className="flex min-h-screen flex-col bg-white/18 backdrop-blur-[4px]">
-          <div className="flex-1 px-6 py-10 sm:px-10 lg:px-14">
+        <section className="flex min-h-0 flex-col bg-white/18 backdrop-blur-[4px] lg:min-h-screen">
+          <div className="flex-1 px-5 py-8 sm:px-10 sm:py-10 lg:px-14">
             <div className="mx-auto flex min-h-full w-full max-w-[27rem] flex-col justify-center">
-              <div className="mb-10">
+              <div className="mb-7 sm:mb-10">
                 <h2 className="text-3xl font-bold tracking-tight text-slate-900">
                   {mode === "login"
                     ? "用户登录"
