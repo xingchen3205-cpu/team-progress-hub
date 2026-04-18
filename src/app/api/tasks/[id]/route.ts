@@ -189,6 +189,38 @@ const hydrateLegacyTaskAssignments = async (task: NonNullable<TaskWithRelations>
   return (await getTask(task.id)) ?? task;
 };
 
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  const user = await getSessionUser(request);
+  if (!user) {
+    return NextResponse.json({ message: "未登录" }, { status: 401 });
+  }
+
+  try {
+    assertMainWorkspaceRole(user.role);
+  } catch {
+    return NextResponse.json({ message: "无权限" }, { status: 403 });
+  }
+
+  const { id } = await params;
+  const fetchedTask = await getTask(id);
+  const task = fetchedTask
+    ? await hydrateLegacyTaskTeamGroup(await hydrateLegacyTaskAssignments(fetchedTask))
+    : null;
+
+  if (!task) {
+    return NextResponse.json({ message: "工单不存在" }, { status: 404 });
+  }
+
+  if (!canAccessTask(user, task)) {
+    return NextResponse.json({ message: "无权限" }, { status: 403 });
+  }
+
+  return NextResponse.json({ task: serializeTask(task) });
+}
+
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
