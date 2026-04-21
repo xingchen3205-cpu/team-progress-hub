@@ -99,18 +99,16 @@ test("workspace chrome consumes depth utility classes instead of flat white pane
   assert.match(shellSource, /sidebar-user-area/);
   assert.match(shellSource, /sidebar-user-name/);
   assert.match(shellSource, /sidebar-user-role/);
-  assert.match(overviewSource, /stat-card/);
-  assert.match(overviewSource, /label-top/);
-  assert.match(overviewSource, /label-bottom/);
+  assert.match(overviewSource, /buildOverviewMetricCards/);
+  assert.match(overviewSource, /buildProgressPanels/);
+  assert.match(overviewSource, /buildUrgentItems/);
+  assert.match(overviewSource, /OverviewMetricCard/);
+  assert.match(overviewSource, /ProgressRing/);
   assert.match(shellSource, /sidebar-header/);
   assert.match(shellSource, /sidebar-logo-wrapper/);
   assert.match(shellSource, /sidebar-logo/);
   assert.match(shellSource, /school-name/);
   assert.match(shellSource, /school-sub/);
-  assert.match(overviewSource, /work-tip-item/);
-  assert.match(overviewSource, /work-tip-dot/);
-  assert.match(overviewSource, /work-tip-text/);
-  assert.match(overviewSource, /business-entry-card/);
   assert.match(shellSource, /topbar/);
   assert.match(shellSource, /header-sync-indicator/);
   assert.match(shellSource, /header-profile-menu/);
@@ -142,56 +140,44 @@ test("sidebar logo area uses transparent shell and white-treated logo", () => {
   assert.match(globalsSource, /\.school-sub\s*\{[\s\S]*font-size:\s*12px/);
 });
 
-test("overview detail classes tighten the stat and work-tip styling", () => {
+test("overview uses tailwind-first structure for the redesigned dashboard shell", () => {
   assert.match(globalsSource, /\.sidebar-user-area\s*\{[\s\S]*background:\s*transparent/);
-  assert.match(globalsSource, /\.stat-card\s*\{[\s\S]*min-height:\s*80px/);
-  assert.match(globalsSource, /\.stat-card\s*\{[\s\S]*padding:\s*16px 20px/);
-  assert.match(globalsSource, /\.stat-card \.number\s*\{[\s\S]*font-size:\s*28px/);
-  assert.match(globalsSource, /\.stat-card\.muted\s*\{/);
-  assert.match(globalsSource, /\.work-tip-item\s*\{[\s\S]*background:\s*rgba\(255,\s*255,\s*255,\s*0\.70\)/);
-  assert.match(globalsSource, /\.work-tip-dot\.actionable\s*\{/);
-  assert.match(globalsSource, /\.work-tip-dot\.muted\s*\{/);
-  assert.match(globalsSource, /\.pending-badge\.muted\s*\{/);
-  assert.match(globalsSource, /\.business-entry-card:hover\s*\{/);
+  assert.match(overviewSource, /grid gap-3 lg:grid-cols-4/);
+  assert.match(overviewSource, /grid gap-4 xl:grid-cols-2/);
+  assert.match(overviewSource, /rounded-xl border border-gray-200 bg-white/);
+  assert.match(overviewSource, /bg-gray-50/);
   assert.match(globalsSource, /\.topbar\s*\{[\s\S]*border-bottom:\s*1px solid rgba\(200,\s*215,\s*235,\s*0\.50\)/);
   assert.match(globalsSource, /\.header-sync-tooltip\s*\{/);
   assert.match(globalsSource, /\.header-profile-menu-panel\s*\{/);
 });
 
-test("overview layout uses compact metrics, four-up actions, and no quick tips card", () => {
-  assert.match(overviewSource, /grid gap-4 xl:grid-cols-\[minmax\(0,3fr\)_minmax\(320px,2fr\)\]/);
-  assert.match(overviewSource, /grid gap-4 px-5 py-5 md:grid-cols-3/);
-  assert.match(overviewSource, /grid gap-4 md:grid-cols-2 xl:grid-cols-4/);
+test("overview layout uses the new welcome rail, metric strip, and split content columns", () => {
+  assert.match(overviewSource, /欢迎回来，/);
+  assert.match(overviewSource, /待办中心/);
+  assert.match(overviewSource, /业务进度/);
+  assert.match(overviewSource, /紧急事项/);
+  assert.match(overviewSource, /今日汇报/);
+  assert.match(overviewSource, /赛事日程/);
+  assert.match(overviewSource, /通知公告/);
+  assert.match(overviewSource, /lg:grid-cols-\[minmax\(0,1\.05fr\)_minmax\(0,0\.95fr\)\]/);
   assert.doesNotMatch(overviewSource, /快捷办理提示/);
-  assert.doesNotMatch(overviewSource, /quick-tips-card/);
-  assert.doesNotMatch(overviewSource, /quick-actions-grid/);
-  assert.match(globalsSource, /\.overview-info-stack\s*\{[\s\S]*gap:\s*16px/);
-  assert.match(globalsSource, /\.business-entry-card:hover\s*\{[\s\S]*transform:\s*translateY\(-2px\)/);
-  assert.match(globalsSource, /\.overview-timeline-list\s*\{/);
-  assert.match(globalsSource, /\.overview-announcement-item\s*\{/);
+  assert.doesNotMatch(overviewSource, /今日工作提示/);
+  assert.doesNotMatch(overviewSource, /优先关注/);
+  assert.doesNotMatch(overviewSource, /业务办理/);
+  assert.doesNotMatch(overviewSource, /今日任务摘要/);
 });
 
-test("overview summary and priority panels use rails, tags, banner, and footer link", () => {
+test("overview renders svg progress rings, urgent deadline pills, event countdown, and report pills", () => {
   assert.match(contextSource, /const getOverviewDeadlineMeta =/);
-  assert.match(contextSource, /const priorityFocusTagMeta/);
-  assert.match(overviewSource, /task-priority-rail/);
-  assert.match(overviewSource, /priority-focus-tag/);
-  assert.match(overviewSource, /node-tip-banner/);
-  assert.match(overviewSource, /查看全部通知/);
-  assert.doesNotMatch(overviewSource, /task-index/);
-  assert.doesNotMatch(overviewSource, /priority-dot/);
-  assert.match(globalsSource, /\.task-priority-rail\.danger\s*\{/);
-  assert.match(globalsSource, /\.task-priority-rail\.warning\s*\{/);
-  assert.match(globalsSource, /\.task-priority-rail\.normal\s*\{/);
-  assert.match(globalsSource, /\.priority-focus-tag\s*\{/);
-  assert.match(globalsSource, /\.priority-focus-tag\.pending-approval\s*\{/);
-  assert.match(globalsSource, /\.priority-focus-tag\.pending-review\s*\{/);
-  assert.match(globalsSource, /\.priority-focus-tag\.pending-view\s*\{/);
-  assert.match(globalsSource, /\.priority-focus-tag\.clear\s*\{/);
-  assert.match(globalsSource, /\.node-tip-banner\s*\{/);
-  assert.match(globalsSource, /\.task-summary-link\s*\{/);
-  assert.match(globalsSource, /\.task-assignee-meta\s*\{/);
-  assert.match(globalsSource, /\.task-summary-footer-link\s*\{/);
+  assert.match(overviewSource, /const RING_CIRCUMFERENCE = 125\.66/);
+  assert.match(overviewSource, /strokeDasharray={RING_CIRCUMFERENCE}/);
+  assert.match(overviewSource, /strokeDashoffset={/);
+  assert.match(overviewSource, /超期/);
+  assert.match(overviewSource, /剩余/);
+  assert.match(overviewSource, /最近截止/);
+  assert.match(overviewSource, /report-pill/);
+  assert.match(overviewSource, /event-day-card/);
+  assert.match(overviewSource, /announcement-link-button/);
 });
 
 test("timeline view uses proportional positioning, inline add button, and refined node cards", () => {

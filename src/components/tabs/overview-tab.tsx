@@ -1,11 +1,649 @@
 "use client";
 
-import type { PriorityFocusItem, OverviewMetric } from "@/components/workspace-context";
+import { useMemo } from "react";
+import type { LucideIcon } from "lucide-react";
+
+import type { BoardTask, EventItem, TeamMember } from "@/components/workspace-context";
 import * as Workspace from "@/components/workspace-context";
+
+const SCHOOL_NAME = "南京铁道职业技术学院";
+const DAY_MS = 24 * 60 * 60 * 1000;
+const RING_CIRCUMFERENCE = 125.66;
+
+type MetricTone = "blue" | "amber" | "green" | "red";
+type ProgressTone = "blue" | "amber" | "slate" | "green";
+type UrgentTone = "danger" | "warning" | "normal";
+type OverviewTarget = Workspace.TabKey | "notifications";
+
+type OverviewMetricCardItem = {
+  label: string;
+  value: number;
+  unit: string;
+  tone: MetricTone;
+  icon: LucideIcon;
+  onClick: () => void;
+};
+
+type ProgressPanelItem = {
+  title: string;
+  description: string;
+  value: number;
+  total: number;
+  tone: ProgressTone;
+  target: Workspace.TabKey;
+};
+
+type UrgentTaskItem = {
+  id: string;
+  title: string;
+  owner: string;
+  tone: UrgentTone;
+  badgeText: string;
+};
+
+type ReportStatusItem = {
+  id: string;
+  name: string;
+  submitted: boolean;
+};
+
+const metricToneMap: Record<
+  MetricTone,
+  {
+    iconContainerClassName: string;
+    iconClassName: string;
+    accentClassName: string;
+    activeValueClassName: string;
+  }
+> = {
+  blue: {
+    iconContainerClassName: "bg-[#E6F1FB]",
+    iconClassName: "text-[#185FA5]",
+    accentClassName: "bg-[#2563EB]",
+    activeValueClassName: "text-[#2563EB]",
+  },
+  amber: {
+    iconContainerClassName: "bg-[#FAEEDA]",
+    iconClassName: "text-[#854F0B]",
+    accentClassName: "bg-[#EF9F27]",
+    activeValueClassName: "text-[#EF9F27]",
+  },
+  green: {
+    iconContainerClassName: "bg-[#EAF3DE]",
+    iconClassName: "text-[#3B6D11]",
+    accentClassName: "bg-[#1D9E75]",
+    activeValueClassName: "text-[#1D9E75]",
+  },
+  red: {
+    iconContainerClassName: "bg-[#FCEBEB]",
+    iconClassName: "text-[#A32D2D]",
+    accentClassName: "bg-[#E24B4A]",
+    activeValueClassName: "text-[#E24B4A]",
+  },
+};
+
+const progressToneMap: Record<
+  ProgressTone,
+  {
+    ringClassName: string;
+    textClassName: string;
+  }
+> = {
+  blue: {
+    ringClassName: "text-[#2563EB]",
+    textClassName: "text-[#2563EB]",
+  },
+  amber: {
+    ringClassName: "text-[#EF9F27]",
+    textClassName: "text-[#854F0B]",
+  },
+  slate: {
+    ringClassName: "text-[#888780]",
+    textClassName: "text-[#6B7280]",
+  },
+  green: {
+    ringClassName: "text-[#1D9E75]",
+    textClassName: "text-[#1D9E75]",
+  },
+};
+
+const urgentToneMap: Record<
+  UrgentTone,
+  {
+    dotClassName: string;
+    badgeClassName: string;
+  }
+> = {
+  danger: {
+    dotClassName: "bg-[#E24B4A]",
+    badgeClassName: "bg-[#FCEBEB] text-[#A32D2D]",
+  },
+  warning: {
+    dotClassName: "bg-[#EF9F27]",
+    badgeClassName: "bg-[#FAEEDA] text-[#854F0B]",
+  },
+  normal: {
+    dotClassName: "bg-[#2563EB]",
+    badgeClassName: "bg-[#EFF6FF] text-[#2563EB]",
+  },
+};
+
+const sectionActionClassName =
+  "inline-flex items-center gap-1 text-xs font-medium text-[#2563EB] transition-all duration-200 hover:translate-x-0.5 hover:text-[#1d4ed8]";
+
+const parseSafeDate = (value?: string | null) => (value ? Workspace.parseDateLikeValue(value) : null);
+
+const toCountString = (value: number) => (value > 99 ? "99+" : String(value));
+
+const getDateHeadline = (currentDateTime: Date) => `${Workspace.formatFriendlyDate(currentDateTime)} · ${SCHOOL_NAME}`;
+
+const getEventDisplayParts = (event: EventItem) => {
+  const parsedDate = parseSafeDate(event.dateTime);
+  if (!parsedDate) {
+    return {
+      day: "--",
+      month: "--月",
+      dateText: "时间待定",
+    };
+  }
+
+  return {
+    day: String(parsedDate.getDate()),
+    month: `${parsedDate.getMonth() + 1}月`,
+    dateText: Workspace.formatDateTime(event.dateTime),
+  };
+};
+
+const getAnnouncementDateText = (value: string) => {
+  const parsedDate = parseSafeDate(value);
+  if (!parsedDate) {
+    return "--";
+  }
+
+  return `${parsedDate.getMonth() + 1}-${String(parsedDate.getDate()).padStart(2, "0")}`;
+};
+
+const getProgressCenterLabel = (value: number, total: number) => {
+  if (total <= 0) {
+    return "0%";
+  }
+
+  if (total <= 9) {
+    return `${value}/${total}`;
+  }
+
+  return `${Math.round((Math.min(value, total) / total) * 100)}%`;
+};
+
+const getProgressRatio = (value: number, total: number) => {
+  if (total <= 0) {
+    return 0;
+  }
+
+  return Math.max(0, Math.min(1, value / total));
+};
+
+const getTaskDueMeta = (task: BoardTask, currentDateTime: Date) => {
+  const dueDate = parseSafeDate(task.dueDate);
+  if (!dueDate) {
+    return null;
+  }
+
+  const diffMs = dueDate.getTime() - currentDateTime.getTime();
+  const diffDays = Math.ceil(diffMs / DAY_MS);
+
+  if (diffMs < 0) {
+    return {
+      diffMs,
+      diffDays,
+      tone: "danger" as const,
+      badgeText: `超期 ${Math.max(1, Math.ceil(Math.abs(diffMs) / DAY_MS))} 天`,
+    };
+  }
+
+  if (diffDays <= 3) {
+    return {
+      diffMs,
+      diffDays,
+      tone: "warning" as const,
+      badgeText: `剩余 ${Math.max(1, diffDays)} 天`,
+    };
+  }
+
+  if (diffDays <= 7) {
+    return {
+      diffMs,
+      diffDays,
+      tone: "normal" as const,
+      badgeText: "进行中",
+    };
+  }
+
+  return null;
+};
+
+function buildOverviewMetricCards(args: {
+  currentRole: string;
+  hasGlobalAdminRole: boolean;
+  pendingApprovalCount: number;
+  openTaskCount: number;
+  unreadMessageCount: number;
+  pendingDocumentCount: number;
+  unsubmittedReportCount: number;
+  unassignedTaskCount: number;
+  myOpenTaskCount: number;
+  activeMyTaskCount: number;
+  myPendingReportCount: number;
+  pendingExpertReviewCount: number;
+  completedReviewCount: number;
+  openTarget: (target?: OverviewTarget) => void;
+  icons: {
+    account: LucideIcon;
+    board: LucideIcon;
+    mail: LucideIcon;
+    document: LucideIcon;
+    report: LucideIcon;
+    review: LucideIcon;
+  };
+}): OverviewMetricCardItem[] {
+  const {
+    currentRole,
+    hasGlobalAdminRole,
+    pendingApprovalCount,
+    openTaskCount,
+    unreadMessageCount,
+    pendingDocumentCount,
+    unsubmittedReportCount,
+    unassignedTaskCount,
+    myOpenTaskCount,
+    activeMyTaskCount,
+    myPendingReportCount,
+    pendingExpertReviewCount,
+    completedReviewCount,
+    openTarget,
+    icons,
+  } = args;
+
+  if (hasGlobalAdminRole) {
+    return [
+      {
+        label: "待审核账号",
+        value: pendingApprovalCount,
+        unit: "个",
+        tone: "blue",
+        icon: icons.account,
+        onClick: () => openTarget("team"),
+      },
+      {
+        label: "进行中工单",
+        value: openTaskCount,
+        unit: "项",
+        tone: "amber",
+        icon: icons.board,
+        onClick: () => openTarget("board"),
+      },
+      {
+        label: "未读消息",
+        value: unreadMessageCount,
+        unit: "条",
+        tone: "green",
+        icon: icons.mail,
+        onClick: () => openTarget("notifications"),
+      },
+      {
+        label: "文档待审批",
+        value: pendingDocumentCount,
+        unit: "份",
+        tone: "red",
+        icon: icons.document,
+        onClick: () => openTarget("documents"),
+      },
+    ];
+  }
+
+  if (currentRole === "teacher") {
+    return [
+      {
+        label: "团队待交汇报",
+        value: unsubmittedReportCount,
+        unit: "人",
+        tone: "blue",
+        icon: icons.report,
+        onClick: () => openTarget("reports"),
+      },
+      {
+        label: "进行中工单",
+        value: openTaskCount,
+        unit: "项",
+        tone: "amber",
+        icon: icons.board,
+        onClick: () => openTarget("board"),
+      },
+      {
+        label: "未读消息",
+        value: unreadMessageCount,
+        unit: "条",
+        tone: "green",
+        icon: icons.mail,
+        onClick: () => openTarget("notifications"),
+      },
+      {
+        label: "文档待审批",
+        value: pendingDocumentCount,
+        unit: "份",
+        tone: "red",
+        icon: icons.document,
+        onClick: () => openTarget("documents"),
+      },
+    ];
+  }
+
+  if (currentRole === "leader") {
+    return [
+      {
+        label: "待分配工单",
+        value: unassignedTaskCount,
+        unit: "项",
+        tone: "blue",
+        icon: icons.account,
+        onClick: () => openTarget("board"),
+      },
+      {
+        label: "进行中工单",
+        value: openTaskCount,
+        unit: "项",
+        tone: "amber",
+        icon: icons.board,
+        onClick: () => openTarget("board"),
+      },
+      {
+        label: "未读消息",
+        value: unreadMessageCount,
+        unit: "条",
+        tone: "green",
+        icon: icons.mail,
+        onClick: () => openTarget("notifications"),
+      },
+      {
+        label: "文档待审批",
+        value: pendingDocumentCount,
+        unit: "份",
+        tone: "red",
+        icon: icons.document,
+        onClick: () => openTarget("documents"),
+      },
+    ];
+  }
+
+  if (currentRole === "expert") {
+    return [
+      {
+        label: "待评任务",
+        value: pendingExpertReviewCount,
+        unit: "项",
+        tone: "blue",
+        icon: icons.review,
+        onClick: () => openTarget("review"),
+      },
+      {
+        label: "已交评分",
+        value: completedReviewCount,
+        unit: "条",
+        tone: "amber",
+        icon: icons.review,
+        onClick: () => openTarget("review"),
+      },
+      {
+        label: "未读消息",
+        value: unreadMessageCount,
+        unit: "条",
+        tone: "green",
+        icon: icons.mail,
+        onClick: () => openTarget("notifications"),
+      },
+      {
+        label: "赛事节点",
+        value: 0,
+        unit: "项",
+        tone: "red",
+        icon: icons.report,
+        onClick: () => openTarget("timeline"),
+      },
+    ];
+  }
+
+  return [
+    {
+      label: "我的待办任务",
+      value: myOpenTaskCount,
+      unit: "项",
+      tone: "blue",
+      icon: icons.account,
+      onClick: () => openTarget("board"),
+    },
+    {
+      label: "进行中工单",
+      value: activeMyTaskCount,
+      unit: "项",
+      tone: "amber",
+      icon: icons.board,
+      onClick: () => openTarget("board"),
+    },
+    {
+      label: "未读消息",
+      value: unreadMessageCount,
+      unit: "条",
+      tone: "green",
+      icon: icons.mail,
+      onClick: () => openTarget("notifications"),
+    },
+    {
+      label: "待提交汇报",
+      value: myPendingReportCount,
+      unit: "份",
+      tone: "red",
+      icon: icons.report,
+      onClick: () => openTarget("reports"),
+    },
+  ];
+}
+
+function buildProgressPanels(args: {
+  reportSubmittedCount: number;
+  reportExpectedCount: number;
+  completedTaskCount: number;
+  totalTaskCount: number;
+  reviewedDocumentCount: number;
+  totalDocumentCount: number;
+  completedReviewCount: number;
+  totalReviewCount: number;
+}): ProgressPanelItem[] {
+  const {
+    reportSubmittedCount,
+    reportExpectedCount,
+    completedTaskCount,
+    totalTaskCount,
+    reviewedDocumentCount,
+    totalDocumentCount,
+    completedReviewCount,
+    totalReviewCount,
+  } = args;
+
+  return [
+    {
+      title: "团队汇报",
+      description: reportExpectedCount > 0 ? `今日已提交 ${reportSubmittedCount} 人` : "当前暂无需提交成员",
+      value: reportSubmittedCount,
+      total: reportExpectedCount,
+      tone: "blue",
+      target: "reports",
+    },
+    {
+      title: "任务工单",
+      description: totalTaskCount > 0 ? `已完成 ${completedTaskCount} 项` : "当前暂无工单数据",
+      value: completedTaskCount,
+      total: totalTaskCount,
+      tone: "amber",
+      target: "board",
+    },
+    {
+      title: "文档审批",
+      description: totalDocumentCount > 0 ? `已审 ${reviewedDocumentCount} 份` : "无待审批材料",
+      value: reviewedDocumentCount,
+      total: totalDocumentCount,
+      tone: totalDocumentCount > 0 ? "slate" : "slate",
+      target: "documents",
+    },
+    {
+      title: "专家评审",
+      description: totalReviewCount > 0 ? `已评 ${completedReviewCount} 份` : "暂无评审任务",
+      value: completedReviewCount,
+      total: totalReviewCount,
+      tone: "green",
+      target: "review",
+    },
+  ];
+}
+
+function buildUrgentItems(args: {
+  tasks: BoardTask[];
+  currentDateTime: Date;
+  getTaskAssigneeName: (task: BoardTask) => string;
+}): UrgentTaskItem[] {
+  const items = args.tasks
+    .filter((task) => task.status !== "archived")
+    .map((task) => {
+      const dueMeta = getTaskDueMeta(task, args.currentDateTime);
+      if (!dueMeta) {
+        return null;
+      }
+
+      return {
+        id: task.id,
+        title: task.title,
+        owner: args.getTaskAssigneeName(task),
+        tone: dueMeta.tone,
+        badgeText: dueMeta.badgeText,
+        sortWeight: dueMeta.diffMs,
+      };
+    })
+    .filter((item): item is UrgentTaskItem & { sortWeight: number } => Boolean(item))
+    .sort((left, right) => left.sortWeight - right.sortWeight)
+    .slice(0, 4);
+
+  return items.map((item) => ({
+    id: item.id,
+    title: item.title,
+    owner: item.owner,
+    tone: item.tone,
+    badgeText: item.badgeText,
+  }));
+}
+
+const buildReportStatusItems = (
+  members: TeamMember[],
+  todayReportEntryMap: Map<string, unknown>,
+): ReportStatusItem[] =>
+  members.map((member) => ({
+    id: member.id,
+    name: member.name,
+    submitted: todayReportEntryMap.has(member.id),
+  }));
+
+function OverviewMetricCard({ item }: { item: OverviewMetricCardItem }) {
+  const Icon = item.icon;
+  const tone = metricToneMap[item.tone];
+  const valueClassName = item.value > 0 ? tone.activeValueClassName : "text-gray-300";
+
+  return (
+    <button
+      className="group relative flex min-h-[118px] flex-col overflow-hidden rounded-xl border border-gray-200 bg-white px-4 py-4 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-[#2563EB]/25 hover:bg-[#F8FBFF]"
+      onClick={item.onClick}
+      type="button"
+    >
+      <div className={`flex h-8 w-8 items-center justify-center rounded-[10px] ${tone.iconContainerClassName}`}>
+        <Icon className={`h-4.5 w-4.5 ${tone.iconClassName}`} />
+      </div>
+      <div className="mt-4 flex items-end gap-1.5">
+        <span className={`text-[28px] font-medium leading-none tracking-[-0.04em] ${valueClassName}`}>
+          {toCountString(item.value)}
+        </span>
+        <span className="pb-0.5 text-[13px] font-medium text-gray-400">{item.unit}</span>
+      </div>
+      <p className="mt-2 text-[12px] font-medium text-gray-500">{item.label}</p>
+      <div className={`absolute inset-x-0 bottom-0 h-[3px] ${tone.accentClassName}`} />
+    </button>
+  );
+}
+
+function ProgressRing({
+  value,
+  total,
+  tone,
+}: {
+  value: number;
+  total: number;
+  tone: ProgressTone;
+}) {
+  const ratio = getProgressRatio(value, total);
+  const progressClassName = progressToneMap[tone].ringClassName;
+
+  return (
+    <div className="relative flex h-[52px] w-[52px] items-center justify-center">
+      <svg className="-rotate-90" height="52" viewBox="0 0 52 52" width="52">
+        <circle
+          className="stroke-gray-200"
+          cx="26"
+          cy="26"
+          fill="none"
+          r="20"
+          strokeWidth="4.5"
+        />
+        <circle
+          className={`${progressClassName} stroke-current transition-all duration-300`}
+          cx="26"
+          cy="26"
+          fill="none"
+          r="20"
+          strokeDasharray={RING_CIRCUMFERENCE}
+          strokeDashoffset={RING_CIRCUMFERENCE * (1 - ratio)}
+          strokeLinecap="round"
+          strokeWidth="4.5"
+        />
+      </svg>
+      <span className="absolute inset-0 flex items-center justify-center text-[12px] font-semibold text-gray-800">
+        {getProgressCenterLabel(value, total)}
+      </span>
+    </div>
+  );
+}
+
+function SectionTitle({
+  title,
+  actionLabel,
+  onAction,
+}: {
+  title: string;
+  actionLabel?: string;
+  onAction?: () => void;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-3">
+      <div className="flex items-center gap-2.5">
+        <span className="h-4 w-[3px] rounded-full bg-[#2563EB]" />
+        <h2 className="text-[16px] font-semibold text-gray-900">{title}</h2>
+      </div>
+      {actionLabel && onAction ? (
+        <button className={sectionActionClassName} onClick={onAction} type="button">
+          {actionLabel}
+        </button>
+      ) : null}
+    </div>
+  );
+}
 
 export default function OverviewTab() {
   const {
-    router,
     currentUser,
     currentDateTime,
     announcements,
@@ -14,15 +652,13 @@ export default function OverviewTab() {
     reviewAssignments,
     documents,
     countdown,
-    setNotificationsOpen,
-    isSaving,
     setSelectedAnnouncement,
+    setAnnouncementModalOpen,
     currentRole,
     hasGlobalAdminRole,
     currentMemberId,
     nearestEvent,
-    portalScopeText,
-    canReviewDocuments,
+    permissions,
     todayReportEntryMap,
     myOpenTasks,
     pendingLeaderReviewCount,
@@ -31,671 +667,337 @@ export default function OverviewTab() {
     reportSubmittedCount,
     reportExpectedCount,
     getTaskAssigneeName,
-    todayTaskSummaryTasks,
     pendingApprovalMembers,
     unreadTodoNotifications,
-    todoItemCount,
-    canMoveTask,
-    completeTaskFromOverview,
     openOverviewTarget,
   } = Workspace.useWorkspaceContext();
 
   const {
     CalendarDays,
+    Clock3,
     FileCheck,
-    FolderOpen,
+    FileText,
     KanbanSquare,
-    roleLabels,
-    formatDateTime,
-    formatFriendlyDate,
-    getOverviewDeadlineMeta,
-    priorityFocusTagMeta,
+    Mail,
+    Megaphone,
+    UserPlus,
   } = Workspace;
 
-const renderOverview = () => {
-    const quickCompletableTask = tasks.find((task) => task.status !== "archived" && canMoveTask(task));
-    const countdownTotalHours = countdown.days * 24 + countdown.hours;
-    const countdownStatus = !nearestEvent
-      ? {
-          label: "待配置",
-          className: "border-white/90 bg-white text-slate-900/70 shadow-[0_12px_28px_rgba(31,38,135,0.12)]",
-          hint: "补充节点后自动预警",
-        }
-      : countdownTotalHours <= 24
-        ? {
-            label: "紧急",
-            className: "border-white/90 bg-white text-[#1a6fd4] shadow-[0_14px_32px_rgba(31,38,135,0.16)]",
-            hint: "进入最后 24 小时",
-          }
-        : countdown.days <= 3
-          ? {
-              label: "临近",
-              className: "border-white/90 bg-white text-[#1a6fd4] shadow-[0_14px_32px_rgba(31,38,135,0.16)]",
-              hint: "建议开始集中检查",
-            }
-          : {
-              label: "推进中",
-              className: "border-white/90 bg-white text-[#1a6fd4] shadow-[0_14px_32px_rgba(31,38,135,0.16)]",
-              hint: "按计划持续推进",
-            };
+  const openTasks = tasks.filter((task) => task.status !== "archived");
+  const completedTaskCount = tasks.filter((task) => task.status === "archived").length;
+  const pendingDocumentCount = pendingLeaderReviewCount + pendingTeacherReviewCount;
+  const reviewedDocumentCount = documents.filter((document) => document.statusKey !== "pending").length;
+  const reviewCompletedCount = reviewAssignments.filter(
+    (assignment) => assignment.statusKey === "completed" || assignment.statusKey === "locked" || Boolean(assignment.score),
+  ).length;
+  const pendingExpertReviewCount = reviewAssignments.filter((assignment) => assignment.statusKey === "pending").length;
+  const unsubmittedReportCount = reportableMembers.filter((member) => !todayReportEntryMap.has(member.id)).length;
+  const unassignedTaskCount = tasks.filter((task) => task.status === "todo" && !task.assigneeId).length;
+  const activeMyTaskCount = myOpenTasks.filter((task) => task.status === "doing" || task.status === "review").length;
+  const myPendingReportCount = todayReportEntryMap.has(currentMemberId) ? 0 : 1;
 
-    const openTasks = tasks.filter((task) => task.status !== "archived");
-    const unsubmittedReportCount = reportableMembers.filter(
-      (member) => !todayReportEntryMap.has(member.id),
-    ).length;
-    const myReportSubmitted = todayReportEntryMap.has(currentMemberId);
-    const reviewScoreCount = reviewAssignments.filter((assignment) => assignment.score).length;
-    const pendingExpertReviewCount = reviewAssignments.filter((assignment) => assignment.statusKey === "pending").length;
+  const sortedEvents = useMemo(
+    () =>
+      [...events].sort((left, right) => {
+        const leftDate = parseSafeDate(left.dateTime)?.getTime() ?? Number.MAX_SAFE_INTEGER;
+        const rightDate = parseSafeDate(right.dateTime)?.getTime() ?? Number.MAX_SAFE_INTEGER;
+        return leftDate - rightDate;
+      }),
+    [events],
+  );
 
-    const overviewMetrics: Array<OverviewMetric & { onClick: () => void }> =
-      hasGlobalAdminRole
-        ? [
-            {
-              label: "待审核账号",
-              value: `${pendingApprovalMembers.length} 个`,
-              guide: pendingApprovalMembers.length > 0 ? "点击查看账号审核" : "点击进入账号管理",
-              isMuted: pendingApprovalMembers.length === 0,
-              onClick: () => router.push("/workspace?tab=team"),
-            },
-            {
-              label: "待办提醒",
-              value: `${todoItemCount} 项`,
-              guide: todoItemCount > 0 ? "点击查看待办中心" : "点击进入待办中心",
-              isMuted: todoItemCount === 0,
-              onClick: () => setNotificationsOpen(true),
-            },
-            {
-              label: "未读消息",
-              value: `${unreadTodoNotifications.length} 条`,
-              guide: unreadTodoNotifications.length > 0 ? "点击查看未读消息" : "点击进入通知中心",
-              isMuted: unreadTodoNotifications.length === 0,
-              onClick: () => setNotificationsOpen(true),
-            },
-          ]
-        : currentRole === "teacher"
-          ? [
-              {
-                label: "待审材料",
-                value: `${pendingLeaderReviewCount + pendingTeacherReviewCount} 份`,
-                guide:
-                  pendingLeaderReviewCount + pendingTeacherReviewCount > 0 ? "点击处理文档审批" : "点击查看文档中心",
-                isMuted: pendingLeaderReviewCount + pendingTeacherReviewCount === 0,
-                onClick: () => router.push("/workspace?tab=documents"),
-              },
-              {
-                label: "未交汇报",
-                value: `${unsubmittedReportCount} 人`,
-                guide: unsubmittedReportCount > 0 ? "点击查看团队汇报" : "点击进入日程汇报",
-                isMuted: unsubmittedReportCount === 0,
-                onClick: () => router.push("/workspace?tab=reports"),
-              },
-              {
-                label: "待办提醒",
-                value: `${todoItemCount} 项`,
-                guide: todoItemCount > 0 ? "点击查看待办中心" : "点击进入待办中心",
-                isMuted: todoItemCount === 0,
-                onClick: () => setNotificationsOpen(true),
-              },
-            ]
-          : currentRole === "leader"
-            ? [
-                {
-                  label: "待分配工单",
-                  value: `${tasks.filter((task) => task.status === "todo" && !task.assigneeId).length} 项`,
-                  guide:
-                    tasks.filter((task) => task.status === "todo" && !task.assigneeId).length > 0
-                      ? "点击处理任务分配"
-                      : "点击进入任务中心",
-                  isMuted: tasks.filter((task) => task.status === "todo" && !task.assigneeId).length === 0,
-                  onClick: () => router.push("/workspace?tab=board"),
-                },
-                {
-                  label: "待验收工单",
-                  value: `${tasks.filter((task) => task.status === "review").length} 项`,
-                  guide:
-                    tasks.filter((task) => task.status === "review").length > 0
-                      ? "点击处理待验收工单"
-                      : "点击进入任务中心",
-                  isMuted: tasks.filter((task) => task.status === "review").length === 0,
-                  onClick: () => router.push("/workspace?tab=board"),
-                },
-                {
-                  label: "未交汇报",
-                  value: `${unsubmittedReportCount} 人`,
-                  guide: unsubmittedReportCount > 0 ? "点击督办日程汇报" : "点击进入日程汇报",
-                  isMuted: unsubmittedReportCount === 0,
-                  onClick: () => router.push("/workspace?tab=reports"),
-                },
-              ]
-            : currentRole === "expert"
-              ? [
-                  {
-                    label: "待评任务",
-                    value: `${pendingExpertReviewCount} 项`,
-                    guide: pendingExpertReviewCount > 0 ? "点击处理专家评审" : "点击进入专家评审",
-                    isMuted: pendingExpertReviewCount === 0,
-                    onClick: () => router.push("/workspace?tab=review"),
-                  },
-                  {
-                    label: "已交评分",
-                    value: `${reviewScoreCount} 条`,
-                    guide: reviewScoreCount > 0 ? "点击查看评分结果" : "点击进入专家评审",
-                    isMuted: reviewScoreCount === 0,
-                    onClick: () => router.push("/workspace?tab=review"),
-                  },
-                  {
-                    label: "待办提醒",
-                    value: `${todoItemCount} 项`,
-                    guide: todoItemCount > 0 ? "点击查看待办中心" : "点击进入待办中心",
-                    isMuted: todoItemCount === 0,
-                    onClick: () => setNotificationsOpen(true),
-                  },
-                ]
-              : [
-                  {
-                    label: "我的任务",
-                    value: `${myOpenTasks.length} 项`,
-                    guide: myOpenTasks.length > 0 ? "点击查看我的任务" : "点击进入任务中心",
-                    isMuted: myOpenTasks.length === 0,
-                    onClick: () => router.push("/workspace?tab=board"),
-                  },
-                  {
-                    label: "今日日报",
-                    value: myReportSubmitted ? "已提交" : "待提交",
-                    guide: myReportSubmitted ? "点击查看今日日报" : "点击提交今日日报",
-                    isMuted: myReportSubmitted,
-                    onClick: () => router.push("/workspace?tab=reports"),
-                  },
-                  {
-                    label: "未读消息",
-                    value: `${unreadTodoNotifications.length} 条`,
-                    guide: unreadTodoNotifications.length > 0 ? "点击查看未读消息" : "点击进入通知中心",
-                    isMuted: unreadTodoNotifications.length === 0,
-                    onClick: () => setNotificationsOpen(true),
-                  },
-                ];
+  const nearestUpcomingEvent =
+    nearestEvent ??
+    sortedEvents.find((event) => {
+      const parsedDate = parseSafeDate(event.dateTime);
+      return parsedDate ? parsedDate.getTime() >= currentDateTime.getTime() : false;
+    }) ??
+    null;
 
-    const portalQuickEntries = [
-      {
-        title: currentRole === "member" || currentRole === "leader" ? "今日日程汇报" : "团队汇报进度",
-        icon: CalendarDays,
-        metric:
-          currentRole === "member" || currentRole === "leader"
-            ? myReportSubmitted
-              ? "已提交"
-              : "待提交"
-            : `${reportSubmittedCount}/${reportExpectedCount || 0}`,
-        detail:
-          currentRole === "member" || currentRole === "leader"
-            ? myReportSubmitted
-              ? "今日汇报已完成，可继续查看任务推进。"
-              : "建议先补齐今日完成与明日计划。"
-            : reportExpectedCount > 0
-              ? `今日已有 ${reportSubmittedCount} 人提交，还有 ${unsubmittedReportCount} 人待提交。`
-              : "当前没有需要统计的团队汇报对象。",
-        onAction: () => router.push("/workspace?tab=reports"),
-      },
-      {
-        title: "任务工单",
-        icon: KanbanSquare,
-        metric: `${openTasks.length} 项`,
-        detail:
-          quickCompletableTask && currentRole === "member"
-            ? "你有可直接推进的个人工单，可快速标记处理状态。"
-            : openTasks.length > 0
-              ? "当前仍有工单流转中，建议查看处理进度。"
-              : "当前没有未归档工单。",
-        onAction: () => {
-          if (quickCompletableTask && currentRole === "member") {
-            void completeTaskFromOverview(quickCompletableTask);
-            return;
-          }
-          router.push("/workspace?tab=board");
-        },
-      },
-      {
-        title: canReviewDocuments ? "文档审批" : "文档中心",
-        icon: FolderOpen,
-        metric: `${pendingLeaderReviewCount + pendingTeacherReviewCount} 份`,
-        detail:
-          canReviewDocuments
-            ? pendingLeaderReviewCount + pendingTeacherReviewCount > 0
-              ? "仍有材料待审批，建议尽快处理。"
-              : "当前没有待审批材料。"
-            : `当前共维护 ${documents.length} 份文档材料。`,
-        onAction: () => router.push("/workspace?tab=documents"),
-      },
-      {
-        title: "专家评审",
-        icon: FileCheck,
-        metric: reviewScoreCount > 0 ? `${reviewScoreCount} 条` : pendingExpertReviewCount > 0 ? "进行中" : "暂无",
-        detail:
-          reviewScoreCount > 0
-            ? "已有评分和综合评语，可结合结果继续优化。"
-            : pendingExpertReviewCount > 0
-              ? "当前还有评审包正在评分中。"
-              : "当前暂无可查看的评审结果。",
-        onAction: () => router.push("/workspace?tab=review"),
-      },
-    ];
+  const metricCards = buildOverviewMetricCards({
+    currentRole,
+    hasGlobalAdminRole,
+    pendingApprovalCount: pendingApprovalMembers.length,
+    openTaskCount: openTasks.length,
+    unreadMessageCount: unreadTodoNotifications.length,
+    pendingDocumentCount,
+    unsubmittedReportCount,
+    unassignedTaskCount,
+    myOpenTaskCount: myOpenTasks.length,
+    activeMyTaskCount,
+    myPendingReportCount,
+    pendingExpertReviewCount,
+    completedReviewCount: reviewCompletedCount,
+    openTarget: openOverviewTarget,
+    icons: {
+      account: UserPlus,
+      board: KanbanSquare,
+      mail: Mail,
+      document: FileText,
+      report: CalendarDays,
+      review: FileCheck,
+    },
+  });
 
-    const priorityFocusItems: PriorityFocusItem[] =
-      currentRole === "member"
-        ? [
-            {
-              tag: myReportSubmitted ? "clear" : "pending-action",
-              text: myReportSubmitted ? "今日日程汇报已提交。" : "今日日程汇报还未提交，建议先补齐。",
-              targetTab: "reports",
-            },
-            {
-              tag: myOpenTasks.length > 0 ? "pending-action" : "clear",
-              text:
-                myOpenTasks.length > 0
-                  ? `当前有 ${myOpenTasks.length} 项个人任务待推进。`
-                  : "当前没有个人待办任务。",
-              targetTab: "board",
-            },
-            {
-              tag: pendingExpertReviewCount > 0 ? "pending-review" : reviewScoreCount > 0 ? "pending-view" : "clear",
-              text:
-                pendingExpertReviewCount > 0
-                  ? `专家评审仍有 ${pendingExpertReviewCount} 项正在进行中。`
-                  : reviewScoreCount > 0
-                  ? `专家评审已有 ${reviewScoreCount} 条评分/评语可查看。`
-                  : "当前暂无专家评审结果。",
-              targetTab: "review",
-            },
-          ]
-        : currentRole === "leader"
-          ? [
-            {
-              tag: unsubmittedReportCount > 0 ? "pending-action" : "clear",
-              text: unsubmittedReportCount > 0 ? `今天还有 ${unsubmittedReportCount} 人未提交汇报。` : "今天团队汇报已基本收齐。",
-              targetTab: "reports",
-            },
-            {
-              tag: openTasks.length > 0 ? "pending-action" : "clear",
-              text: openTasks.length > 0 ? `工单台账仍有 ${openTasks.length} 项待推进。` : "工单台账当前没有未完成事项。",
-              targetTab: "board",
-            },
-            {
-              tag: pendingExpertReviewCount > 0 ? "pending-review" : reviewScoreCount > 0 ? "pending-view" : "clear",
-              text:
-                pendingExpertReviewCount > 0
-                    ? `专家评审仍有 ${pendingExpertReviewCount} 项正在评分。`
-                    : reviewScoreCount > 0
-                      ? `专家评审已有 ${reviewScoreCount} 条评分/评语。`
-                      : "专家评审结果暂未形成。",
-              targetTab: "review",
-            },
-          ]
-        : [
-            {
-              tag: pendingApprovalMembers.length > 0 ? "pending-approval" : "clear",
-              text:
-                pendingApprovalMembers.length > 0
-                    ? `当前有 ${pendingApprovalMembers.length} 个账号等待审核。`
-                    : "当前没有新的账号审核积压。",
-              targetTab: "team",
-            },
-            {
-              tag: pendingLeaderReviewCount + pendingTeacherReviewCount > 0 ? "pending-approval" : "clear",
-              text:
-                pendingLeaderReviewCount + pendingTeacherReviewCount > 0
-                    ? `文档中心共有 ${pendingLeaderReviewCount + pendingTeacherReviewCount} 份材料待审批。`
-                    : "文档中心当前没有待审批材料。",
-              targetTab: "documents",
-            },
-            {
-              tag: pendingExpertReviewCount > 0 ? "pending-review" : reviewScoreCount > 0 ? "pending-view" : "clear",
-              text:
-                pendingExpertReviewCount > 0
-                    ? `专家评审仍有 ${pendingExpertReviewCount} 项正在进行中。`
-                    : reviewScoreCount > 0
-                      ? `专家评审已有 ${reviewScoreCount} 条评分/评语。`
-                      : "专家评审暂无已提交评分。",
-              targetTab: "review",
-            },
-          ];
+  const progressPanels = buildProgressPanels({
+    reportSubmittedCount,
+    reportExpectedCount,
+    completedTaskCount,
+    totalTaskCount: tasks.length,
+    reviewedDocumentCount,
+    totalDocumentCount: documents.length,
+    completedReviewCount: reviewCompletedCount,
+    totalReviewCount: reviewAssignments.length,
+  });
 
-    const keyEventItems = events.slice(0, 4);
+  const urgentItems = buildUrgentItems({
+    tasks,
+    currentDateTime,
+    getTaskAssigneeName,
+  });
 
-    return (
-      <div className="space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <div className="depth-mid flex min-w-0 flex-1 flex-wrap items-center gap-2 rounded-[var(--border-radius-lg)] px-5 py-4">
-            <div className="h-4 w-1 rounded-full bg-[#1a6fd4]" />
-            <p className="truncate text-sm font-semibold text-slate-900">中国国际大学生创新大赛管理系统</p>
-            <span className="depth-emphasis px-3 py-1 text-xs text-slate-500">
-              南京铁道职业技术学院
-            </span>
-            <span className="depth-emphasis px-3 py-1 text-xs text-slate-500">
-              {formatFriendlyDate(currentDateTime)}
-            </span>
-            <span className="depth-emphasis px-3 py-1 text-xs text-[#1a6fd4]">
-              {currentUser?.roleLabel ?? roleLabels[currentRole]}
-            </span>
-            <span className="depth-emphasis px-3 py-1 text-xs text-slate-500">
-              {portalScopeText}
-            </span>
+  const reportStatusItems = buildReportStatusItems(reportableMembers, todayReportEntryMap);
+  const visibleEvents = sortedEvents.slice(0, 4);
+  const visibleAnnouncements = announcements.slice(0, 3);
+
+  const welcomeName =
+    currentUser?.name ||
+    currentUser?.profile.name ||
+    currentUser?.roleLabel ||
+    "同学";
+
+  return (
+    <div className="space-y-4">
+      <section className="rounded-xl border border-gray-200 bg-white px-5 py-4">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div className="min-w-0">
+            <h1 className="truncate text-[18px] font-medium text-gray-900">欢迎回来，{welcomeName}</h1>
+            <p className="mt-1 text-[13px] text-gray-500">{getDateHeadline(currentDateTime)}</p>
           </div>
-        </div>
 
-        <section className="grid gap-4 xl:grid-cols-[minmax(0,3fr)_minmax(320px,2fr)]">
-          <article className="depth-card overflow-hidden rounded-[var(--border-radius-lg)]">
-            <div className="border-b border-white/55 bg-white/18 px-5 py-4">
-              <div className="flex items-start justify-between gap-4">
-                <div className="min-w-0">
-                  <div className="depth-emphasis inline-flex items-center gap-2 px-3 py-1 text-xs font-medium tracking-[0.08em] text-[#1a6fd4]">
-                    <span className="h-2 w-2 rounded-full bg-[#1a6fd4]" />
-                    今日总览
-                  </div>
-                  <h3 className="mt-3 text-base font-medium text-[var(--color-text-secondary)]">
-                    欢迎登录，{currentUser?.roleLabel ?? roleLabels[currentRole]}。
-                  </h3>
-                  <p className="mt-2 max-w-3xl text-[13px] leading-6 text-[var(--color-text-tertiary)]">
-                    {hasGlobalAdminRole
-                      ? "当前为全局管理视角，请优先关注账号审核、站内待办和公告发布。"
-                      : currentRole === "teacher"
-                        ? "当前聚合本队材料审批、团队汇报和关键节点，便于统一查看与督办。"
-                        : currentRole === "leader"
-                          ? "当前聚合本队工单流转、汇报进度和专家反馈，便于推进每日事务。"
-                          : currentRole === "expert"
-                            ? "当前展示评审任务、评分进度和关键提醒，便于集中完成专家评审。"
-                            : "当前展示本队任务、今日日报和评审反馈，方便快速进入个人办理事项。"}
-                  </p>
-                </div>
-                <button
-                  className="depth-emphasis hidden shrink-0 px-4 py-2 text-sm font-medium text-[#1a6fd4] transition hover:-translate-y-px lg:inline-flex"
-                  onClick={() => setNotificationsOpen(true)}
-                  type="button"
-                >
-                  今日待办 {todoItemCount} 项 →
-                </button>
-              </div>
-            </div>
-            <div className="grid gap-4 px-5 py-5 md:grid-cols-3">
-              {overviewMetrics.map((item) => (
-                <button
-                  className={`stat-card text-left ${item.isMuted ? "muted" : ""}`}
-                  key={item.label}
-                  onClick={item.onClick}
-                  type="button"
-                >
-                  <p className="label-top tracking-[0.08em]">{item.label}</p>
-                  <p className="number tracking-[-0.03em]">{item.value}</p>
-                  <p className="label-bottom leading-5">{item.guide}</p>
-                </button>
-              ))}
-            </div>
-          </article>
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition-all duration-200 hover:border-[#2563EB]/25 hover:bg-[#F8FBFF]"
+              onClick={() => openOverviewTarget("notifications")}
+              type="button"
+            >
+              <span>待办中心</span>
+              <span className="inline-flex min-w-6 items-center justify-center rounded-full bg-[#E24B4A] px-2 py-0.5 text-[11px] font-semibold text-white">
+                {toCountString(unreadTodoNotifications.length)}
+              </span>
+            </button>
 
-          <article className="depth-card overflow-hidden rounded-[var(--border-radius-lg)]">
-            <div className="border-b border-white/55 bg-white/18 px-5 py-4">
-              <div className="flex items-center gap-2">
-                <div className="h-4 w-1 rounded-full bg-[#1a6fd4]" />
-                <h3 className="text-base font-semibold text-slate-900">今日工作提示</h3>
-              </div>
-            </div>
-            <div className="space-y-4 p-5">
-              {priorityFocusItems.map((item) => (
-                <button
-                  className="work-tip-item w-full text-left"
-                  key={`${item.tag}-${item.text}`}
-                  onClick={() => openOverviewTarget(item.targetTab)}
-                  type="button"
-                >
-                  <div className="flex items-start gap-3">
-                    <span className={`work-tip-dot ${item.tag === "clear" ? "muted" : "actionable"}`} />
-                    <p className="work-tip-text leading-6">{item.text}</p>
-                  </div>
-                </button>
-              ))}
+            {permissions.canPublishAnnouncement ? (
               <button
-                className="depth-card flex w-full items-center justify-between rounded-[var(--border-radius-lg)] px-4 py-3 text-left transition"
-                onClick={() => setNotificationsOpen(true)}
+                className="inline-flex items-center gap-2 rounded-lg bg-[#2563EB] px-4 py-2.5 text-sm font-medium text-white transition-all duration-200 hover:bg-[#1d4ed8]"
+                onClick={() => setAnnouncementModalOpen(true)}
                 type="button"
               >
-                <div>
-                  <p className="text-sm font-semibold text-slate-900">进入待办中心</p>
-                  <p className="mt-1 text-xs text-slate-500">统一查看待办、提醒与审批通知</p>
-                </div>
-                <span className={`pending-badge px-2.5 py-1 text-xs font-medium ${todoItemCount === 0 ? "muted" : ""}`}>
-                  {todoItemCount} 项
-                </span>
+                <Megaphone className="h-4 w-4" />
+                <span>发布公告</span>
               </button>
-            </div>
-          </article>
-        </section>
-
-        <section className="mid-row grid gap-4 xl:grid-cols-[minmax(0,3fr)_minmax(320px,2fr)]">
-          <article className="depth-card overflow-hidden rounded-[20px]">
-            <div className="border-b border-white/55 bg-white/18 px-5 py-4">
-              <div className="flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  <div className="h-4 w-1 rounded-full bg-[#1a6fd4]" />
-                  <h3 className="text-base font-semibold text-slate-900">业务办理</h3>
-                </div>
-                <span className="text-xs text-slate-400">常用业务入口</span>
-              </div>
-            </div>
-            <div className="p-5">
-              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-                {portalQuickEntries.map((item) => {
-                  const Icon = item.icon;
-                  return (
-                    <button
-                      className="business-entry-card depth-subtle h-full rounded-2xl p-5 text-left transition"
-                      key={item.title}
-                      onClick={item.onAction}
-                      type="button"
-                    >
-                      <div className="business-entry-icon depth-emphasis">
-                        <Icon className="h-5 w-5" />
-                      </div>
-                      <p className="mt-4 text-sm font-semibold text-slate-900">{item.title}</p>
-                      <p className="mt-2 text-[1.75rem] font-bold tracking-[-0.03em] text-slate-900">{item.metric}</p>
-                      <p className="mt-3 text-[13px] leading-6 text-slate-500">{item.detail}</p>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-          </article>
-
-          <div className="overview-info-stack">
-            <article className="depth-card overflow-hidden rounded-[20px]">
-              <div className="border-b border-white/55 bg-white/18 px-5 py-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2">
-                    <div className="h-4 w-1 rounded-full bg-[#1a6fd4]" />
-                    <h3 className="text-base font-semibold text-slate-900">通知公告</h3>
-                  </div>
-                  <span className="text-xs text-slate-400">{announcements.length} 条</span>
-                </div>
-              </div>
-              <div className="divide-y divide-slate-100">
-                {announcements.slice(0, 5).map((item) => (
-                  <button
-                    className="overview-announcement-item block w-full text-left transition hover:bg-white/35"
-                    key={item.id}
-                    onClick={() => setSelectedAnnouncement(item)}
-                    type="button"
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-start gap-3">
-                          <span className="mt-2 h-2 w-2 shrink-0 rounded-full bg-[#1a6fd4]" />
-                          <div className="min-w-0">
-                            <p className="line-clamp-1 text-sm font-semibold text-slate-900">{item.title}</p>
-                            <p className="mt-1 line-clamp-2 text-[13px] leading-6 text-slate-500">{item.detail}</p>
-                            <span className="mt-2 inline-flex text-xs font-medium text-[#1a6fd4]">查看详情</span>
-                          </div>
-                        </div>
-                      </div>
-                      <div className="shrink-0 text-right">
-                        <span className="depth-emphasis inline-flex px-2 py-1 text-xs text-slate-500">
-                          通知公告
-                        </span>
-                      </div>
-                    </div>
-                  </button>
-                ))}
-                {announcements.length === 0 ? (
-                  <div className="px-4 py-6 text-sm text-slate-500">当前暂无公告。</div>
-                ) : null}
-              </div>
-            </article>
-
-            <article className="depth-card overflow-hidden rounded-[20px]">
-              <div className="border-b border-white/55 bg-white/18 px-5 py-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="flex items-center gap-2">
-                    <div className="h-4 w-1 rounded-full bg-[#1a6fd4]" />
-                    <h3 className="text-base font-semibold text-slate-900">关键节点</h3>
-                  </div>
-                  <span className={`rounded-full border px-2.5 py-1 text-xs ${countdownStatus.className}`}>
-                    {countdownStatus.label}
-                  </span>
-                </div>
-              </div>
-              <div className="space-y-4 p-5">
-                <div className="depth-emphasis rounded-xl px-4 py-3">
-                  <p className="text-xs text-slate-400">节点倒计时</p>
-                  <p className="mt-1 text-sm font-semibold text-slate-900">
-                    {nearestEvent
-                      ? `距 ${nearestEvent.title} 还剩 ${countdown.days}天 ${countdown.hours}小时 ${countdown.minutes}分`
-                      : "当前还没有配置关键节点"}
-                  </p>
-                </div>
-                <div className="overview-timeline-list depth-subtle space-y-0 rounded-xl">
-                  {keyEventItems.map((item, index) => (
-                    <button
-                      className={`block w-full px-4 py-2.5 text-left transition hover:bg-white/42 ${index !== keyEventItems.length - 1 ? "border-b border-white/55" : ""}`}
-                      key={item.id}
-                      onClick={() => router.push("/workspace?tab=timeline")}
-                      type="button"
-                    >
-                      <div className="flex items-start gap-3">
-                        <div className="flex flex-col items-center pt-1">
-                          <span className="h-2.5 w-2.5 rounded-full bg-[#1a6fd4]" />
-                          {index !== keyEventItems.length - 1 ? <span className="mt-1 h-10 w-px bg-[#1a6fd4]/18" /> : null}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-start justify-between gap-3">
-                            <p className="line-clamp-1 text-sm font-semibold text-slate-900">{item.title}</p>
-                            <span className="shrink-0 text-xs text-slate-400">{formatDateTime(item.dateTime)}</span>
-                          </div>
-                          <p className="mt-1 line-clamp-2 text-[13px] leading-6 text-slate-500">{item.description}</p>
-                        </div>
-                      </div>
-                    </button>
-                  ))}
-                </div>
-              </div>
-            </article>
+            ) : null}
           </div>
-        </section>
+        </div>
+      </section>
 
-        <section className="bottom-grid grid gap-4 xl:grid-cols-[minmax(0,3fr)_minmax(320px,2fr)]">
-          <article className="depth-card overflow-hidden rounded-[20px]">
-            <div className="border-b border-white/55 bg-white/18 px-5 py-4">
-              <div className="flex items-center gap-2">
-                <div className="h-4 w-1 rounded-full bg-[#1a6fd4]" />
-                <h3 className="text-base font-semibold text-slate-900">今日任务摘要</h3>
-              </div>
+      <section className="grid gap-3 lg:grid-cols-4">
+        {metricCards.map((item) => (
+          <OverviewMetricCard item={item} key={item.label} />
+        ))}
+      </section>
+
+      <section className="grid gap-4 xl:grid-cols-2 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
+        <div className="space-y-4">
+          <article className="rounded-xl border border-gray-200 bg-white p-5">
+            <SectionTitle
+              actionLabel="查看全部 →"
+              onAction={() => openOverviewTarget(currentRole === "member" ? "board" : "reports")}
+              title="业务进度"
+            />
+
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              {progressPanels.map((item) => (
+                <button
+                  className="flex items-center gap-3 rounded-xl bg-gray-50 px-3.5 py-3 text-left transition-all duration-200 hover:border-[#2563EB]/20 hover:bg-[#F5F9FF]"
+                  key={item.title}
+                  onClick={() => openOverviewTarget(item.target)}
+                  type="button"
+                >
+                  <ProgressRing tone={item.tone} total={item.total} value={item.value} />
+                  <div className="min-w-0">
+                    <p className="text-[13px] font-semibold text-gray-900">{item.title}</p>
+                    <p className="mt-1 text-[11px] leading-5 text-gray-500">{item.description}</p>
+                  </div>
+                </button>
+              ))}
             </div>
-            <div className="space-y-3 p-5">
-              {todayTaskSummaryTasks.length > 0 ? (
-                todayTaskSummaryTasks.map((item) => {
-                  const deadlineMeta = getOverviewDeadlineMeta(item.dueDate, currentDateTime);
+          </article>
 
+          <article className="rounded-xl border border-gray-200 bg-white p-5">
+            <SectionTitle
+              actionLabel="全部任务 →"
+              onAction={() => openOverviewTarget("board")}
+              title="紧急事项"
+            />
+
+            <div className="mt-4">
+              {urgentItems.length > 0 ? (
+                urgentItems.map((item, index) => {
+                  const tone = urgentToneMap[item.tone];
                   return (
-                    <div
+                    <button
+                      className={`flex w-full items-center gap-3 py-3 text-left transition-all duration-200 hover:bg-[#F8FBFF] ${index !== urgentItems.length - 1 ? "border-b border-gray-100" : ""}`}
                       key={item.id}
-                      className="depth-subtle flex flex-col gap-2.5 rounded-xl px-4 py-2.5 lg:flex-row lg:items-center lg:justify-between"
+                      onClick={() => openOverviewTarget("board")}
+                      type="button"
                     >
-                      <div className="flex min-w-0 items-start gap-3">
-                        <span className={`task-priority-rail ${deadlineMeta.tone}`} />
-                        <div className="min-w-0 flex-1">
-                          <p className="task-title leading-6 text-slate-900" title={item.title}>
-                            {item.title}
-                          </p>
-                          <div className="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1">
-                            <span className="task-assignee-meta">负责人：{getTaskAssigneeName(item)}</span>
-                            <span className={`task-deadline ${deadlineMeta.tone === "danger" ? "overdue" : deadlineMeta.tone === "warning" ? "warning" : ""}`} title={`截止时间：${formatDateTime(item.dueDate)}`}>
-                              {deadlineMeta.label}
-                            </span>
-                          </div>
-                        </div>
+                      <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${tone.dotClassName}`} />
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-[13px] font-medium text-gray-900">{item.title}</p>
+                        <p className="mt-1 text-[12px] text-gray-500">{item.owner}</p>
                       </div>
-                      <button
-                        className="task-summary-link shrink-0 self-start lg:self-center"
-                        disabled={isSaving}
-                        onClick={() =>
-                          canMoveTask(item)
-                            ? void completeTaskFromOverview(item)
-                            : router.push("/workspace?tab=board")
-                        }
-                        type="button"
-                      >
-                        {canMoveTask(item) ? "勾选完成" : "查看工单"}
-                      </button>
-                    </div>
+                      <span className={`shrink-0 rounded-md px-2 py-1 text-[11px] font-medium ${tone.badgeClassName}`}>
+                        {item.badgeText}
+                      </span>
+                    </button>
                   );
                 })
               ) : (
-                <p className="text-sm leading-7 text-slate-500">当前暂无待处理任务。</p>
+                <p className="py-6 text-[13px] text-gray-400">当前没有紧急事项</p>
               )}
             </div>
           </article>
 
-          <article className="depth-card overflow-hidden rounded-[20px]">
-            <div className="border-b border-white/55 bg-white/18 px-5 py-4">
-              <div className="flex items-center gap-2">
-                <div className="h-4 w-1 rounded-full bg-[#1a6fd4]" />
-                <h3 className="text-base font-semibold text-slate-900">优先关注</h3>
-              </div>
+          <article className="rounded-xl border border-gray-200 bg-white p-5">
+            <SectionTitle title="今日汇报" />
+
+            <div className="mt-3 flex items-center justify-between gap-3">
+              <p className="text-[13px] text-gray-500">团队成员提交状态</p>
+              <span className="text-[14px] font-semibold text-gray-900">
+                {reportSubmittedCount}/{reportExpectedCount || 0} 人已提交
+              </span>
             </div>
-            <div className="space-y-4 p-5">
-              <div className="node-tip-banner">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="label">节点提示</p>
-                    <p className="content">
-                      {nearestEvent
-                        ? `距 ${nearestEvent.title} 还剩 ${countdown.days > 0 ? `${countdown.days}天 ` : ""}${countdown.hours}小时`
-                        : countdownStatus.hint}
-                    </p>
-                  </div>
-                  <span className={`priority-focus-tag ${countdownTotalHours <= 24 ? "pending-review" : countdown.days <= 3 ? "pending-action" : "clear"}`}>
-                    {countdownStatus.label}
-                  </span>
-                </div>
-              </div>
-              {priorityFocusItems.map((item) => (
-                <div className="depth-subtle rounded-xl px-4 py-3" key={`${item.tag}-${item.text}`}>
-                  <div className="flex items-start gap-3">
-                    <span className={`priority-focus-tag ${priorityFocusTagMeta[item.tag].className}`}>
-                      {priorityFocusTagMeta[item.tag].label}
-                    </span>
-                    <p className="text-sm leading-6 text-slate-500">{item.text}</p>
-                  </div>
-                </div>
-              ))}
-              <button
-                className="task-summary-footer-link"
-                onClick={() => setNotificationsOpen(true)}
-                type="button"
-              >
-                查看全部通知
-              </button>
+
+            <div className="mt-4 flex flex-wrap gap-2">
+              {reportStatusItems.length > 0 ? (
+                reportStatusItems.map((item) => (
+                  <button
+                    className={`inline-flex items-center gap-2 rounded-full px-3 py-2 text-[12px] font-medium transition-all duration-200 ${
+                      item.submitted
+                        ? "bg-[#EAF3DE] text-[#3B6D11] hover:bg-[#dcecc5]"
+                        : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                    }`}
+                    data-slot="report-pill"
+                    key={item.id}
+                    onClick={() => openOverviewTarget("reports")}
+                    type="button"
+                  >
+                    <span
+                      className={`h-2 w-2 rounded-full ${item.submitted ? "bg-[#1D9E75]" : "bg-gray-400"}`}
+                    />
+                    <span>{item.name}</span>
+                  </button>
+                ))
+              ) : (
+                <span className="rounded-full bg-gray-100 px-3 py-2 text-[12px] text-gray-500">
+                  当前暂无需提交成员
+                </span>
+              )}
             </div>
           </article>
-        </section>
-      </div>
-    );
-  };
+        </div>
 
-  return renderOverview();
+        <div className="space-y-4">
+          <article className="rounded-xl border border-gray-200 bg-white p-5">
+            <SectionTitle
+              actionLabel="完整日程 →"
+              onAction={() => openOverviewTarget("timeline")}
+              title="赛事日程"
+            />
+
+            <div className="mt-4 rounded-xl bg-[#EFF6FF] px-4 py-3">
+              <div className="flex items-center gap-3">
+                <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#2563EB] text-white">
+                  <Clock3 className="h-4 w-4" />
+                </div>
+                <div className="min-w-0">
+                  <p className="text-[11px] text-gray-500">最近截止</p>
+                  <p className="mt-0.5 truncate text-[14px] font-semibold text-[#2563EB]">
+                    {nearestUpcomingEvent
+                      ? `距 ${nearestUpcomingEvent.title} 还剩 ${countdown.days}天 ${countdown.hours}小时`
+                      : "近期暂无未过期赛事节点"}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-4 space-y-3">
+              {visibleEvents.length > 0 ? (
+                visibleEvents.map((item) => {
+                  const eventParts = getEventDisplayParts(item);
+
+                  return (
+                    <button
+                      className="flex w-full items-start gap-3 rounded-xl px-1 py-1 text-left transition-all duration-200 hover:bg-[#F8FBFF]"
+                      key={item.id}
+                      onClick={() => openOverviewTarget("timeline")}
+                      type="button"
+                    >
+                      <div
+                        className="flex w-[42px] shrink-0 flex-col items-center justify-center rounded-xl bg-gray-50 px-1 py-2"
+                        data-slot="event-day-card"
+                      >
+                        <span className="text-[16px] font-semibold leading-none text-gray-900">{eventParts.day}</span>
+                        <span className="mt-1 text-[10px] text-gray-500">{eventParts.month}</span>
+                      </div>
+                      <div className="min-w-0">
+                        <p className="line-clamp-1 text-[13px] font-semibold text-gray-900">{item.title}</p>
+                        <p className="mt-1 line-clamp-1 text-[11px] text-gray-500">{item.description}</p>
+                        <p className="mt-1 text-[11px] text-gray-400">{eventParts.dateText}</p>
+                      </div>
+                    </button>
+                  );
+                })
+              ) : (
+                <p className="py-6 text-[13px] text-gray-400">当前暂无赛事日程</p>
+              )}
+            </div>
+          </article>
+
+          <article className="rounded-xl border border-gray-200 bg-white p-5">
+            <SectionTitle
+              actionLabel="查看全部 →"
+              onAction={() => openOverviewTarget("notifications")}
+              title="通知公告"
+            />
+
+            <div className="mt-4">
+              {visibleAnnouncements.length > 0 ? (
+                visibleAnnouncements.map((item, index) => (
+                  <button
+                    className={`flex w-full items-start justify-between gap-3 py-3 text-left transition-all duration-200 hover:bg-[#F8FBFF] ${index !== visibleAnnouncements.length - 1 ? "border-b border-gray-100" : ""}`}
+                    data-slot="announcement-link-button"
+                    key={item.id}
+                    onClick={() => setSelectedAnnouncement(item)}
+                    type="button"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="truncate text-[13px] font-semibold text-gray-900 transition-colors duration-200 hover:text-[#2563EB]">
+                        {item.title}
+                      </p>
+                      <p className="mt-1 line-clamp-2 text-[11px] leading-5 text-gray-500">{item.detail}</p>
+                    </div>
+                    <span className="shrink-0 text-[11px] text-gray-400">{getAnnouncementDateText(item.createdAt)}</span>
+                  </button>
+                ))
+              ) : (
+                <p className="py-6 text-[13px] text-gray-400">当前暂无公告</p>
+              )}
+            </div>
+          </article>
+        </div>
+      </section>
+    </div>
+  );
 }
