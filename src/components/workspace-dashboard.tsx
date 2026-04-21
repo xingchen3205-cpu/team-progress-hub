@@ -3,9 +3,10 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
+  Bot,
   BellPlus,
   CalendarDays,
   Check,
@@ -63,6 +64,8 @@ import {
   documentCategories,
   roleLabels,
 } from "@/data/demo-data";
+import { WorkspaceAssistant } from "@/components/assistant/workspace-assistant";
+import type { AiPermissionState } from "@/components/assistant/assistant-types";
 import { PdfPreview } from "@/components/pdf-preview";
 import {
   formatBeijingDateTimeShort,
@@ -120,6 +123,7 @@ type TabKey =
   | "review"
   | "documents"
   | "team"
+  | "assistant"
   | "profile";
 
 type TabItem = {
@@ -302,6 +306,23 @@ type CurrentUser = {
   };
 };
 
+type AiPermissionRowItem = {
+  userId: string;
+  name: string;
+  username: string;
+  role: RoleKey;
+  isEnabled: boolean;
+  maxCount: number | null;
+  usedCount: number;
+  remainingCount: number | null;
+  resetAt: string | null;
+};
+
+type AiPermissionDraft = {
+  isEnabled: boolean;
+  maxCount: string;
+};
+
 type ReportEntryWithDate = ReportEntry & {
   date: string;
 };
@@ -460,6 +481,12 @@ const allTabs: TabItem[] = [
     label: "团队管理",
     description: "查看成员分工、账号信息和角色配置。",
     icon: Users,
+  },
+  {
+    key: "assistant",
+    label: "AI 助手",
+    description: "通过已部署的 Dify 助手咨询系统使用、赛事流程和材料规范。",
+    icon: Bot,
   },
   {
     key: "profile",
@@ -736,7 +763,7 @@ const textareaClassName = `${fieldClassName} min-h-28`;
 
 const rolePermissions = {
   admin: {
-    visibleTabs: ["overview", "timeline", "board", "training", "reports", "experts", "review", "documents", "team", "profile"] as TabKey[],
+    visibleTabs: ["overview", "timeline", "board", "training", "reports", "experts", "review", "documents", "team", "assistant", "profile"] as TabKey[],
     canPublishAnnouncement: true,
     canSendDirective: true,
     canCreateTask: true,
@@ -757,7 +784,7 @@ const rolePermissions = {
     canResetPassword: true,
   },
   school_admin: {
-    visibleTabs: ["overview", "timeline", "board", "training", "reports", "experts", "review", "documents", "team", "profile"] as TabKey[],
+    visibleTabs: ["overview", "timeline", "board", "training", "reports", "experts", "review", "documents", "team", "assistant", "profile"] as TabKey[],
     canPublishAnnouncement: true,
     canSendDirective: true,
     canCreateTask: true,
@@ -778,7 +805,7 @@ const rolePermissions = {
     canResetPassword: true,
   },
   teacher: {
-    visibleTabs: ["overview", "timeline", "board", "training", "reports", "experts", "review", "documents", "team", "profile"] as TabKey[],
+    visibleTabs: ["overview", "timeline", "board", "training", "reports", "experts", "review", "documents", "team", "assistant", "profile"] as TabKey[],
     canPublishAnnouncement: true,
     canSendDirective: true,
     canCreateTask: true,
@@ -799,7 +826,7 @@ const rolePermissions = {
     canResetPassword: true,
   },
   leader: {
-    visibleTabs: ["overview", "timeline", "board", "training", "reports", "experts", "review", "documents", "team", "profile"] as TabKey[],
+    visibleTabs: ["overview", "timeline", "board", "training", "reports", "experts", "review", "documents", "team", "assistant", "profile"] as TabKey[],
     canPublishAnnouncement: true,
     canSendDirective: false,
     canCreateTask: true,
@@ -820,7 +847,7 @@ const rolePermissions = {
     canResetPassword: false,
   },
   member: {
-    visibleTabs: ["overview", "timeline", "board", "training", "reports", "experts", "review", "documents", "team", "profile"] as TabKey[],
+    visibleTabs: ["overview", "timeline", "board", "training", "reports", "experts", "review", "documents", "team", "assistant", "profile"] as TabKey[],
     canPublishAnnouncement: false,
     canSendDirective: false,
     canCreateTask: true,
@@ -841,7 +868,7 @@ const rolePermissions = {
     canResetPassword: false,
   },
   expert: {
-    visibleTabs: ["review", "profile"] as TabKey[],
+    visibleTabs: ["review", "assistant", "profile"] as TabKey[],
     canPublishAnnouncement: false,
     canSendDirective: false,
     canCreateTask: false,
@@ -879,6 +906,15 @@ const teamRoleSortOrder: Record<TeamRoleLabel, number> = {
   项目负责人: 3,
   团队成员: 4,
   评审专家: 5,
+};
+
+const teamRoleTagClassNames: Record<TeamRoleLabel, string> = {
+  系统管理员: "bg-blue-50 text-blue-700 border-blue-200",
+  校级管理员: "bg-violet-50 text-violet-700 border-violet-200",
+  指导教师: "bg-emerald-50 text-emerald-700 border-emerald-200",
+  项目负责人: "bg-amber-50 text-amber-700 border-amber-200",
+  团队成员: "bg-slate-100 text-slate-600 border-slate-200",
+  评审专家: "bg-rose-50 text-rose-700 border-rose-200",
 };
 
 const formatDateTime = (value: string) => formatBeijingDateTimeShort(value);
@@ -1514,7 +1550,7 @@ function Modal({
 }
 
 function ModalActions({ children }: { children: React.ReactNode }) {
-  return <div className="mt-5 flex justify-end gap-3 border-t border-slate-200 pt-4">{children}</div>;
+  return <div className="mt-5 flex flex-col-reverse gap-2 border-t border-slate-200 pt-4 sm:flex-row sm:justify-end sm:gap-3">{children}</div>;
 }
 
 function ConfirmDialog({
@@ -1736,11 +1772,34 @@ export function WorkspaceDashboard({
   const [teamSearch, setTeamSearch] = useState("");
   const [teamRoleFilter, setTeamRoleFilter] = useState<"全部" | TeamRoleLabel>("全部");
   const [teamGroupFilter, setTeamGroupFilter] = useState("全部");
+  const [teamAiFilter, setTeamAiFilter] = useState<"全部" | "已开启" | "已关闭">("全部");
   const [teamAccountView, setTeamAccountView] = useState<"team" | "experts">("team");
+  const [teamAiSelectedIds, setTeamAiSelectedIds] = useState<string[]>([]);
+  const [teamAiPage, setTeamAiPage] = useState(1);
+  const [aiBatchQuotaDraft, setAiBatchQuotaDraft] = useState("");
   const [todoAutoOpened, setTodoAutoOpened] = useState(false);
   const [dismissedTodosReady, setDismissedTodosReady] = useState(false);
   const [dismissedTodoIds, setDismissedTodoIds] = useState<string[]>([]);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+
+  useEffect(() => {
+    if (mobileSidebarOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [mobileSidebarOpen]);
+
+  useEffect(() => {
+    const timerMap = aiPermissionAutoSaveTimersRef.current;
+    return () => {
+      Object.values(timerMap).forEach((timer) => window.clearTimeout(timer));
+    };
+  }, []);
+
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [confirmDialog, setConfirmDialog] = useState<ConfirmDialogState>(null);
   const [successToast, setSuccessToast] = useState<SuccessToastState>(null);
@@ -1776,6 +1835,7 @@ export function WorkspaceDashboard({
 
   const [announcementModalOpen, setAnnouncementModalOpen] = useState(false);
   const [announcementDraft, setAnnouncementDraft] = useState<AnnouncementDraft>(defaultAnnouncementDraft);
+  const [selectedAnnouncement, setSelectedAnnouncement] = useState<Announcement | null>(null);
   const [reminderModalOpen, setReminderModalOpen] = useState(false);
   const [reminderTargetMember, setReminderTargetMember] = useState<TeamMember | null>(null);
   const [reminderDraft, setReminderDraft] = useState<ReminderDraft>(defaultReminderDraft);
@@ -1820,8 +1880,15 @@ export function WorkspaceDashboard({
   const [profileDraft, setProfileDraft] = useState<ProfileDraft>(defaultProfileDraft());
   const [profileMessage, setProfileMessage] = useState<string | null>(null);
   const [isAvatarUploading, setIsAvatarUploading] = useState(false);
+  const [aiPermissionItems, setAiPermissionItems] = useState<AiPermissionRowItem[]>([]);
+  const [aiPermissionDrafts, setAiPermissionDrafts] = useState<Record<string, AiPermissionDraft>>({});
+  const [aiPermissionsLoading, setAiPermissionsLoading] = useState(false);
+  const [aiPermissionsMessage, setAiPermissionsMessage] = useState<string | null>(null);
+  const [aiPermissionSavingId, setAiPermissionSavingId] = useState<string | null>(null);
+  const [aiPermissionBatchSaving, setAiPermissionBatchSaving] = useState(false);
   const avatarInputRef = useRef<HTMLInputElement | null>(null);
   const profileMenuRef = useRef<HTMLDivElement | null>(null);
+  const aiPermissionAutoSaveTimersRef = useRef<Record<string, number>>({});
   const [passwordModalOpen, setPasswordModalOpen] = useState(false);
   const [passwordTargetMember, setPasswordTargetMember] = useState<TeamMember | null>(null);
   const [passwordDraft, setPasswordDraft] = useState("");
@@ -1925,6 +1992,235 @@ export function WorkspaceDashboard({
   const showSuccessToast = (title: string, detail?: string) => {
     setLoadError(null);
     setSuccessToast({ title, detail });
+  };
+
+  const loadAiPermissions = useCallback(async () => {
+    if (!hasGlobalAdminRole) {
+      return;
+    }
+
+    setAiPermissionsLoading(true);
+    setAiPermissionsMessage(null);
+
+    try {
+      const payload = await requestJson<{ items: AiPermissionRowItem[] }>("/api/admin/ai-permissions");
+      setAiPermissionItems(payload.items);
+      setAiPermissionDrafts(
+        Object.fromEntries(
+          payload.items.map((item) => [
+            item.userId,
+            {
+              isEnabled: item.isEnabled,
+              maxCount: item.maxCount == null ? "" : String(item.maxCount),
+            } satisfies AiPermissionDraft,
+          ]),
+        ),
+      );
+    } catch (error) {
+      setAiPermissionsMessage(error instanceof Error ? error.message : "AI 权限列表加载失败");
+    } finally {
+      setAiPermissionsLoading(false);
+    }
+  }, [hasGlobalAdminRole]);
+
+  const saveAiPermission = async (
+    userId: string,
+    options?: {
+      draft?: AiPermissionDraft;
+      resetUsage?: boolean;
+      silentSuccess?: boolean;
+    },
+  ) => {
+    const resetUsage = options?.resetUsage ?? false;
+    const draft = options?.draft ?? aiPermissionDrafts[userId];
+    if (!draft) {
+      return false;
+    }
+
+    setAiPermissionSavingId(userId);
+    setAiPermissionsMessage(null);
+
+    try {
+      const payload = await requestJson<{ permission: AiPermissionState }>(`/api/admin/ai-permissions/${userId}`, {
+        method: "PUT",
+        body: JSON.stringify({
+          isEnabled: draft.isEnabled,
+          maxCount: draft.maxCount,
+          resetUsage,
+        }),
+      });
+
+      setAiPermissionItems((current) =>
+        current.map((item) =>
+          item.userId === userId
+            ? {
+                ...item,
+                ...payload.permission,
+              }
+            : item,
+        ),
+      );
+      setAiPermissionDrafts((current) => ({
+        ...current,
+        [userId]: {
+          isEnabled: payload.permission.isEnabled,
+          maxCount: payload.permission.maxCount == null ? "" : String(payload.permission.maxCount),
+        },
+      }));
+      if (!options?.silentSuccess) {
+        showSuccessToast(resetUsage ? "AI 次数已重置" : "AI 权限已保存");
+      }
+      return true;
+    } catch (error) {
+      setAiPermissionsMessage(error instanceof Error ? error.message : "保存 AI 权限失败");
+      return false;
+    } finally {
+      setAiPermissionSavingId(null);
+    }
+  };
+
+  const scheduleAiPermissionSave = (userId: string, draft: AiPermissionDraft) => {
+    const currentTimer = aiPermissionAutoSaveTimersRef.current[userId];
+    if (currentTimer) {
+      window.clearTimeout(currentTimer);
+    }
+
+    aiPermissionAutoSaveTimersRef.current[userId] = window.setTimeout(() => {
+      delete aiPermissionAutoSaveTimersRef.current[userId];
+      void saveAiPermission(userId, {
+        draft,
+        silentSuccess: true,
+      }).then((saved) => {
+        if (saved) {
+          showSuccessToast("AI 权限已自动保存");
+        }
+      });
+    }, 500);
+  };
+
+  const flushAiPermissionSave = (userId: string) => {
+    const currentTimer = aiPermissionAutoSaveTimersRef.current[userId];
+    if (currentTimer) {
+      window.clearTimeout(currentTimer);
+      delete aiPermissionAutoSaveTimersRef.current[userId];
+    }
+
+    const draft = aiPermissionDrafts[userId];
+    if (!draft) {
+      return;
+    }
+
+    void saveAiPermission(userId, {
+      draft,
+      silentSuccess: true,
+    }).then((saved) => {
+      if (saved) {
+        showSuccessToast("AI 权限已自动保存");
+      }
+    });
+  };
+
+  const updateAiPermissionDraft = (
+    userId: string,
+    patch: Partial<AiPermissionDraft>,
+    options?: {
+      autoSave?: boolean;
+    },
+  ) => {
+    const currentDraft = aiPermissionDrafts[userId] ?? {
+      isEnabled: aiPermissionMap.get(userId)?.isEnabled ?? false,
+      maxCount: aiPermissionMap.get(userId)?.maxCount == null ? "" : String(aiPermissionMap.get(userId)?.maxCount ?? ""),
+    };
+    const nextDraft = {
+      ...currentDraft,
+      ...patch,
+    };
+
+    setAiPermissionDrafts((current) => ({
+      ...current,
+      [userId]: nextDraft,
+    }));
+
+    if (options?.autoSave) {
+      scheduleAiPermissionSave(userId, nextDraft);
+    }
+  };
+
+  const runBatchAiPermissionUpdate = async (
+    userIds: string[],
+    updater: (draft: AiPermissionDraft, item: AiPermissionRowItem | undefined) => AiPermissionDraft,
+    options?: {
+      resetUsage?: boolean;
+      successTitle?: string;
+      successDetail?: string;
+    },
+  ) => {
+    if (userIds.length === 0) {
+      return;
+    }
+
+    setAiPermissionBatchSaving(true);
+    setAiPermissionsMessage(null);
+
+    try {
+      await Promise.all(
+        userIds.map(async (userId) => {
+          const item = aiPermissionMap.get(userId);
+          const currentDraft = aiPermissionDrafts[userId] ?? {
+            isEnabled: item?.isEnabled ?? false,
+            maxCount: item?.maxCount == null ? "" : String(item.maxCount),
+          };
+          const nextDraft = updater(currentDraft, item);
+
+          setAiPermissionDrafts((current) => ({
+            ...current,
+            [userId]: nextDraft,
+          }));
+
+          await saveAiPermission(userId, {
+            draft: nextDraft,
+            resetUsage: options?.resetUsage,
+            silentSuccess: true,
+          });
+        }),
+      );
+      setTeamAiSelectedIds([]);
+    } finally {
+      setAiPermissionBatchSaving(false);
+    }
+  };
+
+  const confirmBatchAiPermissionUpdate = (
+    userIds: string[],
+    config: {
+      confirmLabel: string;
+      message: string;
+      successDetail?: string;
+      successTitle: string;
+      updater: (draft: AiPermissionDraft, item: AiPermissionRowItem | undefined) => AiPermissionDraft;
+      resetUsage?: boolean;
+    },
+  ) => {
+    if (userIds.length === 0) {
+      return;
+    }
+
+    setConfirmDialog({
+      open: true,
+      title: config.successTitle,
+      message: config.message,
+      confirmLabel: config.confirmLabel,
+      confirmVariant: "primary",
+      successTitle: config.successTitle,
+      successDetail: config.successDetail,
+      onConfirm: async () => {
+        await runBatchAiPermissionUpdate(userIds, config.updater, {
+          resetUsage: config.resetUsage,
+          successTitle: config.successTitle,
+          successDetail: config.successDetail,
+        });
+      },
+    });
   };
 
   useEffect(() => {
@@ -2133,6 +2429,14 @@ export function WorkspaceDashboard({
       window.removeEventListener("focus", refreshIfVisible);
     };
   }, [currentMemberId, hasBlockingOverlay, requiresEmailCompletion]);
+
+  useEffect(() => {
+    if (safeActiveTab !== "team" || !hasGlobalAdminRole || aiPermissionItems.length > 0 || aiPermissionsLoading) {
+      return;
+    }
+
+    void loadAiPermissions();
+  }, [aiPermissionItems.length, aiPermissionsLoading, hasGlobalAdminRole, loadAiPermissions, safeActiveTab]);
 
   useEffect(() => {
     if (!nearestEvent) {
@@ -2509,6 +2813,16 @@ export function WorkspaceDashboard({
   const canViewExpertAccounts = hasGlobalAdminRole || currentRole === "teacher";
   const canViewTeamAccountIdentifiers = hasGlobalAdminRole || currentRole === "teacher";
   const visibleTeamMembers = members.filter((member) => canViewExpertAccounts || member.systemRole !== "评审专家");
+  const aiPermissionMap = useMemo(
+    () =>
+      new Map(
+        aiPermissionItems.map((item) => [
+          item.userId,
+          item,
+        ]),
+      ),
+    [aiPermissionItems],
+  );
 
   const visibleCoreTeamMembers = visibleTeamMembers.filter((member) => member.systemRole !== "评审专家");
   const visibleExpertAccountMembers = visibleTeamMembers.filter((member) => member.systemRole === "评审专家");
@@ -2538,14 +2852,19 @@ export function WorkspaceDashboard({
       (!member.accountHidden && member.account.toLowerCase().includes(normalizedKeyword));
 
     const matchesRole = teamRoleFilter === "全部" || member.systemRole === teamRoleFilter;
+    const aiPermission = aiPermissionMap.get(member.id);
+    const matchesAi =
+      !hasGlobalAdminRole ||
+      teamAiFilter === "全部" ||
+      (teamAiFilter === "已开启" ? aiPermission?.isEnabled : !aiPermission?.isEnabled);
     const matchesGroup =
       !hasGlobalAdminRole ||
       teamAccountView !== "team" ||
       teamGroupFilter === "全部" ||
       (teamGroupFilter === "未分组" ? !member.teamGroupId : member.teamGroupId === teamGroupFilter);
-    return matchesKeyword && matchesRole && matchesGroup;
+    return matchesKeyword && matchesRole && matchesAi && matchesGroup;
   });
-  const displayedTeamMembers = useMemo(() => {
+  const sortedTeamMembers = useMemo(() => {
     if (!isSystemAdmin) {
       return filteredTeamMembers;
     }
@@ -2570,6 +2889,33 @@ export function WorkspaceDashboard({
       return left.name.localeCompare(right.name, "zh-CN");
     });
   }, [filteredTeamMembers, isSystemAdmin]);
+  const teamPageSize = 20;
+  const teamPageCount = Math.max(1, Math.ceil(sortedTeamMembers.length / teamPageSize));
+  const displayedTeamMembers = hasGlobalAdminRole
+    ? sortedTeamMembers.slice((teamAiPage - 1) * teamPageSize, teamAiPage * teamPageSize)
+    : sortedTeamMembers;
+  const selectedVisibleAiIds = displayedTeamMembers
+    .filter((member) => teamAiSelectedIds.includes(member.id))
+    .map((member) => member.id);
+  const allVisibleAiSelected = displayedTeamMembers.length > 0 && selectedVisibleAiIds.length === displayedTeamMembers.length;
+  const teamAiStats = useMemo(() => {
+    const relevantPermissions = activeTeamMembers
+      .map((member) => aiPermissionMap.get(member.id))
+      .filter((item): item is AiPermissionRowItem => Boolean(item));
+    const enabledCount = relevantPermissions.filter((item) => item.isEnabled).length;
+    const usedTotal = relevantPermissions.reduce((sum, item) => sum + item.usedCount, 0);
+    const quotaTotal = relevantPermissions.some((item) => item.maxCount == null)
+      ? null
+      : relevantPermissions.reduce((sum, item) => sum + (item.maxCount ?? 0), 0);
+
+    return {
+      totalMembers: activeTeamMembers.length,
+      enabledCount,
+      usedTotal,
+      quotaUsed: usedTotal,
+      quotaTotal,
+    };
+  }, [activeTeamMembers, aiPermissionMap]);
   const canBatchCreateExperts = hasGlobalAdminRole || currentRole === "teacher";
 
   useEffect(() => {
@@ -2577,6 +2923,17 @@ export function WorkspaceDashboard({
       setTeamAccountView("team");
     }
   }, [canViewExpertAccounts, teamAccountView]);
+
+  useEffect(() => {
+    setTeamAiPage(1);
+    setTeamAiSelectedIds([]);
+  }, [teamSearch, teamRoleFilter, teamGroupFilter, teamAiFilter, teamAccountView]);
+
+  useEffect(() => {
+    if (teamAiPage > teamPageCount) {
+      setTeamAiPage(teamPageCount);
+    }
+  }, [teamAiPage, teamPageCount]);
 
   const pendingApprovalMembers = pendingTeamMembers.filter((member) => canApprovePendingMember(member));
   const unreadTodoNotifications = notifications.filter((item) => !item.isRead);
@@ -5850,7 +6207,12 @@ export function WorkspaceDashboard({
               </div>
               <div className="divide-y divide-slate-100">
                 {announcements.slice(0, 5).map((item) => (
-                  <article className="px-4 py-3 transition hover:bg-white/35" key={item.id}>
+                  <button
+                    className="block w-full px-4 py-3 text-left transition hover:bg-white/35"
+                    key={item.id}
+                    onClick={() => setSelectedAnnouncement(item)}
+                    type="button"
+                  >
                     <div className="flex items-start justify-between gap-3">
                       <div className="min-w-0 flex-1">
                         <div className="flex items-start gap-3">
@@ -5858,6 +6220,7 @@ export function WorkspaceDashboard({
                           <div className="min-w-0">
                             <p className="line-clamp-1 text-sm font-semibold text-slate-900">{item.title}</p>
                             <p className="mt-1 line-clamp-2 text-sm leading-6 text-slate-500">{item.detail}</p>
+                            <span className="mt-2 inline-flex text-xs font-medium text-[#1a6fd4]">查看详情</span>
                           </div>
                         </div>
                       </div>
@@ -5867,7 +6230,7 @@ export function WorkspaceDashboard({
                         </span>
                       </div>
                     </div>
-                  </article>
+                  </button>
                 ))}
                 {announcements.length === 0 ? (
                   <div className="px-4 py-6 text-sm text-slate-500">当前暂无公告。</div>
@@ -7202,7 +7565,7 @@ export function WorkspaceDashboard({
               </div>
             </div>
 
-            <div className="flex flex-wrap gap-2">
+            <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 sm:flex-wrap sm:overflow-visible">
               {reportDateOptions.slice(0, 10).map((date) => {
                 const hasReport = (reportEntriesByDay[date] ?? []).length > 0;
                 const isSelected = date === selectedDate;
@@ -7840,9 +8203,9 @@ export function WorkspaceDashboard({
                       )}
                     </div>
                   </div>
-                  <div className="flex flex-wrap items-center gap-2">
+                  <div className="flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
                     <button
-                      className="review-score-toggle"
+                      className="review-score-toggle w-full justify-center sm:w-auto"
                       onClick={() => toggleReviewPackageExpanded(group.key)}
                       type="button"
                     >
@@ -7851,7 +8214,7 @@ export function WorkspaceDashboard({
                     </button>
                     {canManageReviewMaterials ? (
                       <ActionButton
-                        className="review-danger-button"
+                        className="review-danger-button w-full sm:w-auto"
                         onClick={() => deleteReviewAssignment(group.items[0].id, group.targetName)}
                       >
                         删除整包评审数据
@@ -8315,7 +8678,7 @@ export function WorkspaceDashboard({
           }
           title="团队管理"
         />
-        <div className="flex flex-wrap items-center gap-3">
+        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center sm:gap-3">
           {permissions.canSendDirective ? (
             <ActionButton className="team-toolbar-secondary" onClick={openSentRemindersModal}>
               <span className="inline-flex items-center gap-2">
@@ -8548,6 +8911,22 @@ export function WorkspaceDashboard({
                   ))}
                 </select>
               </label>
+              {hasGlobalAdminRole ? (
+                <label className="text-sm text-slate-500">
+                  <span className="sr-only">按 AI 权限筛选</span>
+                  <select
+                    className="w-full sm:min-w-[160px] rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                    value={teamAiFilter}
+                    onChange={(event) => setTeamAiFilter(event.target.value as "全部" | "已开启" | "已关闭")}
+                  >
+                    {["全部", "已开启", "已关闭"].map((filterOption) => (
+                      <option key={filterOption} value={filterOption}>
+                        {filterOption === "全部" ? "全部 AI 状态" : filterOption}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
               {canUseTeamGroups ? (
                 <label className="text-sm text-slate-500">
                   <span className="sr-only">按分组筛选</span>
@@ -8565,6 +8944,14 @@ export function WorkspaceDashboard({
                     ))}
                   </select>
                 </label>
+              ) : null}
+              {hasGlobalAdminRole ? (
+                <ActionButton disabled={aiPermissionsLoading} onClick={() => void loadAiPermissions()}>
+                  <span className="inline-flex items-center gap-2">
+                    <RotateCcw className="h-4 w-4" />
+                    <span>刷新 AI</span>
+                  </span>
+                </ActionButton>
               ) : null}
             </div>
           </div>
@@ -8614,186 +9001,565 @@ export function WorkspaceDashboard({
               </span>
             ) : null}
           </div>
+          {hasGlobalAdminRole ? (
+            <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+              <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                <p className="text-xs text-slate-400">总成员数</p>
+                <p className="mt-1 text-lg font-semibold text-[#2563EB]">{teamAiStats.totalMembers} 人</p>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                <p className="text-xs text-slate-400">已开启 AI</p>
+                <p className="mt-1 text-lg font-semibold text-[#2563EB]">{teamAiStats.enabledCount} 人</p>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                <p className="text-xs text-slate-400">累计已用</p>
+                <p className="mt-1 text-lg font-semibold text-[#2563EB]">{teamAiStats.usedTotal} 次</p>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                <p className="text-xs text-slate-400">总配额消耗</p>
+                <p className="mt-1 text-lg font-semibold text-[#2563EB]">
+                  {teamAiStats.quotaUsed} / {teamAiStats.quotaTotal == null ? "∞" : `${teamAiStats.quotaTotal}`}
+                </p>
+              </div>
+            </div>
+          ) : null}
         </div>
 
-        <div className={`hidden ${teamListGridClassName} gap-4 border-b border-slate-200 bg-slate-50 px-5 py-3 text-xs font-medium tracking-[0.06em] text-slate-400 lg:grid`}>
-          <span>账号信息</span>
-          <span>角色</span>
-          {canUseTeamGroups ? <span>分组</span> : null}
-          <span>状态</span>
-          {showTeamActions ? <span className="text-right">操作</span> : null}
-        </div>
-
-        {displayedTeamMembers.length > 0 ? (
-          displayedTeamMembers.map((member) => {
-            const editable = canManageMember(member);
-            const isSystemAccount = member.systemRole === "系统管理员";
-            const isSchoolAdminAccount = member.systemRole === "校级管理员";
-            const protectedGlobalAccount = isSystemAccount || (isSchoolAdminAccount && !isSystemAdmin);
-            const groupAssignmentLocked = isSystemAccount || isSchoolAdminAccount;
-            const roleDisabled = !editable || protectedGlobalAccount;
-
-            return (
-              <article
-                key={member.id}
-                className="border-b border-slate-200 px-5 py-5 last:border-b-0"
-              >
-                <div className={`grid gap-4 ${teamListGridClassName} lg:items-center`}>
-                  <div className="flex min-w-0 items-center gap-3">
-                    <UserAvatar
-                      avatar={member.avatar}
-                      avatarUrl={member.avatarUrl}
-                      className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-600 text-sm font-semibold text-white"
-                      name={member.name}
-                      textClassName="text-sm font-semibold text-white"
-                    />
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h3 className="truncate text-sm font-semibold text-slate-900">{member.name}</h3>
-                        {isSystemAccount ? (
-                          <span className="system-account-tag">
-                            最高权限
-                          </span>
-                        ) : isSchoolAdminAccount ? (
-                          <span className="system-account-tag school-admin">
-                            全局管理员
-                          </span>
-                        ) : member.systemRole === "评审专家" ? (
-                          <span className="system-account-tag expert">
-                            评审专家
-                          </span>
-                        ) : null}
-                      </div>
-                      {!member.accountHidden ? (
-                        <p className="mt-1 truncate text-sm text-slate-500">账号：{member.account}</p>
-                      ) : member.teamGroupName ? (
-                        <p className="mt-1 truncate text-sm text-slate-500">团队：{member.teamGroupName}</p>
-                      ) : null}
-                    </div>
-                  </div>
-
-                  <div>
-                    <p className="mb-2 text-xs text-slate-400 lg:hidden">角色</p>
-                    {permissions.canManageTeam && !roleDisabled && editingTeamRowId === member.id ? (
-                      <select
-                        className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
-                        value={editingTeamRowRole ?? member.systemRole}
-                        onChange={(event) => setEditingTeamRowRole(event.target.value as TeamRoleLabel)}
-                      >
-                        {availableRoleOptions.map((roleOption) => (
-                          <option key={roleOption} value={roleOption}>
-                            {roleOption}
-                          </option>
-                        ))}
-                      </select>
-                    ) : (
-                      <span className="team-inline-value">
-                        {member.systemRole}
-                      </span>
-                    )}
-                  </div>
-
-                  {canUseTeamGroups ? (
-                    <div>
-                      <p className="mb-2 text-xs text-slate-400 lg:hidden">分组</p>
-                      {editingTeamRowId === member.id && !groupAssignmentLocked ? (
-                        <select
-                          className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
-                          value={editingTeamRowGroupId}
-                          onChange={(event) => setEditingTeamRowGroupId(event.target.value)}
-                        >
-                          <option value="">未分组</option>
-                          {teamGroups.map((group) => (
-                            <option key={group.id} value={group.id}>
-                              {group.name}
-                            </option>
-                          ))}
-                        </select>
-                      ) : (
-                        <span className="team-inline-value">{member.teamGroupName ?? "未分组"}</span>
-                      )}
-                    </div>
-                  ) : null}
-
-                  <div>
-                    <p className="mb-2 text-xs text-slate-400 lg:hidden">状态</p>
-                    <span
-                      className={`system-status-tag ${isSchoolAdminAccount ? "school-admin" : member.systemRole === "评审专家" ? "expert" : ""}`}
-                    >
-                      {isSystemAccount ? "系统保留账号" : isSchoolAdminAccount ? "全局管理员" : "已启用"}
-                    </span>
-                  </div>
-
-                  {showTeamActions ? (
-                    <div className="flex flex-wrap items-center gap-2 lg:justify-end">
-                      {permissions.canManageTeam && editable && !protectedGlobalAccount && editingTeamRowId !== member.id ? (
-                        <button
-                          className="team-icon-button"
-                          onClick={() => openTeamRowEditor(member)}
-                          title="编辑角色和分组"
-                          type="button"
-                        >
-                          <Pencil className="h-3.5 w-3.5" />
-                        </button>
-                      ) : null}
-                      {permissions.canManageTeam && editingTeamRowId === member.id ? (
-                        <>
-                          <button
-                            className="team-icon-button confirm"
-                            onClick={() => saveTeamRowEditor(member)}
-                            title="确认保存"
-                            type="button"
-                          >
-                            <Check className="h-3.5 w-3.5" />
-                          </button>
-                          <button
-                            className="team-icon-button"
-                            onClick={cancelTeamRowEditor}
-                            title="取消编辑"
-                            type="button"
-                          >
-                            <X className="h-3.5 w-3.5" />
-                          </button>
-                        </>
-                      ) : null}
-                      {canSendDirectiveToMember(member) ? (
-                        <ActionButton onClick={() => openReminderModal(member)}>
-                          发送提醒
-                        </ActionButton>
-                      ) : null}
-                      {permissions.canResetPassword ? (
-                        <ActionButton
-                          disabled={!canResetMemberPassword(member)}
-                          onClick={() => openPasswordModal(member)}
-                          title="无权限"
-                        >
-                          重置密码
-                        </ActionButton>
-                      ) : null}
-                      {permissions.canManageTeam ? (
-                        <ActionButton
-                          className="team-delete-button"
-                          disabled={!editable || protectedGlobalAccount}
-                          onClick={() => removeMember(member.id, member.name)}
-                          title="无权限"
-                        >
-                          删除账号
-                        </ActionButton>
-                      ) : null}
-                    </div>
-                  ) : null}
-                </div>
-              </article>
-            );
-          })
-        ) : (
-          <div className="px-5 py-8">
-            <EmptyState
-              description="当前筛选条件下没有匹配账号，可以调整角色筛选或搜索关键词。"
-              icon={Users}
-              title="暂无匹配账号"
-            />
+        {aiPermissionsMessage ? (
+          <div className="border-b border-slate-200 bg-red-50 px-5 py-3 text-sm text-red-700">
+            {aiPermissionsMessage}
           </div>
+        ) : null}
+
+        {hasGlobalAdminRole ? (
+          <>
+            {teamAiSelectedIds.length > 0 ? (
+              <div className="sticky top-0 z-[1] flex flex-wrap items-center gap-2 border-b border-blue-200 bg-blue-50 px-5 py-3 text-sm text-blue-700">
+                <span>已选 {teamAiSelectedIds.length} 人</span>
+                <ActionButton
+                  disabled={aiPermissionBatchSaving}
+                  onClick={() =>
+                    confirmBatchAiPermissionUpdate(teamAiSelectedIds, {
+                      confirmLabel: "批量开启",
+                      message: `确认批量开启 ${teamAiSelectedIds.length} 个账号的 AI 权限吗？`,
+                      successTitle: "已批量开启 AI 权限",
+                      updater: (draft) => ({ ...draft, isEnabled: true }),
+                    })
+                  }
+                  variant="primary"
+                >
+                  批量开启权限
+                </ActionButton>
+                <ActionButton
+                  disabled={aiPermissionBatchSaving}
+                  onClick={() =>
+                    confirmBatchAiPermissionUpdate(teamAiSelectedIds, {
+                      confirmLabel: "批量关闭",
+                      message: `确认批量关闭 ${teamAiSelectedIds.length} 个账号的 AI 权限吗？`,
+                      successTitle: "已批量关闭 AI 权限",
+                      updater: (draft) => ({ ...draft, isEnabled: false }),
+                    })
+                  }
+                >
+                  批量关闭权限
+                </ActionButton>
+                <ActionButton
+                  disabled={aiPermissionBatchSaving}
+                  onClick={() => {
+                    const input = window.prompt("请输入统一次数上限，留空表示不限次数", aiBatchQuotaDraft);
+                    if (input == null) {
+                      return;
+                    }
+                    setAiBatchQuotaDraft(input);
+                    confirmBatchAiPermissionUpdate(teamAiSelectedIds, {
+                      confirmLabel: "批量设置",
+                      message: `确认把选中账号的 AI 次数配额统一设置为「${input.trim() || "不限"}」吗？`,
+                      successTitle: "已批量更新 AI 配额",
+                      updater: (draft) => ({ ...draft, maxCount: input.trim() }),
+                    });
+                  }}
+                >
+                  批量设置次数
+                </ActionButton>
+                <ActionButton
+                  disabled={aiPermissionBatchSaving}
+                  onClick={() =>
+                    confirmBatchAiPermissionUpdate(teamAiSelectedIds, {
+                      confirmLabel: "批量重置",
+                      message: `确认重置选中账号的 AI 已用次数吗？`,
+                      successTitle: "已批量重置 AI 次数",
+                      resetUsage: true,
+                      updater: (draft) => draft,
+                    })
+                  }
+                >
+                  批量重置次数
+                </ActionButton>
+              </div>
+            ) : null}
+
+            {aiPermissionsLoading && aiPermissionItems.length === 0 ? (
+              <div className="px-5 py-8 text-sm text-slate-500">正在加载 AI 权限数据...</div>
+            ) : displayedTeamMembers.length > 0 ? (
+              <>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full table-fixed">
+                    <thead className="bg-slate-50 text-xs font-medium tracking-[0.06em] text-slate-400">
+                      <tr>
+                        <th className="w-12 px-3 py-3 text-left">
+                          <input
+                            checked={allVisibleAiSelected}
+                            onChange={(event) =>
+                              setTeamAiSelectedIds((current) =>
+                                event.target.checked
+                                  ? Array.from(new Set([...current, ...displayedTeamMembers.map((member) => member.id)]))
+                                  : current.filter((id) => !displayedTeamMembers.some((member) => member.id === id))
+                              )
+                            }
+                            type="checkbox"
+                          />
+                        </th>
+                        <th className="px-3 py-3 text-left">成员</th>
+                        <th className="w-28 px-3 py-3 text-left">权限开关</th>
+                        <th className="w-28 px-3 py-3 text-left">
+                          <span className="inline-flex items-center gap-1">
+                            次数配额
+                            <span title="留空表示不限次数">
+                              <HelpCircle className="h-3.5 w-3.5" />
+                            </span>
+                          </span>
+                        </th>
+                        <th className="w-28 px-3 py-3 text-left">已用 / 配额</th>
+                        <th className="w-[200px] px-3 py-3 text-right">操作</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {displayedTeamMembers.map((member, index) => {
+                        const editable = canManageMember(member);
+                        const isSystemAccount = member.systemRole === "系统管理员";
+                        const isSchoolAdminAccount = member.systemRole === "校级管理员";
+                        const protectedGlobalAccount = isSystemAccount || (isSchoolAdminAccount && !isSystemAdmin);
+                        const groupAssignmentLocked = isSystemAccount || isSchoolAdminAccount;
+                        const roleDisabled = !editable || protectedGlobalAccount;
+                        const permissionItem = aiPermissionMap.get(member.id);
+                        const draft = aiPermissionDrafts[member.id] ?? {
+                          isEnabled: permissionItem?.isEnabled ?? false,
+                          maxCount: permissionItem?.maxCount == null ? "" : String(permissionItem.maxCount),
+                        };
+
+                        return (
+                          <tr
+                            className={`${index % 2 === 1 ? "bg-[#FAFAFA]" : "bg-white"} hover:bg-[#F0F7FF]`}
+                            key={member.id}
+                          >
+                            <td className="px-3 py-3 align-top">
+                              <input
+                                checked={teamAiSelectedIds.includes(member.id)}
+                                onChange={(event) =>
+                                  setTeamAiSelectedIds((current) =>
+                                    event.target.checked
+                                      ? [...current, member.id]
+                                      : current.filter((id) => id !== member.id)
+                                  )
+                                }
+                                type="checkbox"
+                              />
+                            </td>
+                            <td className="px-3 py-3 align-top">
+                              <div className="flex items-start gap-3">
+                                <UserAvatar
+                                  avatar={member.avatar}
+                                  avatarUrl={member.avatarUrl}
+                                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-blue-600 text-sm font-semibold text-white"
+                                  name={member.name}
+                                  textClassName="text-sm font-semibold text-white"
+                                />
+                                <div className="min-w-0">
+                                  <div className="flex flex-wrap items-center gap-2">
+                                    <span className="truncate text-sm font-semibold text-slate-900">{member.name}</span>
+                                    <span className={`rounded-full border px-2 py-0.5 text-xs ${teamRoleTagClassNames[member.systemRole]}`}>
+                                      {member.systemRole}
+                                    </span>
+                                  </div>
+                                  <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
+                                    {!member.accountHidden ? <span>账号：{member.account}</span> : null}
+                                    <span>分组：{member.teamGroupName ?? "未分组"}</span>
+                                    <span>{isSystemAccount ? "系统保留账号" : isSchoolAdminAccount ? "全局管理员" : "已启用"}</span>
+                                  </div>
+
+                                  {editingTeamRowId === member.id ? (
+                                    <div className="mt-3 grid gap-2 md:grid-cols-2">
+                                      <select
+                                        className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+                                        disabled={roleDisabled}
+                                        value={editingTeamRowRole ?? member.systemRole}
+                                        onChange={(event) => setEditingTeamRowRole(event.target.value as TeamRoleLabel)}
+                                      >
+                                        {availableRoleOptions.map((roleOption) => (
+                                          <option key={roleOption} value={roleOption}>
+                                            {roleOption}
+                                          </option>
+                                        ))}
+                                      </select>
+                                      <select
+                                        className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 disabled:bg-slate-100 disabled:text-slate-400"
+                                        disabled={!canUseTeamGroups || groupAssignmentLocked}
+                                        value={editingTeamRowGroupId}
+                                        onChange={(event) => setEditingTeamRowGroupId(event.target.value)}
+                                      >
+                                        <option value="">未分组</option>
+                                        {teamGroups.map((group) => (
+                                          <option key={group.id} value={group.id}>
+                                            {group.name}
+                                          </option>
+                                        ))}
+                                      </select>
+                                    </div>
+                                  ) : null}
+                                </div>
+                              </div>
+                            </td>
+                            <td className="px-3 py-3 align-top">
+                              <button
+                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition ${
+                                  draft.isEnabled ? "bg-[#2563EB]" : "bg-slate-300"
+                                }`}
+                                disabled={aiPermissionSavingId === member.id || aiPermissionBatchSaving}
+                                onClick={() =>
+                                  updateAiPermissionDraft(
+                                    member.id,
+                                    { isEnabled: !draft.isEnabled },
+                                    { autoSave: true },
+                                  )
+                                }
+                                type="button"
+                              >
+                                <span
+                                  className={`inline-block h-5 w-5 rounded-full bg-white shadow transition ${
+                                    draft.isEnabled ? "translate-x-5" : "translate-x-0.5"
+                                  }`}
+                                />
+                              </button>
+                            </td>
+                            <td className="px-3 py-3 align-top">
+                              <input
+                                className="w-20 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                                inputMode="numeric"
+                                onBlur={() => flushAiPermissionSave(member.id)}
+                                onChange={(event) => updateAiPermissionDraft(member.id, { maxCount: event.target.value })}
+                                placeholder="不限"
+                                type="text"
+                                value={draft.maxCount}
+                              />
+                            </td>
+                            <td className="px-3 py-3 align-top text-sm text-slate-600">
+                              <div className="font-medium">
+                                {permissionItem?.usedCount ?? 0} / {permissionItem?.maxCount == null ? "∞" : permissionItem.maxCount}
+                              </div>
+                              <div className="mt-1 text-xs text-slate-400">
+                                剩余 {permissionItem?.remainingCount == null ? "∞" : permissionItem.remainingCount}
+                              </div>
+                            </td>
+                            <td className="px-3 py-3 align-top">
+                              <div className="flex flex-wrap justify-end gap-2">
+                                {permissions.canManageTeam && editable && !protectedGlobalAccount && editingTeamRowId !== member.id ? (
+                                  <button
+                                    className="team-icon-button"
+                                    onClick={() => openTeamRowEditor(member)}
+                                    title="编辑角色和分组"
+                                    type="button"
+                                  >
+                                    <Pencil className="h-3.5 w-3.5" />
+                                  </button>
+                                ) : null}
+                                {permissions.canManageTeam && editingTeamRowId === member.id ? (
+                                  <>
+                                    <button
+                                      className="team-icon-button confirm"
+                                      onClick={() => saveTeamRowEditor(member)}
+                                      title="确认保存"
+                                      type="button"
+                                    >
+                                      <Check className="h-3.5 w-3.5" />
+                                    </button>
+                                    <button
+                                      className="team-icon-button"
+                                      onClick={cancelTeamRowEditor}
+                                      title="取消编辑"
+                                      type="button"
+                                    >
+                                      <X className="h-3.5 w-3.5" />
+                                    </button>
+                                  </>
+                                ) : null}
+                                <button
+                                  className="team-icon-button"
+                                  disabled={aiPermissionSavingId === member.id || aiPermissionBatchSaving}
+                                  onClick={() => void saveAiPermission(member.id, { resetUsage: true })}
+                                  title="重置次数"
+                                  type="button"
+                                >
+                                  <Shuffle className="h-3.5 w-3.5" />
+                                </button>
+                                {canSendDirectiveToMember(member) ? (
+                                  <button
+                                    className="team-icon-button"
+                                    onClick={() => openReminderModal(member)}
+                                    title="发送提醒"
+                                    type="button"
+                                  >
+                                    <BellPlus className="h-3.5 w-3.5" />
+                                  </button>
+                                ) : null}
+                                {permissions.canResetPassword ? (
+                                  <button
+                                    className="team-icon-button"
+                                    disabled={!canResetMemberPassword(member)}
+                                    onClick={() => openPasswordModal(member)}
+                                    title="重置密码"
+                                    type="button"
+                                  >
+                                    <RotateCcw className="h-3.5 w-3.5" />
+                                  </button>
+                                ) : null}
+                                {permissions.canManageTeam ? (
+                                  <button
+                                    className="team-icon-button danger"
+                                    disabled={!editable || protectedGlobalAccount}
+                                    onClick={() => removeMember(member.id, member.name)}
+                                    title="删除账号"
+                                    type="button"
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </button>
+                                ) : null}
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+
+                {teamPageCount > 1 ? (
+                  <div className="flex items-center justify-between border-t border-slate-200 px-5 py-4 text-sm text-slate-500">
+                    <span>
+                      第 {teamAiPage} / {teamPageCount} 页
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <button
+                        className="rounded-lg border border-slate-300 px-3 py-1.5 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+                        disabled={teamAiPage <= 1}
+                        onClick={() => setTeamAiPage((current) => Math.max(1, current - 1))}
+                        type="button"
+                      >
+                        上一页
+                      </button>
+                      <button
+                        className="rounded-lg border border-slate-300 px-3 py-1.5 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 disabled:cursor-not-allowed disabled:border-slate-200 disabled:bg-slate-100 disabled:text-slate-400"
+                        disabled={teamAiPage >= teamPageCount}
+                        onClick={() => setTeamAiPage((current) => Math.min(teamPageCount, current + 1))}
+                        type="button"
+                      >
+                        下一页
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+              </>
+            ) : (
+              <div className="px-5 py-8">
+                <EmptyState
+                  description="当前筛选条件下没有匹配账号，可以调整角色筛选或搜索关键词。"
+                  icon={Users}
+                  title="暂无匹配账号"
+                />
+              </div>
+            )}
+          </>
+        ) : (
+          <>
+            <div className={`hidden ${teamListGridClassName} gap-4 border-b border-slate-200 bg-slate-50 px-5 py-3 text-xs font-medium tracking-[0.06em] text-slate-400 lg:grid`}>
+              <span>账号信息</span>
+              <span>角色</span>
+              {canUseTeamGroups ? <span>分组</span> : null}
+              <span>状态</span>
+              {showTeamActions ? <span className="text-right">操作</span> : null}
+            </div>
+
+            {displayedTeamMembers.length > 0 ? (
+              displayedTeamMembers.map((member) => {
+                const editable = canManageMember(member);
+                const isSystemAccount = member.systemRole === "系统管理员";
+                const isSchoolAdminAccount = member.systemRole === "校级管理员";
+                const protectedGlobalAccount = isSystemAccount || (isSchoolAdminAccount && !isSystemAdmin);
+                const groupAssignmentLocked = isSystemAccount || isSchoolAdminAccount;
+                const roleDisabled = !editable || protectedGlobalAccount;
+
+                return (
+                  <article
+                    key={member.id}
+                    className="border-b border-slate-200 px-5 py-5 last:border-b-0"
+                  >
+                    <div className={`grid gap-4 ${teamListGridClassName} lg:items-center`}>
+                      <div className="flex min-w-0 items-center gap-3">
+                        <UserAvatar
+                          avatar={member.avatar}
+                          avatarUrl={member.avatarUrl}
+                          className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-blue-600 text-sm font-semibold text-white"
+                          name={member.name}
+                          textClassName="text-sm font-semibold text-white"
+                        />
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <h3 className="truncate text-sm font-semibold text-slate-900">{member.name}</h3>
+                            {isSystemAccount ? (
+                              <span className="system-account-tag">
+                                最高权限
+                              </span>
+                            ) : isSchoolAdminAccount ? (
+                              <span className="system-account-tag school-admin">
+                                全局管理员
+                              </span>
+                            ) : member.systemRole === "评审专家" ? (
+                              <span className="system-account-tag expert">
+                                评审专家
+                              </span>
+                            ) : null}
+                          </div>
+                          {!member.accountHidden ? (
+                            <p className="mt-1 truncate text-sm text-slate-500">账号：{member.account}</p>
+                          ) : member.teamGroupName ? (
+                            <p className="mt-1 truncate text-sm text-slate-500">团队：{member.teamGroupName}</p>
+                          ) : null}
+                        </div>
+                      </div>
+
+                      <div>
+                        <p className="mb-2 text-xs text-slate-400 lg:hidden">角色</p>
+                        {permissions.canManageTeam && !roleDisabled && editingTeamRowId === member.id ? (
+                          <select
+                            className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-400"
+                            value={editingTeamRowRole ?? member.systemRole}
+                            onChange={(event) => setEditingTeamRowRole(event.target.value as TeamRoleLabel)}
+                          >
+                            {availableRoleOptions.map((roleOption) => (
+                              <option key={roleOption} value={roleOption}>
+                                {roleOption}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <span className="team-inline-value">
+                            {member.systemRole}
+                          </span>
+                        )}
+                      </div>
+
+                      {canUseTeamGroups ? (
+                        <div>
+                          <p className="mb-2 text-xs text-slate-400 lg:hidden">分组</p>
+                          {editingTeamRowId === member.id && !groupAssignmentLocked ? (
+                            <select
+                              className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                              value={editingTeamRowGroupId}
+                              onChange={(event) => setEditingTeamRowGroupId(event.target.value)}
+                            >
+                              <option value="">未分组</option>
+                              {teamGroups.map((group) => (
+                                <option key={group.id} value={group.id}>
+                                  {group.name}
+                                </option>
+                              ))}
+                            </select>
+                          ) : (
+                            <span className="team-inline-value">{member.teamGroupName ?? "未分组"}</span>
+                          )}
+                        </div>
+                      ) : null}
+
+                      <div>
+                        <p className="mb-2 text-xs text-slate-400 lg:hidden">状态</p>
+                        <span
+                          className={`system-status-tag ${isSchoolAdminAccount ? "school-admin" : member.systemRole === "评审专家" ? "expert" : ""}`}
+                        >
+                          {isSystemAccount ? "系统保留账号" : isSchoolAdminAccount ? "全局管理员" : "已启用"}
+                        </span>
+                      </div>
+
+                      {showTeamActions ? (
+                        <div className="flex flex-wrap items-center gap-2 lg:justify-end">
+                          {permissions.canManageTeam && editable && !protectedGlobalAccount && editingTeamRowId !== member.id ? (
+                            <button
+                              className="team-icon-button"
+                              onClick={() => openTeamRowEditor(member)}
+                              title="编辑角色和分组"
+                              type="button"
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </button>
+                          ) : null}
+                          {permissions.canManageTeam && editingTeamRowId === member.id ? (
+                            <>
+                              <button
+                                className="team-icon-button confirm"
+                                onClick={() => saveTeamRowEditor(member)}
+                                title="确认保存"
+                                type="button"
+                              >
+                                <Check className="h-3.5 w-3.5" />
+                              </button>
+                              <button
+                                className="team-icon-button"
+                                onClick={cancelTeamRowEditor}
+                                title="取消编辑"
+                                type="button"
+                              >
+                                <X className="h-3.5 w-3.5" />
+                              </button>
+                            </>
+                          ) : null}
+                          {canSendDirectiveToMember(member) ? (
+                            <ActionButton onClick={() => openReminderModal(member)}>
+                              发送提醒
+                            </ActionButton>
+                          ) : null}
+                          {permissions.canResetPassword ? (
+                            <ActionButton
+                              disabled={!canResetMemberPassword(member)}
+                              onClick={() => openPasswordModal(member)}
+                              title="无权限"
+                            >
+                              重置密码
+                            </ActionButton>
+                          ) : null}
+                          {permissions.canManageTeam ? (
+                            <ActionButton
+                              className="team-delete-button"
+                              disabled={!editable || protectedGlobalAccount}
+                              onClick={() => removeMember(member.id, member.name)}
+                              title="无权限"
+                            >
+                              删除账号
+                            </ActionButton>
+                          ) : null}
+                        </div>
+                      ) : null}
+                    </div>
+                  </article>
+                );
+              })
+            ) : (
+              <div className="px-5 py-8">
+                <EmptyState
+                  description="当前筛选条件下没有匹配账号，可以调整角色筛选或搜索关键词。"
+                  icon={Users}
+                  title="暂无匹配账号"
+                />
+              </div>
+            )}
+          </>
         )}
       </section>
     </div>
@@ -8977,6 +9743,8 @@ export function WorkspaceDashboard({
         return renderDocuments();
       case "team":
         return renderTeam();
+      case "assistant":
+        return <WorkspaceAssistant />;
       case "profile":
         return renderProfile();
       default:
@@ -9702,7 +10470,7 @@ export function WorkspaceDashboard({
               <span>
                 <span className="font-medium text-slate-900">发布后同步提醒团队</span>
                 <span className="mt-1 block text-xs leading-5 text-slate-500">
-                  勾选后会给相关团队账号发送站内提醒，避免公告被漏看。
+                  勾选后会向相关成员发送站内通知，并在符合条件时同步发送邮件提醒。
                 </span>
               </span>
             </label>
@@ -9710,6 +10478,63 @@ export function WorkspaceDashboard({
               <ActionButton disabled={isSaving} onClick={() => setAnnouncementModalOpen(false)}>取消</ActionButton>
               <ActionButton loading={isSaving} loadingLabel="发布中..." onClick={publishAnnouncement} variant="primary">
                 发布公告
+              </ActionButton>
+            </ModalActions>
+          </div>
+        </Modal>
+      ) : null}
+
+      {selectedAnnouncement ? (
+        <Modal
+          title="公告详情"
+          onClose={() => setSelectedAnnouncement(null)}
+          panelClassName="max-w-[min(92vw,760px)]"
+        >
+          <div className="space-y-4">
+            <div className="rounded-2xl border border-slate-100 bg-slate-50/90 px-4 py-3">
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="text-base font-semibold text-slate-900">{selectedAnnouncement.title}</p>
+                  <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-400">
+                    <span>发布时间：{formatBeijingDateTimeShort(selectedAnnouncement.createdAt)}</span>
+                    {selectedAnnouncement.author?.name ? <span>发布人：{selectedAnnouncement.author.name}</span> : null}
+                  </div>
+                </div>
+                <span className="depth-emphasis inline-flex px-2 py-1 text-xs text-slate-500">通知公告</span>
+              </div>
+            </div>
+            <div className="rounded-2xl border border-slate-100 bg-white px-4 py-4 text-sm leading-7 text-slate-600 whitespace-pre-wrap">
+              {selectedAnnouncement.detail}
+            </div>
+            <ModalActions>
+              {currentUser && ["admin", "school_admin", "teacher", "leader"].includes(currentUser.role) ? (
+                <ActionButton
+                  onClick={() => {
+                    const announcement = selectedAnnouncement;
+                    setConfirmDialog({
+                      open: true,
+                      title: "删除公告",
+                      message: `确定删除“${announcement.title}”吗？删除后成员将无法继续查看这条公告。`,
+                      confirmLabel: "删除公告",
+                      confirmVariant: "danger",
+                      successTitle: "公告已删除",
+                      successDetail: "首页公告列表已经同步更新。",
+                      onConfirm: async () => {
+                        await requestJson(`/api/announcements/${announcement.id}`, {
+                          method: "DELETE",
+                        });
+                        setSelectedAnnouncement(null);
+                        refreshWorkspace();
+                      },
+                    });
+                  }}
+                  variant="danger"
+                >
+                  删除公告
+                </ActionButton>
+              ) : null}
+              <ActionButton onClick={() => setSelectedAnnouncement(null)} variant="primary">
+                我知道了
               </ActionButton>
             </ModalActions>
           </div>

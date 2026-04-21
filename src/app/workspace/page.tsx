@@ -15,6 +15,7 @@ const validTabs = [
   "review",
   "documents",
   "team",
+  "assistant",
   "profile",
 ] as const;
 
