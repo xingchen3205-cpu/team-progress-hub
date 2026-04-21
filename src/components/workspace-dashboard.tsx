@@ -109,6 +109,7 @@ import {
   getTaskReminderActionLabel,
   getTaskReviewerLabel,
 } from "@/lib/task-workflow";
+import { requestJson } from "@/lib/request-json";
 
 type BoardStatus = (typeof boardColumns)[number]["id"];
 type BoardStatusFilter = BoardStatus | "all";
@@ -125,6 +126,18 @@ type TabKey =
   | "team"
   | "assistant"
   | "profile";
+
+type WorkspaceResourceKey =
+  | "announcements"
+  | "events"
+  | "tasks"
+  | "experts"
+  | "documents"
+  | "team"
+  | "trainingQuestions"
+  | "trainingSessions"
+  | "reviewAssignments"
+  | "reports";
 
 type TabItem = {
   key: TabKey;
@@ -1459,26 +1472,6 @@ const uploadFileDirectly = ({
     xhr.send(file);
   });
 
-async function requestJson<T>(input: string, init?: RequestInit) {
-  const response = await fetch(input, {
-    ...init,
-    credentials: "same-origin",
-    headers: {
-      "Content-Type": "application/json",
-      ...(init?.headers ?? {}),
-    },
-    cache: "no-store",
-  });
-
-  const payload = (await response.json().catch(() => null)) as (T & { message?: string }) | null;
-
-  if (!response.ok) {
-    throw new Error(payload?.message || "请求失败");
-  }
-
-  return payload as T;
-}
-
 function SectionHeader({ title, description }: { title: string; description?: string }) {
   return (
     <div className="space-y-2">
@@ -1706,13 +1699,15 @@ function UserAvatar({
   const [imageFailed, setImageFailed] = useState(false);
 
   return (
-    <div className={className}>
+    <div className={`${className} relative overflow-hidden`}>
       {avatarUrl && !imageFailed ? (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img
+        <Image
           alt={`${name} 的头像`}
-          className="h-full w-full rounded-full object-cover"
+          className="object-cover"
+          fill
           onError={() => setImageFailed(true)}
+          quality={75}
+          sizes="64px"
           src={avatarUrl}
         />
       ) : (
@@ -1735,6 +1730,8 @@ export function WorkspaceDashboard({
   const [isBooting, setIsBooting] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
+  const loadedWorkspaceResourcesRef = useRef<Set<string>>(new Set());
+  const lastWorkspaceReloadTokenRef = useRef(0);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [events, setEvents] = useState<EventItem[]>([]);
   const [tasks, setTasks] = useState<BoardTask[]>([]);
@@ -2223,159 +2220,261 @@ export function WorkspaceDashboard({
     });
   };
 
+  const applyReportsPayload = useCallback((reportsPayload: { dates: string[]; reports: ReportEntryWithDate[] }) => {
+    const groupedReports = reportsPayload.reports.reduce<Record<string, ReportEntryWithDate[]>>(
+      (accumulator, item) => {
+        const list = accumulator[item.date] ?? [];
+        accumulator[item.date] = [...list, item];
+        return accumulator;
+      },
+      {},
+    );
+
+    const nextDates = reportsPayload.dates.length > 0 ? reportsPayload.dates : [getDefaultDateKey()];
+
+    setReportEntriesByDay(groupedReports);
+    setReportDates(nextDates);
+    setSelectedDate((current) => (isReportDateKey(current) ? current : nextDates[0]));
+  }, []);
+
+  const applyReviewAssignments = useCallback((assignments: ExpertReviewAssignmentItem[]) => {
+    setReviewAssignments(assignments);
+    setReviewScoreDrafts(
+      Object.fromEntries(
+        assignments.map((assignment) => [assignment.id, createExpertReviewScoreDraft(assignment)]),
+      ),
+    );
+  }, []);
+
+  const applyTeamPayload = useCallback(
+    (teamPayload: { members: TeamMember[]; pendingMembers: TeamMember[]; groups?: TeamGroupItem[] }) => {
+      setMembers(teamPayload.members);
+      setPendingTeamMembers(teamPayload.pendingMembers);
+      setTeamGroups(teamPayload.groups ?? []);
+      setReviewAssignmentDraft((current) =>
+        current.expertUserId
+          ? current
+          : defaultExpertReviewAssignmentDraft(
+              teamPayload.members.find((member) => member.systemRole === "评审专家")?.id ?? "",
+            ),
+      );
+    },
+    [],
+  );
+
+  const clearNonExpertWorkspaceData = useCallback(() => {
+    setAnnouncements([]);
+    setEvents([]);
+    setTasks([]);
+    setExperts([]);
+    setTrainingQuestions([]);
+    setTrainingSessions([]);
+    setTrainingStats({
+      questionCount: 0,
+      sessionCount: 0,
+      averageOvertimeSeconds: 0,
+      qaHitRate: 0,
+    });
+    setDocuments([]);
+    setSentReminders([]);
+    setMembers([]);
+    setPendingTeamMembers([]);
+    setTeamGroups([]);
+    setReviewAssignmentDraft(defaultExpertReviewAssignmentDraft(""));
+    applyReportsPayload({
+      dates: [getDefaultDateKey()],
+      reports: [],
+    });
+  }, [applyReportsPayload]);
+
+  const buildReportsRequestUrl = useCallback(
+    (role: CurrentUser["role"]) =>
+      (role === "admin" || role === "school_admin") && selectedReportTeamGroupId
+        ? `/api/reports?teamGroupId=${encodeURIComponent(selectedReportTeamGroupId)}`
+        : "/api/reports",
+    [selectedReportTeamGroupId],
+  );
+
+  const getWorkspaceTabResourceKeys = useCallback(
+    (tab: TabKey, role: CurrentUser["role"]): WorkspaceResourceKey[] => {
+      if (role === "expert") {
+        switch (tab) {
+          case "overview":
+          case "review":
+            return ["reviewAssignments"];
+          default:
+            return [];
+        }
+      }
+
+      switch (tab) {
+        case "overview":
+          return ["announcements", "events", "tasks", "documents", "team", "reviewAssignments", "reports"];
+        case "timeline":
+          return ["events"];
+        case "board":
+          return ["tasks", "team"];
+        case "training":
+          return ["trainingQuestions", "trainingSessions"];
+        case "reports":
+          return ["team", "reports"];
+        case "experts":
+          return ["experts"];
+        case "review":
+          return ["team", "reviewAssignments"];
+        case "documents":
+          return ["documents", "team"];
+        case "team":
+          return ["team"];
+        case "assistant":
+        case "profile":
+          return [];
+        default:
+          return [];
+      }
+    },
+    [],
+  );
+
+  const loadWorkspaceResource = useCallback(
+    async (resourceKey: WorkspaceResourceKey, role: CurrentUser["role"]) => {
+      switch (resourceKey) {
+        case "announcements": {
+          const payload = await requestJson<{ announcements: Announcement[] }>("/api/announcements");
+          setAnnouncements(payload.announcements);
+          return;
+        }
+        case "events": {
+          const payload = await requestJson<{ events: EventItem[] }>("/api/events");
+          setEvents(payload.events);
+          return;
+        }
+        case "tasks": {
+          const payload = await requestJson<{ tasks: BoardTask[] }>("/api/tasks");
+          setTasks(payload.tasks);
+          return;
+        }
+        case "experts": {
+          const payload = await requestJson<{ experts: ExpertItem[] }>("/api/experts");
+          setExperts(payload.experts);
+          return;
+        }
+        case "documents": {
+          const payload = await requestJson<{ documents: DocumentItem[] }>("/api/documents");
+          setDocuments(payload.documents);
+          return;
+        }
+        case "team": {
+          const payload = await requestJson<{
+            members: TeamMember[];
+            pendingMembers: TeamMember[];
+            groups?: TeamGroupItem[];
+          }>("/api/team");
+          applyTeamPayload(payload);
+          return;
+        }
+        case "trainingQuestions": {
+          const payload = await requestJson<{ questions: TrainingQuestionItem[] }>("/api/training/questions");
+          setTrainingQuestions(payload.questions);
+          return;
+        }
+        case "trainingSessions": {
+          const payload = await requestJson<{ sessions: TrainingSessionItem[]; stats: TrainingStats }>(
+            "/api/training/sessions",
+          );
+          setTrainingSessions(payload.sessions);
+          setTrainingStats(payload.stats);
+          return;
+        }
+        case "reviewAssignments": {
+          const canLoadAssignments =
+            role === "expert" ||
+            role === "admin" ||
+            role === "school_admin" ||
+            role === "teacher" ||
+            role === "leader" ||
+            role === "member";
+
+          if (!canLoadAssignments) {
+            applyReviewAssignments([]);
+            return;
+          }
+
+          const payload = await requestJson<{ assignments: ExpertReviewAssignmentItem[] }>(
+            "/api/expert-reviews/assignments",
+          );
+          applyReviewAssignments(payload.assignments);
+          return;
+        }
+        case "reports": {
+          const payload = await requestJson<{ dates: string[]; reports: ReportEntryWithDate[] }>(
+            buildReportsRequestUrl(role),
+          );
+          applyReportsPayload(payload);
+          return;
+        }
+        default:
+          return;
+      }
+    },
+    [applyReportsPayload, applyReviewAssignments, applyTeamPayload, buildReportsRequestUrl],
+  );
+
+  const loadWorkspaceResources = useCallback(
+    async (resourceKeys: WorkspaceResourceKey[], role: CurrentUser["role"]) => {
+      const uniqueKeys = Array.from(new Set(resourceKeys));
+      const pendingKeys = uniqueKeys.filter(
+        (resourceKey) => resourceKey === "reports" || !loadedWorkspaceResourcesRef.current.has(resourceKey),
+      );
+
+      if (pendingKeys.length === 0) {
+        return;
+      }
+
+      await Promise.all(
+        pendingKeys.map(async (resourceKey) => {
+          await loadWorkspaceResource(resourceKey, role);
+          if (resourceKey !== "reports") {
+            loadedWorkspaceResourcesRef.current.add(resourceKey);
+          }
+        }),
+      );
+    },
+    [loadWorkspaceResource],
+  );
+
   useEffect(() => {
     let isMounted = true;
 
-    const applyReviewAssignments = (assignments: ExpertReviewAssignmentItem[]) => {
-      setReviewAssignments(assignments);
-      setReviewScoreDrafts(
-        Object.fromEntries(
-          assignments.map((assignment) => [assignment.id, createExpertReviewScoreDraft(assignment)]),
-        ),
-      );
-    };
-
     const loadWorkspaceData = async () => {
       setLoadError(null);
+      setIsBooting(true);
 
       try {
-        const mePayload = await requestJson<{ user: CurrentUser }>("/api/auth/me");
+        if (lastWorkspaceReloadTokenRef.current !== reloadToken) {
+          loadedWorkspaceResourcesRef.current.clear();
+          lastWorkspaceReloadTokenRef.current = reloadToken;
+        }
+
+        const [mePayload, notificationsPayload] = await Promise.all([
+          requestJson<{ user: CurrentUser }>("/api/auth/me"),
+          requestJson<{ notifications: NotificationItem[] }>("/api/notifications"),
+        ]);
 
         if (!isMounted) {
           return;
         }
 
         setCurrentUser(mePayload.user);
-        setIsBooting(false);
-
-        if (mePayload.user.role === "expert") {
-          const reviewPayload = await requestJson<{
-            assignments: ExpertReviewAssignmentItem[];
-          }>("/api/expert-reviews/assignments");
-
-          if (!isMounted) {
-            return;
-          }
-
-          setAnnouncements([]);
-          setEvents([]);
-          setTasks([]);
-          setExperts([]);
-          setTrainingQuestions([]);
-          setTrainingSessions([]);
-          setTrainingStats({
-            questionCount: 0,
-            sessionCount: 0,
-            averageOvertimeSeconds: 0,
-            qaHitRate: 0,
-          });
-          setDocuments([]);
-          setNotifications([]);
-          setSentReminders([]);
-          setMembers([]);
-          setPendingTeamMembers([]);
-          setTeamGroups([]);
-          setReportEntriesByDay({});
-          setReportDates([getDefaultDateKey()]);
-          setSelectedDate(getDefaultDateKey());
-          applyReviewAssignments(reviewPayload.assignments);
-          return;
-        }
-
-        const requests: Array<Promise<unknown>> = [
-          requestJson<{ announcements: Announcement[] }>("/api/announcements"),
-          requestJson<{ events: EventItem[] }>("/api/events"),
-          requestJson<{ tasks: BoardTask[] }>("/api/tasks"),
-          requestJson<{ dates: string[]; reports: ReportEntryWithDate[] }>(
-            (mePayload.user.role === "admin" || mePayload.user.role === "school_admin") && selectedReportTeamGroupId
-              ? `/api/reports?teamGroupId=${encodeURIComponent(selectedReportTeamGroupId)}`
-              : "/api/reports",
-          ),
-          requestJson<{ experts: ExpertItem[] }>("/api/experts"),
-          requestJson<{ documents: DocumentItem[] }>("/api/documents"),
-          requestJson<{ notifications: NotificationItem[] }>("/api/notifications"),
-          requestJson<{ members: TeamMember[]; pendingMembers: TeamMember[]; groups?: TeamGroupItem[] }>("/api/team"),
-          requestJson<{ questions: TrainingQuestionItem[] }>("/api/training/questions"),
-          requestJson<{ sessions: TrainingSessionItem[]; stats: TrainingStats }>("/api/training/sessions"),
-        ];
-
-        if (
-          mePayload.user.role === "admin" ||
-          mePayload.user.role === "school_admin" ||
-          mePayload.user.role === "teacher" ||
-          mePayload.user.role === "leader" ||
-          mePayload.user.role === "member"
-        ) {
-          requests.push(
-            requestJson<{ assignments: ExpertReviewAssignmentItem[] }>(
-              "/api/expert-reviews/assignments",
-            ),
-          );
-        }
-
-        const [
-          announcementsPayload,
-          eventsPayload,
-          tasksPayload,
-          reportsPayload,
-          expertsPayload,
-          documentsPayload,
-          notificationsPayload,
-          teamPayload,
-          trainingQuestionsPayload,
-          trainingSessionsPayload,
-          reviewPayload,
-        ] = (await Promise.all(requests)) as [
-          { announcements: Announcement[] },
-          { events: EventItem[] },
-          { tasks: BoardTask[] },
-          { dates: string[]; reports: ReportEntryWithDate[] },
-          { experts: ExpertItem[] },
-          { documents: DocumentItem[] },
-          { notifications: NotificationItem[] },
-          { members: TeamMember[]; pendingMembers: TeamMember[]; groups?: TeamGroupItem[] },
-          { questions: TrainingQuestionItem[] },
-          { sessions: TrainingSessionItem[]; stats: TrainingStats },
-          { assignments: ExpertReviewAssignmentItem[] } | undefined,
-        ];
-
-        const groupedReports = reportsPayload.reports.reduce<Record<string, ReportEntryWithDate[]>>(
-          (accumulator, item) => {
-            const list = accumulator[item.date] ?? [];
-            accumulator[item.date] = [...list, item];
-            return accumulator;
-          },
-          {},
-        );
-
-        const nextDates = reportsPayload.dates.length > 0 ? reportsPayload.dates : [getDefaultDateKey()];
-
-        setAnnouncements(announcementsPayload.announcements);
-        setEvents(eventsPayload.events);
-        setTasks(tasksPayload.tasks);
-        setExperts(expertsPayload.experts);
-        setDocuments(documentsPayload.documents);
         setNotifications(notificationsPayload.notifications);
-        setTrainingQuestions(trainingQuestionsPayload.questions);
-        setTrainingSessions(trainingSessionsPayload.sessions);
-        setTrainingStats(trainingSessionsPayload.stats);
+        loadedWorkspaceResourcesRef.current.add("notifications");
         if (!["admin", "school_admin", "teacher"].includes(mePayload.user.role)) {
           setSentReminders([]);
         }
-        setMembers(teamPayload.members);
-        setPendingTeamMembers(teamPayload.pendingMembers);
-        setTeamGroups(teamPayload.groups ?? []);
-        setReportEntriesByDay(groupedReports);
-        setReportDates(nextDates);
-        setSelectedDate((current) => (isReportDateKey(current) ? current : nextDates[0]));
-        applyReviewAssignments(reviewPayload?.assignments ?? []);
-        setReviewAssignmentDraft((current) =>
-          current.expertUserId
-            ? current
-            : defaultExpertReviewAssignmentDraft(
-                teamPayload.members.find((member) => member.systemRole === "评审专家")?.id ?? "",
-              ),
-        );
+
+        if (mePayload.user.role === "expert") {
+          clearNonExpertWorkspaceData();
+        }
       } catch (error) {
         if (!isMounted) {
           return;
@@ -2383,7 +2482,46 @@ export function WorkspaceDashboard({
 
         const message = error instanceof Error ? error.message : "数据加载失败";
         if (message === "未登录") {
-          router.replace("/login");
+          window.location.replace("/login");
+          return;
+        }
+
+        setLoadError(message);
+        setIsBooting(false);
+      } finally {
+        // Active-tab resources continue loading in the next effect.
+      }
+    };
+
+    void loadWorkspaceData();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [clearNonExpertWorkspaceData, reloadToken]);
+
+  useEffect(() => {
+    const currentUserRole = currentUser?.role;
+    if (!currentUserRole) {
+      return;
+    }
+
+    let isMounted = true;
+
+    const loadActiveTabResources = async () => {
+      try {
+        const resourceKeys = getWorkspaceTabResourceKeys(safeActiveTab, currentUserRole);
+        if (resourceKeys.length > 0) {
+          await loadWorkspaceResources(resourceKeys, currentUserRole);
+        }
+      } catch (error) {
+        if (!isMounted) {
+          return;
+        }
+
+        const message = error instanceof Error ? error.message : "工作区数据加载失败";
+        if (message === "未登录") {
+          window.location.replace("/login");
           return;
         }
 
@@ -2395,12 +2533,21 @@ export function WorkspaceDashboard({
       }
     };
 
-    void loadWorkspaceData();
+    void loadActiveTabResources();
 
     return () => {
       isMounted = false;
     };
-  }, [reloadToken, router, selectedReportTeamGroupId]);
+  }, [currentUser?.role, getWorkspaceTabResourceKeys, loadWorkspaceResources, reloadToken, safeActiveTab]);
+
+  useEffect(() => {
+    const currentUserRole = currentUser?.role;
+    if (!notificationsOpen || !currentUserRole) {
+      return;
+    }
+
+    void loadWorkspaceResources(getWorkspaceTabResourceKeys("overview", currentUserRole), currentUserRole);
+  }, [currentUser?.role, getWorkspaceTabResourceKeys, loadWorkspaceResources, notificationsOpen]);
 
   useEffect(() => {
     if (!currentMemberId || requiresEmailCompletion || hasBlockingOverlay) {

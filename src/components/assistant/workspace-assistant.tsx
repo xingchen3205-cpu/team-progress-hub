@@ -12,6 +12,7 @@ import {
   formatAssistantDateDivider,
   shouldShowAssistantDateDivider,
 } from "./assistant-utils";
+import { requestJson } from "@/lib/request-json";
 import styles from "./workspace-assistant.module.css";
 
 const QUICK_PROMPTS = [
@@ -63,23 +64,6 @@ type AssistantSseEvent =
         message: string;
       };
     };
-
-async function requestJson<T>(input: string, init?: RequestInit) {
-  const response = await fetch(input, {
-    ...init,
-    headers: {
-      "Content-Type": "application/json",
-      ...(init?.headers ?? {}),
-    },
-  });
-
-  if (!response.ok) {
-    const payload = (await response.json().catch(() => null)) as { message?: string } | null;
-    throw new Error(payload?.message || "请求失败，请稍后重试");
-  }
-
-  return (await response.json()) as T;
-}
 
 function loadTitleOverrides() {
   if (typeof window === "undefined") {
