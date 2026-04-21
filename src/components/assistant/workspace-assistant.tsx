@@ -121,6 +121,7 @@ async function* parseAssistantSseStream(stream: ReadableStream<Uint8Array>): Asy
   const reader = stream.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
+  let streamedAnswer = "";
 
   try {
     while (true) {
@@ -147,17 +148,41 @@ async function* parseAssistantSseStream(stream: ReadableStream<Uint8Array>): Asy
           .split("\n")
           .find((line) => line.trimStart().startsWith("data:"));
 
-        if (!eventLine || !dataLine) {
+        if (!dataLine) {
           continue;
         }
 
-        const eventType = eventLine.replace(/^event:\s*/, "").trim();
-        const payload = JSON.parse(dataLine.replace(/^data:\s*/, "")) as AssistantSseEvent["payload"];
+        const payloadRecord = JSON.parse(dataLine.replace(/^data:\s*/, "")) as Record<string, unknown>;
+        const eventType = eventLine?.replace(/^event:\s*/, "").trim() ?? String(payloadRecord.event ?? "");
 
         if (eventType === "delta" || eventType === "done" || eventType === "error") {
+          const payload = payloadRecord as AssistantSseEvent["payload"];
+
+          if (eventType === "delta" && payload && typeof payload === "object" && "answer" in payload) {
+            const answerValue = (payload as { answer?: unknown }).answer;
+            streamedAnswer = typeof answerValue === "string" ? answerValue : streamedAnswer;
+          }
+
           yield {
             type: eventType,
             payload: payload as never,
+          };
+          continue;
+        }
+
+        if (eventType === "message" || eventType === "agent_message") {
+          const delta = typeof payloadRecord.answer === "string" ? payloadRecord.answer : "";
+          streamedAnswer += delta;
+
+          yield {
+            type: "delta",
+            payload: {
+              delta,
+              answer: streamedAnswer,
+              conversationId:
+                typeof payloadRecord.conversation_id === "string" ? payloadRecord.conversation_id : null,
+              messageId: typeof payloadRecord.message_id === "string" ? payloadRecord.message_id : null,
+            },
           };
         }
       }

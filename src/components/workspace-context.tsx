@@ -1753,7 +1753,6 @@ function useWorkspaceController({
   const [loadError, setLoadError] = useState<string | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
   const loadedWorkspaceResourcesRef = useRef<Set<string>>(new Set());
-  const lastWorkspaceReloadTokenRef = useRef(0);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [events, setEvents] = useState<EventItem[]>([]);
   const [tasks, setTasks] = useState<BoardTask[]>([]);
@@ -2473,11 +2472,6 @@ function useWorkspaceController({
       setIsBooting(true);
 
       try {
-        if (lastWorkspaceReloadTokenRef.current !== reloadToken) {
-          loadedWorkspaceResourcesRef.current.clear();
-          lastWorkspaceReloadTokenRef.current = reloadToken;
-        }
-
         const [mePayload, notificationsPayload] = await Promise.all([
           requestJson<{ user: CurrentUser }>("/api/auth/me"),
           requestJson<{ notifications: NotificationItem[] }>("/api/notifications"),
@@ -2520,7 +2514,7 @@ function useWorkspaceController({
     return () => {
       isMounted = false;
     };
-  }, [clearNonExpertWorkspaceData, reloadToken]);
+  }, [clearNonExpertWorkspaceData]);
 
   useEffect(() => {
     const currentUserRole = currentUser?.role;
@@ -2560,7 +2554,66 @@ function useWorkspaceController({
     return () => {
       isMounted = false;
     };
-  }, [currentUser?.role, getWorkspaceTabResourceKeys, loadWorkspaceResources, reloadToken, safeActiveTab]);
+  }, [currentUser?.role, getWorkspaceTabResourceKeys, loadWorkspaceResources, safeActiveTab]);
+
+  useEffect(() => {
+    const currentUserRole = currentUser?.role;
+    if (reloadToken === 0 || !currentUserRole) {
+      return;
+    }
+
+    let isMounted = true;
+
+    const refreshWorkspaceSilently = async () => {
+      try {
+        loadedWorkspaceResourcesRef.current.clear();
+
+        const [mePayload, notificationsPayload] = await Promise.all([
+          requestJson<{ user: CurrentUser }>("/api/auth/me"),
+          requestJson<{ notifications: NotificationItem[] }>("/api/notifications"),
+        ]);
+
+        if (!isMounted) {
+          return;
+        }
+
+        setLoadError(null);
+        setCurrentUser(mePayload.user);
+        setNotifications(notificationsPayload.notifications);
+        loadedWorkspaceResourcesRef.current.add("notifications");
+        if (!["admin", "school_admin", "teacher"].includes(mePayload.user.role)) {
+          setSentReminders([]);
+        }
+
+        if (mePayload.user.role === "expert") {
+          clearNonExpertWorkspaceData();
+        }
+
+        const resourceKeys = getWorkspaceTabResourceKeys(safeActiveTab, mePayload.user.role);
+        if (resourceKeys.length > 0) {
+          await loadWorkspaceResources(resourceKeys, mePayload.user.role);
+        }
+      } catch (error) {
+        if (!isMounted) {
+          return;
+        }
+
+        const message = error instanceof Error ? error.message : "工作区数据加载失败";
+        if (message === "未登录") {
+          window.location.replace("/login");
+          return;
+        }
+
+        setLoadError(message);
+      }
+    };
+
+    void refreshWorkspaceSilently();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [clearNonExpertWorkspaceData, currentUser?.role, getWorkspaceTabResourceKeys, loadWorkspaceResources, reloadToken, safeActiveTab]);
 
   useEffect(() => {
     const currentUserRole = currentUser?.role;
@@ -5777,7 +5830,6 @@ function useWorkspaceController({
     reloadToken,
     setReloadToken,
     loadedWorkspaceResourcesRef,
-    lastWorkspaceReloadTokenRef,
     announcements,
     setAnnouncements,
     events,

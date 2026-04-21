@@ -11,6 +11,14 @@ const assistantChatRoutePath = path.join(
   process.cwd(),
   "src/app/api/ai/chat/route.ts",
 );
+const assistantBubblePath = path.join(
+  process.cwd(),
+  "src/components/assistant/assistant-message-bubble.tsx",
+);
+const aiChatLibPath = path.join(
+  process.cwd(),
+  "src/lib/ai-chat.ts",
+);
 const conversationsRoutePath = path.join(
   process.cwd(),
   "src/app/api/ai/conversations/route.ts",
@@ -47,4 +55,18 @@ test("assistant chat route supports conversation ids and streaming responses", (
   assert.match(source, /conversationId/);
   assert.match(source, /stream/);
   assert.match(source, /text\/event-stream/);
+});
+
+test("assistant streaming UI keeps a cursor while the answer is still arriving", () => {
+  const source = readFileSync(assistantBubblePath, "utf8");
+
+  assert.match(source, /message\.state === "streaming"/);
+  assert.match(source, /typingCursor/);
+});
+
+test("assistant dify bridge accepts both message and agent_message streaming events", () => {
+  const source = readFileSync(aiChatLibPath, "utf8");
+
+  assert.match(source, /payload\.event === "message" \|\| payload\.event === "agent_message"/);
+  assert.match(source, /response_mode:\s*"streaming"/);
 });

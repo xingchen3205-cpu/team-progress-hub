@@ -37,6 +37,7 @@ export async function POST(request: NextRequest) {
           "Cache-Control": "no-cache, no-transform",
           Connection: "keep-alive",
           "Content-Type": "text/event-stream; charset=utf-8",
+          "X-Accel-Buffering": "no",
         },
       });
     }

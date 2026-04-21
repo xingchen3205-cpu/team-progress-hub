@@ -390,10 +390,10 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
           <div className="absolute inset-0 opacity-25 [background-image:linear-gradient(135deg,rgba(255,255,255,0.07)_0,rgba(255,255,255,0.07)_1px,transparent_1px,transparent_24px)] [background-size:28px_28px]" />
           <div className="relative flex h-full flex-col justify-between px-5 py-5 sm:px-8 sm:py-8 lg:px-14 lg:py-10">
             <div className="mx-auto w-full max-w-3xl">
-              <div className="depth-mid inline-flex items-center gap-2 px-3 py-1.5 text-white shadow-[0_18px_44px_rgba(15,23,42,0.18)] backdrop-blur-xl sm:gap-2.5 sm:px-3.5 sm:py-2">
+              <div className="inline-flex items-center bg-transparent text-white">
                 <Image
                   alt="南京铁道职业技术学院官方标识"
-                  className="h-7 w-auto object-contain sm:h-8"
+                  className="h-12 w-auto object-contain drop-shadow-[0_10px_24px_rgba(15,23,42,0.24)]"
                   height={77}
                   priority
                   src="/official-logo.png"
@@ -402,7 +402,7 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
               </div>
             </div>
 
-            <div className="flex flex-1 items-center justify-center px-2 sm:px-4">
+            <div className="flex flex-1 items-center justify-center px-2 pt-8 sm:px-4 sm:pt-10">
               <div className="max-w-3xl text-center">
                 <div className="flex flex-col items-center">
                   <h1 className="text-[1.75rem] font-extrabold leading-[1.12] tracking-[0.02em] text-white drop-shadow-[0_10px_28px_rgba(15,23,42,0.42)] sm:text-5xl sm:tracking-[0.045em] lg:text-[4.1rem]">

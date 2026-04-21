@@ -293,27 +293,41 @@ a:hover {
   border: 0.5px solid var(--color-border-tertiary);
   border-radius: var(--border-radius-lg);
   background: rgba(255, 255, 255, 0.82);
-  padding: 20px 24px;
+  min-height: 80px;
+  padding: 16px 20px;
   box-shadow: 0 2px 8px rgba(30, 60, 120, 0.06);
+  text-align: left;
+  transition:
+    transform 180ms ease,
+    border-color 180ms ease,
+    background-color 180ms ease,
+    box-shadow 180ms ease;
+}
+
+.stat-card:hover {
+  border-color: rgba(26, 111, 212, 0.22);
+  background: rgba(239, 246, 255, 0.92);
+  transform: translateY(-1px);
 }
 
 .stat-card .label-top {
   font-size: 12px;
   color: var(--color-text-tertiary);
-  margin-bottom: 10px;
+  margin-bottom: 8px;
 }
 
 .stat-card .number {
   font-size: 28px;
-  font-weight: 600;
+  font-weight: 700;
   line-height: 1;
-  margin-bottom: 8px;
+  margin-bottom: 6px;
+  color: #1a6fd4;
 }
 
 .stat-card .label-bottom {
-  font-size: 12px;
-  margin-top: 8px;
-  color: var(--color-text-tertiary);
+  font-size: 13px;
+  margin-top: 0;
+  color: #666666;
 }
 
 .stat-card.muted {
@@ -326,7 +340,7 @@ a:hover {
 }
 
 .stat-card.muted .number {
-  color: var(--color-text-secondary);
+  color: rgba(100, 116, 139, 0.88);
 }
 
 .work-tip-item {
@@ -367,46 +381,50 @@ a:hover {
   color: rgba(0, 0, 0, 0.75);
 }
 
-.quick-tips-card {
-  align-self: start;
-  height: auto;
-  min-height: unset;
-  padding-bottom: 20px;
-}
-
-.quick-actions-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 10px;
-  margin-top: 16px;
-}
-
-.quick-action-btn {
-  border: 1px solid rgba(200, 215, 235, 0.70);
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.60);
-  padding: 12px;
-  font-size: 12px;
-  color: rgba(0, 0, 0, 0.65);
-  text-align: center;
-  cursor: pointer;
-}
-
-.quick-action-btn:hover {
-  border-color: rgba(26, 111, 212, 0.25);
-  background: rgba(26, 111, 212, 0.06);
-  color: #1a6fd4;
-}
-
 .bottom-grid {
   display: grid;
-  grid-template-columns: 1fr 1fr;
   gap: 16px;
 }
 
 .mid-row {
   display: grid;
   align-items: start;
+}
+
+.overview-info-stack {
+  display: grid;
+  gap: 16px;
+}
+
+.business-entry-card {
+  display: flex;
+  min-height: 100%;
+  flex-direction: column;
+  justify-content: flex-start;
+}
+
+.business-entry-card:hover {
+  border-color: rgba(26, 111, 212, 0.24);
+  background: rgba(239, 246, 255, 0.9);
+  transform: translateY(-2px);
+}
+
+.business-entry-icon {
+  display: inline-flex;
+  height: 44px;
+  width: 44px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+  color: #1a6fd4;
+}
+
+.overview-announcement-item {
+  padding: 16px 20px;
+}
+
+.overview-timeline-list {
+  overflow: hidden;
 }
 
 .task-title {
@@ -443,7 +461,7 @@ a:hover {
 }
 
 .task-deadline {
-  font-size: 12px;
+  font-size: 11px;
   color: rgba(15, 23, 42, 0.42);
 }
 
@@ -458,25 +476,18 @@ a:hover {
 }
 
 .task-summary-link {
-  border: 1px solid rgba(26, 111, 212, 0.18);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.94);
-  padding: 8px 14px;
+  padding: 0;
   font-size: 12px;
   font-weight: 600;
   color: #1a6fd4;
-  box-shadow: 0 1px 2px rgba(30, 60, 120, 0.06);
   transition:
     transform 180ms ease,
     border-color 180ms ease,
-    box-shadow 180ms ease,
-    background-color 180ms ease;
+    color 180ms ease;
 }
 
 .task-summary-link:hover {
-  border-color: rgba(26, 111, 212, 0.28);
-  background: rgba(26, 111, 212, 0.06);
-  transform: translateY(-1px);
+  color: #1557aa;
 }
 
 .task-summary-link:disabled {
@@ -518,8 +529,8 @@ a:hover {
 }
 
 .priority-focus-tag.clear {
-  background: rgba(148, 163, 184, 0.14);
-  color: rgba(15, 23, 42, 0.58);
+  background: rgba(34, 197, 94, 0.12);
+  color: #15803d;
 }
 
 .node-tip-banner {

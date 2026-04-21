@@ -646,7 +646,7 @@ export async function streamAiChatMessage(input: {
 
             const payload = JSON.parse(dataLine.replace(/^data:\s*/, "")) as DifyStreamingEvent;
 
-            if (payload.event === "message") {
+            if (payload.event === "message" || payload.event === "agent_message") {
               const delta = payload.answer ?? "";
               conversationId = payload.conversation_id ?? conversationId;
               messageId = payload.message_id ?? messageId;

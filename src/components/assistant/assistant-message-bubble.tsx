@@ -22,6 +22,7 @@ export function AssistantMessageBubble({
 }: AssistantMessageBubbleProps) {
   const isUser = message.role === "user";
   const isThinking = message.state === "thinking";
+  const isStreaming = message.state === "streaming";
 
   return (
     <div className={`${styles.messageRow} ${isUser ? styles.messageRowUser : ""}`}>
@@ -36,7 +37,7 @@ export function AssistantMessageBubble({
           className={[
             styles.messageBubble,
             isUser ? styles.messageBubbleUser : styles.messageBubbleAssistant,
-            !isThinking && !isUser ? styles.messageFadeIn : "",
+            !isThinking && !isStreaming && !isUser ? styles.messageFadeIn : "",
           ].join(" ")}
         >
           {isThinking ? (
@@ -48,11 +49,13 @@ export function AssistantMessageBubble({
           ) : isUser ? (
             <p className="whitespace-pre-wrap break-words">{message.content}</p>
           ) : (
-            <AssistantMarkdown content={message.content} />
+            <div className={isStreaming ? styles.typingCursor : undefined}>
+              <AssistantMarkdown content={message.content} />
+            </div>
           )}
         </div>
 
-        {!isThinking && !isUser ? (
+        {!isThinking && !isStreaming && !isUser ? (
           <div className={styles.messageActions}>
             <button className={styles.messageActionButton} onClick={() => onCopy(message)} type="button">
               {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}

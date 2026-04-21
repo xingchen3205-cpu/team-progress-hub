@@ -110,7 +110,7 @@ test("workspace chrome consumes depth utility classes instead of flat white pane
   assert.match(overviewSource, /work-tip-item/);
   assert.match(overviewSource, /work-tip-dot/);
   assert.match(overviewSource, /work-tip-text/);
-  assert.match(overviewSource, /tab-item/);
+  assert.match(overviewSource, /business-entry-card/);
   assert.match(shellSource, /topbar/);
   assert.match(shellSource, /header-sync-indicator/);
   assert.match(shellSource, /header-profile-menu/);
@@ -144,17 +144,31 @@ test("sidebar logo area uses transparent shell and white-treated logo", () => {
 
 test("overview detail classes tighten the stat and work-tip styling", () => {
   assert.match(globalsSource, /\.sidebar-user-area\s*\{[\s\S]*background:\s*transparent/);
-  assert.match(globalsSource, /\.stat-card\s*\{[\s\S]*padding:\s*20px 24px/);
-  assert.match(globalsSource, /\.stat-card \.label-top\s*\{[\s\S]*margin-bottom:\s*10px/);
+  assert.match(globalsSource, /\.stat-card\s*\{[\s\S]*min-height:\s*80px/);
+  assert.match(globalsSource, /\.stat-card\s*\{[\s\S]*padding:\s*16px 20px/);
+  assert.match(globalsSource, /\.stat-card \.number\s*\{[\s\S]*font-size:\s*28px/);
   assert.match(globalsSource, /\.stat-card\.muted\s*\{/);
   assert.match(globalsSource, /\.work-tip-item\s*\{[\s\S]*background:\s*rgba\(255,\s*255,\s*255,\s*0\.70\)/);
   assert.match(globalsSource, /\.work-tip-dot\.actionable\s*\{/);
   assert.match(globalsSource, /\.work-tip-dot\.muted\s*\{/);
   assert.match(globalsSource, /\.pending-badge\.muted\s*\{/);
-  assert.match(globalsSource, /\.tab-item\.active\s*\{[\s\S]*border-bottom:\s*2px solid #1a6fd4/);
+  assert.match(globalsSource, /\.business-entry-card:hover\s*\{/);
   assert.match(globalsSource, /\.topbar\s*\{[\s\S]*border-bottom:\s*1px solid rgba\(200,\s*215,\s*235,\s*0\.50\)/);
   assert.match(globalsSource, /\.header-sync-tooltip\s*\{/);
   assert.match(globalsSource, /\.header-profile-menu-panel\s*\{/);
+});
+
+test("overview layout uses compact metrics, four-up actions, and no quick tips card", () => {
+  assert.match(overviewSource, /grid gap-4 xl:grid-cols-\[minmax\(0,3fr\)_minmax\(320px,2fr\)\]/);
+  assert.match(overviewSource, /grid gap-4 px-5 py-5 md:grid-cols-3/);
+  assert.match(overviewSource, /grid gap-4 md:grid-cols-2 xl:grid-cols-4/);
+  assert.doesNotMatch(overviewSource, /快捷办理提示/);
+  assert.doesNotMatch(overviewSource, /quick-tips-card/);
+  assert.doesNotMatch(overviewSource, /quick-actions-grid/);
+  assert.match(globalsSource, /\.overview-info-stack\s*\{[\s\S]*gap:\s*16px/);
+  assert.match(globalsSource, /\.business-entry-card:hover\s*\{[\s\S]*transform:\s*translateY\(-2px\)/);
+  assert.match(globalsSource, /\.overview-timeline-list\s*\{/);
+  assert.match(globalsSource, /\.overview-announcement-item\s*\{/);
 });
 
 test("overview summary and priority panels use rails, tags, banner, and footer link", () => {
