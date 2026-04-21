@@ -99,12 +99,41 @@ model User {
   documentEdits        DocumentVersion[]        @relation("DocumentVersionUploader")
   notifications        Notification[]           @relation("NotificationRecipient")
   sentNotifications    Notification[]           @relation("NotificationSender")
+  aiPermission         AiPermission?
+  aiConversations      AiConversation[]
   expertReviewPackages ExpertReviewPackage[]    @relation("ExpertReviewPackageCreator")
   expertAssignments    ExpertReviewAssignment[] @relation("ExpertAssignmentUser")
   expertScores         ExpertReviewScore[]      @relation("ExpertScoreReviewer")
   trainingQuestions    TrainingQuestion[]       @relation("TrainingQuestionCreator")
   trainingSessions     TrainingSession[]        @relation("TrainingSessionCreator")
   passwordResetTokens  PasswordResetToken[]
+}
+
+model AiPermission {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  isEnabled Boolean  @default(false)
+  maxCount  Int?
+  usedCount Int      @default(0)
+  resetAt   DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([isEnabled, updatedAt])
+}
+
+model AiConversation {
+  id             String   @id @default(cuid())
+  userId         String
+  conversationId String   @unique
+  title          String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId])
+  @@index([userId, updatedAt])
 }
 
 model TeamGroup {

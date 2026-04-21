@@ -199,6 +199,12 @@ export type Announcement = {
   id: string;
   title: string;
   detail: string;
+  createdAt: string;
+  author?: {
+    id: string;
+    name: string;
+    avatar: string;
+  } | null;
 };
 
 export type EventItem = {
@@ -351,16 +357,19 @@ export const initialAnnouncements: Announcement[] = [
     id: "notice-1",
     title: "4 月 8 日进行校内终审彩排",
     detail: "请所有成员于 2026 年 4 月 7 日 20:00 前完成最终版材料上传。",
+    createdAt: "2026-04-05T10:00:00.000Z",
   },
   {
     id: "notice-2",
     title: "专家复盘纪要已更新",
     detail: "市场规模表达和商业模式页需要统一口径，请任务负责人今晚同步改版。",
+    createdAt: "2026-04-04T18:30:00.000Z",
   },
   {
     id: "notice-3",
     title: "答辩视频素材补采安排",
     detail: "技术演示镜头将于 2026 年 4 月 6 日 15:00 在实验室集中补录。",
+    createdAt: "2026-04-03T15:00:00.000Z",
   },
 ];
 
