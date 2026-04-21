@@ -12,6 +12,10 @@ const dashboardSource = readFileSync(
   path.join(process.cwd(), "src/components/workspace-dashboard.tsx"),
   "utf8",
 );
+const contextSource = readFileSync(
+  path.join(process.cwd(), "src/components/workspace-context.tsx"),
+  "utf8",
+);
 const assistantSource = readFileSync(
   path.join(process.cwd(), "src/components/assistant/workspace-assistant.tsx"),
   "utf8",
@@ -22,8 +26,9 @@ test("workspace route accepts assistant tab", () => {
 });
 
 test("workspace dashboard exposes AI assistant tab in sidebar config", () => {
-  assert.match(dashboardSource, /key:\s*"assistant"/);
-  assert.match(dashboardSource, /label:\s*"AI 助手"/);
+  assert.match(contextSource, /key:\s*"assistant"/);
+  assert.match(contextSource, /label:\s*"AI 助手"/);
+  assert.match(dashboardSource, /const AssistantTab = dynamic/);
 });
 
 test("assistant experience uses internal APIs and redesigned UI copy", () => {

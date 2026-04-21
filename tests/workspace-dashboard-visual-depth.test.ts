@@ -3,8 +3,40 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import test from "node:test";
 
-const dashboardSource = readFileSync(
-  path.join(process.cwd(), "src/components/workspace-dashboard.tsx"),
+const contextSource = readFileSync(
+  path.join(process.cwd(), "src/components/workspace-context.tsx"),
+  "utf8",
+);
+const shellSource = readFileSync(
+  path.join(process.cwd(), "src/components/workspace-shell.tsx"),
+  "utf8",
+);
+const overviewSource = readFileSync(
+  path.join(process.cwd(), "src/components/tabs/overview-tab.tsx"),
+  "utf8",
+);
+const timelineSource = readFileSync(
+  path.join(process.cwd(), "src/components/tabs/timeline-tab.tsx"),
+  "utf8",
+);
+const scheduleSource = readFileSync(
+  path.join(process.cwd(), "src/components/tabs/schedule-tab.tsx"),
+  "utf8",
+);
+const expertsSource = readFileSync(
+  path.join(process.cwd(), "src/components/tabs/expert-opinion-tab.tsx"),
+  "utf8",
+);
+const reviewSource = readFileSync(
+  path.join(process.cwd(), "src/components/tabs/expert-review-tab.tsx"),
+  "utf8",
+);
+const documentsSource = readFileSync(
+  path.join(process.cwd(), "src/components/tabs/documents-tab.tsx"),
+  "utf8",
+);
+const teamSource = readFileSync(
+  path.join(process.cwd(), "src/components/tabs/team-tab.tsx"),
   "utf8",
 );
 const globalsSource = readFileSync(
@@ -20,10 +52,10 @@ const readCssBlock = (source: string, selector: string) => {
 };
 
 test("workspace shell uses layered-depth sidebar styling", () => {
-  assert.match(dashboardSource, /depth-sidebar/);
-  assert.match(dashboardSource, /xl:w-\[220px\]/);
-  assert.doesNotMatch(dashboardSource, /bg-\[#0B3B8A\]/);
-  assert.doesNotMatch(dashboardSource, /bg-blue-800 text-white shadow-sm/);
+  assert.match(shellSource, /depth-sidebar/);
+  assert.match(shellSource, /xl:w-\[220px\]/);
+  assert.doesNotMatch(shellSource, /bg-\[#0B3B8A\]/);
+  assert.doesNotMatch(shellSource, /bg-blue-800 text-white shadow-sm/);
 });
 
 test("body and shared depth classes use the cleaned blue-white depth palette", () => {
@@ -62,42 +94,42 @@ test("sidebar styling uses dark midground glass and white active rails", () => {
 });
 
 test("workspace chrome consumes depth utility classes instead of flat white panels", () => {
-  assert.match(dashboardSource, /<header className="depth-mid/);
-  assert.match(dashboardSource, /const surfaceCardClassName = "depth-card/);
-  assert.match(dashboardSource, /sidebar-user-area/);
-  assert.match(dashboardSource, /sidebar-user-name/);
-  assert.match(dashboardSource, /sidebar-user-role/);
-  assert.match(dashboardSource, /stat-card/);
-  assert.match(dashboardSource, /label-top/);
-  assert.match(dashboardSource, /label-bottom/);
-  assert.match(dashboardSource, /sidebar-header/);
-  assert.match(dashboardSource, /sidebar-logo-wrapper/);
-  assert.match(dashboardSource, /sidebar-logo/);
-  assert.match(dashboardSource, /school-name/);
-  assert.match(dashboardSource, /school-sub/);
-  assert.match(dashboardSource, /work-tip-item/);
-  assert.match(dashboardSource, /work-tip-dot/);
-  assert.match(dashboardSource, /work-tip-text/);
-  assert.match(dashboardSource, /tab-item/);
-  assert.match(dashboardSource, /topbar/);
-  assert.match(dashboardSource, /header-sync-indicator/);
-  assert.match(dashboardSource, /header-profile-menu/);
+  assert.match(shellSource, /<header className="depth-mid/);
+  assert.match(contextSource, /const surfaceCardClassName = "depth-card/);
+  assert.match(shellSource, /sidebar-user-area/);
+  assert.match(shellSource, /sidebar-user-name/);
+  assert.match(shellSource, /sidebar-user-role/);
+  assert.match(overviewSource, /stat-card/);
+  assert.match(overviewSource, /label-top/);
+  assert.match(overviewSource, /label-bottom/);
+  assert.match(shellSource, /sidebar-header/);
+  assert.match(shellSource, /sidebar-logo-wrapper/);
+  assert.match(shellSource, /sidebar-logo/);
+  assert.match(shellSource, /school-name/);
+  assert.match(shellSource, /school-sub/);
+  assert.match(overviewSource, /work-tip-item/);
+  assert.match(overviewSource, /work-tip-dot/);
+  assert.match(overviewSource, /work-tip-text/);
+  assert.match(overviewSource, /tab-item/);
+  assert.match(shellSource, /topbar/);
+  assert.match(shellSource, /header-sync-indicator/);
+  assert.match(shellSource, /header-profile-menu/);
 });
 
 test("workspace stops boot blocking immediately after current user resolves", () => {
-  const currentUserIndex = dashboardSource.indexOf("setCurrentUser(mePayload.user);");
-  const bootReleaseIndex = dashboardSource.indexOf("setIsBooting(false);", currentUserIndex);
-  const requestsIndex = dashboardSource.indexOf("const requests: Array<Promise<unknown>> =", currentUserIndex);
+  const currentUserIndex = contextSource.indexOf("setCurrentUser(mePayload.user);");
+  const activeTabEffectIndex = contextSource.indexOf("const loadActiveTabResources = async () => {", currentUserIndex);
+  const bootReleaseIndex = contextSource.indexOf("setIsBooting(false);", activeTabEffectIndex);
 
   assert.ok(currentUserIndex >= 0, "should set current user after /api/auth/me");
-  assert.ok(bootReleaseIndex > currentUserIndex, "should release boot state after current user loads");
-  assert.ok(requestsIndex > bootReleaseIndex, "should start bulk workspace requests after boot state releases");
+  assert.ok(activeTabEffectIndex > currentUserIndex, "should hand off loading to the active-tab resource effect after current user loads");
+  assert.ok(bootReleaseIndex > activeTabEffectIndex, "should release boot state after active-tab resources finish");
 });
 
 test("dashboard removes multicolor badge palettes from board status chips", () => {
-  assert.doesNotMatch(dashboardSource, /border-amber-200 bg-amber-50 text-amber-700/);
-  assert.doesNotMatch(dashboardSource, /border-orange-200 bg-orange-50 text-orange-700/);
-  assert.doesNotMatch(dashboardSource, /border-emerald-200 bg-emerald-50 text-emerald-700/);
+  assert.doesNotMatch(contextSource, /border-amber-200 bg-amber-50 text-amber-700/);
+  assert.doesNotMatch(contextSource, /border-orange-200 bg-orange-50 text-orange-700/);
+  assert.doesNotMatch(contextSource, /border-emerald-200 bg-emerald-50 text-emerald-700/);
 });
 
 test("sidebar logo area uses transparent shell and white-treated logo", () => {
@@ -126,14 +158,14 @@ test("overview detail classes tighten the stat and work-tip styling", () => {
 });
 
 test("overview summary and priority panels use rails, tags, banner, and footer link", () => {
-  assert.match(dashboardSource, /const getOverviewDeadlineMeta =/);
-  assert.match(dashboardSource, /const priorityFocusTagMeta/);
-  assert.match(dashboardSource, /task-priority-rail/);
-  assert.match(dashboardSource, /priority-focus-tag/);
-  assert.match(dashboardSource, /node-tip-banner/);
-  assert.match(dashboardSource, /查看全部通知/);
-  assert.doesNotMatch(dashboardSource, /task-index/);
-  assert.doesNotMatch(dashboardSource, /priority-dot/);
+  assert.match(contextSource, /const getOverviewDeadlineMeta =/);
+  assert.match(contextSource, /const priorityFocusTagMeta/);
+  assert.match(overviewSource, /task-priority-rail/);
+  assert.match(overviewSource, /priority-focus-tag/);
+  assert.match(overviewSource, /node-tip-banner/);
+  assert.match(overviewSource, /查看全部通知/);
+  assert.doesNotMatch(overviewSource, /task-index/);
+  assert.doesNotMatch(overviewSource, /priority-dot/);
   assert.match(globalsSource, /\.task-priority-rail\.danger\s*\{/);
   assert.match(globalsSource, /\.task-priority-rail\.warning\s*\{/);
   assert.match(globalsSource, /\.task-priority-rail\.normal\s*\{/);
@@ -149,20 +181,15 @@ test("overview summary and priority panels use rails, tags, banner, and footer l
 });
 
 test("timeline view uses proportional positioning, inline add button, and refined node cards", () => {
-  assert.match(dashboardSource, /const getTimelinePointStyle =/);
-  assert.match(dashboardSource, /timeline-axis/);
-  assert.match(dashboardSource, /timeline-segment/);
-  assert.match(dashboardSource, /segmentTone =/);
-  assert.match(dashboardSource, /timeline-node/);
-  assert.match(dashboardSource, /timeline-add-button/);
-  assert.match(dashboardSource, /Pencil/);
-  assert.match(dashboardSource, /暂无描述，点击编辑补充/);
-  assert.match(dashboardSource, /查看时间进度/);
-  const timelineBlock = dashboardSource.slice(
-    dashboardSource.indexOf("const renderTimeline = () => ("),
-    dashboardSource.indexOf("const renderBoard = () => {"),
-  );
-  assert.doesNotMatch(timelineBlock, /当前数据已保存到云端数据库，可跨设备同步/);
+  assert.match(contextSource, /const getTimelinePointStyle =/);
+  assert.match(timelineSource, /timeline-axis/);
+  assert.match(timelineSource, /timeline-segment/);
+  assert.match(timelineSource, /segmentTone =/);
+  assert.match(timelineSource, /timeline-node/);
+  assert.match(timelineSource, /timeline-add-button/);
+  assert.match(timelineSource, /Pencil/);
+  assert.match(timelineSource, /暂无描述，点击编辑补充/);
+  assert.doesNotMatch(timelineSource, /当前数据已保存到云端数据库，可跨设备同步/);
   assert.match(globalsSource, /\.timeline-segment\.dashed\s*\{/);
   assert.match(globalsSource, /\.timeline-node\.future\s*\{/);
   assert.match(globalsSource, /\.timeline-tag\s*\{/);
@@ -171,32 +198,27 @@ test("timeline view uses proportional positioning, inline add button, and refine
 });
 
 test("documents view uses compact category cards, pulsing current node, menu-based view action, and no persistent sync hint", () => {
-  const documentsBlock = dashboardSource.slice(
-    dashboardSource.indexOf("const renderDocuments = () => ("),
-    dashboardSource.indexOf("const renderTeam = () => ("),
-  );
-
-  assert.match(documentsBlock, /document-category-card/);
-  assert.match(documentsBlock, /count} 份/);
-  assert.doesNotMatch(documentsBlock, /点击筛选该分类文档/);
-  assert.match(documentsBlock, /document-status-badge/);
-  assert.match(documentsBlock, /document-step-compact/);
-  assert.match(documentsBlock, /document-step-item/);
-  assert.match(documentsBlock, /document-step-marker/);
-  assert.match(documentsBlock, /Check className="h-3.5 w-3.5"/);
-  assert.match(documentsBlock, /documentStepLabels\.map/);
-  assert.match(documentsBlock, /getDocumentStepCaption\(stepState\)/);
-  assert.match(documentsBlock, /document-meta-grid/);
-  assert.match(documentsBlock, /document-meta-item/);
-  assert.match(documentsBlock, /document-comment-panel/);
-  assert.match(documentsBlock, /getDocumentReminderLabel/);
-  assert.doesNotMatch(documentsBlock, /展开历史版本/);
-  assert.match(documentsBlock, /document-card-delete-button/);
-  assert.match(documentsBlock, /查看</);
-  assert.match(documentsBlock, /在线预览/);
-  assert.match(documentsBlock, /下载/);
-  assert.match(documentsBlock, /历史版本/);
-  assert.doesNotMatch(documentsBlock, /<DemoResetNote \/>/);
+  assert.match(documentsSource, /document-category-card/);
+  assert.match(documentsSource, /count} 份/);
+  assert.doesNotMatch(documentsSource, /点击筛选该分类文档/);
+  assert.match(documentsSource, /document-status-badge/);
+  assert.match(documentsSource, /document-step-compact/);
+  assert.match(documentsSource, /document-step-item/);
+  assert.match(documentsSource, /document-step-marker/);
+  assert.match(documentsSource, /Check className="h-3.5 w-3.5"/);
+  assert.match(documentsSource, /documentStepLabels\.map/);
+  assert.match(documentsSource, /getDocumentStepCaption\(stepState\)/);
+  assert.match(documentsSource, /document-meta-grid/);
+  assert.match(documentsSource, /document-meta-item/);
+  assert.match(documentsSource, /document-comment-panel/);
+  assert.match(documentsSource, /getDocumentReminderLabel/);
+  assert.doesNotMatch(documentsSource, /展开历史版本/);
+  assert.match(documentsSource, /document-card-delete-button/);
+  assert.match(documentsSource, /查看</);
+  assert.match(documentsSource, /在线预览/);
+  assert.match(documentsSource, /下载/);
+  assert.match(documentsSource, /历史版本/);
+  assert.doesNotMatch(documentsSource, /<DemoResetNote \/>/);
   assert.match(globalsSource, /\.document-category-card\.empty\s*\{/);
   assert.match(globalsSource, /\.document-status-badge\.warning\s*\{/);
   assert.match(globalsSource, /\.document-status-badge\.success\s*\{/);
@@ -214,24 +236,19 @@ test("documents view uses compact category cards, pulsing current node, menu-bas
 });
 
 test("reports view uses dot-based date chips, colored stats, isolated admin cleanup, reminder action, and compact footer hint", () => {
-  const reportsBlock = dashboardSource.slice(
-    dashboardSource.indexOf("const renderReports = () => ("),
-    dashboardSource.indexOf("const renderExperts = () => ("),
-  );
-
-  assert.doesNotMatch(reportsBlock, /<DemoResetNote \/>/);
-  assert.match(reportsBlock, /report-date-chip/);
-  assert.match(reportsBlock, /report-date-dot/);
-  assert.match(reportsBlock, /report-stat-card/);
-  assert.match(reportsBlock, /report-stats-divider/);
-  assert.match(reportsBlock, /report-admin-danger-zone/);
-  assert.match(reportsBlock, /report-filter-column/);
-  assert.match(reportsBlock, /report-record-legend/);
-  assert.match(reportsBlock, /removeTeamReports/);
-  assert.match(reportsBlock, /发送提醒/);
-  assert.match(reportsBlock, /提交人：/);
-  assert.doesNotMatch(reportsBlock, /汇报记录 · 提交人/);
-  assert.match(reportsBlock, /report-empty-hint/);
+  assert.doesNotMatch(scheduleSource, /<DemoResetNote \/>/);
+  assert.match(scheduleSource, /report-date-chip/);
+  assert.match(scheduleSource, /report-date-dot/);
+  assert.match(scheduleSource, /report-stat-card/);
+  assert.match(scheduleSource, /report-stats-divider/);
+  assert.match(scheduleSource, /report-admin-danger-zone/);
+  assert.match(scheduleSource, /report-filter-column/);
+  assert.match(scheduleSource, /report-record-legend/);
+  assert.match(scheduleSource, /removeTeamReports/);
+  assert.match(scheduleSource, /发送提醒/);
+  assert.match(scheduleSource, /提交人：/);
+  assert.doesNotMatch(scheduleSource, /汇报记录 · 提交人/);
+  assert.match(scheduleSource, /report-empty-hint/);
 
   assert.match(globalsSource, /\.report-date-chip\s*\{/);
   assert.match(globalsSource, /\.report-date-chip\.muted\s*\{/);
@@ -246,25 +263,20 @@ test("reports view uses dot-based date chips, colored stats, isolated admin clea
 });
 
 test("team management view uses muted toolbar actions, inline edit mode, and unified account actions", () => {
-  const teamBlock = dashboardSource.slice(
-    dashboardSource.indexOf("const renderTeam = () => ("),
-    dashboardSource.indexOf("const renderProfile = () => {"),
-  );
-
-  assert.doesNotMatch(teamBlock, /<DemoResetNote \/>/);
-  assert.match(teamBlock, /team-toolbar-secondary/);
-  assert.match(teamBlock, /team-group-chip/);
-  assert.match(teamBlock, /team-group-count-badge/);
-  assert.match(teamBlock, /team-icon-button/);
-  assert.match(teamBlock, /editingTeamRowId === member\.id/);
-  assert.match(teamBlock, /team-inline-value/);
-  assert.match(teamBlock, /发送提醒/);
-  assert.match(teamBlock, /重置密码/);
-  assert.match(teamBlock, /删除账号/);
-  assert.match(teamBlock, /team-delete-button/);
-  assert.match(teamBlock, /system-account-tag/);
-  assert.match(teamBlock, /system-status-tag/);
-  assert.match(teamBlock, /team-tab-count/);
+  assert.doesNotMatch(teamSource, /<DemoResetNote \/>/);
+  assert.match(teamSource, /team-toolbar-secondary/);
+  assert.match(teamSource, /team-group-chip/);
+  assert.match(teamSource, /team-group-count-badge/);
+  assert.match(teamSource, /team-icon-button/);
+  assert.match(teamSource, /editingTeamRowId === member\.id/);
+  assert.match(teamSource, /team-inline-value/);
+  assert.match(teamSource, /发送提醒/);
+  assert.match(teamSource, /重置密码/);
+  assert.match(teamSource, /删除账号/);
+  assert.match(teamSource, /team-delete-button/);
+  assert.match(teamSource, /system-account-tag/);
+  assert.match(teamSource, /system-status-tag/);
+  assert.match(teamSource, /team-tab-count/);
   assert.match(globalsSource, /\.team-toolbar-secondary\s*\{/);
   assert.match(globalsSource, /\.team-group-chip\s*\{/);
   assert.match(globalsSource, /\.team-icon-button\s*\{/);
@@ -274,17 +286,12 @@ test("team management view uses muted toolbar actions, inline edit mode, and uni
 });
 
 test("experts view uses attachment entry, hover delete affordance, and upload-more guide area", () => {
-  const expertsBlock = dashboardSource.slice(
-    dashboardSource.indexOf("const renderExperts = () => ("),
-    dashboardSource.indexOf("const renderReview = () => {"),
-  );
-
-  assert.doesNotMatch(expertsBlock, /<DemoResetNote \/>/);
-  assert.match(expertsBlock, /openExpertAttachmentMenuId/);
-  assert.match(expertsBlock, /查看附件/);
-  assert.match(expertsBlock, /expert-delete-button/);
-  assert.match(expertsBlock, /expert-detail-row/);
-  assert.match(expertsBlock, /上传更多专家意见/);
+  assert.doesNotMatch(expertsSource, /<DemoResetNote \/>/);
+  assert.match(expertsSource, /openExpertAttachmentMenuId/);
+  assert.match(expertsSource, /查看附件/);
+  assert.match(expertsSource, /expert-delete-button/);
+  assert.match(expertsSource, /expert-detail-row/);
+  assert.match(expertsSource, /上传更多专家意见/);
   assert.match(globalsSource, /\.expert-attachment-trigger\s*\{/);
   assert.match(globalsSource, /\.expert-delete-button\s*\{/);
   assert.match(globalsSource, /\.expert-detail-row\s*\{/);
@@ -292,43 +299,27 @@ test("experts view uses attachment entry, hover delete affordance, and upload-mo
 });
 
 test("mobile layout uses stacked timeline, responsive forms, and non-cramped modal actions", () => {
-  const timelineBlock = dashboardSource.slice(
-    dashboardSource.indexOf("const renderTimeline = () => ("),
-    dashboardSource.indexOf("const renderBoard = () => {"),
-  );
-  const reportsBlock = dashboardSource.slice(
-    dashboardSource.indexOf("const renderReports = () => ("),
-    dashboardSource.indexOf("const renderExperts = () => ("),
-  );
-  const reviewBlock = dashboardSource.slice(
-    dashboardSource.indexOf("const renderReview = () => {"),
-    dashboardSource.indexOf("const renderDocuments = () => ("),
-  );
-  const teamBlock = dashboardSource.slice(
-    dashboardSource.indexOf("const renderTeam = () => ("),
-    dashboardSource.indexOf("const renderProfile = () => {"),
-  );
-  const todoModalBlock = dashboardSource.slice(
-    dashboardSource.indexOf('{notificationsOpen ? ('),
-    dashboardSource.indexOf('{reminderModalOpen ? ('),
+  const todoModalBlock = shellSource.slice(
+    shellSource.indexOf('{notificationsOpen ? ('),
+    shellSource.indexOf('{reminderModalOpen ? ('),
   );
 
-  assert.match(timelineBlock, /md:hidden/);
-  assert.match(timelineBlock, /hidden md:block/);
-  assert.match(timelineBlock, /md:min-w-\[860px\]/);
-  assert.doesNotMatch(timelineBlock, /className="min-w-\[860px\]"/);
+  assert.match(timelineSource, /md:hidden/);
+  assert.match(timelineSource, /hidden md:block/);
+  assert.match(timelineSource, /md:min-w-\[860px\]/);
+  assert.doesNotMatch(timelineSource, /className="min-w-\[860px\]"/);
   assert.match(globalsSource, /\.timeline-mobile-list\s*\{/);
   assert.match(globalsSource, /\.timeline-mobile-card\s*\{/);
   assert.match(globalsSource, /\.timeline-mobile-node\s*\{/);
 
-  assert.match(reportsBlock, /w-full md:min-w-56/);
-  assert.match(teamBlock, /w-full sm:min-w-\[240px\]/);
-  assert.match(teamBlock, /w-full sm:min-w-\[160px\]/);
-  assert.match(teamBlock, /w-full sm:min-w-\[180px\]/);
+  assert.match(scheduleSource, /w-full md:min-w-56/);
+  assert.match(teamSource, /w-full sm:min-w-\[240px\]/);
+  assert.match(teamSource, /w-full sm:min-w-\[160px\]/);
+  assert.match(teamSource, /w-full sm:min-w-\[180px\]/);
 
-  assert.match(reviewBlock, /grid-cols-2 sm:grid-cols-3 lg:grid-cols-5/);
-  assert.match(reviewBlock, /grid-cols-1 sm:grid-cols-2 xl:grid-cols-3/);
-  assert.match(reviewBlock, /grid-cols-1 sm:grid-cols-2 md:grid-cols-3/);
+  assert.match(reviewSource, /grid-cols-2 sm:grid-cols-3 lg:grid-cols-5/);
+  assert.match(reviewSource, /grid-cols-1 sm:grid-cols-2 xl:grid-cols-3/);
+  assert.match(reviewSource, /grid-cols-1 sm:grid-cols-2 md:grid-cols-3/);
 
   assert.match(todoModalBlock, /max-h-\[min\(92vh,860px\)\] max-w-\[min\(94vw,860px\)\] sm:max-w-\[min\(92vw,860px\)\]/);
   assert.match(todoModalBlock, /grid-cols-1 sm:grid-cols-\[minmax\(0,1fr\)_136px\]/);
@@ -336,27 +327,22 @@ test("mobile layout uses stacked timeline, responsive forms, and non-cramped mod
 });
 
 test("review view uses unified review cards, collapsed scoring, contextual material actions, and warning chips", () => {
-  const reviewBlock = dashboardSource.slice(
-    dashboardSource.indexOf("const renderReview = () => {"),
-    dashboardSource.indexOf("const renderDocuments = () => ("),
-  );
-
-  assert.doesNotMatch(reviewBlock, /<DemoResetNote \/>/);
-  assert.match(reviewBlock, /const reviewPendingCount =/);
-  assert.match(reviewBlock, /review-header-toolbar/);
-  assert.match(reviewBlock, /review-todo-pill/);
-  assert.match(reviewBlock, /expandedReviewPackageKeys/);
-  assert.match(reviewBlock, /toggleReviewPackageExpanded/);
-  assert.match(reviewBlock, /review-package-card/);
-  assert.match(reviewBlock, /review-material-card/);
-  assert.match(reviewBlock, /review-status-chip/);
-  assert.match(reviewBlock, /review-deadline-chip/);
-  assert.match(reviewBlock, /review-material-actions/);
-  assert.match(reviewBlock, /review-delete-icon/);
-  assert.match(reviewBlock, /review-score-toggle/);
-  assert.match(reviewBlock, /暂无描述，点击编辑补充/);
-  assert.match(reviewBlock, /支持 PDF 在线预览/);
-  assert.match(reviewBlock, /删除整包评审数据/);
+  assert.doesNotMatch(reviewSource, /<DemoResetNote \/>/);
+  assert.match(reviewSource, /const reviewPendingCount =/);
+  assert.match(reviewSource, /review-header-toolbar/);
+  assert.match(reviewSource, /review-todo-pill/);
+  assert.match(reviewSource, /expandedReviewPackageKeys/);
+  assert.match(reviewSource, /toggleReviewPackageExpanded/);
+  assert.match(reviewSource, /review-package-card/);
+  assert.match(reviewSource, /review-material-card/);
+  assert.match(reviewSource, /review-status-chip/);
+  assert.match(reviewSource, /review-deadline-chip/);
+  assert.match(reviewSource, /review-material-actions/);
+  assert.match(reviewSource, /review-delete-icon/);
+  assert.match(reviewSource, /review-score-toggle/);
+  assert.match(reviewSource, /暂无描述，点击编辑补充/);
+  assert.match(reviewSource, /支持 PDF 在线预览/);
+  assert.match(reviewSource, /删除整包评审数据/);
 
   assert.match(globalsSource, /\.review-header-toolbar\s*\{/);
   assert.match(globalsSource, /\.review-todo-pill\s*\{/);
@@ -369,9 +355,9 @@ test("review view uses unified review cards, collapsed scoring, contextual mater
 });
 
 test("todo modal keeps a single dialog with stronger sectioning and unified read action", () => {
-  const todoModalBlock = dashboardSource.slice(
-    dashboardSource.indexOf('{notificationsOpen ? ('),
-    dashboardSource.indexOf('{reminderModalOpen ? ('),
+  const todoModalBlock = shellSource.slice(
+    shellSource.indexOf('{notificationsOpen ? ('),
+    shellSource.indexOf('{reminderModalOpen ? ('),
   );
 
   assert.match(todoModalBlock, /todo-modal-summary-card/);
@@ -400,15 +386,15 @@ test("todo modal keeps a single dialog with stronger sectioning and unified read
 });
 
 test("boot loading shell uses a minimal loading card and workspace fade-in", () => {
-  assert.match(dashboardSource, /loading-spinner/);
-  assert.match(dashboardSource, /loading-title/);
-  assert.match(dashboardSource, /loading-sub/);
-  assert.match(dashboardSource, /loading-status/);
-  assert.doesNotMatch(dashboardSource, /skeleton-card/);
-  assert.doesNotMatch(dashboardSource, /概览数据/);
-  assert.doesNotMatch(dashboardSource, /待办列表/);
-  assert.doesNotMatch(dashboardSource, /快捷入口/);
-  assert.match(dashboardSource, /workspace-shell-fade-in/);
+  assert.match(shellSource, /loading-spinner/);
+  assert.match(shellSource, /loading-title/);
+  assert.match(shellSource, /loading-sub/);
+  assert.match(shellSource, /loading-status/);
+  assert.doesNotMatch(shellSource, /skeleton-card/);
+  assert.doesNotMatch(shellSource, /概览数据/);
+  assert.doesNotMatch(shellSource, /待办列表/);
+  assert.doesNotMatch(shellSource, /快捷入口/);
+  assert.match(shellSource, /workspace-shell-fade-in/);
   assert.match(globalsSource, /\.workspace-shell-fade-in\s*\{/);
   assert.match(globalsSource, /\.workspace-shell-fade-in\s*\{[\s\S]*animation:\s*workspace-fade-in 320ms ease-out/);
   assert.match(globalsSource, /@keyframes workspace-fade-in/);
@@ -417,5 +403,5 @@ test("boot loading shell uses a minimal loading card and workspace fade-in", () 
 });
 
 test("reports and timeline tabs use content-driven shell height instead of forcing min-h-screen", () => {
-  assert.match(dashboardSource, /safeActiveTab === "timeline" \|\| safeActiveTab === "reports" \? "h-auto pb-8" : "min-h-screen"/);
+  assert.match(shellSource, /safeActiveTab === "timeline" \|\| safeActiveTab === "reports" \? "h-auto pb-8" : "min-h-screen"/);
 });

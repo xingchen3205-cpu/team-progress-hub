@@ -3,15 +3,15 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import test from "node:test";
 
-const dashboardSource = readFileSync(
-  path.join(process.cwd(), "src/components/workspace-dashboard.tsx"),
+const contextSource = readFileSync(
+  path.join(process.cwd(), "src/components/workspace-context.tsx"),
   "utf8",
 );
 
 test("workspace bootstrap only preloads auth and notifications", () => {
-  const bootstrapEffectStart = dashboardSource.indexOf("const loadWorkspaceData = async () => {");
-  const bootstrapEffectEnd = dashboardSource.indexOf("const loadReports = async () => {");
-  const bootstrapBlock = dashboardSource.slice(bootstrapEffectStart, bootstrapEffectEnd);
+  const bootstrapEffectStart = contextSource.indexOf("const loadWorkspaceData = async () => {");
+  const bootstrapEffectEnd = contextSource.indexOf("const loadReports = async () => {");
+  const bootstrapBlock = contextSource.slice(bootstrapEffectStart, bootstrapEffectEnd);
 
   assert.match(bootstrapBlock, /requestJson<\{ user: CurrentUser \}>\("\/api\/auth\/me"\)/);
   assert.match(bootstrapBlock, /requestJson<\{ notifications: NotificationItem\[\] \}>\("\/api\/notifications"\)/);
@@ -21,19 +21,19 @@ test("workspace bootstrap only preloads auth and notifications", () => {
 });
 
 test("workspace defines tab-scoped resource loading", () => {
-  assert.match(dashboardSource, /const getWorkspaceTabResourceKeys = useCallback/);
+  assert.match(contextSource, /const getWorkspaceTabResourceKeys = useCallback/);
   assert.match(
-    dashboardSource,
+    contextSource,
     /case "overview":[\s\S]*?"announcements"[\s\S]*?"events"[\s\S]*?"tasks"[\s\S]*?"documents"[\s\S]*?"team"[\s\S]*?"reviewAssignments"[\s\S]*?"reports"/,
   );
   assert.match(
-    dashboardSource,
+    contextSource,
     /case "training":[\s\S]*?"trainingQuestions"[\s\S]*?"trainingSessions"/,
   );
   assert.match(
-    dashboardSource,
+    contextSource,
     /case "team":[\s\S]*?"team"/,
   );
-  assert.match(dashboardSource, /if \(!currentUserRole\) \{\s+return;\s+\}/);
-  assert.match(dashboardSource, /getWorkspaceTabResourceKeys\(safeActiveTab, currentUserRole\)/);
+  assert.match(contextSource, /if \(!currentUserRole\) \{\s+return;\s+\}/);
+  assert.match(contextSource, /getWorkspaceTabResourceKeys\(safeActiveTab, currentUserRole\)/);
 });
