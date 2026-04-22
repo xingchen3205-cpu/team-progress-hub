@@ -12,7 +12,7 @@ const RING_CIRCUMFERENCE = 125.66;
 
 type MetricTone = "blue" | "amber" | "green" | "red";
 type ProgressTone = "blue" | "amber" | "slate" | "green";
-type UrgentTone = "danger" | "warning" | "normal";
+type UrgentTone = "danger" | "warning";
 type OverviewTarget = Workspace.TabKey | "notifications";
 
 type OverviewMetricCardItem = {
@@ -122,10 +122,6 @@ const urgentToneMap: Record<
     dotClassName: "bg-[#EF9F27]",
     badgeClassName: "bg-[#FAEEDA] text-[#854F0B]",
   },
-  normal: {
-    dotClassName: "bg-[#2563EB]",
-    badgeClassName: "bg-[#EFF6FF] text-[#2563EB]",
-  },
 };
 
 const sectionActionClassName =
@@ -201,21 +197,12 @@ const getTaskDueMeta = (task: BoardTask, currentDateTime: Date) => {
     };
   }
 
-  if (diffDays <= 3) {
+  if (diffDays <= 7) {
     return {
       diffMs,
       diffDays,
       tone: "warning" as const,
       badgeText: `剩余 ${Math.max(1, diffDays)} 天`,
-    };
-  }
-
-  if (diffDays <= 7) {
-    return {
-      diffMs,
-      diffDays,
-      tone: "normal" as const,
-      badgeText: "进行中",
     };
   }
 
@@ -527,9 +514,20 @@ function buildUrgentItems(args: {
         sortWeight: dueMeta.diffMs,
       };
     })
-    .filter((item): item is UrgentTaskItem & { sortWeight: number } => Boolean(item))
+    .filter(
+      (
+        item,
+      ): item is {
+        id: string;
+        title: string;
+        owner: string;
+        tone: UrgentTone;
+        badgeText: string;
+        sortWeight: number;
+      } => Boolean(item),
+    )
     .sort((left, right) => left.sortWeight - right.sortWeight)
-    .slice(0, 4);
+    .slice(0, 3);
 
   return items.map((item) => ({
     id: item.id,
@@ -557,20 +555,20 @@ function OverviewMetricCard({ item }: { item: OverviewMetricCardItem }) {
 
   return (
     <button
-      className="group relative flex min-h-[118px] flex-col overflow-hidden rounded-xl border border-gray-200 bg-white px-4 py-4 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-[#2563EB]/25 hover:bg-[#F8FBFF]"
+      className="group relative flex min-h-[104px] flex-col overflow-hidden rounded-xl border border-gray-200 bg-white px-3 py-3 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-[#2563EB]/25 hover:bg-[#F8FBFF]"
       onClick={item.onClick}
       type="button"
     >
       <div className={`flex h-8 w-8 items-center justify-center rounded-[10px] ${tone.iconContainerClassName}`}>
         <Icon className={`h-4.5 w-4.5 ${tone.iconClassName}`} />
       </div>
-      <div className="mt-4 flex items-end gap-1.5">
+      <div className="mt-3 flex items-end gap-1.5">
         <span className={`text-[28px] font-medium leading-none tracking-[-0.04em] ${valueClassName}`}>
           {toCountString(item.value)}
         </span>
         <span className="pb-0.5 text-[13px] font-medium text-gray-400">{item.unit}</span>
       </div>
-      <p className="mt-2 text-[12px] font-medium text-gray-500">{item.label}</p>
+      <p className="mt-1.5 text-[12px] font-medium text-gray-500">{item.label}</p>
       <div className={`absolute inset-x-0 bottom-0 h-[3px] ${tone.accentClassName}`} />
     </button>
   );
@@ -589,8 +587,8 @@ function ProgressRing({
   const progressClassName = progressToneMap[tone].ringClassName;
 
   return (
-    <div className="relative flex h-[52px] w-[52px] items-center justify-center">
-      <svg className="-rotate-90" height="52" viewBox="0 0 52 52" width="52">
+    <div className="relative flex h-[44px] w-[44px] items-center justify-center">
+      <svg className="-rotate-90" height="44" viewBox="0 0 52 52" width="44">
         <circle
           className="stroke-gray-200"
           cx="26"
@@ -653,12 +651,10 @@ export default function OverviewTab() {
     documents,
     countdown,
     setSelectedAnnouncement,
-    setAnnouncementModalOpen,
     currentRole,
     hasGlobalAdminRole,
     currentMemberId,
     nearestEvent,
-    permissions,
     todayReportEntryMap,
     myOpenTasks,
     pendingLeaderReviewCount,
@@ -679,7 +675,6 @@ export default function OverviewTab() {
     FileText,
     KanbanSquare,
     Mail,
-    Megaphone,
     UserPlus,
   } = Workspace;
 
@@ -757,7 +752,7 @@ export default function OverviewTab() {
   });
 
   const reportStatusItems = buildReportStatusItems(reportableMembers, todayReportEntryMap);
-  const visibleEvents = sortedEvents.slice(0, 4);
+  const visibleEvents = sortedEvents.slice(0, 3);
   const visibleAnnouncements = announcements.slice(0, 3);
 
   const welcomeName =
@@ -767,37 +762,11 @@ export default function OverviewTab() {
     "同学";
 
   return (
-    <div className="space-y-4">
-      <section className="rounded-xl border border-gray-200 bg-white px-5 py-4">
-        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
-          <div className="min-w-0">
-            <h1 className="truncate text-[18px] font-medium text-gray-900">欢迎回来，{welcomeName}</h1>
-            <p className="mt-1 text-[13px] text-gray-500">{getDateHeadline(currentDateTime)}</p>
-          </div>
-
-          <div className="flex flex-wrap items-center gap-3">
-            <button
-              className="inline-flex items-center gap-2 rounded-lg border border-gray-200 bg-white px-4 py-2.5 text-sm font-medium text-gray-700 transition-all duration-200 hover:border-[#2563EB]/25 hover:bg-[#F8FBFF]"
-              onClick={() => openOverviewTarget("notifications")}
-              type="button"
-            >
-              <span>待办中心</span>
-              <span className="inline-flex min-w-6 items-center justify-center rounded-full bg-[#E24B4A] px-2 py-0.5 text-[11px] font-semibold text-white">
-                {toCountString(unreadTodoNotifications.length)}
-              </span>
-            </button>
-
-            {permissions.canPublishAnnouncement ? (
-              <button
-                className="inline-flex items-center gap-2 rounded-lg bg-[#2563EB] px-4 py-2.5 text-sm font-medium text-white transition-all duration-200 hover:bg-[#1d4ed8]"
-                onClick={() => setAnnouncementModalOpen(true)}
-                type="button"
-              >
-                <Megaphone className="h-4 w-4" />
-                <span>发布公告</span>
-              </button>
-            ) : null}
-          </div>
+    <div className="space-y-3">
+      <section className="rounded-xl border border-gray-200 bg-white px-5 py-3">
+        <div className="min-w-0">
+          <h1 className="truncate text-[18px] font-medium text-gray-900">欢迎回来，{welcomeName}</h1>
+          <p className="mt-1 text-[13px] text-gray-500">{getDateHeadline(currentDateTime)}</p>
         </div>
       </section>
 
@@ -807,19 +776,19 @@ export default function OverviewTab() {
         ))}
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-2 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
-        <div className="space-y-4">
-          <article className="rounded-xl border border-gray-200 bg-white p-5">
+      <section className="grid gap-3 xl:grid-cols-2 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
+        <div className="space-y-3">
+          <article className="rounded-xl border border-gray-200 bg-white p-4">
             <SectionTitle
               actionLabel="查看全部 →"
               onAction={() => openOverviewTarget(currentRole === "member" ? "board" : "reports")}
               title="业务进度"
             />
 
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+            <div className="mt-3 grid gap-2.5 sm:grid-cols-2">
               {progressPanels.map((item) => (
                 <button
-                  className="flex items-center gap-3 rounded-xl bg-gray-50 px-3.5 py-3 text-left transition-all duration-200 hover:border-[#2563EB]/20 hover:bg-[#F5F9FF]"
+                  className="flex items-center gap-2.5 rounded-xl bg-gray-50 px-3 py-2 text-left transition-all duration-200 hover:border-[#2563EB]/20 hover:bg-[#F5F9FF]"
                   key={item.title}
                   onClick={() => openOverviewTarget(item.target)}
                   type="button"
@@ -827,27 +796,27 @@ export default function OverviewTab() {
                   <ProgressRing tone={item.tone} total={item.total} value={item.value} />
                   <div className="min-w-0">
                     <p className="text-[13px] font-semibold text-gray-900">{item.title}</p>
-                    <p className="mt-1 text-[11px] leading-5 text-gray-500">{item.description}</p>
+                    <p className="mt-0.5 text-[11px] leading-4.5 text-gray-500">{item.description}</p>
                   </div>
                 </button>
               ))}
             </div>
           </article>
 
-          <article className="rounded-xl border border-gray-200 bg-white p-5">
+          <article className="rounded-xl border border-gray-200 bg-white p-4">
             <SectionTitle
               actionLabel="全部任务 →"
               onAction={() => openOverviewTarget("board")}
               title="紧急事项"
             />
 
-            <div className="mt-4">
+            <div className="mt-3">
               {urgentItems.length > 0 ? (
                 urgentItems.map((item, index) => {
                   const tone = urgentToneMap[item.tone];
                   return (
                     <button
-                      className={`flex w-full items-center gap-3 py-3 text-left transition-all duration-200 hover:bg-[#F8FBFF] ${index !== urgentItems.length - 1 ? "border-b border-gray-100" : ""}`}
+                      className={`flex w-full items-center gap-3 py-2 text-left transition-all duration-200 hover:bg-[#F8FBFF] ${index !== urgentItems.length - 1 ? "border-b border-gray-100" : ""}`}
                       key={item.id}
                       onClick={() => openOverviewTarget("board")}
                       type="button"
@@ -864,59 +833,21 @@ export default function OverviewTab() {
                   );
                 })
               ) : (
-                <p className="py-6 text-[13px] text-gray-400">当前没有紧急事项</p>
-              )}
-            </div>
-          </article>
-
-          <article className="rounded-xl border border-gray-200 bg-white p-5">
-            <SectionTitle title="今日汇报" />
-
-            <div className="mt-3 flex items-center justify-between gap-3">
-              <p className="text-[13px] text-gray-500">团队成员提交状态</p>
-              <span className="text-[14px] font-semibold text-gray-900">
-                {reportSubmittedCount}/{reportExpectedCount || 0} 人已提交
-              </span>
-            </div>
-
-            <div className="mt-4 flex flex-wrap gap-2">
-              {reportStatusItems.length > 0 ? (
-                reportStatusItems.map((item) => (
-                  <button
-                    className={`inline-flex items-center gap-2 rounded-full px-3 py-2 text-[12px] font-medium transition-all duration-200 ${
-                      item.submitted
-                        ? "bg-[#EAF3DE] text-[#3B6D11] hover:bg-[#dcecc5]"
-                        : "bg-gray-100 text-gray-500 hover:bg-gray-200"
-                    }`}
-                    data-slot="report-pill"
-                    key={item.id}
-                    onClick={() => openOverviewTarget("reports")}
-                    type="button"
-                  >
-                    <span
-                      className={`h-2 w-2 rounded-full ${item.submitted ? "bg-[#1D9E75]" : "bg-gray-400"}`}
-                    />
-                    <span>{item.name}</span>
-                  </button>
-                ))
-              ) : (
-                <span className="rounded-full bg-gray-100 px-3 py-2 text-[12px] text-gray-500">
-                  当前暂无需提交成员
-                </span>
+                <p className="py-4 text-[13px] text-gray-400">当前没有紧急事项</p>
               )}
             </div>
           </article>
         </div>
 
-        <div className="space-y-4">
-          <article className="rounded-xl border border-gray-200 bg-white p-5">
+        <div className="space-y-3">
+          <article className="rounded-xl border border-gray-200 bg-white p-4">
             <SectionTitle
               actionLabel="完整日程 →"
               onAction={() => openOverviewTarget("timeline")}
               title="赛事日程"
             />
 
-            <div className="mt-4 rounded-xl bg-[#EFF6FF] px-4 py-3">
+            <div className="mt-3 rounded-xl bg-[#EFF6FF] px-3 py-2.5">
               <div className="flex items-center gap-3">
                 <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#2563EB] text-white">
                   <Clock3 className="h-4 w-4" />
@@ -932,14 +863,14 @@ export default function OverviewTab() {
               </div>
             </div>
 
-            <div className="mt-4 space-y-3">
+            <div className="mt-3 space-y-2">
               {visibleEvents.length > 0 ? (
                 visibleEvents.map((item) => {
                   const eventParts = getEventDisplayParts(item);
 
                   return (
                     <button
-                      className="flex w-full items-start gap-3 rounded-xl px-1 py-1 text-left transition-all duration-200 hover:bg-[#F8FBFF]"
+                      className="flex w-full items-start gap-3 rounded-xl px-1 py-0.5 text-left transition-all duration-200 hover:bg-[#F8FBFF]"
                       key={item.id}
                       onClick={() => openOverviewTarget("timeline")}
                       type="button"
@@ -965,18 +896,18 @@ export default function OverviewTab() {
             </div>
           </article>
 
-          <article className="rounded-xl border border-gray-200 bg-white p-5">
+          <article className="rounded-xl border border-gray-200 bg-white p-4">
             <SectionTitle
               actionLabel="查看全部 →"
               onAction={() => openOverviewTarget("notifications")}
               title="通知公告"
             />
 
-            <div className="mt-4">
+            <div className="mt-3">
               {visibleAnnouncements.length > 0 ? (
                 visibleAnnouncements.map((item, index) => (
                   <button
-                    className={`flex w-full items-start justify-between gap-3 py-3 text-left transition-all duration-200 hover:bg-[#F8FBFF] ${index !== visibleAnnouncements.length - 1 ? "border-b border-gray-100" : ""}`}
+                    className={`flex w-full items-start justify-between gap-3 py-2 text-left transition-all duration-200 hover:bg-[#F8FBFF] ${index !== visibleAnnouncements.length - 1 ? "border-b border-gray-100" : ""}`}
                     data-slot="announcement-link-button"
                     key={item.id}
                     onClick={() => setSelectedAnnouncement(item)}
@@ -993,6 +924,44 @@ export default function OverviewTab() {
                 ))
               ) : (
                 <p className="py-6 text-[13px] text-gray-400">当前暂无公告</p>
+              )}
+            </div>
+          </article>
+
+          <article className="rounded-xl border border-gray-200 bg-white p-4">
+            <SectionTitle title="今日汇报" />
+
+            <div className="mt-2.5 flex items-center justify-between gap-3">
+              <p className="text-[12px] text-gray-500">团队成员提交状态</p>
+              <span className="text-[13px] font-semibold text-gray-900">
+                {reportSubmittedCount}/{reportExpectedCount || 0} 人已提交
+              </span>
+            </div>
+
+            <div className="mt-3 flex flex-wrap gap-2">
+              {reportStatusItems.length > 0 ? (
+                reportStatusItems.map((item) => (
+                  <button
+                    className={`inline-flex items-center gap-2 rounded-full px-2.5 py-1.5 text-[11px] font-medium transition-all duration-200 ${
+                      item.submitted
+                        ? "bg-[#EAF3DE] text-[#3B6D11] hover:bg-[#dcecc5]"
+                        : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                    }`}
+                    data-slot="report-pill"
+                    key={item.id}
+                    onClick={() => openOverviewTarget("reports")}
+                    type="button"
+                  >
+                    <span
+                      className={`h-2 w-2 rounded-full ${item.submitted ? "bg-[#1D9E75]" : "bg-gray-400"}`}
+                    />
+                    <span>{item.name}</span>
+                  </button>
+                ))
+              ) : (
+                <span className="rounded-full bg-gray-100 px-2.5 py-1.5 text-[11px] text-gray-500">
+                  当前暂无需提交成员
+                </span>
               )}
             </div>
           </article>

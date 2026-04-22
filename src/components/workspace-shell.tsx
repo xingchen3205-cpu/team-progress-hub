@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import type { TeamRoleLabel, TaskDraft, DocumentDraft } from "@/components/workspace-context";
 import * as Workspace from "@/components/workspace-context";
 
@@ -190,6 +190,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
     Loader2,
     LogOut,
     Menu,
+    Search,
     X,
     documentCategories,
     roleLabels,
@@ -227,6 +228,35 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
     ActionButton,
     UserAvatar,
   } = Workspace;
+
+  const [globalSearchQuery, setGlobalSearchQuery] = useState("");
+  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
+  const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
+
+  useEffect(() => {
+    const timer = window.setTimeout(() => {
+      setDebouncedSearchQuery(globalSearchQuery.trim());
+    }, 300);
+
+    return () => window.clearTimeout(timer);
+  }, [globalSearchQuery]);
+
+  useEffect(() => {
+    if (!globalSearchOpen) {
+      return undefined;
+    }
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") {
+        return;
+      }
+
+      setGlobalSearchOpen(false);
+    };
+
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [globalSearchOpen]);
 
   if (isBooting) {
     return (
@@ -421,7 +451,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
 
           <section className="min-w-0 flex-1 overflow-x-hidden">
             <header className="depth-mid rounded-xl">
-              <div className="topbar mx-auto flex max-w-[1200px] flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div className="topbar mx-auto flex max-w-[1200px] flex-col gap-3 lg:flex-row lg:items-center lg:justify-between lg:gap-4">
                 <div className="flex min-h-10 items-center gap-3">
                   <button
                     className="depth-button-secondary inline-flex h-10 w-10 items-center justify-center rounded-lg text-slate-700 xl:hidden"
@@ -431,6 +461,39 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                     <Menu className="h-5 w-5" />
                   </button>
                   <p className="text-lg font-semibold text-slate-900">{activeTabItem.label}</p>
+                </div>
+
+                <div className="relative w-full lg:w-[320px]">
+                  <div className="relative">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                    <input
+                      className="h-9 w-full rounded-lg border border-transparent bg-gray-100 pl-9 pr-3 text-sm text-slate-700 outline-none transition-all duration-200 placeholder:text-slate-400 focus:border-[#2563EB] focus:bg-white focus:shadow-[0_0_0_3px_rgba(37,99,235,0.12)]"
+                      onChange={(event) => {
+                        setGlobalSearchQuery(event.target.value);
+                        setGlobalSearchOpen(true);
+                      }}
+                      onFocus={() => setGlobalSearchOpen(true)}
+                      onKeyDown={(event) => {
+                        if (event.key !== "Escape") {
+                          return;
+                        }
+
+                        setGlobalSearchOpen(false);
+                        event.currentTarget.blur();
+                      }}
+                      placeholder="搜索任务、文档、成员..."
+                      value={globalSearchQuery}
+                    />
+                  </div>
+
+                  {globalSearchOpen && debouncedSearchQuery ? (
+                    <div className="absolute inset-x-0 top-[calc(100%+8px)] z-30 rounded-xl border border-gray-200 bg-white p-3 shadow-[0_16px_32px_rgba(15,23,42,0.12)]">
+                      <p className="text-xs font-medium text-slate-500">搜索结果</p>
+                      <div className="mt-2 rounded-lg bg-gray-50 px-3 py-3 text-sm text-slate-600">
+                        搜索功能开发中
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
 
                 <div className="flex w-full flex-wrap items-center justify-between gap-2 sm:w-auto sm:justify-end sm:gap-3">

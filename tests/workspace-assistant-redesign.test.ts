@@ -34,7 +34,10 @@ test("assistant redesign extracts a dedicated workspace assistant component", ()
   const source = readFileSync(assistantComponentPath, "utf8");
   assert.match(source, /新建对话/);
   assert.match(source, /有什么可以帮你/);
-  assert.match(source, /重新设计|赛事流程与规范/);
+  assert.match(source, /双创竞赛智能问答助手/);
+  assert.doesNotMatch(source, /赛事流程与规范智能问答/);
+  assert.doesNotMatch(source, /直接通过平台后端调用 Dify，对话记录按会话维度管理。/);
+  assert.match(source, /回答仅供参考，以平台实际数据为准/);
 });
 
 test("assistant redesign adds conversation history routes", () => {

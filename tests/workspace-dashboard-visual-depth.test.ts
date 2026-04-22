@@ -99,6 +99,9 @@ test("workspace chrome consumes depth utility classes instead of flat white pane
   assert.match(shellSource, /sidebar-user-area/);
   assert.match(shellSource, /sidebar-user-name/);
   assert.match(shellSource, /sidebar-user-role/);
+  assert.match(shellSource, /搜索任务、文档、成员/);
+  assert.match(shellSource, /globalSearchOpen/);
+  assert.match(shellSource, /搜索功能开发中/);
   assert.match(overviewSource, /buildOverviewMetricCards/);
   assert.match(overviewSource, /buildProgressPanels/);
   assert.match(overviewSource, /buildUrgentItems/);
@@ -143,7 +146,7 @@ test("sidebar logo area uses transparent shell and white-treated logo", () => {
 test("overview uses tailwind-first structure for the redesigned dashboard shell", () => {
   assert.match(globalsSource, /\.sidebar-user-area\s*\{[\s\S]*background:\s*transparent/);
   assert.match(overviewSource, /grid gap-3 lg:grid-cols-4/);
-  assert.match(overviewSource, /grid gap-4 xl:grid-cols-2/);
+  assert.match(overviewSource, /grid gap-3 xl:grid-cols-2/);
   assert.match(overviewSource, /rounded-xl border border-gray-200 bg-white/);
   assert.match(overviewSource, /bg-gray-50/);
   assert.match(globalsSource, /\.topbar\s*\{[\s\S]*border-bottom:\s*1px solid rgba\(200,\s*215,\s*235,\s*0\.50\)/);
@@ -153,13 +156,14 @@ test("overview uses tailwind-first structure for the redesigned dashboard shell"
 
 test("overview layout uses the new welcome rail, metric strip, and split content columns", () => {
   assert.match(overviewSource, /欢迎回来，/);
-  assert.match(overviewSource, /待办中心/);
   assert.match(overviewSource, /业务进度/);
   assert.match(overviewSource, /紧急事项/);
   assert.match(overviewSource, /今日汇报/);
   assert.match(overviewSource, /赛事日程/);
   assert.match(overviewSource, /通知公告/);
   assert.match(overviewSource, /lg:grid-cols-\[minmax\(0,1\.05fr\)_minmax\(0,0\.95fr\)\]/);
+  assert.doesNotMatch(overviewSource, /待办中心/);
+  assert.doesNotMatch(overviewSource, /发布公告/);
   assert.doesNotMatch(overviewSource, /快捷办理提示/);
   assert.doesNotMatch(overviewSource, /今日工作提示/);
   assert.doesNotMatch(overviewSource, /优先关注/);
@@ -178,6 +182,12 @@ test("overview renders svg progress rings, urgent deadline pills, event countdow
   assert.match(overviewSource, /report-pill/);
   assert.match(overviewSource, /event-day-card/);
   assert.match(overviewSource, /announcement-link-button/);
+  assert.match(overviewSource, /if \(diffDays <= 7\) \{/);
+  assert.doesNotMatch(overviewSource, /badgeText:\s*"进行中"/);
+  assert.match(overviewSource, /\.slice\(0,\s*3\)/);
+  assert.match(overviewSource, /h-\[44px\] w-\[44px\]/);
+  assert.match(overviewSource, /px-3 py-3/);
+  assert.match(overviewSource, /px-3 py-2/);
 });
 
 test("timeline view uses proportional positioning, inline add button, and refined node cards", () => {

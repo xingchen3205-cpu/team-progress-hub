@@ -568,7 +568,7 @@ export function WorkspaceAssistant() {
               </div>
               <div>
                 <div className={styles.assistantTitle}>双创助手</div>
-                <div className={styles.assistantSubtitle}>赛事流程与规范智能问答</div>
+                <div className={styles.assistantSubtitle}>双创竞赛智能问答助手</div>
               </div>
             </div>
             {limitedUsageLabel ? <div className={styles.assistantUsageTag}>{limitedUsageLabel}</div> : null}
@@ -591,14 +591,12 @@ export function WorkspaceAssistant() {
             />
           </div>
 
-          <div className={styles.sidebarFootnote}>回答仅供参考，以平台实际数据为准</div>
         </aside>
 
         <section className={`${styles.assistantPanel} ${styles.assistantMain}`}>
           <div className={styles.assistantMainHeader}>
             <div>
               <div className={styles.assistantMainTitle}>AI 助手</div>
-              <div className={styles.assistantMainHint}>直接通过平台后端调用 Dify，对话记录按会话维度管理。</div>
             </div>
             <button className={styles.mobileToggle} onClick={() => setSidebarOpen((current) => !current)} type="button">
               {sidebarOpen ? <X className="h-4 w-4" /> : <Menu className="h-4 w-4" />}
@@ -706,6 +704,8 @@ export function WorkspaceAssistant() {
           )}
         </section>
       </div>
+
+      <div className={styles.pageFootnote}>回答仅供参考，以平台实际数据为准</div>
     </div>
   );
 }
