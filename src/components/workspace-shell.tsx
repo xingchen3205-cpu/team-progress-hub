@@ -263,11 +263,11 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
       <main className="workspace-depth-bg relative flex min-h-screen items-center justify-center overflow-hidden px-4 py-6">
         <div aria-hidden className="workspace-orb-field" />
         <div className="relative z-[1] depth-card w-full max-w-[calc(100vw-2rem)] rounded-2xl px-5 py-6 sm:max-w-xl sm:px-8 sm:py-8">
-          <div className="depth-emphasis inline-flex items-center px-3 py-1 text-xs font-medium tracking-[0.08em] text-[#1a6fd4]">
+          <div className="depth-emphasis inline-flex items-center px-3 py-1 text-xs font-medium tracking-[0.08em] text-[color:var(--color-primary)]">
             中国国际大学生创新大赛管理系统
           </div>
           <div className="mt-5 flex items-start gap-4">
-            <div className="relative flex h-12 w-12 items-center justify-center rounded-2xl bg-white shadow-[0_16px_34px_rgba(26,111,212,0.12)]">
+            <div className="relative flex h-12 w-12 items-center justify-center rounded-2xl bg-white shadow-[0_16px_34px_rgba(var(--color-primary-rgb),0.12)]">
               <div className="loading-spinner" />
             </div>
             <div className="min-w-0">
@@ -454,7 +454,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
               <div className="topbar mx-auto flex max-w-[1200px] flex-col gap-3 lg:flex-row lg:items-center lg:justify-between lg:gap-4">
                 <div className="flex min-h-10 items-center gap-3">
                   <button
-                    className="depth-button-secondary inline-flex h-10 w-10 items-center justify-center rounded-lg text-slate-700 xl:hidden"
+                    className="depth-button-secondary inline-flex h-10 w-10 items-center justify-center rounded-lg text-[color:var(--color-neutral)] xl:hidden"
                     onClick={() => setMobileSidebarOpen(true)}
                     type="button"
                   >
@@ -467,7 +467,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                   <div className="relative">
                     <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                     <input
-                      className="h-9 w-full rounded-lg border border-transparent bg-gray-100 pl-9 pr-3 text-sm text-slate-700 outline-none transition-all duration-200 placeholder:text-slate-400 focus:border-[#2563EB] focus:bg-white focus:shadow-[0_0_0_3px_rgba(37,99,235,0.12)]"
+                      className="h-9 w-full rounded-lg border border-transparent bg-gray-100 pl-9 pr-3 text-sm text-slate-700 outline-none transition-all duration-200 placeholder:text-slate-400 focus:border-[color:var(--color-primary)] focus:bg-white focus:shadow-[0_0_0_3px_rgba(var(--color-primary-rgb),0.12)]"
                       onChange={(event) => {
                         setGlobalSearchQuery(event.target.value);
                         setGlobalSearchOpen(true);
@@ -507,14 +507,14 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                     <span className="header-sync-tooltip">数据自动同步至云端数据库</span>
                   </div>
                   <button
-                    className="depth-button-secondary relative inline-flex h-10 items-center gap-2 rounded-lg px-3 text-slate-700"
+                    className="depth-button-secondary relative inline-flex h-10 items-center gap-2 rounded-lg px-3 text-[color:var(--color-neutral)]"
                     onClick={() => setNotificationsOpen(true)}
                     type="button"
                   >
                     <BellPlus className="h-4 w-4" />
                     <span className="hidden text-sm font-medium sm:inline">待办</span>
                     {todoItemCount > 0 ? (
-                      <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-[#ef4444] px-1.5 text-[10px] font-semibold text-white">
+                      <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-[var(--color-danger)] px-1.5 text-[10px] font-semibold text-white">
                         {todoItemCount}
                       </span>
                     ) : null}
@@ -528,7 +528,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                       <UserAvatar
                         avatar={currentUser.profile.avatar}
                         avatarUrl={currentUser.profile.avatarUrl}
-                        className="flex h-10 w-10 items-center justify-center rounded-full bg-[#2563eb] text-sm font-semibold text-white"
+                        className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--color-primary)] text-sm font-semibold text-white"
                         name={currentUser.profile.name}
                         textClassName="text-sm font-semibold text-white"
                       />

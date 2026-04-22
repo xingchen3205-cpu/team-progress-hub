@@ -3,14 +3,24 @@
 :root {
   --background: #eef4ff;
   --foreground: #0f172a;
+  --color-primary: #2563EB;
+  --color-primary-soft: #EFF6FF;
+  --color-primary-rgb: 37, 99, 235;
+  --color-success: #10B981;
+  --color-success-soft: #ECFDF5;
+  --color-warning: #F59E0B;
+  --color-warning-soft: #FFFBEB;
+  --color-danger: #EF4444;
+  --color-danger-soft: #FEF2F2;
+  --color-neutral: #6B7280;
+  --color-neutral-soft: #F3F4F6;
+  --color-bg-subtle: #F9FAFB;
   --color-paper: #ffffff;
   --color-panel: #ffffff;
   --color-ink: #0f172a;
   --color-muted: rgba(15, 23, 42, 0.5);
   --color-line: #e2e8f0;
-  --color-accent: #1a6fd4;
-  --color-success: #15803d;
-  --color-warning: #b45309;
+  --color-accent: var(--color-primary);
   --color-text-secondary: rgba(15, 23, 42, 0.72);
   --color-text-tertiary: rgba(15, 23, 42, 0.5);
   --color-background-secondary: rgba(255, 255, 255, 0.62);
@@ -1606,26 +1616,28 @@ a:hover {
 }
 
 .depth-button-primary {
-  border: 1px solid rgba(255, 255, 255, 0.5);
-  background: linear-gradient(135deg, rgba(26, 111, 212, 0.84), rgba(14, 72, 166, 0.76));
+  border: 1px solid rgba(var(--color-primary-rgb), 0.18);
+  background: var(--color-primary);
   color: #ffffff;
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.5),
-    0 10px 26px rgba(26, 111, 212, 0.2);
+  box-shadow: 0 10px 26px rgba(var(--color-primary-rgb), 0.18);
 }
 
 .depth-button-primary:hover {
-  background: linear-gradient(135deg, rgba(26, 111, 212, 0.94), rgba(14, 72, 166, 0.86));
+  background: color-mix(in srgb, var(--color-primary) 92%, var(--color-ink) 8%);
 }
 
 .depth-button-secondary {
-  border: 1px solid rgba(255, 255, 255, 0.42);
-  background: rgba(255, 255, 255, 0.56);
-  box-shadow:
-    inset 0 1px 0 rgba(255, 255, 255, 0.36),
-    0 8px 20px rgba(31, 38, 135, 0.08);
+  border: 1px solid rgba(var(--color-primary-rgb), 0.12);
+  background: #ffffff;
+  color: var(--color-neutral);
+  box-shadow: 0 8px 20px rgba(31, 38, 135, 0.08);
   backdrop-filter: blur(8px) saturate(150%);
   -webkit-backdrop-filter: blur(8px) saturate(150%);
+}
+
+.depth-button-secondary:hover {
+  background: var(--color-primary-soft);
+  border-color: rgba(var(--color-primary-rgb), 0.16);
 }
 
 .text-ink-muted {

@@ -52,33 +52,28 @@ const metricToneMap: Record<
   {
     iconContainerClassName: string;
     iconClassName: string;
-    accentClassName: string;
     activeValueClassName: string;
   }
 > = {
   blue: {
-    iconContainerClassName: "bg-[#E6F1FB]",
-    iconClassName: "text-[#185FA5]",
-    accentClassName: "bg-[#2563EB]",
-    activeValueClassName: "text-[#2563EB]",
+    iconContainerClassName: "bg-[var(--color-bg-subtle)]",
+    iconClassName: "text-[color:var(--color-neutral)]",
+    activeValueClassName: "text-[color:var(--color-ink)]",
   },
   amber: {
-    iconContainerClassName: "bg-[#FAEEDA]",
-    iconClassName: "text-[#854F0B]",
-    accentClassName: "bg-[#EF9F27]",
-    activeValueClassName: "text-[#EF9F27]",
+    iconContainerClassName: "bg-[var(--color-bg-subtle)]",
+    iconClassName: "text-[color:var(--color-neutral)]",
+    activeValueClassName: "text-[color:var(--color-ink)]",
   },
   green: {
-    iconContainerClassName: "bg-[#EAF3DE]",
-    iconClassName: "text-[#3B6D11]",
-    accentClassName: "bg-[#1D9E75]",
-    activeValueClassName: "text-[#1D9E75]",
+    iconContainerClassName: "bg-[var(--color-bg-subtle)]",
+    iconClassName: "text-[color:var(--color-neutral)]",
+    activeValueClassName: "text-[color:var(--color-ink)]",
   },
   red: {
-    iconContainerClassName: "bg-[#FCEBEB]",
-    iconClassName: "text-[#A32D2D]",
-    accentClassName: "bg-[#E24B4A]",
-    activeValueClassName: "text-[#E24B4A]",
+    iconContainerClassName: "bg-[var(--color-bg-subtle)]",
+    iconClassName: "text-[color:var(--color-neutral)]",
+    activeValueClassName: "text-[color:var(--color-ink)]",
   },
 };
 
@@ -90,20 +85,20 @@ const progressToneMap: Record<
   }
 > = {
   blue: {
-    ringClassName: "text-[#2563EB]",
-    textClassName: "text-[#2563EB]",
+    ringClassName: "text-[color:var(--color-primary)]",
+    textClassName: "text-[color:var(--color-primary)]",
   },
   amber: {
-    ringClassName: "text-[#EF9F27]",
-    textClassName: "text-[#854F0B]",
+    ringClassName: "text-[color:var(--color-primary)]",
+    textClassName: "text-[color:var(--color-primary)]",
   },
   slate: {
-    ringClassName: "text-[#888780]",
-    textClassName: "text-[#6B7280]",
+    ringClassName: "text-[color:var(--color-primary)]",
+    textClassName: "text-[color:var(--color-primary)]",
   },
   green: {
-    ringClassName: "text-[#1D9E75]",
-    textClassName: "text-[#1D9E75]",
+    ringClassName: "text-[color:var(--color-primary)]",
+    textClassName: "text-[color:var(--color-primary)]",
   },
 };
 
@@ -115,17 +110,17 @@ const urgentToneMap: Record<
   }
 > = {
   danger: {
-    dotClassName: "bg-[#E24B4A]",
-    badgeClassName: "bg-[#FCEBEB] text-[#A32D2D]",
+    dotClassName: "bg-[var(--color-danger)]",
+    badgeClassName: "bg-[var(--color-danger-soft)] text-[color:var(--color-danger)]",
   },
   warning: {
-    dotClassName: "bg-[#EF9F27]",
-    badgeClassName: "bg-[#FAEEDA] text-[#854F0B]",
+    dotClassName: "bg-[var(--color-warning)]",
+    badgeClassName: "bg-[var(--color-warning-soft)] text-[color:var(--color-warning)]",
   },
 };
 
 const sectionActionClassName =
-  "inline-flex items-center gap-1 text-xs font-medium text-[#2563EB] transition-all duration-200 hover:translate-x-0.5 hover:text-[#1d4ed8]";
+  "inline-flex items-center gap-1 text-xs font-medium text-[color:var(--color-primary)] transition-all duration-200 hover:translate-x-0.5";
 
 const parseSafeDate = (value?: string | null) => (value ? Workspace.parseDateLikeValue(value) : null);
 
@@ -551,25 +546,24 @@ const buildReportStatusItems = (
 function OverviewMetricCard({ item }: { item: OverviewMetricCardItem }) {
   const Icon = item.icon;
   const tone = metricToneMap[item.tone];
-  const valueClassName = item.value > 0 ? tone.activeValueClassName : "text-gray-300";
+  const valueClassName = item.value > 0 ? tone.activeValueClassName : "text-[color:var(--color-neutral)]";
 
   return (
     <button
-      className="group relative flex flex-col overflow-hidden rounded-xl border border-gray-200 bg-white px-3 py-3 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-[#2563EB]/25 hover:bg-[#F8FBFF]"
+      className="group relative flex flex-col overflow-hidden rounded-xl border border-[color:var(--color-border-tertiary)] bg-white px-5 py-4 text-left transition-all duration-200 hover:-translate-y-0.5 hover:bg-[var(--color-bg-subtle)]"
       onClick={item.onClick}
       type="button"
     >
       <div className={`flex h-8 w-8 items-center justify-center rounded-[10px] ${tone.iconContainerClassName}`}>
         <Icon className={`h-4.5 w-4.5 ${tone.iconClassName}`} />
       </div>
-      <div className="mt-3 flex items-end gap-1.5">
-        <span className={`text-[28px] font-medium leading-none tracking-[-0.04em] ${valueClassName}`}>
+      <div className="mt-2.5 flex items-end gap-1.5">
+        <span className={`text-[28px] font-medium leading-[1] tracking-[-0.04em] ${valueClassName}`}>
           {toCountString(item.value)}
         </span>
-        <span className="pb-0.5 text-[13px] font-medium text-gray-400">{item.unit}</span>
+        <span className="pb-0.5 text-[13px] font-medium text-[color:var(--color-neutral)]">{item.unit}</span>
       </div>
-      <p className="mt-1.5 text-[12px] font-medium text-gray-500">{item.label}</p>
-      <div className={`absolute inset-x-0 bottom-0 h-[3px] ${tone.accentClassName}`} />
+      <p className="mt-1 text-[12px] font-medium text-[color:var(--color-neutral)]">{item.label}</p>
     </button>
   );
 }
@@ -628,7 +622,7 @@ function SectionTitle({
   return (
     <div className="flex items-center justify-between gap-3">
       <div className="flex items-center gap-2.5">
-        <span className="h-4 w-[3px] rounded-full bg-[#2563EB]" />
+        <span className="h-4 w-[3px] rounded-full bg-[var(--color-primary)]" />
         <h2 className="text-[16px] font-semibold text-gray-900">{title}</h2>
       </div>
       {actionLabel && onAction ? (
@@ -788,7 +782,7 @@ export default function OverviewTab() {
             <div className="mt-3 grid gap-2.5 sm:grid-cols-2">
               {progressPanels.map((item) => (
                 <button
-                  className="flex items-center gap-2.5 rounded-xl bg-gray-50 px-3 py-2 text-left transition-all duration-200 hover:border-[#2563EB]/20 hover:bg-[#F5F9FF]"
+                  className="flex items-center gap-2.5 rounded-xl bg-[var(--color-bg-subtle)] px-3 py-2 text-left transition-all duration-200 hover:bg-[var(--color-primary-soft)]"
                   key={item.title}
                   onClick={() => openOverviewTarget(item.target)}
                   type="button"
@@ -816,7 +810,7 @@ export default function OverviewTab() {
                   const tone = urgentToneMap[item.tone];
                   return (
                     <button
-                      className={`flex w-full items-center gap-3 py-2 text-left transition-all duration-200 hover:bg-[#F8FBFF] ${index !== urgentItems.length - 1 ? "border-b border-gray-100" : ""}`}
+                      className={`flex w-full items-center gap-3 py-2 text-left transition-all duration-200 hover:bg-[var(--color-bg-subtle)] ${index !== urgentItems.length - 1 ? "border-b border-gray-100" : ""}`}
                       key={item.id}
                       onClick={() => openOverviewTarget("board")}
                       type="button"
@@ -854,8 +848,8 @@ export default function OverviewTab() {
                   <button
                     className={`inline-flex items-center gap-2 rounded-full px-2.5 py-1.5 text-[11px] font-medium transition-all duration-200 ${
                       item.submitted
-                        ? "bg-[#EAF3DE] text-[#3B6D11] hover:bg-[#dcecc5]"
-                        : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                        ? "bg-[var(--color-success-soft)] text-[color:var(--color-success)] hover:bg-[var(--color-success-soft)]"
+                        : "bg-[var(--color-bg-subtle)] text-[color:var(--color-neutral)] hover:bg-[var(--color-neutral-soft)]"
                     }`}
                     data-slot="report-pill"
                     key={item.id}
@@ -863,7 +857,7 @@ export default function OverviewTab() {
                     type="button"
                   >
                     <span
-                      className={`h-2 w-2 rounded-full ${item.submitted ? "bg-[#1D9E75]" : "bg-gray-400"}`}
+                      className={`h-2 w-2 rounded-full ${item.submitted ? "bg-[var(--color-success)]" : "bg-[var(--color-neutral)]"}`}
                     />
                     <span>{item.name}</span>
                   </button>
@@ -885,14 +879,14 @@ export default function OverviewTab() {
               title="赛事日程"
             />
 
-            <div className="mt-3 rounded-xl bg-[#EFF6FF] px-3 py-2.5">
+            <div className="mt-3 rounded-xl bg-[var(--color-primary-soft)] px-3 py-2.5">
               <div className="flex items-center gap-3">
-                <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[#2563EB] text-white">
+                <div className="flex h-7 w-7 items-center justify-center rounded-full bg-[var(--color-primary)] text-white">
                   <Clock3 className="h-4 w-4" />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-[11px] text-gray-500">最近截止</p>
-                  <p className="mt-0.5 truncate text-[14px] font-semibold text-[#2563EB]">
+                  <p className="text-[11px] text-[color:var(--color-neutral)]">最近截止</p>
+                  <p className="mt-0.5 truncate text-[14px] font-semibold text-[color:var(--color-primary)]">
                     {nearestUpcomingEvent
                       ? `距 ${nearestUpcomingEvent.title} 还剩 ${countdown.days}天 ${countdown.hours}小时`
                       : "近期暂无未过期赛事节点"}
@@ -908,7 +902,7 @@ export default function OverviewTab() {
 
                   return (
                     <button
-                      className="flex w-full items-start gap-3 rounded-xl px-1 py-0.5 text-left transition-all duration-200 hover:bg-[#F8FBFF]"
+                      className="flex w-full items-start gap-3 rounded-xl px-1 py-0.5 text-left transition-all duration-200 hover:bg-[var(--color-bg-subtle)]"
                       key={item.id}
                       onClick={() => openOverviewTarget("timeline")}
                       type="button"
@@ -945,14 +939,14 @@ export default function OverviewTab() {
               {visibleAnnouncements.length > 0 ? (
                 visibleAnnouncements.map((item, index) => (
                   <button
-                    className={`flex w-full items-start justify-between gap-3 py-2 text-left transition-all duration-200 hover:bg-[#F8FBFF] ${index !== visibleAnnouncements.length - 1 ? "border-b border-gray-100" : ""}`}
+                    className={`flex w-full items-start justify-between gap-3 py-2 text-left transition-all duration-200 hover:bg-[var(--color-bg-subtle)] ${index !== visibleAnnouncements.length - 1 ? "border-b border-gray-100" : ""}`}
                     data-slot="announcement-link-button"
                     key={item.id}
                     onClick={() => setSelectedAnnouncement(item)}
                     type="button"
                   >
                     <div className="min-w-0 flex-1">
-                      <p className="truncate text-[13px] font-semibold text-gray-900 transition-colors duration-200 hover:text-[#2563EB]">
+                      <p className="truncate text-[13px] font-semibold text-gray-900 transition-colors duration-200 hover:text-[color:var(--color-primary)]">
                         {item.title}
                       </p>
                       <p className="mt-1 line-clamp-2 text-[11px] leading-5 text-gray-500">{item.detail}</p>

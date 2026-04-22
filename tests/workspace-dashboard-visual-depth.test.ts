@@ -61,6 +61,12 @@ test("workspace shell uses layered-depth sidebar styling", () => {
 test("body and shared depth classes use the cleaned blue-white depth palette", () => {
   const depthCardBlock = readCssBlock(globalsSource, ".depth-card");
 
+  assert.match(globalsSource, /--color-primary:\s*#2563EB/);
+  assert.match(globalsSource, /--color-success:\s*#10B981/);
+  assert.match(globalsSource, /--color-warning:\s*#F59E0B/);
+  assert.match(globalsSource, /--color-danger:\s*#EF4444/);
+  assert.match(globalsSource, /--color-neutral:\s*#6B7280/);
+  assert.match(globalsSource, /--color-bg-subtle:\s*#F9FAFB/);
   assert.match(globalsSource, /body\s*\{[\s\S]*#f4f7fc/);
   assert.match(globalsSource, /body\s*\{[\s\S]*rgba\(180,\s*210,\s*255,\s*0\.35\)/);
   assert.match(globalsSource, /body\s*\{[\s\S]*rgba\(160,\s*200,\s*245,\s*0\.25\)/);
@@ -73,6 +79,8 @@ test("body and shared depth classes use the cleaned blue-white depth palette", (
   assert.match(globalsSource, /\.depth-card\s*\{[\s\S]*box-shadow:\s*0 2px 8px rgba\(30,\s*60,\s*120,\s*0\.06\)/);
   assert.doesNotMatch(depthCardBlock, /\binset 0 1px 0/);
   assert.match(globalsSource, /\.depth-emphasis\s*\{[\s\S]*background:\s*#ffffff/);
+  assert.match(globalsSource, /\.depth-button-primary\s*\{[\s\S]*background:\s*var\(--color-primary\)/);
+  assert.match(globalsSource, /\.depth-button-secondary:hover\s*\{[\s\S]*background:\s*var\(--color-primary-soft\)/);
   assert.match(globalsSource, /--color-text-secondary:/);
   assert.match(globalsSource, /--color-text-tertiary:/);
   assert.match(globalsSource, /--color-background-secondary:/);
@@ -192,12 +200,18 @@ test("overview renders svg progress rings, urgent deadline pills, event countdow
   assert.match(overviewSource, /report-pill/);
   assert.match(overviewSource, /event-day-card/);
   assert.match(overviewSource, /announcement-link-button/);
+  assert.doesNotMatch(overviewSource, /#[0-9A-Fa-f]{3,8}/);
   assert.match(overviewSource, /if \(diffDays <= 7\) \{/);
   assert.doesNotMatch(overviewSource, /badgeText:\s*"进行中"/);
   assert.match(overviewSource, /\.slice\(0,\s*3\)/);
   assert.match(overviewSource, /h-\[44px\] w-\[44px\]/);
+  assert.match(overviewSource, /px-5 py-4/);
   assert.doesNotMatch(overviewSource, /min-h-\[104px\]/);
-  assert.match(overviewSource, /px-3 py-2/);
+  assert.doesNotMatch(overviewSource, /absolute inset-x-0 bottom-0 h-\[3px\]/);
+  assert.match(overviewSource, /bg-\[var\(--color-bg-subtle\)\]/);
+  assert.match(overviewSource, /text-\[color:var\(--color-primary\)\]/);
+  assert.match(overviewSource, /text-\[color:var\(--color-danger\)\]/);
+  assert.match(overviewSource, /text-\[color:var\(--color-warning\)\]/);
   assert.match(overviewSource, /space-y-4/);
 });
 
