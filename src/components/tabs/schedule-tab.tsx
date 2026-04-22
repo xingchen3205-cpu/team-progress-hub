@@ -28,25 +28,6 @@ type SearchBarProps = {
   placeholder: string;
 };
 
-type ReportCardProps = {
-  ActionButton: typeof Workspace.ActionButton;
-  BellPlus: typeof Workspace.BellPlus;
-  currentMemberId: string;
-  formatShortDate: (value: string) => string;
-  getReportAttachmentNote: (value?: string | null) => string | null;
-  member: ReportMember;
-  permissions: {
-    canSendDirective: boolean;
-    canSubmitReport: boolean;
-  };
-  report?: ReportRecord;
-  selectedDate: string;
-  showTeamGroupTag?: boolean;
-  onEdit?: (report: ReportRecord) => void;
-  onRemind?: (member: ReportMember) => void;
-  onRemove?: (date: string) => void;
-};
-
 type ReportsViewProps = {
   ActionButton: typeof Workspace.ActionButton;
   BellPlus: typeof Workspace.BellPlus;
@@ -188,285 +169,6 @@ const SearchBar = ({ value, onChange, placeholder }: SearchBarProps) => (
   </div>
 );
 
-const ReportCard = ({
-  ActionButton,
-  BellPlus,
-  currentMemberId,
-  formatShortDate,
-  getReportAttachmentNote,
-  member,
-  permissions,
-  report,
-  selectedDate,
-  showTeamGroupTag = false,
-  onEdit,
-  onRemind,
-  onRemove,
-}: ReportCardProps) => {
-  const attachmentNote = getReportAttachmentNote(report?.attachment);
-  const isCurrentMember = member.id === currentMemberId;
-
-  return (
-    <article className="overflow-hidden rounded-xl border border-white/70 bg-white/82 p-0 shadow-[0_6px_18px_rgba(30,60,120,0.08)]">
-      <div className="flex items-start justify-between gap-4 border-b border-slate-100 bg-slate-50/80 px-5 py-4">
-        <div className="min-w-0">
-          <div className="flex flex-wrap items-center gap-2">
-            <h3 className="text-base font-semibold text-slate-900">{member.name}</h3>
-            <span className="rounded-md bg-white px-2 py-1 text-xs text-slate-500 ring-1 ring-slate-200">
-              {member.systemRole}
-            </span>
-            {showTeamGroupTag && member.teamGroupName ? (
-              <span className="rounded-md bg-white px-2 py-1 text-xs text-slate-500 ring-1 ring-slate-200">
-                {member.teamGroupName}
-              </span>
-            ) : null}
-          </div>
-          <p className="mt-2 text-sm text-slate-500">提交人：{member.name}</p>
-        </div>
-        {report ? (
-          <span className="shrink-0 rounded-md bg-blue-50 px-3 py-1 text-sm text-blue-600">已提交 {report.submittedAt}</span>
-        ) : (
-          <span className="shrink-0 rounded-md bg-red-50 px-3 py-1 text-sm text-red-700">未提交</span>
-        )}
-      </div>
-
-      <div className="p-5">
-        {report ? (
-          <>
-            <div className="grid gap-3 lg:grid-cols-2">
-              <div className="rounded-xl border border-slate-200 bg-white p-4">
-                <p className="text-xs font-semibold text-slate-400">今日完成</p>
-                <p className="mt-2 text-sm leading-7 text-slate-700">{report.summary}</p>
-              </div>
-              <div className="rounded-xl border border-slate-200 bg-white p-4">
-                <p className="text-xs font-semibold text-slate-400">明日计划</p>
-                <p className="mt-2 text-sm leading-7 text-slate-700">{report.nextPlan}</p>
-              </div>
-            </div>
-            {attachmentNote ? (
-              <p className="mt-4 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-500">附件备注：{attachmentNote}</p>
-            ) : null}
-            {isCurrentMember && permissions.canSubmitReport && onEdit && onRemove ? (
-              <div className="mt-4 flex flex-wrap gap-3">
-                <ActionButton onClick={() => onEdit(report)}>修改汇报</ActionButton>
-                <ActionButton onClick={() => onRemove(report.date)} variant="danger">
-                  撤回汇报
-                </ActionButton>
-              </div>
-            ) : null}
-          </>
-        ) : (
-          <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-5">
-            <p className="text-sm font-semibold text-slate-700">这一天还没有汇报</p>
-            <p className="mt-2 text-sm leading-7 text-slate-500">
-              {isCurrentMember && permissions.canSubmitReport
-                ? "可以补交这一天的工作汇报，保存后会进入历史记录。"
-                : `该成员在 ${formatShortDate(selectedDate)} 尚未提交当日汇报。`}
-            </p>
-            {permissions.canSendDirective && !isCurrentMember && onRemind ? (
-              <ActionButton className="report-remind-button mt-3" onClick={() => onRemind(member)}>
-                <BellPlus className="h-4 w-4" />
-                发送提醒
-              </ActionButton>
-            ) : null}
-          </div>
-        )}
-      </div>
-    </article>
-  );
-};
-
-const ReportSummaryPanel = ({
-  ActionButton,
-  canShowAdminDangerZone,
-  currentUserSelectedReport,
-  fieldClassName,
-  formatShortDate,
-  onCreateOrEdit,
-  onDeleteTeamReports,
-  permissions,
-  reportDeleteTeamGroupId,
-  selectedDate,
-  selectedReportExpectedCount,
-  selectedReportMissingCount,
-  selectedReportSubmittedCount,
-  setReportDeleteTeamGroupId,
-  teamGroups,
-}: {
-  ActionButton: typeof Workspace.ActionButton;
-  canShowAdminDangerZone: boolean;
-  currentUserSelectedReport?: ReportRecord;
-  fieldClassName: string;
-  formatShortDate: (value: string) => string;
-  onCreateOrEdit: () => void;
-  onDeleteTeamReports: () => void;
-  permissions: {
-    canSubmitReport: boolean;
-  };
-  reportDeleteTeamGroupId: string;
-  selectedDate: string;
-  selectedReportExpectedCount: number;
-  selectedReportMissingCount: number;
-  selectedReportSubmittedCount: number;
-  setReportDeleteTeamGroupId: (value: string) => void;
-  teamGroups: Workspace.TeamGroupItem[];
-}) => (
-  <aside className="flex flex-col justify-between rounded-xl border border-slate-200 bg-slate-50 p-4">
-    <div>
-      <p className="text-sm text-slate-500">当前日期</p>
-      <h3 className="mt-1 text-xl font-bold text-slate-900">{formatShortDate(selectedDate)}</h3>
-      <div className="mt-4 grid grid-cols-3 gap-2">
-        <div className="report-stat-card expected">
-          <p className="text-xs text-slate-400">应提交</p>
-          <p className="mt-1 text-lg font-semibold text-slate-900">{selectedReportExpectedCount}</p>
-        </div>
-        <div className="report-stat-card submitted">
-          <p className="text-xs text-slate-400">已提交</p>
-          <p className="mt-1 text-lg font-semibold">{selectedReportSubmittedCount}</p>
-        </div>
-        <div className="report-stat-card missing">
-          <p className="text-xs text-slate-400">未提交</p>
-          <p className="mt-1 text-lg font-semibold">{selectedReportMissingCount}</p>
-        </div>
-      </div>
-      <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-200">
-        <div
-          className="h-full rounded-full bg-blue-600 transition-all"
-          style={{
-            width:
-              selectedReportExpectedCount > 0
-                ? `${Math.round((selectedReportSubmittedCount / selectedReportExpectedCount) * 100)}%`
-                : "0%",
-          }}
-        />
-      </div>
-    </div>
-
-    <div className="report-stats-divider" />
-
-    {permissions.canSubmitReport ? (
-      <ActionButton className="mt-4 w-full justify-center" onClick={onCreateOrEdit} variant="primary">
-        {currentUserSelectedReport ? "修改我的汇报" : "提交这天汇报"}
-      </ActionButton>
-    ) : (
-      <p className="mt-4 text-sm text-slate-500">当前角色只查看归档，不需要提交汇报。</p>
-    )}
-
-    {canShowAdminDangerZone ? (
-      <div className="report-admin-danger-zone mt-4">
-        <p className="text-xs font-semibold text-rose-700">管理员清理</p>
-        <p className="mt-1 text-xs leading-5 text-slate-500">只删除指定项目组在当前日期的汇报记录。</p>
-        <select
-          className={`${fieldClassName} mt-2`}
-          value={reportDeleteTeamGroupId}
-          onChange={(event) => setReportDeleteTeamGroupId(event.target.value)}
-        >
-          <option value="">选择项目组</option>
-          {teamGroups.map((group) => (
-            <option key={group.id} value={group.id}>
-              {group.name}
-            </option>
-          ))}
-        </select>
-        <ActionButton
-          className="mt-2 w-full justify-center"
-          disabled={!reportDeleteTeamGroupId}
-          onClick={onDeleteTeamReports}
-          variant="secondary"
-        >
-          删除该组本日汇报
-        </ActionButton>
-      </div>
-    ) : null}
-  </aside>
-);
-
-const ReportsResultSection = ({
-  ActionButton,
-  BellPlus,
-  CalendarDays,
-  EmptyState,
-  currentMemberId,
-  formatShortDate,
-  getReportAttachmentNote,
-  permissions,
-  filteredReportMembers,
-  reportEntryMap,
-  searchActive,
-  selectedDate,
-  showTeamGroupTag,
-  onEdit,
-  onRemind,
-  onRemove,
-  selectedDateHasSavedReports,
-  visibleReportMembersCount,
-}: {
-  ActionButton: typeof Workspace.ActionButton;
-  BellPlus: typeof Workspace.BellPlus;
-  CalendarDays: typeof Workspace.CalendarDays;
-  EmptyState: typeof Workspace.EmptyState;
-  currentMemberId: string;
-  formatShortDate: (value: string) => string;
-  getReportAttachmentNote: (value?: string | null) => string | null;
-  permissions: {
-    canSendDirective: boolean;
-    canSubmitReport: boolean;
-  };
-  filteredReportMembers: ReportMember[];
-  reportEntryMap: Map<string, ReportRecord>;
-  searchActive: boolean;
-  selectedDate: string;
-  showTeamGroupTag: boolean;
-  onEdit: (report: ReportRecord) => void;
-  onRemind: (member: ReportMember) => void;
-  onRemove: (date: string) => void;
-  selectedDateHasSavedReports: boolean;
-  visibleReportMembersCount: number;
-}) => (
-  <>
-    <section className="grid gap-4 xl:grid-cols-2">
-      {filteredReportMembers.length > 0 ? (
-        filteredReportMembers.map((member) => (
-          <ReportCard
-            ActionButton={ActionButton}
-            BellPlus={BellPlus}
-            currentMemberId={currentMemberId}
-            formatShortDate={formatShortDate}
-            getReportAttachmentNote={getReportAttachmentNote}
-            key={member.id}
-            member={member}
-            onEdit={onEdit}
-            onRemind={onRemind}
-            onRemove={onRemove}
-            permissions={permissions}
-            report={reportEntryMap.get(member.id)}
-            selectedDate={selectedDate}
-            showTeamGroupTag={showTeamGroupTag}
-          />
-        ))
-      ) : (
-        <div className="xl:col-span-2">
-          <EmptyState
-            description={
-              searchActive
-                ? "当前筛选条件下没有匹配的汇报成员，请调整搜索关键词后重试。"
-                : "当前日期下还没有可展示的汇报记录，提交后会集中显示在这里。"
-            }
-            icon={CalendarDays}
-            title={searchActive ? "没有搜索结果" : "暂无汇报记录"}
-          />
-        </div>
-      )}
-    </section>
-
-    {!selectedDateHasSavedReports && visibleReportMembersCount > 0 ? (
-      <p className="report-empty-hint text-center text-sm text-slate-400">
-        {formatShortDate(selectedDate)} 暂无保存记录。选择其他历史日期，或点击“提交这天汇报”补录保存。
-      </p>
-    ) : null}
-  </>
-);
-
 type ReportEvaluationItem = {
   id: string;
   reportId: string;
@@ -506,6 +208,7 @@ type SummaryState = {
   updatedAt: string | null;
   loading: boolean;
   error: string | null;
+  warning: string | null;
 };
 
 type TrendPoint = {
@@ -640,6 +343,36 @@ const getConcernText = (report?: ReportRecord) => {
 
   const matched = getReportTextCorpus(report).match(concernKeywordPattern);
   return matched?.[0] ?? null;
+};
+
+const buildFallbackReportSummary = ({
+  currentReports,
+  groupName,
+  members,
+}: {
+  currentReports: ReportRecord[];
+  groupName: string;
+  members: ReportMember[];
+}) => {
+  const submittedCount = currentReports.length;
+  const totalCount = members.length;
+  const concernMembers = currentReports
+    .filter((report) => Boolean(getConcernText(report)))
+    .map(
+      (report) =>
+        members.find((member) => member.id === report.memberId)?.name ??
+        report.user?.name ??
+        "成员",
+    );
+  const uniqueConcernMembers = [...new Set(concernMembers)];
+
+  return [
+    `${groupName} 今日共有 ${submittedCount}/${totalCount} 人提交汇报。`,
+    uniqueConcernMembers.length > 0
+      ? `需要重点关注 ${uniqueConcernMembers.join("、")}，汇报中出现了卡点或困难描述。`
+      : "当前已提交汇报中未发现明显卡点关键词，整体推进相对平稳。",
+    "系统已切换为本地摘要，建议稍后重试 AI 日报摘要以获取更细的语言总结。",
+  ].join("");
 };
 
 const getEvaluationTotal = (report?: ReportRecord) =>
@@ -796,11 +529,11 @@ const buildLinePath = (series: TrendPoint[], accessor: (point: TrendPoint) => nu
     .join(" ");
 };
 
-const ChartEmptyState = ({ accumulatedDays }: { accumulatedDays: number }) => (
-  <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center">
-    <Workspace.BarChart3 className="mb-2 h-8 w-8 text-slate-300" />
-    <p className="text-sm font-medium text-slate-500">数据积累中，至少需要 3 天数据才能显示趋势</p>
-    <p className="mt-1 text-xs text-slate-400">当前已积累 {accumulatedDays} 天数据</p>
+const ChartEmptyState = ({ accumulatedDays, compact }: { accumulatedDays: number; compact?: boolean }) => (
+  <div className={`flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 text-center ${compact ? "py-4" : "py-8"}`}>
+    <Workspace.BarChart3 className={`text-slate-300 ${compact ? "mb-1 h-6 w-6" : "mb-2 h-8 w-8"}`} />
+    <p className="text-sm font-medium text-slate-500">数据积累中，3 天后显示趋势</p>
+    {!compact ? <p className="mt-1 text-xs text-slate-400">当前已积累 {accumulatedDays} 天数据</p> : null}
   </div>
 );
 
@@ -942,6 +675,234 @@ const MiniBarChart = ({
   );
 };
 
+const MainTrendChart = ({
+  series,
+  todayDateKey,
+}: {
+  series: TrendPoint[];
+  todayDateKey: string;
+}) => {
+  const accessor = (point: TrendPoint) => point.submitRate;
+  const path = buildLinePath(series, accessor, 160);
+  const effectiveDays = getEffectiveDataDays(
+    series.map((s) => s.date),
+    todayDateKey,
+  );
+
+  if (series.length === 0 || effectiveDays < 3) {
+    return <ChartEmptyState accumulatedDays={effectiveDays} />;
+  }
+
+  const hasRealVariance = series.some((p) => (p.submitRate ?? 0) !== (series[0].submitRate ?? 0));
+  const allNull = series.every((p) => p.submitRate === null);
+  if (!hasRealVariance && !allNull) {
+    return (
+      <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center">
+        <Workspace.BarChart3 className="mb-2 h-8 w-8 text-slate-300" />
+        <p className="text-sm font-medium text-slate-500">本周数据平稳，暂无显著波动</p>
+      </div>
+    );
+  }
+
+  const ticks = buildChartTicks(100);
+  const width = 100;
+  const step = series.length === 1 ? width : width / (series.length - 1);
+
+  return (
+    <div className="grid grid-cols-[42px_minmax(0,1fr)] gap-4">
+      <div className="flex h-40 flex-col justify-between text-[11px] text-slate-400">
+        {ticks.map((tick) => (
+          <span key={tick}>{tick}%</span>
+        ))}
+      </div>
+      <div className="space-y-3">
+        <svg className="h-40 w-full overflow-visible" viewBox="0 0 100 160" preserveAspectRatio="none">
+          <path d="M0 159.5 H100" className="stroke-slate-200" fill="none" strokeWidth="1" />
+          <path d="M0 80 H100" className="stroke-slate-100" fill="none" strokeDasharray="3 3" strokeWidth="1" />
+          {path ? (
+            <>
+              <path
+                d={path}
+                className="stroke-blue-600"
+                fill="none"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth="2.5"
+              />
+              <path
+                d={`${path} L 100 160 L 0 160 Z`}
+                className="fill-blue-600"
+                fillOpacity="0.15"
+                stroke="none"
+              />
+            </>
+          ) : null}
+          {series.map((point, index) => {
+            const value = accessor(point);
+            const x = series.length === 1 ? 50 : Number(((index * 100) / (series.length - 1)).toFixed(2));
+            if (value === null || value === undefined) {
+              const prev = series[index - 1];
+              const next = series[index + 1];
+              const prevY = prev?.submitRate != null ? 160 - (Math.min(100, Math.max(0, prev.submitRate)) / 100) * 160 : null;
+              const nextY = next?.submitRate != null ? 160 - (Math.min(100, Math.max(0, next.submitRate)) / 100) * 160 : null;
+              const startY = prevY ?? nextY ?? 80;
+              const endY = nextY ?? prevY ?? 80;
+              return (
+                <g key={point.date}>
+                  {prevY != null && nextY != null ? (
+                    <path
+                      d={`M ${x - (step / 2)} ${prevY} L ${x + (step / 2)} ${nextY}`}
+                      className="stroke-slate-300"
+                      fill="none"
+                      strokeDasharray="4 3"
+                      strokeWidth="1.5"
+                    />
+                  ) : null}
+                  <circle className="fill-slate-200 stroke-slate-300" cx={x} cy={(startY + endY) / 2} r="2.5" strokeWidth="1" />
+                  <title>{`${point.label} 数据待更新`}</title>
+                </g>
+              );
+            }
+            const y = Number((160 - (Math.min(100, Math.max(0, value)) / 100) * 160).toFixed(2));
+            return (
+              <g key={point.date}>
+                <circle className="fill-blue-600" cx={x} cy={y} r="3">
+                  <title>{`${point.label} 提交率 ${value}%`}</title>
+                </circle>
+              </g>
+            );
+          })}
+        </svg>
+        <div className="flex justify-between text-center text-[11px] text-slate-400">
+          {series.map((point) => (
+            <span key={point.date}>{point.label}</span>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+};
+
+const RightDrawer = ({
+  open,
+  title,
+  onClose,
+  children,
+}: {
+  open: boolean;
+  title: string;
+  onClose: () => void;
+  children: React.ReactNode;
+}) => {
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && open) {
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [open, onClose]);
+
+  return (
+    <div className={`fixed inset-0 z-50 ${open ? "" : "pointer-events-none"}`}>
+      <div
+        className={`absolute inset-0 bg-slate-950/20 transition-opacity ${open ? "opacity-100" : "opacity-0"}`}
+        onClick={onClose}
+      />
+      <div
+        className={`absolute inset-y-0 right-0 flex w-[min(92vw,560px)] flex-col bg-white shadow-xl transition-transform duration-200 ${
+          open ? "translate-x-0" : "translate-x-full"
+        }`}
+      >
+        <div className="flex shrink-0 items-center justify-between border-b border-slate-100 px-6 py-4">
+          <h3 className="text-base font-semibold text-slate-900">{title}</h3>
+          <button className="text-sm text-slate-500" onClick={onClose} type="button">
+            关闭
+          </button>
+        </div>
+        <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">{children}</div>
+      </div>
+    </div>
+  );
+};
+
+const AdminReadonlyReportCard = ({
+  member,
+  report,
+  evaluations,
+  formatShortDate,
+  date,
+}: {
+  member: ReportMember;
+  report?: ReportRecord;
+  evaluations: ReportEvaluationItem[];
+  formatShortDate: (value: string) => string;
+  date: string;
+}) => {
+  const attachmentNote = Workspace.getReportAttachmentNote(report?.attachment);
+
+  return (
+    <article className="overflow-hidden rounded-xl border border-slate-200 bg-white p-0">
+      <div className="flex items-start justify-between gap-4 border-b border-slate-100 bg-slate-50/80 px-4 py-3">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="text-sm font-semibold text-slate-900">{member.name}</h3>
+            <span className="rounded-md bg-white px-2 py-0.5 text-xs text-slate-500 ring-1 ring-slate-200">
+              {member.systemRole}
+            </span>
+            {member.teamGroupName ? (
+              <span className="rounded-md bg-white px-2 py-0.5 text-xs text-slate-500 ring-1 ring-slate-200">
+                {member.teamGroupName}
+              </span>
+            ) : null}
+          </div>
+        </div>
+        {report ? (
+          <span className="shrink-0 rounded-md bg-blue-50 px-2.5 py-1 text-xs text-blue-600">已提交 {report.submittedAt}</span>
+        ) : (
+          <span className="shrink-0 rounded-md bg-red-50 px-2.5 py-1 text-xs text-red-700">未提交</span>
+        )}
+      </div>
+
+      <div className="p-4">
+        {report ? (
+          <>
+            <div className="grid gap-3 lg:grid-cols-2">
+              <div className="rounded-xl border border-slate-200 bg-white p-3">
+                <p className="text-xs font-semibold text-slate-400">今日完成</p>
+                <p className="mt-2 text-sm leading-7 text-slate-700">{report.summary}</p>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-white p-3">
+                <p className="text-xs font-semibold text-slate-400">明日计划</p>
+                <p className="mt-2 text-sm leading-7 text-slate-700">{report.nextPlan}</p>
+              </div>
+            </div>
+            {attachmentNote ? (
+              <p className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-500">附件备注：{attachmentNote}</p>
+            ) : null}
+            {evaluations.length > 0 ? (
+              <div className="mt-3 space-y-2">
+                <p className="text-xs font-semibold text-slate-500">已收到的评价</p>
+                <EvaluationTimeline
+                  currentMemberId=""
+                  evaluations={evaluations}
+                  onRevoke={() => {}}
+                  revokingEvaluationId={null}
+                />
+              </div>
+            ) : null}
+          </>
+        ) : (
+          <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-4 text-center">
+            <p className="text-sm text-slate-500">该成员在 {formatShortDate(date)} 尚未提交汇报。</p>
+          </div>
+        )}
+      </div>
+    </article>
+  );
+};
+
 const EvaluationBadge = ({ type }: { type: ReportEvaluationItem["type"] }) => (
   <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium ${evaluationTypeMeta[type].badgeClassName}`}>
     <span>{evaluationTypeMeta[type].icon}</span>
@@ -1002,70 +963,426 @@ const EvaluationTimeline = ({
   );
 };
 
-const StudentReportsView = (props: ReportsViewProps) => (
-  <div className="space-y-4">
-    <Workspace.SectionHeader description={props.viewDescription} title="日程汇报" />
-    <section className={props.surfaceCardClassName}>
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px] xl:items-start">
+const StudentReportsView = (props: ReportsViewProps) => {
+  const { currentMemberId } = Workspace.useWorkspaceContext();
+  const { selectedDate, todayDateKey } = props;
+  const [evaluations, setEvaluations] = useState<ReportEvaluationItem[]>([]);
+  const [stats, setStats] = useState<{
+    continuous_submit_days: number;
+    monthly_submit_rate: number;
+    total_praise_count: number;
+    group_rank: number;
+    group_total: number;
+    rank_change: string;
+  } | null>(null);
+  const [expandedTeammateId, setExpandedTeammateId] = useState<string>("");
+  const [showCelebration, setShowCelebration] = useState(false);
+  const [countdown, setCountdown] = useState({ hours: 0, minutes: 0 });
+  const [markingReadIds, setMarkingReadIds] = useState<Set<string>>(new Set());
+
+  const isToday = selectedDate === todayDateKey;
+  const myReport = props.currentUserSelectedReport;
+  const teammates = useMemo(
+    () => props.visibleReportMembers.filter((m) => m.id !== currentMemberId),
+    [props.visibleReportMembers, currentMemberId],
+  );
+
+  const reportDateOptionsForSelector = useMemo(() => {
+    const cutoff = new Date(`${props.todayDateKey}T00:00:00+08:00`);
+    cutoff.setDate(cutoff.getDate() - 14);
+    const cutoffKey = [
+      cutoff.getFullYear(),
+      String(cutoff.getMonth() + 1).padStart(2, "0"),
+      String(cutoff.getDate()).padStart(2, "0"),
+    ].join("-");
+    return props.reportDateOptions.filter((d) => d >= cutoffKey && d <= props.todayDateKey);
+  }, [props.reportDateOptions, props.todayDateKey]);
+
+  useEffect(() => {
+    if (!isToday) return;
+    const update = () => {
+      const now = new Date();
+      const beijing = new Date(now.toLocaleString("en-US", { timeZone: "Asia/Shanghai" }));
+      const deadline = new Date(beijing);
+      deadline.setHours(23, 59, 59, 999);
+      const diff = deadline.getTime() - beijing.getTime();
+      if (diff <= 0) {
+        setCountdown({ hours: 0, minutes: 0 });
+      } else {
+        setCountdown({
+          hours: Math.floor(diff / (1000 * 60 * 60)),
+          minutes: Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60)),
+        });
+      }
+    };
+    update();
+    const timer = setInterval(update, 60000);
+    return () => clearInterval(timer);
+  }, [isToday]);
+
+  useEffect(() => {
+    if (isToday && myReport && !showCelebration) {
+      const celebratedKey = `celebrated-${myReport.id ?? myReport.date}`;
+      if (typeof sessionStorage !== "undefined" && !sessionStorage.getItem(celebratedKey)) {
+        sessionStorage.setItem(celebratedKey, "1");
+        const showTimer = setTimeout(() => setShowCelebration(true), 50);
+        const hideTimer = setTimeout(() => setShowCelebration(false), 2050);
+        return () => {
+          clearTimeout(showTimer);
+          clearTimeout(hideTimer);
+        };
+      }
+    }
+  }, [isToday, myReport, showCelebration]);
+
+  useEffect(() => {
+    let active = true;
+    void (async () => {
+      try {
+        const res = await Workspace.requestJson<{ evaluations: ReportEvaluationItem[] }>(
+          `/api/students/${currentMemberId}/evaluations?limit=5`,
+        );
+        if (active) setEvaluations(res.evaluations);
+      } catch {
+        // 评价加载失败静默处理，不阻塞主界面
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [currentMemberId]);
+
+  useEffect(() => {
+    let active = true;
+    void (async () => {
+      try {
+        const res = await Workspace.requestJson<{
+          continuous_submit_days: number;
+          monthly_submit_rate: number;
+          total_praise_count: number;
+          group_rank: number;
+          group_total: number;
+          rank_change: string;
+        }>(`/api/students/${currentMemberId}/stats`);
+        if (active) setStats(res);
+      } catch {
+        // 统计数据加载失败静默处理
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [currentMemberId]);
+
+  const handleMarkRead = useCallback(
+    async (evaluationIds: string[]) => {
+      if (evaluationIds.length === 0) return;
+      const unreadIds = evaluationIds.filter((id) => !markingReadIds.has(id));
+      if (unreadIds.length === 0) return;
+      setMarkingReadIds((prev) => new Set([...prev, ...unreadIds]));
+      try {
+        await Workspace.requestJson<{ success: boolean }>(
+          `/api/students/${currentMemberId}/evaluations/mark_read`,
+          { method: "POST", body: JSON.stringify({ evaluation_ids: unreadIds }) },
+        );
+        setEvaluations((prev) => prev.map((ev) => (unreadIds.includes(ev.id) ? { ...ev, isRead: true } : ev)));
+      } catch {
+        setMarkingReadIds((prev) => {
+          const next = new Set(prev);
+          unreadIds.forEach((id) => next.delete(id));
+          return next;
+        });
+      }
+    },
+    [currentMemberId, markingReadIds],
+  );
+
+  return (
+    <div className="space-y-4">
+      <Workspace.SectionHeader description={props.viewDescription} title="日程汇报" />
+
+      {/* 日期选择器 */}
+      <section className={props.surfaceCardClassName}>
         <DateSelector
           fieldClassName={props.fieldClassName}
           formatShortDate={props.formatShortDate}
           hasGlobalAdminRole={false}
-          reportDateOptions={props.reportDateOptions}
+          reportDateOptions={reportDateOptionsForSelector}
           reportEntriesByDay={props.reportEntriesByDay}
           selectedDate={props.selectedDate}
           selectedReportTeamGroupId={props.selectedReportTeamGroupId}
-          setSelectedDate={props.setSelectedDate}
+          setSelectedDate={(value) => {
+            if (value > props.todayDateKey) return;
+            props.setSelectedDate(value);
+          }}
           setSelectedReportTeamGroupId={props.setSelectedReportTeamGroupId}
           teamGroups={props.teamGroups}
           todayDateKey={props.todayDateKey}
         />
-        <ReportSummaryPanel
-          ActionButton={props.ActionButton}
-          canShowAdminDangerZone={false}
-          currentUserSelectedReport={props.currentUserSelectedReport}
-          fieldClassName={props.fieldClassName}
-          formatShortDate={props.formatShortDate}
-          onCreateOrEdit={() =>
-            props.currentUserSelectedReport
-              ? props.openEditReportModal(props.currentUserSelectedReport)
-              : props.openCreateReportModal()
-          }
-          onDeleteTeamReports={props.removeTeamReports}
-          permissions={props.permissions}
-          reportDeleteTeamGroupId={props.reportDeleteTeamGroupId}
-          selectedDate={props.selectedDate}
-          selectedReportExpectedCount={props.selectedReportExpectedCount}
-          selectedReportMissingCount={props.selectedReportMissingCount}
-          selectedReportSubmittedCount={props.selectedReportSubmittedCount}
-          setReportDeleteTeamGroupId={props.setReportDeleteTeamGroupId}
-          teamGroups={props.teamGroups}
-        />
-      </div>
-    </section>
+      </section>
 
-    <ReportsResultSection
-      ActionButton={props.ActionButton}
-      BellPlus={props.BellPlus}
-      CalendarDays={props.CalendarDays}
-      EmptyState={props.EmptyState}
-      currentMemberId={props.currentMemberId}
-      filteredReportMembers={props.filteredReportMembers}
-      formatShortDate={props.formatShortDate}
-      getReportAttachmentNote={props.getReportAttachmentNote}
-      onEdit={props.openEditReportModal}
-      onRemind={props.sendReportReminder}
-      onRemove={props.removeReport}
-      permissions={props.permissions}
-      reportEntryMap={props.reportEntryMap}
-      searchActive={false}
-      selectedDate={props.selectedDate}
-      selectedDateHasSavedReports={props.selectedDateHasSavedReports}
-      showTeamGroupTag={false}
-      visibleReportMembersCount={props.visibleReportMembers.length}
-    />
-  </div>
-);
+      {/* 第一区：我的今日汇报 */}
+      <section className={`${props.surfaceCardClassName} relative overflow-hidden`}>
+        {showCelebration && (
+          <div className="pointer-events-none absolute inset-0 z-10 flex items-center justify-center">
+            <div className="flex gap-2">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <span
+                  key={i}
+                  className="h-3 w-3 animate-ping rounded-full"
+                  style={{
+                    backgroundColor: ["#fbbf24", "#f87171", "#60a5fa", "#34d399", "#a78bfa"][i],
+                    animationDuration: "0.8s",
+                    animationDelay: `${i * 0.1}s`,
+                  }}
+                />
+              ))}
+            </div>
+          </div>
+        )}
+
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <h3 className="text-base font-semibold text-slate-900">
+              {selectedDate !== todayDateKey ? `补交 ${selectedDate} 汇报` : "我的今日汇报"}
+            </h3>
+            {selectedDate === todayDateKey && (
+              <p className="mt-1 text-sm text-slate-500">
+                距今日 23:59 截止还有 {countdown.hours} 小时 {countdown.minutes} 分钟
+              </p>
+            )}
+          </div>
+
+          {props.permissions.canSubmitReport && (
+            <div className="flex flex-col items-start gap-2 lg:items-end">
+              <Workspace.ActionButton
+                className="bg-blue-600 text-white hover:bg-blue-700"
+                onClick={() =>
+                  myReport ? props.openEditReportModal(myReport) : props.openCreateReportModal()
+                }
+              >
+                {myReport ? (isToday ? "编辑今日汇报" : "修改汇报") : "立即提交今日汇报"}
+              </Workspace.ActionButton>
+              {isToday && stats && stats.continuous_submit_days > 0 && (
+                <p className="text-xs text-slate-500">
+                  连续提交第 {stats.continuous_submit_days} 天，别断了
+                </p>
+              )}
+            </div>
+          )}
+        </div>
+
+        {myReport ? (
+          <div className="mt-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-slate-500">提交于 {myReport.submittedAt}</span>
+              {isToday && (
+                <button
+                  className="text-xs text-blue-600 hover:text-blue-700"
+                  onClick={() => props.openEditReportModal(myReport)}
+                  type="button"
+                >
+                  编辑
+                </button>
+              )}
+            </div>
+            <div className="grid gap-3 lg:grid-cols-2">
+              <div className="rounded-xl border border-slate-200 bg-white p-4">
+                <p className="text-xs font-semibold text-slate-400">今日完成</p>
+                <p className="mt-2 text-sm leading-7 text-slate-700">{myReport.summary}</p>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-white p-4">
+                <p className="text-xs font-semibold text-slate-400">明日计划</p>
+                <p className="mt-2 text-sm leading-7 text-slate-700">{myReport.nextPlan}</p>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="mt-4 rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-5 text-center">
+            <p className="text-sm text-slate-500">
+              {isToday
+                ? "今天还没有提交汇报，抓紧时间完成今日任务吧！"
+                : `在 ${props.formatShortDate(props.selectedDate)} 尚未提交汇报，可以补交。`}
+            </p>
+          </div>
+        )}
+      </section>
+
+      {/* 第二区：我收到的评价 */}
+      <section className={props.surfaceCardClassName}>
+        <h3 className="text-base font-semibold text-slate-900">我收到的评价</h3>
+        <div className="mt-3 space-y-3">
+          {evaluations.length > 0 ? (
+            evaluations.map((ev) => (
+              <div
+                key={ev.id}
+                className={`flex items-start gap-3 rounded-xl border p-3 transition ${
+                  ev.isRead ? "border-slate-200 bg-white" : "border-blue-200 bg-blue-50/50"
+                }`}
+                onClick={() => {
+                  if (!ev.isRead) {
+                    void handleMarkRead([ev.id]);
+                  }
+                }}
+                role="button"
+                tabIndex={0}
+              >
+                <Workspace.UserAvatar
+                  className="h-9 w-9"
+                  name={ev.evaluator.name}
+                  avatar={ev.evaluator.avatar}
+                  avatarUrl={ev.evaluator.avatarUrl}
+                />
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="text-sm font-medium text-slate-900">{ev.evaluator.name}</span>
+                    <span
+                      className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium ${
+                        ev.type === "praise"
+                          ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                          : ev.type === "improve"
+                            ? "border-amber-200 bg-amber-50 text-amber-700"
+                            : "border-slate-200 bg-slate-50 text-slate-600"
+                      }`}
+                    >
+                      {ev.type === "praise" ? "🌟 点赞" : ev.type === "improve" ? "⚠️ 待改进" : "💬 批注"}
+                    </span>
+                    {!ev.isRead && <span className="h-2 w-2 rounded-full bg-red-500" />}
+                  </div>
+                  <p className="mt-1 text-sm text-slate-600">{ev.content || "未填写详细内容"}</p>
+                  <p className="mt-1 text-xs text-slate-400">{ev.createdAt}</p>
+                </div>
+              </div>
+            ))
+          ) : (
+            <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-5 text-center">
+              <p className="text-sm text-slate-500">
+                暂无评价，继续加油提交汇报，指导老师会来点评
+              </p>
+            </div>
+          )}
+        </div>
+      </section>
+
+      {/* 第三区：我的成就面板 */}
+      {stats && (
+        <section className={props.surfaceCardClassName}>
+          <h3 className="text-base font-semibold text-slate-900">我的成就面板</h3>
+          <div className="mt-3 grid grid-cols-2 gap-3 lg:grid-cols-4">
+            <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 text-center">
+              <p className="text-2xl font-semibold text-slate-900">
+                🔥 {stats.continuous_submit_days}
+                {stats.continuous_submit_days >= 100 && (
+                  <span className="ml-1 text-sm">🎖️</span>
+                )}
+                {stats.continuous_submit_days >= 30 && stats.continuous_submit_days < 100 && (
+                  <span className="ml-1 text-sm">🥈</span>
+                )}
+                {stats.continuous_submit_days >= 7 && stats.continuous_submit_days < 30 && (
+                  <span className="ml-1 text-sm">🥉</span>
+                )}
+              </p>
+              <p className="mt-1 text-xs text-slate-500">连续提交</p>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 text-center">
+              <p className="text-2xl font-semibold text-slate-900">📊 {stats.monthly_submit_rate}%</p>
+              <p className="mt-1 text-xs text-slate-500">本月提交率</p>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 text-center">
+              <p className="text-2xl font-semibold text-slate-900">
+                🌟 {stats.total_praise_count}
+                {stats.total_praise_count >= 10 && (
+                  <span className="ml-1 text-sm">🏅</span>
+                )}
+              </p>
+              <p className="mt-1 text-xs text-slate-500">红花数</p>
+            </div>
+            <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4 text-center">
+              <p className="text-2xl font-semibold text-slate-900">
+                🏆 {stats.group_rank}/{stats.group_total}
+                {stats.rank_change === "up" && <span className="ml-1 text-sm text-emerald-600">↑</span>}
+                {stats.rank_change === "down" && <span className="ml-1 text-sm text-rose-600">↓</span>}
+              </p>
+              <p className="mt-1 text-xs text-slate-500">当前排名</p>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* 第四区：项目组今日动态 */}
+      <section className={props.surfaceCardClassName}>
+        <h3 className="text-base font-semibold text-slate-900">项目组今日动态</h3>
+        <div className="mt-3 divide-y divide-slate-100">
+          {teammates.length > 0 ? (
+            teammates.map((member) => {
+              const report = props.reportEntryMap.get(member.id);
+              const isExpanded = expandedTeammateId === member.id;
+              const praiseCount = report ? ((report as ReportRecord & { praiseCount?: number }).praiseCount ?? 0) : 0;
+
+              return (
+                <div key={member.id} className="py-2">
+                  <button
+                    className="flex w-full items-center gap-3 rounded-lg px-2 py-2 text-left transition hover:bg-slate-50"
+                    onClick={() => setExpandedTeammateId((prev) => (prev === member.id ? "" : member.id))}
+                    type="button"
+                  >
+                    <Workspace.UserAvatar
+                      className="h-8 w-8"
+                      name={member.name}
+                      avatar={member.avatar}
+                      avatarUrl={member.avatarUrl}
+                    />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-medium text-slate-900">{member.name}</span>
+                        <span className="rounded-md bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-500">
+                          {member.systemRole}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {report ? (
+                        <>
+                          <span className="text-xs text-emerald-600">✓ 已提交</span>
+                          <span className="text-xs text-slate-400">{report.submittedAt}</span>
+                        </>
+                      ) : (
+                        <span className="text-xs text-slate-400">○ 未提交</span>
+                      )}
+                      {praiseCount > 0 && <span className="text-xs text-amber-500">🌟 {praiseCount}</span>}
+                    </div>
+                  </button>
+
+                  {isExpanded && (
+                    <div className="mt-2 px-2 pb-2">
+                      {report ? (
+                        <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50/50 p-3">
+                          <div>
+                            <p className="text-xs font-semibold text-slate-400">今日完成</p>
+                            <p className="mt-1 text-sm text-slate-700">{report.summary}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs font-semibold text-slate-400">明日计划</p>
+                            <p className="mt-1 text-sm text-slate-700">{report.nextPlan}</p>
+                          </div>
+                        </div>
+                      ) : (
+                        <p className="text-sm text-slate-400">该成员今日尚未提交汇报。</p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          ) : (
+            <div className="py-4 text-center text-sm text-slate-400">暂无其他团队成员</div>
+          )}
+        </div>
+      </section>
+
+    </div>
+  );
+};
 
 const GroupOperationsBoard = ({
   groupName,
@@ -1095,6 +1412,7 @@ const GroupOperationsBoard = ({
     updatedAt: null,
     loading: false,
     error: null,
+    warning: null,
   });
   const [composer, setComposer] = useState<EvaluationComposerState | null>(null);
   const [submittingEvaluationKey, setSubmittingEvaluationKey] = useState<string | null>(null);
@@ -1211,11 +1529,12 @@ const GroupOperationsBoard = ({
         updatedAt: null,
         loading: false,
         error: null,
+        warning: null,
       });
       return;
     }
 
-    setSummaryState((current) => ({ ...current, loading: true, error: null }));
+    setSummaryState((current) => ({ ...current, loading: true, error: null, warning: null }));
 
     try {
       const prompt = [
@@ -1247,13 +1566,20 @@ const GroupOperationsBoard = ({
         updatedAt: new Date().toISOString(),
         loading: false,
         error: null,
+        warning: null,
       });
     } catch (error) {
+      const fallbackSummary = buildFallbackReportSummary({
+        currentReports,
+        groupName,
+        members,
+      });
       setSummaryState({
-        text: "",
-        updatedAt: null,
+        text: fallbackSummary,
+        updatedAt: new Date().toISOString(),
         loading: false,
-        error: error instanceof Error ? error.message : "AI 摘要生成失败",
+        error: null,
+        warning: error instanceof Error ? `${error.message}，已切换为本地摘要` : "AI 日报摘要暂不可用，已切换为本地摘要",
       });
     }
   }, [currentReports, groupName, members, selectedDate]);
@@ -1465,6 +1791,9 @@ const GroupOperationsBoard = ({
           </div>
 
           <div className="mt-4 rounded-2xl border border-blue-100 bg-blue-50/70 px-5 py-4">
+            {summaryState.warning ? (
+              <p className="mb-2 text-xs font-medium text-amber-700">{summaryState.warning}</p>
+            ) : null}
             {summaryState.error ? (
               <p className="text-sm text-rose-600">{summaryState.error}</p>
             ) : (
@@ -1837,6 +2166,8 @@ const AdminReportsView = (props: ReportsViewProps) => {
   const [bulkRemindLoading, setBulkRemindLoading] = useState(false);
   const [trendRange, setTrendRange] = useState<"week" | "month" | "semester">("week");
   const [notifyTeachersLoading, setNotifyTeachersLoading] = useState(false);
+  const [studentDrawer, setStudentDrawer] = useState<{ open: boolean; memberId: string }>({ open: false, memberId: "" });
+  const [teacherDrawer, setTeacherDrawer] = useState<{ open: boolean; memberId: string }>({ open: false, memberId: "" });
 
   const reportMembers = useMemo(
     () =>
@@ -2172,6 +2503,15 @@ const AdminReportsView = (props: ReportsViewProps) => {
     [adminEvaluationsByReportId, trendDateKeys, reportEntriesByDay, reportMembers, todayDateKey],
   );
 
+  const totalEvaluationCount = useMemo(
+    () => adminTrendSeries.reduce((sum, point) => sum + point.evaluationCount, 0),
+    [adminTrendSeries],
+  );
+  const totalPraiseCount = useMemo(
+    () => adminTrendSeries.reduce((sum, point) => sum + point.praiseCount, 0),
+    [adminTrendSeries],
+  );
+
   const handleBulkRemind = useCallback(async () => {
     const missingMembers = reportMembers.filter(
       (member) => !getMemberReportForDate(reportEntriesByDay, selectedDate, member.id),
@@ -2345,12 +2685,7 @@ const AdminReportsView = (props: ReportsViewProps) => {
                       <button
                         className="block w-full rounded-lg bg-white px-3 py-2 text-left text-sm text-slate-700 transition hover:text-blue-600"
                         key={member.id}
-                        onClick={() => {
-                          if (member.teamGroupId) {
-                            setExpandedGroupId(member.teamGroupId);
-                            setSelectedReportTeamGroupId(member.teamGroupId);
-                          }
-                        }}
+                        onClick={() => setTeacherDrawer({ open: true, memberId: member.id })}
                         type="button"
                       >
                         {member.name}
@@ -2365,12 +2700,7 @@ const AdminReportsView = (props: ReportsViewProps) => {
                       <button
                         className="block w-full rounded-lg bg-white px-3 py-2 text-left text-sm text-slate-700 transition hover:text-blue-600"
                         key={member.id}
-                        onClick={() => {
-                          if (member.teamGroupId) {
-                            setExpandedGroupId(member.teamGroupId);
-                            setSelectedReportTeamGroupId(member.teamGroupId);
-                          }
-                        }}
+                        onClick={() => setStudentDrawer({ open: true, memberId: member.id })}
                         type="button"
                       >
                         {member.name}
@@ -2390,7 +2720,17 @@ const AdminReportsView = (props: ReportsViewProps) => {
             <h3 className="text-base font-semibold text-slate-900">项目组健康度总览</h3>
             <p className="mt-1 text-sm text-slate-500">异常项目组自动置顶，支持直接展开查看该组详情。</p>
           </div>
-          <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <Workspace.ActionButton
+              onClick={() => {
+                const randomGroup = groupHealthItems[Math.floor(Math.random() * groupHealthItems.length)];
+                if (randomGroup) {
+                  setExpandedGroupId(randomGroup.id);
+                }
+              }}
+            >
+              随机抽查
+            </Workspace.ActionButton>
             <select
               className={Workspace.fieldClassName}
               value={selectedReportTeamGroupId}
@@ -2449,22 +2789,30 @@ const AdminReportsView = (props: ReportsViewProps) => {
 
               {expandedGroupId === group.id ? (
                 <div className="border-t border-slate-100 px-5 py-4" onClick={(event) => event.stopPropagation()}>
-                  <div className="flex flex-wrap gap-2">
-                    {group.alerts.map((alert) => (
-                      <span className="rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-600" key={alert}>
-                        {alert}
-                      </span>
-                    ))}
-                  </div>
-                  <div className="mt-4 flex justify-end" onClick={(event) => event.stopPropagation()}>
-                    <Workspace.ActionButton
-                      onClick={() => {
-                        setSelectedReportTeamGroupId(group.id);
-                        setExpandedGroupId(group.id);
-                      }}
+                  <div className="mb-3 flex items-center justify-between">
+                    <p className="text-sm font-medium text-slate-500">成员汇报列表</p>
+                    <button
+                      className="text-xs text-slate-500"
+                      onClick={() => setExpandedGroupId("")}
+                      type="button"
                     >
-                      查看该组详情
-                    </Workspace.ActionButton>
+                      收起
+                    </button>
+                  </div>
+                  <div className="space-y-3">
+                    {group.members.map((member) => {
+                      const memberReport = getMemberReportForDate(reportEntriesByDay, selectedDate, member.id);
+                      return (
+                        <AdminReadonlyReportCard
+                          key={member.id}
+                          date={selectedDate}
+                          evaluations={memberReport?.id ? (adminEvaluationsByReportId[memberReport.id] ?? []) : []}
+                          formatShortDate={props.formatShortDate}
+                          member={member}
+                          report={memberReport}
+                        />
+                      );
+                    })}
                   </div>
                 </div>
               ) : null}
@@ -2576,41 +2924,29 @@ const AdminReportsView = (props: ReportsViewProps) => {
           </div>
         </div>
 
-        <div className="mt-4 grid gap-4 xl:grid-cols-3">
-          <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
-            <p className="text-sm font-semibold text-slate-900">全校提交率</p>
-            <div className="mt-3">
-              <MiniTrendChart
-                accessor={(point) => point.submitRate}
-                fillClassName="fill-blue-600"
-                lineClassName="stroke-blue-600"
-                series={adminTrendSeries}
-                todayDateKey={todayDateKey}
-              />
+        <div className="mt-4 grid gap-4 xl:grid-cols-[280px_1fr]">
+          <div className="space-y-3">
+            <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+              <p className="text-xs text-slate-500">本周平均提交率</p>
+              <p className="mt-1 text-2xl font-semibold text-slate-900">{currentWeekAverage}%</p>
+              <p className={`mt-1 text-xs font-medium ${weekDelta >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
+                {weekDelta >= 0 ? "↑" : "↓"} {Math.abs(weekDelta)}%
+              </p>
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+              <p className="text-xs text-slate-500">本周总点评数</p>
+              <p className="mt-1 text-2xl font-semibold text-slate-900">{totalEvaluationCount}</p>
+              {totalEvaluationCount === 0 ? (
+                <p className="mt-1 text-xs text-slate-400">本周暂无点评活动</p>
+              ) : null}
+            </div>
+            <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+              <p className="text-xs text-slate-500">本周总红花数</p>
+              <p className="mt-1 text-2xl font-semibold text-slate-900">{totalPraiseCount}</p>
             </div>
           </div>
           <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
-            <p className="text-sm font-semibold text-slate-900">总点评数</p>
-            <div className="mt-3">
-              <MiniTrendChart
-                accessor={(point) => Math.min(100, point.evaluationCount * 20)}
-                fillClassName="fill-slate-500"
-                lineClassName="stroke-slate-500"
-                series={adminTrendSeries}
-                todayDateKey={todayDateKey}
-              />
-            </div>
-          </div>
-          <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
-            <p className="text-sm font-semibold text-slate-900">总红花数</p>
-            <div className="mt-3">
-              <MiniBarChart
-                accessor={(point) => point.praiseCount}
-                barClassName="bg-amber-400"
-                series={adminTrendSeries}
-                todayDateKey={todayDateKey}
-              />
-            </div>
+            <MainTrendChart series={adminTrendSeries} todayDateKey={todayDateKey} />
           </div>
         </div>
       </section>
@@ -2683,6 +3019,53 @@ const AdminReportsView = (props: ReportsViewProps) => {
           </div>
         </div>
       </section>
+
+      <RightDrawer
+        open={studentDrawer.open}
+        title="学生详情"
+        onClose={() => setStudentDrawer({ open: false, memberId: "" })}
+      >
+        {(() => {
+          const member = reportMembers.find((m) => m.id === studentDrawer.memberId);
+          if (!member) return null;
+          const memberReport = getMemberReportForDate(reportEntriesByDay, selectedDate, member.id);
+          return (
+            <div className="space-y-4">
+              <div className="flex items-center gap-3">
+                <span className="text-lg font-semibold text-slate-900">{member.name}</span>
+                <span className="rounded-md bg-slate-100 px-2 py-0.5 text-xs text-slate-600">{member.systemRole}</span>
+              </div>
+              <AdminReadonlyReportCard
+                date={selectedDate}
+                evaluations={memberReport?.id ? (adminEvaluationsByReportId[memberReport.id] ?? []) : []}
+                formatShortDate={props.formatShortDate}
+                member={member}
+                report={memberReport}
+              />
+            </div>
+          );
+        })()}
+      </RightDrawer>
+
+      <RightDrawer
+        open={teacherDrawer.open}
+        title="教师详情"
+        onClose={() => setTeacherDrawer({ open: false, memberId: "" })}
+      >
+        {(() => {
+          const member = teacherMembers.find((m) => m.id === teacherDrawer.memberId);
+          if (!member) return null;
+          return (
+            <div className="space-y-4">
+              <div className="flex items-center gap-3">
+                <span className="text-lg font-semibold text-slate-900">{member.name}</span>
+                <span className="rounded-md bg-slate-100 px-2 py-0.5 text-xs text-slate-600">{member.systemRole}</span>
+              </div>
+              <p className="text-sm text-slate-500">指导项目组：{member.teamGroupName || "未绑定"}</p>
+            </div>
+          );
+        })()}
+      </RightDrawer>
     </div>
   );
 };

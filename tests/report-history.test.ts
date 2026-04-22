@@ -90,7 +90,7 @@ describe("report history date options", () => {
       getVisibleReportMembers({
         members,
         currentMemberId: "admin-1",
-        canViewAllReports: true,
+        viewerRole: "admin",
       }).map((member) => member.id),
       ["leader-1", "member-1"],
     );
@@ -99,7 +99,7 @@ describe("report history date options", () => {
       getVisibleReportMembers({
         members,
         currentMemberId: "admin-1",
-        canViewAllReports: true,
+        viewerRole: "admin",
         selectedTeamGroupId: "group-1",
       }).map((member) => member.id),
       ["leader-1", "member-1"],
@@ -109,7 +109,7 @@ describe("report history date options", () => {
       getVisibleReportMembers({
         members,
         currentMemberId: "admin-1",
-        canViewAllReports: true,
+        viewerRole: "admin",
         selectedTeamGroupId: "group-2",
       }).map((member) => member.id),
       [],
@@ -119,9 +119,9 @@ describe("report history date options", () => {
       getVisibleReportMembers({
         members,
         currentMemberId: "former-member",
-        canViewAllReports: false,
+        viewerRole: "member",
       }).map((member) => member.id),
-      ["former-member"],
+      [],
     );
   });
 });

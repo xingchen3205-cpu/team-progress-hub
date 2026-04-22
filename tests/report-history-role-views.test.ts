@@ -79,7 +79,7 @@ test("schedule tab exposes shared report components and role-specific report vie
   );
 
   assert.match(scheduleSource, /const DateSelector =/);
-  assert.match(scheduleSource, /const ReportCard =/);
+  assert.match(scheduleSource, /const AdminReadonlyReportCard =/);
   assert.match(scheduleSource, /const SearchBar =/);
   assert.match(scheduleSource, /const StudentReportsView =/);
   assert.match(scheduleSource, /const TeacherReportsView =/);
@@ -102,7 +102,17 @@ test("teacher and admin reports views expose the new operational sections", () =
   assert.match(scheduleSource, /全校概览/);
   assert.match(scheduleSource, /项目组健康度总览/);
   assert.match(scheduleSource, /教师活跃度排行/);
-  assert.match(scheduleSource, /本周趋势/);
+  assert.match(scheduleSource, /趋势分析/);
+});
+
+test("teacher summary falls back to local digest when ai chat is unavailable", () => {
+  const scheduleSource = readFileSync(
+    path.join(process.cwd(), "src/components/tabs/schedule-tab.tsx"),
+    "utf8",
+  );
+
+  assert.match(scheduleSource, /buildFallbackReportSummary/);
+  assert.match(scheduleSource, /已切换为本地摘要/);
 });
 
 test("member cards keep latest submitted report visible and use localized role labels", () => {
@@ -185,8 +195,7 @@ test("admin charts show empty state when less than 3 days of data", () => {
     "utf8",
   );
 
-  assert.match(scheduleSource, /数据积累中，至少需要 3 天数据才能显示趋势/);
-  assert.match(scheduleSource, /当前已积累/);
+  assert.match(scheduleSource, /数据积累中，3 天后显示趋势/);
 });
 
 test("admin teacher activity empty state suggests action with notify button", () => {
@@ -218,4 +227,170 @@ test("admin data cleanup requires confirmation before execution", () => {
 
   assert.match(scheduleSource, /确认删除/);
   assert.match(scheduleSource, /setConfirmDialog/);
+});
+
+test("admin trend section shows three metric cards and one main chart", () => {
+  const scheduleSource = readFileSync(
+    path.join(process.cwd(), "src/components/tabs/schedule-tab.tsx"),
+    "utf8",
+  );
+
+  assert.match(scheduleSource, /本周平均提交率/);
+  assert.match(scheduleSource, /本周总点评数/);
+  assert.match(scheduleSource, /本周总红花数/);
+  assert.match(scheduleSource, /MainTrendChart/);
+});
+
+test("admin trend section handles flat or zero data gracefully", () => {
+  const scheduleSource = readFileSync(
+    path.join(process.cwd(), "src/components/tabs/schedule-tab.tsx"),
+    "utf8",
+  );
+
+  assert.match(scheduleSource, /本周暂无点评活动/);
+});
+
+test("admin health overview supports expand collapse with member cards", () => {
+  const scheduleSource = readFileSync(
+    path.join(process.cwd(), "src/components/tabs/schedule-tab.tsx"),
+    "utf8",
+  );
+
+  assert.match(scheduleSource, /收起/);
+  assert.match(scheduleSource, /AdminReadonlyReportCard/);
+});
+
+test("admin search supports student and teacher detail drawers", () => {
+  const scheduleSource = readFileSync(
+    path.join(process.cwd(), "src/components/tabs/schedule-tab.tsx"),
+    "utf8",
+  );
+
+  assert.match(scheduleSource, /RightDrawer/);
+  assert.match(scheduleSource, /studentDrawer/);
+  assert.match(scheduleSource, /teacherDrawer/);
+});
+
+test("admin health overview exposes random inspection entry", () => {
+  const scheduleSource = readFileSync(
+    path.join(process.cwd(), "src/components/tabs/schedule-tab.tsx"),
+    "utf8",
+  );
+
+  assert.match(scheduleSource, /随机抽查/);
+});
+
+test("admin expanded group uses read-only view without teacher evaluation buttons", () => {
+  const scheduleSource = readFileSync(
+    path.join(process.cwd(), "src/components/tabs/schedule-tab.tsx"),
+    "utf8",
+  );
+
+  assert.doesNotMatch(scheduleSource, /AdminReadonlyReportCard.*点赞/);
+  assert.doesNotMatch(scheduleSource, /AdminReadonlyReportCard.*待改进/);
+  assert.doesNotMatch(scheduleSource, /AdminReadonlyReportCard.*批注/);
+});
+
+test("student view has four key sections", () => {
+  const scheduleSource = readFileSync(
+    path.join(process.cwd(), "src/components/tabs/schedule-tab.tsx"),
+    "utf8",
+  );
+
+  assert.match(scheduleSource, /我的今日汇报/);
+  assert.match(scheduleSource, /我收到的评价/);
+  assert.match(scheduleSource, /我的成就面板/);
+  assert.match(scheduleSource, /项目组今日动态/);
+});
+
+test("student view has focused submit entry and streak reminder", () => {
+  const scheduleSource = readFileSync(
+    path.join(process.cwd(), "src/components/tabs/schedule-tab.tsx"),
+    "utf8",
+  );
+
+  assert.match(scheduleSource, /立即提交今日汇报/);
+  assert.match(scheduleSource, /连续提交第/);
+});
+
+test("student achievement panel shows four metrics", () => {
+  const scheduleSource = readFileSync(
+    path.join(process.cwd(), "src/components/tabs/schedule-tab.tsx"),
+    "utf8",
+  );
+
+  assert.match(scheduleSource, /连续提交/);
+  assert.match(scheduleSource, /本月提交率/);
+  assert.match(scheduleSource, /红花数/);
+  assert.match(scheduleSource, /当前排名/);
+});
+
+test("student teammate list uses accordion instead of card wall", () => {
+  const scheduleSource = readFileSync(
+    path.join(process.cwd(), "src/components/tabs/schedule-tab.tsx"),
+    "utf8",
+  );
+
+  assert.match(scheduleSource, /expandedTeammateId/);
+});
+
+test("student view removes duplicated empty state stacking", () => {
+  const scheduleSource = readFileSync(
+    path.join(process.cwd(), "src/components/tabs/schedule-tab.tsx"),
+    "utf8",
+  );
+
+  assert.doesNotMatch(scheduleSource, /StudentReportsView.*这一天还没有汇报/);
+});
+
+test("student evaluation section has unread read handling", () => {
+  const scheduleSource = readFileSync(
+    path.join(process.cwd(), "src/components/tabs/schedule-tab.tsx"),
+    "utf8",
+  );
+
+  assert.match(scheduleSource, /isRead/);
+  assert.match(scheduleSource, /mark_read/);
+});
+
+test("student history date shows makeup label and hides countdown", () => {
+  const scheduleSource = readFileSync(
+    path.join(process.cwd(), "src/components/tabs/schedule-tab.tsx"),
+    "utf8",
+  );
+
+  assert.match(scheduleSource, /补交/);
+  assert.match(scheduleSource, /selectedDate !== todayDateKey/);
+});
+
+test("student view keeps DateSelector at the top before my today report", () => {
+  const scheduleSource = readFileSync(
+    path.join(process.cwd(), "src/components/tabs/schedule-tab.tsx"),
+    "utf8",
+  );
+
+  const studentStart = scheduleSource.indexOf("const StudentReportsView");
+  const studentEnd = scheduleSource.indexOf("const GroupOperationsBoard", studentStart);
+  const studentView = scheduleSource.slice(studentStart, studentEnd);
+
+  const dateSelectorIndex = studentView.indexOf("<DateSelector");
+  const myReportIndex = studentView.indexOf("我的今日汇报");
+
+  assert.ok(dateSelectorIndex > -1, "StudentReportsView should contain DateSelector");
+  assert.ok(myReportIndex > -1, "StudentReportsView should contain 我的今日汇报");
+  assert.ok(
+    dateSelectorIndex < myReportIndex,
+    "DateSelector should appear before 我的今日汇报 in StudentReportsView",
+  );
+});
+
+test("student achievement streak badge has 7 30 100 tier thresholds", () => {
+  const scheduleSource = readFileSync(
+    path.join(process.cwd(), "src/components/tabs/schedule-tab.tsx"),
+    "utf8",
+  );
+
+  assert.match(scheduleSource, />= 100/);
+  assert.match(scheduleSource, />= 30/);
+  assert.match(scheduleSource, />= 7/);
 });
