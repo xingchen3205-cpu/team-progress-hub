@@ -431,3 +431,42 @@ test("teacher view keeps core blocks and members list before trend", () => {
   assert.ok(trendIndex > -1);
   assert.ok(membersIndex < trendIndex, "成员汇报列表 should appear before 本组本周趋势");
 });
+
+test("teacher view follows template header and overview structure", () => {
+  const scheduleSource = readFileSync(
+    path.join(process.cwd(), "src/components/tabs/schedule-tab.tsx"),
+    "utf8",
+  );
+
+  assert.match(scheduleSource, /教师视角/);
+  assert.match(scheduleSource, /我负责的项目组/);
+  assert.match(scheduleSource, /今日提交/);
+  assert.match(scheduleSource, /本周提交率/);
+  assert.match(scheduleSource, /本周获赞/);
+  assert.match(scheduleSource, /全校项目组排名/);
+});
+
+test("teacher view uses compact member report controls from template", () => {
+  const scheduleSource = readFileSync(
+    path.join(process.cwd(), "src/components/tabs/schedule-tab.tsx"),
+    "utf8",
+  );
+
+  assert.match(scheduleSource, /待点评/);
+  assert.match(scheduleSource, /未提交/);
+  assert.match(scheduleSource, /▲ 点赞/);
+  assert.match(scheduleSource, /关键词预警/);
+  assert.match(scheduleSource, /连续 3 天未提交/);
+});
+
+test("teacher trend panel uses metric cards plus one main chart layout", () => {
+  const scheduleSource = readFileSync(
+    path.join(process.cwd(), "src/components/tabs/schedule-tab.tsx"),
+    "utf8",
+  );
+
+  assert.match(scheduleSource, /本周平均提交率/);
+  assert.match(scheduleSource, /本周累计获赞/);
+  assert.match(scheduleSource, /本周点评发起/);
+  assert.match(scheduleSource, /每日提交率/);
+});
