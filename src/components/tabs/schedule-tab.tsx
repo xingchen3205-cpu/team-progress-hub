@@ -511,7 +511,7 @@ type SummaryState = {
 type TrendPoint = {
   date: string;
   label: string;
-  submitRate: number;
+  submitRate: number | null;
   praiseCount: number;
   evaluationCount: number;
 };
@@ -527,11 +527,51 @@ type GroupHealthItem = {
   alerts: string[];
   members: ReportMember[];
   reports: ReportRecord[];
+  teacherNames: string[];
 };
 
 const REPORT_REMINDER_COOLDOWN_MS = 2 * 60 * 60 * 1000;
 const REPORT_REMINDER_COOLDOWN_STORAGE_KEY = "workspace-report-reminder-cooldowns";
+const REPORT_DEADLINE_HOUR = 18;
 const concernKeywordPattern = /卡住|不会|没思路|受阻|困难|没进展|没有方向|不清楚/i;
+
+const isBeforeReportDeadline = (dateKey: string, todayKey: string) => {
+  if (dateKey !== todayKey) {
+    return false;
+  }
+
+  const now = new Date();
+  const beijingHour = Number(
+    new Intl.DateTimeFormat("zh-CN", {
+      timeZone: "Asia/Shanghai",
+      hour: "2-digit",
+      hour12: false,
+    }).format(now),
+  );
+
+  return beijingHour < REPORT_DEADLINE_HOUR;
+};
+
+const getEffectiveDataDays = (dateKeys: string[], todayKey: string) =>
+  dateKeys.filter((date) => !isBeforeReportDeadline(date, todayKey)).length;
+
+const getSemesterStartDate = (todayKey: string) => {
+  // Rough semester boundary heuristic without external config:
+  // Spring semester: Feb 1 – Jul 31
+  // Autumn semester: Sep 1 – Jan 31
+  const month = Number(todayKey.slice(5, 7));
+  const year = Number(todayKey.slice(0, 4));
+
+  if (month >= 2 && month <= 7) {
+    return `${year}-02-01`;
+  }
+
+  if (month >= 8) {
+    return `${year}-09-01`;
+  }
+
+  return `${year - 1}-09-01`;
+};
 
 const evaluationTypeMeta: Record<
   ReportEvaluationItem["type"],
@@ -611,6 +651,26 @@ const getMemberReportForDate = (
   memberId: string,
 ) => (reportEntriesByDay[date] ?? []).find((item) => item.memberId === memberId);
 
+const getLatestMemberReportOnOrBeforeDate = (
+  reportEntriesByDay: Record<string, ReportRecord[]>,
+  reportDateOptions: string[],
+  selectedDate: string,
+  memberId: string,
+) => {
+  for (const date of reportDateOptions) {
+    if (date > selectedDate) {
+      continue;
+    }
+
+    const report = getMemberReportForDate(reportEntriesByDay, date, memberId);
+    if (report) {
+      return report;
+    }
+  }
+
+  return undefined;
+};
+
 const getMissingDaysStreak = (
   memberId: string,
   dateKeys: string[],
@@ -655,16 +715,24 @@ const getNoFeedbackStreak = (
 
 const getShortDateLabel = (value: string) => value.slice(5).replace("-", "/");
 
+const buildChartTicks = (maxValue: number) => {
+  const safeMax = Math.max(1, maxValue);
+  const middle = safeMax <= 1 ? 1 : Math.ceil(safeMax / 2);
+  return [safeMax, middle, 0];
+};
+
 const buildTrendSeries = ({
   dateKeys,
   members,
   reportEntriesByDay,
   evaluationsByReportId,
+  todayDateKey,
 }: {
   dateKeys: string[];
   members: ReportMember[];
   reportEntriesByDay: Record<string, ReportRecord[]>;
   evaluationsByReportId: Record<string, ReportEvaluationItem[]>;
+  todayDateKey: string;
 }) =>
   [...dateKeys]
     .reverse()
@@ -673,7 +741,12 @@ const buildTrendSeries = ({
         members.some((member) => member.id === report.memberId),
       );
       const expectedCount = members.length;
-      const submitRate = expectedCount > 0 ? Math.round((dayReports.length / expectedCount) * 100) : 0;
+      const isTodayBeforeDeadline = isBeforeReportDeadline(date, todayDateKey);
+      const submitRate = isTodayBeforeDeadline
+        ? null
+        : expectedCount > 0
+          ? Math.round((dayReports.length / expectedCount) * 100)
+          : 0;
       const evaluations = dayReports.flatMap((report) => evaluationsByReportId[report.id ?? ""] ?? []);
 
       return {
@@ -685,61 +758,130 @@ const buildTrendSeries = ({
       };
     });
 
-const buildLinePath = (series: TrendPoint[], accessor: (point: TrendPoint) => number, height = 84) => {
+const buildLinePath = (series: TrendPoint[], accessor: (point: TrendPoint) => number | null, height = 84) => {
   if (series.length === 0) {
     return "";
   }
 
   const width = 100;
   const step = series.length === 1 ? width : width / (series.length - 1);
-  return series
-    .map((point, index) => {
-      const x = Number((index * step).toFixed(2));
-      const y = Number((height - (Math.min(100, Math.max(0, accessor(point))) / 100) * height).toFixed(2));
-      return `${index === 0 ? "M" : "L"} ${x} ${y}`;
-    })
+  const segments: Array<Array<{ x: number; y: number }>> = [];
+  let currentSegment: Array<{ x: number; y: number }> = [];
+
+  series.forEach((point, index) => {
+    const value = accessor(point);
+    const x = Number((index * step).toFixed(2));
+
+    if (value === null || value === undefined) {
+      if (currentSegment.length > 0) {
+        segments.push(currentSegment);
+        currentSegment = [];
+      }
+
+      return;
+    }
+
+    const y = Number((height - (Math.min(100, Math.max(0, value)) / 100) * height).toFixed(2));
+    currentSegment.push({ x, y });
+  });
+
+  if (currentSegment.length > 0) {
+    segments.push(currentSegment);
+  }
+
+  return segments
+    .map((segment) =>
+      segment.map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`).join(" "),
+    )
     .join(" ");
 };
+
+const ChartEmptyState = ({ accumulatedDays }: { accumulatedDays: number }) => (
+  <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center">
+    <Workspace.BarChart3 className="mb-2 h-8 w-8 text-slate-300" />
+    <p className="text-sm font-medium text-slate-500">数据积累中，至少需要 3 天数据才能显示趋势</p>
+    <p className="mt-1 text-xs text-slate-400">当前已积累 {accumulatedDays} 天数据</p>
+  </div>
+);
 
 const MiniTrendChart = ({
   series,
   lineClassName,
   accessor,
   fillClassName,
+  todayDateKey,
 }: {
   series: TrendPoint[];
   lineClassName: string;
-  accessor: (point: TrendPoint) => number;
+  accessor: (point: TrendPoint) => number | null;
   fillClassName?: string;
+  todayDateKey: string;
 }) => {
   const path = buildLinePath(series, accessor);
+  const effectiveDays = getEffectiveDataDays(
+    series.map((s) => s.date),
+    todayDateKey,
+  );
 
-  if (series.length === 0 || !path) {
-    return (
-      <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-center text-sm text-slate-400">
-        暂无趋势数据
-      </div>
-    );
+  if (series.length === 0 || effectiveDays < 3) {
+    return <ChartEmptyState accumulatedDays={effectiveDays} />;
   }
 
+  const ticks = buildChartTicks(100);
+
   return (
-    <div className="space-y-3">
-      <svg className="h-24 w-full overflow-visible" viewBox="0 0 100 84" preserveAspectRatio="none">
-        <path d="M0 83.5 H100" className="stroke-slate-200" fill="none" strokeWidth="1" />
-        <path d={path} className={lineClassName} fill="none" strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" />
-        {fillClassName ? (
-          <path
-            d={`${path} L 100 84 L 0 84 Z`}
-            className={fillClassName}
-            fillOpacity="0.08"
-            stroke="none"
-          />
-        ) : null}
-      </svg>
-      <div className="grid grid-cols-7 gap-2 text-center text-[11px] text-slate-400">
-        {series.map((point) => (
-          <span key={point.date}>{point.label}</span>
+    <div className="grid grid-cols-[38px_minmax(0,1fr)] gap-3">
+      <div className="flex h-24 flex-col justify-between text-[11px] text-slate-400">
+        {ticks.map((tick) => (
+          <span key={tick}>{tick}%</span>
         ))}
+      </div>
+      <div className="space-y-3">
+        <svg className="h-24 w-full overflow-visible" viewBox="0 0 100 84" preserveAspectRatio="none">
+          <path d="M0 83.5 H100" className="stroke-slate-200" fill="none" strokeWidth="1" />
+          <path d="M0 42 H100" className="stroke-slate-100" fill="none" strokeDasharray="3 3" strokeWidth="1" />
+          {path ? (
+            <>
+              <path d={path} className={lineClassName} fill="none" strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" />
+              {fillClassName ? (
+                <path
+                  d={`${path} L 100 84 L 0 84 Z`}
+                  className={fillClassName}
+                  fillOpacity="0.08"
+                  stroke="none"
+                />
+              ) : null}
+            </>
+          ) : null}
+          {series.map((point, index) => {
+            const value = accessor(point);
+            const x = series.length === 1 ? 50 : Number(((index * 100) / (series.length - 1)).toFixed(2));
+
+            if (value === null || value === undefined) {
+              return (
+                <g key={point.date}>
+                  <circle className="fill-slate-100 stroke-slate-300" cx={x} cy={42} r="2.8" strokeWidth="1" strokeDasharray="2 2">
+                    <title>{`${point.label} 数据待更新`}</title>
+                  </circle>
+                </g>
+              );
+            }
+
+            const y = Number((84 - (Math.min(100, Math.max(0, value)) / 100) * 84).toFixed(2));
+            return (
+              <g key={point.date}>
+                <circle className="fill-white stroke-blue-600" cx={x} cy={y} r="2.8" strokeWidth="2">
+                  <title>{`${point.label} 提交率 ${value}%`}</title>
+                </circle>
+              </g>
+            );
+          })}
+        </svg>
+        <div className="grid grid-cols-7 gap-2 text-center text-[11px] text-slate-400">
+          {series.map((point) => (
+            <span key={point.date}>{point.label}</span>
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -749,40 +891,52 @@ const MiniBarChart = ({
   series,
   accessor,
   barClassName,
+  todayDateKey,
 }: {
   series: TrendPoint[];
   accessor: (point: TrendPoint) => number;
   barClassName: string;
+  todayDateKey: string;
 }) => {
   const maxValue = Math.max(1, ...series.map(accessor));
+  const effectiveDays = getEffectiveDataDays(
+    series.map((s) => s.date),
+    todayDateKey,
+  );
 
-  if (series.length === 0) {
-    return (
-      <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-center text-sm text-slate-400">
-        暂无趋势数据
-      </div>
-    );
+  if (series.length === 0 || effectiveDays < 3) {
+    return <ChartEmptyState accumulatedDays={effectiveDays} />;
   }
 
+  const ticks = buildChartTicks(maxValue);
+
   return (
-    <div className="space-y-3">
-      <div className="grid h-24 grid-cols-7 items-end gap-2">
-        {series.map((point) => {
-          const value = accessor(point);
-          return (
-            <div className="flex h-full flex-col justify-end gap-2" key={point.date}>
-              <div
-                className={`min-h-1 rounded-full ${barClassName}`}
-                style={{ height: `${Math.max(8, Math.round((value / maxValue) * 96))}px` }}
-              />
-            </div>
-          );
-        })}
-      </div>
-      <div className="grid grid-cols-7 gap-2 text-center text-[11px] text-slate-400">
-        {series.map((point) => (
-          <span key={point.date}>{point.label}</span>
+    <div className="grid grid-cols-[38px_minmax(0,1fr)] gap-3">
+      <div className="flex h-24 flex-col justify-between text-[11px] text-slate-400">
+        {ticks.map((tick) => (
+          <span key={tick}>{tick}</span>
         ))}
+      </div>
+      <div className="space-y-3">
+        <div className="grid h-24 grid-cols-7 items-end gap-2">
+          {series.map((point) => {
+            const value = accessor(point);
+            return (
+              <div className="flex h-full flex-col justify-end gap-2" key={point.date}>
+                <div
+                  className={`min-h-1 rounded-full ${barClassName}`}
+                  style={{ height: `${Math.max(8, Math.round((value / maxValue) * 96))}px` }}
+                  title={`${point.label} 数值 ${value}`}
+                />
+              </div>
+            );
+          })}
+        </div>
+        <div className="grid grid-cols-7 gap-2 text-center text-[11px] text-slate-400">
+          {series.map((point) => (
+            <span key={point.date}>{point.label}</span>
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -917,10 +1071,12 @@ const GroupOperationsBoard = ({
   groupName,
   members,
   searchEnabled,
+  title = "我负责的项目组",
 }: {
   groupName: string;
   members: ReportMember[];
   searchEnabled?: boolean;
+  title?: string;
 }) => {
   const {
     currentMemberId,
@@ -930,6 +1086,7 @@ const GroupOperationsBoard = ({
     selectedDate,
     showSuccessToast,
     setLoadError,
+    todayDateKey,
   } = Workspace.useWorkspaceContext();
   const [search, setSearch] = useState("");
   const [evaluationsByReportId, setEvaluationsByReportId] = useState<Record<string, ReportEvaluationItem[]>>({});
@@ -960,8 +1117,14 @@ const GroupOperationsBoard = ({
       members.map((member) => ({
         member,
         report: getMemberReportForDate(reportEntriesByDay, selectedDate, member.id),
+        latestReport: getLatestMemberReportOnOrBeforeDate(
+          reportEntriesByDay,
+          reportDateOptions,
+          selectedDate,
+          member.id,
+        ),
       })),
-    [members, reportEntriesByDay, selectedDate],
+    [members, reportDateOptions, reportEntriesByDay, selectedDate],
   );
 
   const filteredCards = useMemo(() => {
@@ -970,8 +1133,16 @@ const GroupOperationsBoard = ({
       return memberCards;
     }
 
-    return memberCards.filter(({ member, report }) =>
-      [member.name, member.role, member.teamGroupName ?? "", report?.summary ?? "", report?.nextPlan ?? ""]
+    return memberCards.filter(({ member, report, latestReport }) =>
+      [
+        member.name,
+        member.systemRole,
+        member.teamGroupName ?? "",
+        report?.summary ?? "",
+        report?.nextPlan ?? "",
+        latestReport?.summary ?? "",
+        latestReport?.nextPlan ?? "",
+      ]
         .join(" ")
         .toLowerCase()
         .includes(keyword),
@@ -1151,8 +1322,9 @@ const GroupOperationsBoard = ({
         members,
         reportEntriesByDay,
         evaluationsByReportId,
+        todayDateKey,
       }),
-    [evaluationsByReportId, members, recentDateKeys, reportEntriesByDay],
+    [evaluationsByReportId, members, recentDateKeys, reportEntriesByDay, todayDateKey],
   );
 
   const handleSendReminder = useCallback(
@@ -1254,7 +1426,7 @@ const GroupOperationsBoard = ({
                 <Workspace.Users className="h-5 w-5" />
               </span>
               <div>
-                <p className="text-sm font-semibold text-slate-900">我负责的项目组</p>
+                <p className="text-sm font-semibold text-slate-900">{title}</p>
                 <p className="mt-1 text-sm text-slate-500">{groupName}</p>
               </div>
             </div>
@@ -1389,9 +1561,12 @@ const GroupOperationsBoard = ({
         </div>
 
         <div className="mt-4 grid gap-4 xl:grid-cols-2">
-          {filteredCards.map(({ member, report }) => {
-            const reportId = report?.id ?? "";
+          {filteredCards.map(({ member, report, latestReport }) => {
+            const activeReport = report ?? latestReport;
+            const isHistoricalFallback = !report && Boolean(activeReport);
+            const reportId = activeReport?.id ?? "";
             const evaluations = reportId ? evaluationsByReportId[reportId] ?? [] : [];
+            const attachmentNote = Workspace.getReportAttachmentNote(activeReport?.attachment);
 
             return (
               <article className="rounded-2xl border border-slate-200 bg-white/90 p-5 shadow-sm" key={member.id}>
@@ -1400,18 +1575,22 @@ const GroupOperationsBoard = ({
                     <Workspace.UserAvatar
                       avatar={member.avatar}
                       avatarUrl={member.avatarUrl}
-                      className="h-11 w-11 rounded-2xl bg-slate-100"
+                      className="h-11 w-11 shrink-0 rounded-2xl bg-slate-100"
                       name={member.name}
                     />
-                    <div>
+                    <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
                         <h4 className="text-base font-semibold text-slate-900">{member.name}</h4>
-                        <span className="rounded-full border border-slate-200 px-2.5 py-1 text-xs text-slate-500">
-                          {member.role}
+                        <span className="shrink-0 rounded-full border border-slate-200 px-2.5 py-1 text-xs text-slate-500">
+                          {member.systemRole}
                         </span>
                       </div>
                       <p className="mt-1 text-sm text-slate-500">
-                        {report ? `已于 ${report.submittedAt} 提交` : `尚未提交 ${Workspace.formatShortDate(selectedDate)} 汇报`}
+                        {report
+                          ? `已于 ${Workspace.formatShortDate(report.date)} ${report.submittedAt} 提交`
+                          : activeReport
+                            ? `当前未提交，最近一次为 ${Workspace.formatShortDate(activeReport.date)} ${activeReport.submittedAt}`
+                            : `尚无 ${Workspace.formatShortDate(selectedDate)} 之前的历史汇报`}
                       </p>
                     </div>
                   </div>
@@ -1424,18 +1603,33 @@ const GroupOperationsBoard = ({
                   </span>
                 </div>
 
-                {report ? (
+                {activeReport ? (
                   <>
+                    {isHistoricalFallback ? (
+                      <div className="mt-4 rounded-xl border border-amber-100 bg-amber-50/80 px-4 py-3 text-sm text-amber-700">
+                        当前日期未提交，以下展示最近一次汇报：{Workspace.formatShortDate(activeReport.date)}
+                      </div>
+                    ) : null}
                     <div className="mt-4 grid gap-3">
                       <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
-                        <p className="text-xs font-semibold tracking-wide text-slate-400">今日完成</p>
-                        <p className="mt-2 text-sm leading-7 text-slate-700">{report.summary}</p>
+                        <p className="text-xs font-semibold tracking-wide text-slate-400">
+                          {report ? "今日完成" : "最近一次汇报"}
+                        </p>
+                        <p className="mt-2 text-sm leading-7 text-slate-700">{activeReport.summary}</p>
                       </div>
                       <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
-                        <p className="text-xs font-semibold tracking-wide text-slate-400">明日计划</p>
-                        <p className="mt-2 text-sm leading-7 text-slate-700">{report.nextPlan}</p>
+                        <p className="text-xs font-semibold tracking-wide text-slate-400">
+                          {report ? "明日计划" : "后续计划"}
+                        </p>
+                        <p className="mt-2 text-sm leading-7 text-slate-700">{activeReport.nextPlan}</p>
                       </div>
                     </div>
+
+                    {attachmentNote ? (
+                      <div className="mt-3 rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-500">
+                        附件备注：{attachmentNote}
+                      </div>
+                    ) : null}
 
                     <div className="mt-4 flex flex-wrap items-center gap-2">
                       <Workspace.ActionButton
@@ -1542,6 +1736,7 @@ const GroupOperationsBoard = ({
               fillClassName="fill-blue-600"
               lineClassName="stroke-blue-600"
               series={trendSeries}
+              todayDateKey={todayDateKey}
             />
           </div>
           <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
@@ -1553,6 +1748,7 @@ const GroupOperationsBoard = ({
               accessor={(point) => point.praiseCount}
               barClassName="bg-amber-400"
               series={trendSeries}
+              todayDateKey={todayDateKey}
             />
           </div>
         </div>
@@ -1631,11 +1827,16 @@ const AdminReportsView = (props: ReportsViewProps) => {
     removeTeamReports,
     reportDeleteTeamGroupId,
     setReportDeleteTeamGroupId,
+    todayDateKey,
+    currentUser,
+    setConfirmDialog,
   } = Workspace.useWorkspaceContext();
   const [search, setSearch] = useState("");
   const [teacherFilter, setTeacherFilter] = useState("");
   const [expandedGroupId, setExpandedGroupId] = useState<string>("");
   const [bulkRemindLoading, setBulkRemindLoading] = useState(false);
+  const [trendRange, setTrendRange] = useState<"week" | "month" | "semester">("week");
+  const [notifyTeachersLoading, setNotifyTeachersLoading] = useState(false);
 
   const reportMembers = useMemo(
     () =>
@@ -1651,17 +1852,31 @@ const AdminReportsView = (props: ReportsViewProps) => {
     () => members.filter((member) => member.systemRole === "指导教师"),
     [members],
   );
+  const teacherFilterOptions = useMemo(
+    () =>
+      [...new Set(teacherMembers.map((member) => member.name).filter(Boolean))].sort((left, right) =>
+        left.localeCompare(right),
+      ),
+    [teacherMembers],
+  );
   const recentDateKeys = useMemo(
     () => getRecentDateKeys(reportDateOptions, selectedDate, 7),
     [reportDateOptions, selectedDate],
   );
 
   const groupHealthItems = useMemo(() => {
-    const teacherMap = new Map(
-      teacherMembers
-        .filter((teacher) => teacher.teamGroupId)
-        .map((teacher) => [teacher.teamGroupId as string, teacher.name]),
-    );
+    const teacherMap = teacherMembers.reduce((map, teacher) => {
+      if (!teacher.teamGroupId) {
+        return map;
+      }
+
+      const teacherNames = map.get(teacher.teamGroupId) ?? [];
+      if (!teacherNames.includes(teacher.name)) {
+        teacherNames.push(teacher.name);
+      }
+      map.set(teacher.teamGroupId, teacherNames);
+      return map;
+    }, new Map<string, string[]>());
 
     return teamGroups
       .map((group) => {
@@ -1675,12 +1890,13 @@ const AdminReportsView = (props: ReportsViewProps) => {
         const noFeedbackCount = groupMembers.filter(
           (member) => getNoFeedbackStreak(member.id, recentDateKeys.slice(0, 3), reportEntriesByDay) >= 3,
         ).length;
+        const teacherNames = teacherMap.get(group.id) ?? [];
 
         const alerts = [
           missingCount > 0 ? `今日有 ${missingCount} 人未提交` : null,
           concernCount > 0 ? `${concernCount} 条汇报存在卡点关键词` : null,
           noFeedbackCount > 0 ? `${noFeedbackCount} 人连续 3 天未收到评价` : null,
-          teacherMap.get(group.id) ? `指导教师：${teacherMap.get(group.id)}` : null,
+          teacherNames.length > 0 ? `指导教师：${teacherNames.join("、")}` : null,
         ].filter((item): item is string => Boolean(item));
 
         const tone: GroupHealthItem["tone"] =
@@ -1706,10 +1922,11 @@ const AdminReportsView = (props: ReportsViewProps) => {
           alerts,
           members: groupMembers,
           reports: dayReports,
-          teacherName: teacherMap.get(group.id) ?? "未绑定教师",
+          teacherNames,
         };
       })
-      .filter((group) => (teacherFilter ? group.teacherName === teacherFilter : true))
+      .filter((group) => (selectedReportTeamGroupId ? group.id === selectedReportTeamGroupId : true))
+      .filter((group) => (teacherFilter ? group.teacherNames.includes(teacherFilter) : true))
       .sort((left, right) => {
         const toneOrder: Record<GroupHealthItem["tone"], number> = { danger: 0, warning: 1, success: 2 };
         if (toneOrder[left.tone] !== toneOrder[right.tone]) {
@@ -1718,7 +1935,16 @@ const AdminReportsView = (props: ReportsViewProps) => {
 
         return left.submitRate - right.submitRate;
       });
-  }, [reportEntriesByDay, reportMembers, recentDateKeys, selectedDate, teacherFilter, teacherMembers, teamGroups]);
+  }, [
+    reportEntriesByDay,
+    reportMembers,
+    recentDateKeys,
+    selectedDate,
+    selectedReportTeamGroupId,
+    teacherFilter,
+    teacherMembers,
+    teamGroups,
+  ]);
 
   const activeGroupId = expandedGroupId || selectedReportTeamGroupId || groupHealthItems[0]?.id || "";
   const activeGroup = groupHealthItems.find((item) => item.id === activeGroupId) ?? null;
@@ -1832,6 +2058,38 @@ const AdminReportsView = (props: ReportsViewProps) => {
   const overallSubmitRate =
     selectedReportExpectedCount > 0 ? Math.round((selectedReportSubmittedCount / selectedReportExpectedCount) * 100) : 0;
 
+  const isTodayBeforeDeadline = isBeforeReportDeadline(selectedDate, todayDateKey);
+
+  const yesterdaySubmitRate = useMemo(() => {
+    const yesterday = reportDateOptions.find((date) => date < selectedDate);
+    if (!yesterday) {
+      return 0;
+    }
+
+    const yesterdayReports = reportEntriesByDay[yesterday] ?? [];
+    const expected = reportMembers.length || 1;
+    return Math.round((yesterdayReports.length / expected) * 100);
+  }, [reportDateOptions, reportEntriesByDay, reportMembers.length, selectedDate]);
+
+  const canShowTeacherBoard = useMemo(
+    () => currentUser?.roleLabel === "指导教师",
+    [currentUser?.roleLabel],
+  );
+
+  const trendDateKeys = useMemo(() => {
+    if (trendRange === "week") {
+      return getRecentDateKeys(reportDateOptions, selectedDate, 7);
+    }
+
+    if (trendRange === "month") {
+      return reportDateOptions.filter((date) => date.startsWith(selectedDate.slice(0, 7)));
+    }
+
+    // semester: fall back to all available dates back to the computed semester start
+    const semesterStart = getSemesterStartDate(todayDateKey);
+    return reportDateOptions.filter((date) => date >= semesterStart);
+  }, [reportDateOptions, selectedDate, todayDateKey, trendRange]);
+
   const previousWeekDateKeys = useMemo(
     () =>
       reportDateOptions.filter((date) => date < recentDateKeys[recentDateKeys.length - 1]).slice(0, 7),
@@ -1905,12 +2163,13 @@ const AdminReportsView = (props: ReportsViewProps) => {
   const adminTrendSeries = useMemo(
     () =>
       buildTrendSeries({
-        dateKeys: recentDateKeys,
+        dateKeys: trendDateKeys,
         members: reportMembers,
         reportEntriesByDay,
         evaluationsByReportId: adminEvaluationsByReportId,
+        todayDateKey,
       }),
-    [adminEvaluationsByReportId, recentDateKeys, reportEntriesByDay, reportMembers],
+    [adminEvaluationsByReportId, trendDateKeys, reportEntriesByDay, reportMembers, todayDateKey],
   );
 
   const handleBulkRemind = useCallback(async () => {
@@ -1954,6 +2213,67 @@ const AdminReportsView = (props: ReportsViewProps) => {
     }
   }, [currentMemberId, reportEntriesByDay, reportMembers, selectedDate, setLoadError, showSuccessToast]);
 
+  const handleNotifyAllTeachers = useCallback(async () => {
+    const teacherIds = teacherMembers
+      .map((member) => member.id)
+      .filter((id) => id !== currentMemberId);
+
+    if (teacherIds.length === 0) {
+      setLoadError("当前没有可通知的指导教师");
+      return;
+    }
+
+    setNotifyTeachersLoading(true);
+    try {
+      const responses = await Promise.all(
+        teacherIds.map((userId) =>
+          Workspace.requestJson<Workspace.DirectReminderResponse>("/api/notifications", {
+            method: "POST",
+            body: JSON.stringify({
+              userId,
+              title: "提醒：请及时使用点评功能",
+              detail: "本周尚未发现您的点评记录，建议登录系统查看学生汇报并进行点评反馈。",
+              targetTab: "reports",
+            }),
+          }),
+        ),
+      );
+
+      showSuccessToast(
+        "提醒已发送",
+        Workspace.getBatchReminderDeliveryDetail(
+          responses.map((item) => item.delivery),
+          `已向 ${teacherIds.length} 位指导教师发送点评提醒。`,
+        ),
+      );
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "提醒发送失败");
+    } finally {
+      setNotifyTeachersLoading(false);
+    }
+  }, [currentMemberId, setLoadError, showSuccessToast, teacherMembers]);
+
+  const handleCleanupClick = useCallback(() => {
+    if (!reportDeleteTeamGroupId) {
+      setLoadError("请先选择要清理的项目组");
+      return;
+    }
+
+    const group = teamGroups.find((g) => g.id === reportDeleteTeamGroupId);
+    setConfirmDialog({
+      open: true,
+      title: "确认删除",
+      message: `确定要删除「${group?.name ?? "所选项目组"}」在 ${Workspace.formatShortDate(selectedDate)} 的全部汇报记录吗？此操作不可恢复。`,
+      confirmLabel: "确认删除",
+      confirmVariant: "danger",
+      successTitle: "数据已清理",
+      successDetail: "指定项目组的汇报记录已被删除。",
+      onConfirm: async () => {
+        await removeTeamReports();
+      },
+    });
+  }, [reportDeleteTeamGroupId, selectedDate, setLoadError, setConfirmDialog, removeTeamReports, teamGroups]);
+
   return (
     <div className="space-y-4">
       <Workspace.SectionHeader
@@ -1967,14 +2287,32 @@ const AdminReportsView = (props: ReportsViewProps) => {
             <p className="text-sm font-semibold text-slate-900">全校概览</p>
             <div className="mt-3 flex flex-wrap items-end gap-4">
               <div>
-                <p className="text-[32px] font-semibold text-slate-900">{overallSubmitRate}%</p>
-                <p className="text-sm text-slate-500">今日全校提交率</p>
+                {isTodayBeforeDeadline ? (
+                  <>
+                    <p className="text-[32px] font-semibold text-slate-900">
+                      {selectedReportSubmittedCount}/{selectedReportExpectedCount}
+                    </p>
+                    <p className="text-sm text-slate-500">今日进度</p>
+                  </>
+                ) : (
+                  <>
+                    <p className="text-[32px] font-semibold text-slate-900">{overallSubmitRate}%</p>
+                    <p className="text-sm text-slate-500">今日提交率</p>
+                  </>
+                )}
+                <p className="mt-1 text-xs text-slate-400">昨日提交率 {yesterdaySubmitRate}%</p>
               </div>
               <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                <p className="text-xs font-medium text-slate-400">本周趋势</p>
+                <p className="text-xs font-medium text-slate-400">本周均值 vs 上周均值</p>
                 <p className={`mt-1 text-sm font-semibold ${weekDelta >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
                   {weekDelta >= 0 ? "↑" : "↓"} {Math.abs(weekDelta)}%
                 </p>
+                <span
+                  className="mt-1 inline-block cursor-help text-xs text-slate-400"
+                  title="按最近一周平均提交率与上一周平均提交率的差值计算"
+                >
+                  ?
+                </span>
               </div>
             </div>
           </div>
@@ -2055,17 +2393,15 @@ const AdminReportsView = (props: ReportsViewProps) => {
           <div className="flex flex-wrap gap-2">
             <select
               className={Workspace.fieldClassName}
-              value=""
-              onChange={() => undefined}
+              value={selectedReportTeamGroupId}
+              onChange={(event) => setSelectedReportTeamGroupId(event.target.value)}
             >
-              <option value="">全部学院</option>
-            </select>
-            <select
-              className={Workspace.fieldClassName}
-              value=""
-              onChange={() => undefined}
-            >
-              <option value="">全部年级</option>
+              <option value="">全部项目组</option>
+              {teamGroups.map((group) => (
+                <option key={group.id} value={group.id}>
+                  {group.name}
+                </option>
+              ))}
             </select>
             <select
               className={Workspace.fieldClassName}
@@ -2073,9 +2409,9 @@ const AdminReportsView = (props: ReportsViewProps) => {
               onChange={(event) => setTeacherFilter(event.target.value)}
             >
               <option value="">全部指导教师</option>
-              {teacherMembers.map((member) => (
-                <option key={member.id} value={member.name}>
-                  {member.name}
+              {teacherFilterOptions.map((teacherName) => (
+                <option key={teacherName} value={teacherName}>
+                  {teacherName}
                 </option>
               ))}
             </select>
@@ -2084,12 +2420,14 @@ const AdminReportsView = (props: ReportsViewProps) => {
 
         <div className="mt-4 space-y-3">
           {groupHealthItems.map((group) => (
-            <div className="rounded-2xl border border-slate-200 bg-white/90" key={group.id}>
-              <button
-                className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left"
-                onClick={() => setExpandedGroupId((current) => (current === group.id ? "" : group.id))}
-                type="button"
-              >
+            <div
+              className="cursor-pointer rounded-2xl border border-slate-200 bg-white/90 transition hover:shadow-md"
+              key={group.id}
+              onClick={() => setExpandedGroupId((current) => (current === group.id ? "" : group.id))}
+              role="button"
+              tabIndex={0}
+            >
+              <div className="flex w-full items-center justify-between gap-4 px-5 py-4">
                 <div className="flex items-center gap-3">
                   <span
                     className={`h-3 w-3 rounded-full ${
@@ -2107,10 +2445,10 @@ const AdminReportsView = (props: ReportsViewProps) => {
                   </p>
                   <p className="mt-1 text-xs text-slate-400">{group.summary}</p>
                 </div>
-              </button>
+              </div>
 
               {expandedGroupId === group.id ? (
-                <div className="border-t border-slate-100 px-5 py-4">
+                <div className="border-t border-slate-100 px-5 py-4" onClick={(event) => event.stopPropagation()}>
                   <div className="flex flex-wrap gap-2">
                     {group.alerts.map((alert) => (
                       <span className="rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-600" key={alert}>
@@ -2118,7 +2456,7 @@ const AdminReportsView = (props: ReportsViewProps) => {
                       </span>
                     ))}
                   </div>
-                  <div className="mt-4 flex justify-end">
+                  <div className="mt-4 flex justify-end" onClick={(event) => event.stopPropagation()}>
                     <Workspace.ActionButton
                       onClick={() => {
                         setSelectedReportTeamGroupId(group.id);
@@ -2163,8 +2501,17 @@ const AdminReportsView = (props: ReportsViewProps) => {
                 </div>
               ))
             ) : (
-              <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-center text-sm text-slate-400">
-                当前暂无教师点评数据
+              <div className="flex flex-col items-center rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-center">
+                <p className="text-sm font-medium text-slate-500">本周尚无教师发起点评，建议督促各位指导教师开始使用点评功能。</p>
+                <Workspace.ActionButton
+                  className="mt-3 bg-blue-50 text-blue-700 hover:bg-blue-100"
+                  loading={notifyTeachersLoading}
+                  loadingLabel="发送中..."
+                  onClick={() => void handleNotifyAllTeachers()}
+                >
+                  <Workspace.BellPlus className="h-4 w-4" />
+                  提醒全体指导教师
+                </Workspace.ActionButton>
               </div>
             )}
           </div>
@@ -2208,10 +2555,25 @@ const AdminReportsView = (props: ReportsViewProps) => {
       <section className={Workspace.surfaceCardClassName}>
         <div className="flex items-center justify-between gap-3">
           <div>
-            <h3 className="text-base font-semibold text-slate-900">本周趋势</h3>
+            <h3 className="text-base font-semibold text-slate-900">趋势分析</h3>
             <p className="mt-1 text-sm text-slate-500">叠加查看提交率、点评总数和红花数量变化。</p>
           </div>
-          <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-500">本周</span>
+          <div className="flex gap-2">
+            {(["week", "month", "semester"] as const).map((range) => (
+              <button
+                className={`rounded-full px-3 py-1 text-xs font-medium transition ${
+                  trendRange === range
+                    ? "bg-blue-100 text-blue-700"
+                    : "bg-slate-100 text-slate-500 hover:bg-slate-200"
+                }`}
+                key={range}
+                onClick={() => setTrendRange(range)}
+                type="button"
+              >
+                {range === "week" ? "本周" : range === "month" ? "本月" : "本学期"}
+              </button>
+            ))}
+          </div>
         </div>
 
         <div className="mt-4 grid gap-4 xl:grid-cols-3">
@@ -2223,6 +2585,7 @@ const AdminReportsView = (props: ReportsViewProps) => {
                 fillClassName="fill-blue-600"
                 lineClassName="stroke-blue-600"
                 series={adminTrendSeries}
+                todayDateKey={todayDateKey}
               />
             </div>
           </div>
@@ -2234,6 +2597,7 @@ const AdminReportsView = (props: ReportsViewProps) => {
                 fillClassName="fill-slate-500"
                 lineClassName="stroke-slate-500"
                 series={adminTrendSeries}
+                todayDateKey={todayDateKey}
               />
             </div>
           </div>
@@ -2244,50 +2608,58 @@ const AdminReportsView = (props: ReportsViewProps) => {
                 accessor={(point) => point.praiseCount}
                 barClassName="bg-amber-400"
                 series={adminTrendSeries}
+                todayDateKey={todayDateKey}
               />
             </div>
           </div>
         </div>
       </section>
 
-      {activeGroup ? (
-        <GroupOperationsBoard groupName={activeGroup.name} members={activeGroup.members} />
+      {activeGroup && canShowTeacherBoard ? (
+        <GroupOperationsBoard groupName={activeGroup.name} members={activeGroup.members} title="我作为教师负责的项目组" />
       ) : null}
 
       <section className={Workspace.surfaceCardClassName}>
         <div className="flex items-center justify-between gap-3">
           <div>
             <h3 className="text-base font-semibold text-slate-900">管理工具</h3>
-            <p className="mt-1 text-sm text-slate-500">危险操作下沉到底部，避免抢占主视线。</p>
+            <p className="mt-1 text-sm text-slate-500">批量操作与数据导出，危险操作需要二次确认。</p>
           </div>
         </div>
-        <div className="mt-4 flex flex-wrap gap-3">
-          <Workspace.ActionButton loading={bulkRemindLoading} loadingLabel="发送中..." onClick={() => void handleBulkRemind()}>
+        <div className="mt-4 flex flex-wrap items-center gap-3">
+          <Workspace.ActionButton
+            className="bg-blue-50 text-blue-700 hover:bg-blue-100"
+            loading={bulkRemindLoading}
+            loadingLabel="发送中..."
+            onClick={() => void handleBulkRemind()}
+          >
             <Workspace.BellPlus className="h-4 w-4" />
             批量催交
           </Workspace.ActionButton>
-          <Workspace.ActionButton onClick={() => {
-            const csvRows = [
-              ["项目组", "今日提交比", "健康度"],
-              ...groupHealthItems.map((group) => [
-                group.name,
-                `${group.submittedCount}/${group.expectedCount}`,
-                group.tone,
-              ]),
-            ];
-            const csv = csvRows.map((row) => row.join(",")).join("\n");
-            const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-            const url = window.URL.createObjectURL(blob);
-            const link = document.createElement("a");
-            link.href = url;
-            link.download = `reports-weekly-${selectedDate}.csv`;
-            link.click();
-            window.URL.revokeObjectURL(url);
-          }}>
+          <Workspace.ActionButton
+            onClick={() => {
+              const csvRows = [
+                ["项目组", "今日提交比", "健康度"],
+                ...groupHealthItems.map((group) => [
+                  group.name,
+                  `${group.submittedCount}/${group.expectedCount}`,
+                  group.tone,
+                ]),
+              ];
+              const csv = csvRows.map((row) => row.join(",")).join("\n");
+              const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+              const url = window.URL.createObjectURL(blob);
+              const link = document.createElement("a");
+              link.href = url;
+              link.download = `reports-weekly-${selectedDate}.csv`;
+              link.click();
+              window.URL.revokeObjectURL(url);
+            }}
+          >
             <Workspace.Download className="h-4 w-4" />
             导出周报
           </Workspace.ActionButton>
-          <div className="flex flex-wrap gap-2 rounded-2xl border border-rose-100 bg-rose-50/60 px-3 py-2">
+          <div className="flex flex-wrap items-center gap-2">
             <select
               className={Workspace.fieldClassName}
               value={reportDeleteTeamGroupId}
@@ -2300,7 +2672,11 @@ const AdminReportsView = (props: ReportsViewProps) => {
                 </option>
               ))}
             </select>
-            <Workspace.ActionButton disabled={!reportDeleteTeamGroupId} onClick={removeTeamReports} variant="danger">
+            <Workspace.ActionButton
+              className="border border-rose-500 bg-white text-rose-600 hover:bg-rose-50"
+              disabled={!reportDeleteTeamGroupId}
+              onClick={handleCleanupClick}
+            >
               <Workspace.Trash2 className="h-4 w-4" />
               数据清理
             </Workspace.ActionButton>

@@ -104,3 +104,118 @@ test("teacher and admin reports views expose the new operational sections", () =
   assert.match(scheduleSource, /教师活跃度排行/);
   assert.match(scheduleSource, /本周趋势/);
 });
+
+test("member cards keep latest submitted report visible and use localized role labels", () => {
+  const scheduleSource = readFileSync(
+    path.join(process.cwd(), "src/components/tabs/schedule-tab.tsx"),
+    "utf8",
+  );
+
+  assert.match(scheduleSource, /最近一次汇报/);
+  assert.match(scheduleSource, /member\.systemRole/);
+});
+
+test("trend charts expose axis ticks and hoverable numeric labels", () => {
+  const scheduleSource = readFileSync(
+    path.join(process.cwd(), "src/components/tabs/schedule-tab.tsx"),
+    "utf8",
+  );
+
+  assert.match(scheduleSource, /const buildChartTicks =/);
+  assert.match(scheduleSource, /<title>/);
+});
+
+test("admin teacher filter matches groups bound to any selected teacher", () => {
+  const scheduleSource = readFileSync(
+    path.join(process.cwd(), "src/components/tabs/schedule-tab.tsx"),
+    "utf8",
+  );
+
+  assert.match(scheduleSource, /teacherNames/);
+  assert.match(scheduleSource, /teacherNames\.includes\(teacherFilter\)/);
+});
+
+test("admin health filters use project group instead of college and grade", () => {
+  const scheduleSource = readFileSync(
+    path.join(process.cwd(), "src/components/tabs/schedule-tab.tsx"),
+    "utf8",
+  );
+
+  assert.doesNotMatch(scheduleSource, /全部学院/);
+  assert.doesNotMatch(scheduleSource, /全部年级/);
+  assert.match(scheduleSource, /全部项目组/);
+});
+
+test("admin view conditionally shows teacher board only for dual role users", () => {
+  const scheduleSource = readFileSync(
+    path.join(process.cwd(), "src/components/tabs/schedule-tab.tsx"),
+    "utf8",
+  );
+
+  assert.match(scheduleSource, /我作为教师负责的项目组/);
+  assert.match(scheduleSource, /canShowTeacherBoard/);
+});
+
+test("admin overview shows progress count before deadline and rate after deadline", () => {
+  const scheduleSource = readFileSync(
+    path.join(process.cwd(), "src/components/tabs/schedule-tab.tsx"),
+    "utf8",
+  );
+
+  assert.match(scheduleSource, /今日进度/);
+  assert.match(scheduleSource, /昨日提交率/);
+  assert.match(scheduleSource, /REPORT_DEADLINE_HOUR/);
+});
+
+test("admin trend section supports week month semester range toggle", () => {
+  const scheduleSource = readFileSync(
+    path.join(process.cwd(), "src/components/tabs/schedule-tab.tsx"),
+    "utf8",
+  );
+
+  assert.match(scheduleSource, /本周/);
+  assert.match(scheduleSource, /本月/);
+  assert.match(scheduleSource, /本学期/);
+  assert.match(scheduleSource, /trendRange/);
+});
+
+test("admin charts show empty state when less than 3 days of data", () => {
+  const scheduleSource = readFileSync(
+    path.join(process.cwd(), "src/components/tabs/schedule-tab.tsx"),
+    "utf8",
+  );
+
+  assert.match(scheduleSource, /数据积累中，至少需要 3 天数据才能显示趋势/);
+  assert.match(scheduleSource, /当前已积累/);
+});
+
+test("admin teacher activity empty state suggests action with notify button", () => {
+  const scheduleSource = readFileSync(
+    path.join(process.cwd(), "src/components/tabs/schedule-tab.tsx"),
+    "utf8",
+  );
+
+  assert.match(scheduleSource, /本周尚无教师发起点评/);
+  assert.match(scheduleSource, /提醒全体指导教师/);
+});
+
+test("admin tools expose bulk remind export and cleanup in horizontal layout", () => {
+  const scheduleSource = readFileSync(
+    path.join(process.cwd(), "src/components/tabs/schedule-tab.tsx"),
+    "utf8",
+  );
+
+  assert.match(scheduleSource, /批量催交/);
+  assert.match(scheduleSource, /导出周报/);
+  assert.match(scheduleSource, /数据清理/);
+});
+
+test("admin data cleanup requires confirmation before execution", () => {
+  const scheduleSource = readFileSync(
+    path.join(process.cwd(), "src/components/tabs/schedule-tab.tsx"),
+    "utf8",
+  );
+
+  assert.match(scheduleSource, /确认删除/);
+  assert.match(scheduleSource, /setConfirmDialog/);
+});

@@ -107,6 +107,7 @@ model User {
   sentNotifications    Notification[]           @relation("NotificationSender")
   aiPermission         AiPermission?
   aiConversations      AiConversation[]
+  pushDevices          PushDevice[]
   expertReviewPackages ExpertReviewPackage[]    @relation("ExpertReviewPackageCreator")
   expertAssignments    ExpertReviewAssignment[] @relation("ExpertAssignmentUser")
   expertScores         ExpertReviewScore[]      @relation("ExpertScoreReviewer")
@@ -141,6 +142,20 @@ model AiConversation {
 
   @@unique([userId])
   @@index([userId, updatedAt])
+}
+
+model PushDevice {
+  id         String   @id @default(cuid())
+  userId     String
+  platform   String
+  pushToken  String
+  deviceName String?
+  appVersion String?
+  isActive   Boolean  @default(true)
+  lastSeenAt DateTime @default(now())
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
 
 model TeamGroup {
