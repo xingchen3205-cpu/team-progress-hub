@@ -9,6 +9,8 @@ import type {
   ExpertFeedback,
   Notification,
   Report,
+  ReportEvaluation,
+  ReportEvaluationType,
   Role,
   Task,
   TaskAssignment,
@@ -247,6 +249,9 @@ export const serializeReport = (
   summary: report.summary,
   nextPlan: report.nextPlan,
   attachment: report.attachment || "未上传附件",
+  praiseCount: report.praiseCount,
+  improveCount: report.improveCount,
+  commentCount: report.commentCount,
   teamGroupId: report.user.teamGroup?.id ?? report.user.teamGroupId ?? null,
   teamGroupName: report.user.teamGroup?.name ?? null,
   user: {
@@ -256,6 +261,43 @@ export const serializeReport = (
     roleLabel: roleLabels[report.user.role],
     teamGroupName: report.user.teamGroup?.name ?? null,
   },
+});
+
+export const serializeReportEvaluation = (
+  evaluation: ReportEvaluation & {
+    evaluator: Pick<User, "id" | "name" | "avatar" | "role"> & {
+      avatarImagePath?: string | null;
+    };
+    report?: Pick<Report, "id" | "date" | "summary" | "submittedAt" | "userId"> | null;
+  },
+) => ({
+  id: evaluation.id,
+  reportId: evaluation.reportId,
+  evaluatorId: evaluation.evaluatorId,
+  evaluatorRole: evaluation.evaluatorRole,
+  evaluatorRoleLabel: roleLabels[evaluation.evaluatorRole as Role],
+  type: evaluation.type as ReportEvaluationType,
+  content: evaluation.content ?? "",
+  isRead: evaluation.isRead,
+  createdAt: formatDateTime(evaluation.createdAt),
+  updatedAt: formatDateTime(evaluation.updatedAt),
+  revokedAt: evaluation.revokedAt ? formatDateTime(evaluation.revokedAt) : null,
+  evaluator: {
+    id: evaluation.evaluator.id,
+    name: evaluation.evaluator.name,
+    avatar: evaluation.evaluator.avatar,
+    avatarUrl: evaluation.evaluator.avatarImagePath ? `/api/avatar/${evaluation.evaluator.id}` : null,
+    roleLabel: roleLabels[evaluation.evaluator.role as Role],
+  },
+  report: evaluation.report
+    ? {
+        id: evaluation.report.id,
+        date: evaluation.report.date,
+        summary: evaluation.report.summary,
+        submittedAt: formatTimeOnly(evaluation.report.submittedAt),
+        userId: evaluation.report.userId,
+      }
+    : null,
 });
 
 export const serializeAnnouncement = (

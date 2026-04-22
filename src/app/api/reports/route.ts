@@ -7,7 +7,7 @@ import { assertMainWorkspaceRole, hasGlobalAdminPrivileges } from "@/lib/permiss
 import { prisma } from "@/lib/prisma";
 import { serializeReport } from "@/lib/api-serializers";
 import { createNotifications } from "@/lib/notifications";
-import { getAdminReportDeleteFilter, getAdminReportViewFilter } from "@/lib/report-history";
+import { getAdminReportDeleteFilter, getScopedReportViewFilter } from "@/lib/report-history";
 
 const getReportNotificationRecipientIds = async ({
   role,
@@ -59,21 +59,12 @@ export async function GET(request: NextRequest) {
 
   const selectedTeamGroupId = request.nextUrl.searchParams.get("teamGroupId")?.trim() || null;
 
-  const reportWhere =
-    hasGlobalAdminPrivileges(user.role)
-      ? getAdminReportViewFilter(selectedTeamGroupId)
-      : user.role === "member"
-        ? { userId: user.id }
-        : user.teamGroupId
-          ? {
-              user: {
-                teamGroupId: user.teamGroupId,
-                role: {
-                  in: ["leader", "member"] satisfies Role[],
-                },
-              },
-            }
-          : { userId: user.id };
+  const reportWhere = getScopedReportViewFilter({
+    role: user.role,
+    userId: user.id,
+    viewerTeamGroupId: user.teamGroupId,
+    selectedTeamGroupId,
+  });
 
   const reports = await prisma.report.findMany({
     where: reportWhere,

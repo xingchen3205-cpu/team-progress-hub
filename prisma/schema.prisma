@@ -68,6 +68,12 @@ enum NotificationEmailStatus {
   skipped
 }
 
+enum ReportEvaluationType {
+  praise
+  improve
+  comment
+}
+
 model User {
   id                   String                   @id @default(cuid())
   name                 String
@@ -107,6 +113,7 @@ model User {
   trainingQuestions    TrainingQuestion[]       @relation("TrainingQuestionCreator")
   trainingSessions     TrainingSession[]        @relation("TrainingSessionCreator")
   passwordResetTokens  PasswordResetToken[]
+  reportEvaluations    ReportEvaluation[]       @relation("ReportEvaluationCreator")
 }
 
 model AiPermission {
@@ -223,10 +230,33 @@ model Report {
   summary     String
   nextPlan    String
   attachment  String?
+  praiseCount Int      @default(0)
+  improveCount Int     @default(0)
+  commentCount Int     @default(0)
   submittedAt DateTime @default(now())
   user        User     @relation(fields: [userId], references: [id])
+  evaluations ReportEvaluation[]
 
   @@unique([userId, date])
+}
+
+model ReportEvaluation {
+  id            String               @id @default(cuid())
+  reportId      String
+  evaluatorId   String
+  evaluatorRole Role
+  type          ReportEvaluationType
+  content       String?
+  isRead        Boolean              @default(false)
+  createdAt     DateTime             @default(now())
+  updatedAt     DateTime             @updatedAt
+  revokedAt     DateTime?
+  report        Report               @relation(fields: [reportId], references: [id], onDelete: Cascade)
+  evaluator     User                 @relation("ReportEvaluationCreator", fields: [evaluatorId], references: [id])
+
+  @@index([reportId])
+  @@index([evaluatorId])
+  @@index([reportId, isRead])
 }
 
 model Announcement {

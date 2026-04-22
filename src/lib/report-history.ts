@@ -97,30 +97,83 @@ type ReportMemberLike = {
 
 const reportRequiredRoles = new Set(["项目负责人", "团队成员"]);
 
+export type ReportsViewRole = "student" | "teacher" | "admin";
+
+export const getReportsViewRole = (role: Role): ReportsViewRole => {
+  if (role === "admin" || role === "school_admin") {
+    return "admin";
+  }
+
+  if (role === "teacher") {
+    return "teacher";
+  }
+
+  return "student";
+};
+
+export const getScopedReportViewFilter = ({
+  role,
+  userId,
+  viewerTeamGroupId,
+  selectedTeamGroupId,
+}: {
+  role: Role;
+  userId: string;
+  viewerTeamGroupId?: string | null;
+  selectedTeamGroupId?: string | null;
+}) => {
+  const reportsViewRole = getReportsViewRole(role);
+
+  if (reportsViewRole === "admin") {
+    return getAdminReportViewFilter(selectedTeamGroupId);
+  }
+
+  if (viewerTeamGroupId) {
+    return {
+      user: {
+        teamGroupId: viewerTeamGroupId,
+        role: {
+          in: ["leader", "member"] satisfies Role[],
+        },
+      },
+    };
+  }
+
+  return { userId };
+};
+
 export const getVisibleReportMembers = <Member extends ReportMemberLike>({
   members,
   currentMemberId,
-  canViewAllReports,
+  viewerRole,
+  viewerTeamGroupId,
   selectedTeamGroupId,
 }: {
   members: Member[];
   currentMemberId: string;
-  canViewAllReports: boolean;
+  viewerRole: Role;
+  viewerTeamGroupId?: string | null;
   selectedTeamGroupId?: string | null;
 }) => {
-  if (!canViewAllReports) {
-    return members.filter((member) => member.id === currentMemberId && reportRequiredRoles.has(member.systemRole));
-  }
+  const reportsViewRole = getReportsViewRole(viewerRole);
 
   return members.filter((member) => {
     if (!reportRequiredRoles.has(member.systemRole) || !member.teamGroupId) {
       return false;
     }
 
-    if (!selectedTeamGroupId) {
-      return true;
+    if (reportsViewRole === "admin") {
+      if (!selectedTeamGroupId) {
+        return true;
+      }
+
+      return member.teamGroupId === selectedTeamGroupId;
     }
 
-    return member.teamGroupId === selectedTeamGroupId;
+    if (viewerTeamGroupId) {
+      return member.teamGroupId === viewerTeamGroupId;
+    }
+
+    return member.id === currentMemberId;
   });
 };

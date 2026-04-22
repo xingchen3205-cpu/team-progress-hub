@@ -359,6 +359,9 @@ export type AiPermissionDraft = {
 
 export type ReportEntryWithDate = ReportEntry & {
   date: string;
+  praiseCount?: number;
+  improveCount?: number;
+  commentCount?: number;
 };
 
 export type PreviewAsset = {
@@ -2840,7 +2843,8 @@ function useWorkspaceController({
   const visibleReportMembers = getVisibleReportMembers({
     members,
     currentMemberId,
-    canViewAllReports: permissions.canViewAllReports,
+    viewerRole: currentUser?.role ?? "member",
+    viewerTeamGroupId: currentUser?.teamGroupId ?? null,
     selectedTeamGroupId: hasGlobalAdminRole ? selectedReportTeamGroupId : null,
   });
   const reportDateOptions = useMemo(

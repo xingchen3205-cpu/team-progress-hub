@@ -1,9 +1,2320 @@
 "use client";
 
+import { useCallback, useEffect, useMemo, useState } from "react";
+
 import * as Workspace from "@/components/workspace-context";
+import { getReportsViewRole } from "@/lib/report-history";
+
+type ReportMember = Workspace.TeamMember;
+type ReportRecord = Workspace.ReportEntryWithDate;
+
+type DateSelectorProps = {
+  fieldClassName: string;
+  formatShortDate: (value: string) => string;
+  hasGlobalAdminRole: boolean;
+  reportDateOptions: string[];
+  reportEntriesByDay: Record<string, ReportRecord[]>;
+  selectedDate: string;
+  selectedReportTeamGroupId: string;
+  setSelectedDate: (value: string) => void;
+  setSelectedReportTeamGroupId: (value: string) => void;
+  teamGroups: Workspace.TeamGroupItem[];
+  todayDateKey: string;
+};
+
+type SearchBarProps = {
+  value: string;
+  onChange: (value: string) => void;
+  placeholder: string;
+};
+
+type ReportCardProps = {
+  ActionButton: typeof Workspace.ActionButton;
+  BellPlus: typeof Workspace.BellPlus;
+  currentMemberId: string;
+  formatShortDate: (value: string) => string;
+  getReportAttachmentNote: (value?: string | null) => string | null;
+  member: ReportMember;
+  permissions: {
+    canSendDirective: boolean;
+    canSubmitReport: boolean;
+  };
+  report?: ReportRecord;
+  selectedDate: string;
+  showTeamGroupTag?: boolean;
+  onEdit?: (report: ReportRecord) => void;
+  onRemind?: (member: ReportMember) => void;
+  onRemove?: (date: string) => void;
+};
+
+type ReportsViewProps = {
+  ActionButton: typeof Workspace.ActionButton;
+  BellPlus: typeof Workspace.BellPlus;
+  CalendarDays: typeof Workspace.CalendarDays;
+  EmptyState: typeof Workspace.EmptyState;
+  SectionHeader: typeof Workspace.SectionHeader;
+  currentMemberId: string;
+  currentUserSelectedReport?: ReportRecord;
+  fieldClassName: string;
+  filteredReportMembers: ReportMember[];
+  formatShortDate: (value: string) => string;
+  getReportAttachmentNote: (value?: string | null) => string | null;
+  hasGlobalAdminRole: boolean;
+  openCreateReportModal: () => void;
+  openEditReportModal: (report: ReportRecord) => void;
+  permissions: {
+    canSendDirective: boolean;
+    canSubmitReport: boolean;
+  };
+  removeReport: (date: string) => void;
+  removeTeamReports: () => void;
+  reportDateOptions: string[];
+  reportDeleteTeamGroupId: string;
+  reportEntriesByDay: Record<string, ReportRecord[]>;
+  reportEntryMap: Map<string, ReportRecord>;
+  reportSearch: string;
+  reportSearchPlaceholder: string;
+  reportSearchScopeLabel: string;
+  selectedDate: string;
+  selectedDateHasSavedReports: boolean;
+  selectedReportExpectedCount: number;
+  selectedReportMissingCount: number;
+  selectedReportSubmittedCount: number;
+  selectedReportTeamGroupId: string;
+  sendReportReminder: (member: ReportMember) => void;
+  setReportDeleteTeamGroupId: (value: string) => void;
+  setReportSearch: (value: string) => void;
+  setSelectedDate: (value: string) => void;
+  setSelectedReportTeamGroupId: (value: string) => void;
+  surfaceCardClassName: string;
+  teamGroups: Workspace.TeamGroupItem[];
+  todayDateKey: string;
+  visibleReportMembers: ReportMember[];
+  viewDescription: string;
+};
+
+const DateSelector = ({
+  fieldClassName,
+  formatShortDate,
+  hasGlobalAdminRole,
+  reportDateOptions,
+  reportEntriesByDay,
+  selectedDate,
+  selectedReportTeamGroupId,
+  setSelectedDate,
+  setSelectedReportTeamGroupId,
+  teamGroups,
+  todayDateKey,
+}: DateSelectorProps) => (
+  <div className="report-filter-column flex h-full flex-col space-y-4 self-stretch">
+    <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+      <div className="min-w-0 flex-1">
+        <p className="text-sm font-semibold text-slate-900">选择查看日期</p>
+        <p className="mt-1 text-sm text-slate-500">可以直接选择过去任意一天；有保存记录的日期会在下方显示。</p>
+      </div>
+      <div className="flex flex-col gap-3 md:flex-row md:items-end">
+        {hasGlobalAdminRole ? (
+          <label className="block w-full text-sm font-medium text-slate-600 md:min-w-56">
+            项目组
+            <select
+              className={`${fieldClassName} mt-1.5`}
+              value={selectedReportTeamGroupId}
+              onChange={(event) => setSelectedReportTeamGroupId(event.target.value)}
+            >
+              <option value="">全部项目组</option>
+              {teamGroups.map((group) => (
+                <option key={group.id} value={group.id}>
+                  {group.name}
+                </option>
+              ))}
+            </select>
+          </label>
+        ) : null}
+        <label className="block w-full text-sm font-medium text-slate-600 md:min-w-56">
+          日期
+          <input
+            className={`${fieldClassName} mt-1.5`}
+            max={todayDateKey}
+            type="date"
+            value={selectedDate}
+            onChange={(event) => {
+              if (event.target.value) {
+                setSelectedDate(event.target.value);
+              }
+            }}
+          />
+        </label>
+      </div>
+    </div>
+
+    <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 sm:flex-wrap sm:overflow-visible">
+      {reportDateOptions.slice(0, 10).map((date) => {
+        const hasReport = (reportEntriesByDay[date] ?? []).length > 0;
+        const isSelected = date === selectedDate;
+
+        return (
+          <button
+            className={`report-date-chip ${isSelected ? "selected" : ""} ${hasReport ? "has-record" : "muted"}`}
+            key={date}
+            onClick={() => setSelectedDate(date)}
+            type="button"
+          >
+            {date === todayDateKey ? "今天" : formatShortDate(date)}
+            {hasReport ? <span className="report-date-dot" /> : null}
+          </button>
+        );
+      })}
+    </div>
+
+    {hasGlobalAdminRole ? (
+      <div className="report-record-legend mt-auto rounded-xl border border-dashed border-slate-200 bg-slate-50/70 px-4 py-3">
+        <p className="text-sm font-medium text-slate-700">日期标签说明</p>
+        <p className="mt-1 text-sm text-slate-500">右上角带蓝点代表该日期已有汇报记录；未标记的日期表示当前还没有保存内容。</p>
+      </div>
+    ) : null}
+  </div>
+);
+
+const SearchBar = ({ value, onChange, placeholder }: SearchBarProps) => (
+  <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50/80 px-4 py-3">
+    <Workspace.Search className="h-4 w-4 text-slate-400" />
+    <input
+      className="w-full bg-transparent text-sm text-slate-900 outline-none placeholder:text-slate-400"
+      placeholder={placeholder}
+      type="search"
+      value={value}
+      onChange={(event) => onChange(event.target.value)}
+    />
+  </div>
+);
+
+const ReportCard = ({
+  ActionButton,
+  BellPlus,
+  currentMemberId,
+  formatShortDate,
+  getReportAttachmentNote,
+  member,
+  permissions,
+  report,
+  selectedDate,
+  showTeamGroupTag = false,
+  onEdit,
+  onRemind,
+  onRemove,
+}: ReportCardProps) => {
+  const attachmentNote = getReportAttachmentNote(report?.attachment);
+  const isCurrentMember = member.id === currentMemberId;
+
+  return (
+    <article className="overflow-hidden rounded-xl border border-white/70 bg-white/82 p-0 shadow-[0_6px_18px_rgba(30,60,120,0.08)]">
+      <div className="flex items-start justify-between gap-4 border-b border-slate-100 bg-slate-50/80 px-5 py-4">
+        <div className="min-w-0">
+          <div className="flex flex-wrap items-center gap-2">
+            <h3 className="text-base font-semibold text-slate-900">{member.name}</h3>
+            <span className="rounded-md bg-white px-2 py-1 text-xs text-slate-500 ring-1 ring-slate-200">
+              {member.systemRole}
+            </span>
+            {showTeamGroupTag && member.teamGroupName ? (
+              <span className="rounded-md bg-white px-2 py-1 text-xs text-slate-500 ring-1 ring-slate-200">
+                {member.teamGroupName}
+              </span>
+            ) : null}
+          </div>
+          <p className="mt-2 text-sm text-slate-500">提交人：{member.name}</p>
+        </div>
+        {report ? (
+          <span className="shrink-0 rounded-md bg-blue-50 px-3 py-1 text-sm text-blue-600">已提交 {report.submittedAt}</span>
+        ) : (
+          <span className="shrink-0 rounded-md bg-red-50 px-3 py-1 text-sm text-red-700">未提交</span>
+        )}
+      </div>
+
+      <div className="p-5">
+        {report ? (
+          <>
+            <div className="grid gap-3 lg:grid-cols-2">
+              <div className="rounded-xl border border-slate-200 bg-white p-4">
+                <p className="text-xs font-semibold text-slate-400">今日完成</p>
+                <p className="mt-2 text-sm leading-7 text-slate-700">{report.summary}</p>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-white p-4">
+                <p className="text-xs font-semibold text-slate-400">明日计划</p>
+                <p className="mt-2 text-sm leading-7 text-slate-700">{report.nextPlan}</p>
+              </div>
+            </div>
+            {attachmentNote ? (
+              <p className="mt-4 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-500">附件备注：{attachmentNote}</p>
+            ) : null}
+            {isCurrentMember && permissions.canSubmitReport && onEdit && onRemove ? (
+              <div className="mt-4 flex flex-wrap gap-3">
+                <ActionButton onClick={() => onEdit(report)}>修改汇报</ActionButton>
+                <ActionButton onClick={() => onRemove(report.date)} variant="danger">
+                  撤回汇报
+                </ActionButton>
+              </div>
+            ) : null}
+          </>
+        ) : (
+          <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-5">
+            <p className="text-sm font-semibold text-slate-700">这一天还没有汇报</p>
+            <p className="mt-2 text-sm leading-7 text-slate-500">
+              {isCurrentMember && permissions.canSubmitReport
+                ? "可以补交这一天的工作汇报，保存后会进入历史记录。"
+                : `该成员在 ${formatShortDate(selectedDate)} 尚未提交当日汇报。`}
+            </p>
+            {permissions.canSendDirective && !isCurrentMember && onRemind ? (
+              <ActionButton className="report-remind-button mt-3" onClick={() => onRemind(member)}>
+                <BellPlus className="h-4 w-4" />
+                发送提醒
+              </ActionButton>
+            ) : null}
+          </div>
+        )}
+      </div>
+    </article>
+  );
+};
+
+const ReportSummaryPanel = ({
+  ActionButton,
+  canShowAdminDangerZone,
+  currentUserSelectedReport,
+  fieldClassName,
+  formatShortDate,
+  onCreateOrEdit,
+  onDeleteTeamReports,
+  permissions,
+  reportDeleteTeamGroupId,
+  selectedDate,
+  selectedReportExpectedCount,
+  selectedReportMissingCount,
+  selectedReportSubmittedCount,
+  setReportDeleteTeamGroupId,
+  teamGroups,
+}: {
+  ActionButton: typeof Workspace.ActionButton;
+  canShowAdminDangerZone: boolean;
+  currentUserSelectedReport?: ReportRecord;
+  fieldClassName: string;
+  formatShortDate: (value: string) => string;
+  onCreateOrEdit: () => void;
+  onDeleteTeamReports: () => void;
+  permissions: {
+    canSubmitReport: boolean;
+  };
+  reportDeleteTeamGroupId: string;
+  selectedDate: string;
+  selectedReportExpectedCount: number;
+  selectedReportMissingCount: number;
+  selectedReportSubmittedCount: number;
+  setReportDeleteTeamGroupId: (value: string) => void;
+  teamGroups: Workspace.TeamGroupItem[];
+}) => (
+  <aside className="flex flex-col justify-between rounded-xl border border-slate-200 bg-slate-50 p-4">
+    <div>
+      <p className="text-sm text-slate-500">当前日期</p>
+      <h3 className="mt-1 text-xl font-bold text-slate-900">{formatShortDate(selectedDate)}</h3>
+      <div className="mt-4 grid grid-cols-3 gap-2">
+        <div className="report-stat-card expected">
+          <p className="text-xs text-slate-400">应提交</p>
+          <p className="mt-1 text-lg font-semibold text-slate-900">{selectedReportExpectedCount}</p>
+        </div>
+        <div className="report-stat-card submitted">
+          <p className="text-xs text-slate-400">已提交</p>
+          <p className="mt-1 text-lg font-semibold">{selectedReportSubmittedCount}</p>
+        </div>
+        <div className="report-stat-card missing">
+          <p className="text-xs text-slate-400">未提交</p>
+          <p className="mt-1 text-lg font-semibold">{selectedReportMissingCount}</p>
+        </div>
+      </div>
+      <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-200">
+        <div
+          className="h-full rounded-full bg-blue-600 transition-all"
+          style={{
+            width:
+              selectedReportExpectedCount > 0
+                ? `${Math.round((selectedReportSubmittedCount / selectedReportExpectedCount) * 100)}%`
+                : "0%",
+          }}
+        />
+      </div>
+    </div>
+
+    <div className="report-stats-divider" />
+
+    {permissions.canSubmitReport ? (
+      <ActionButton className="mt-4 w-full justify-center" onClick={onCreateOrEdit} variant="primary">
+        {currentUserSelectedReport ? "修改我的汇报" : "提交这天汇报"}
+      </ActionButton>
+    ) : (
+      <p className="mt-4 text-sm text-slate-500">当前角色只查看归档，不需要提交汇报。</p>
+    )}
+
+    {canShowAdminDangerZone ? (
+      <div className="report-admin-danger-zone mt-4">
+        <p className="text-xs font-semibold text-rose-700">管理员清理</p>
+        <p className="mt-1 text-xs leading-5 text-slate-500">只删除指定项目组在当前日期的汇报记录。</p>
+        <select
+          className={`${fieldClassName} mt-2`}
+          value={reportDeleteTeamGroupId}
+          onChange={(event) => setReportDeleteTeamGroupId(event.target.value)}
+        >
+          <option value="">选择项目组</option>
+          {teamGroups.map((group) => (
+            <option key={group.id} value={group.id}>
+              {group.name}
+            </option>
+          ))}
+        </select>
+        <ActionButton
+          className="mt-2 w-full justify-center"
+          disabled={!reportDeleteTeamGroupId}
+          onClick={onDeleteTeamReports}
+          variant="secondary"
+        >
+          删除该组本日汇报
+        </ActionButton>
+      </div>
+    ) : null}
+  </aside>
+);
+
+const ReportsResultSection = ({
+  ActionButton,
+  BellPlus,
+  CalendarDays,
+  EmptyState,
+  currentMemberId,
+  formatShortDate,
+  getReportAttachmentNote,
+  permissions,
+  filteredReportMembers,
+  reportEntryMap,
+  searchActive,
+  selectedDate,
+  showTeamGroupTag,
+  onEdit,
+  onRemind,
+  onRemove,
+  selectedDateHasSavedReports,
+  visibleReportMembersCount,
+}: {
+  ActionButton: typeof Workspace.ActionButton;
+  BellPlus: typeof Workspace.BellPlus;
+  CalendarDays: typeof Workspace.CalendarDays;
+  EmptyState: typeof Workspace.EmptyState;
+  currentMemberId: string;
+  formatShortDate: (value: string) => string;
+  getReportAttachmentNote: (value?: string | null) => string | null;
+  permissions: {
+    canSendDirective: boolean;
+    canSubmitReport: boolean;
+  };
+  filteredReportMembers: ReportMember[];
+  reportEntryMap: Map<string, ReportRecord>;
+  searchActive: boolean;
+  selectedDate: string;
+  showTeamGroupTag: boolean;
+  onEdit: (report: ReportRecord) => void;
+  onRemind: (member: ReportMember) => void;
+  onRemove: (date: string) => void;
+  selectedDateHasSavedReports: boolean;
+  visibleReportMembersCount: number;
+}) => (
+  <>
+    <section className="grid gap-4 xl:grid-cols-2">
+      {filteredReportMembers.length > 0 ? (
+        filteredReportMembers.map((member) => (
+          <ReportCard
+            ActionButton={ActionButton}
+            BellPlus={BellPlus}
+            currentMemberId={currentMemberId}
+            formatShortDate={formatShortDate}
+            getReportAttachmentNote={getReportAttachmentNote}
+            key={member.id}
+            member={member}
+            onEdit={onEdit}
+            onRemind={onRemind}
+            onRemove={onRemove}
+            permissions={permissions}
+            report={reportEntryMap.get(member.id)}
+            selectedDate={selectedDate}
+            showTeamGroupTag={showTeamGroupTag}
+          />
+        ))
+      ) : (
+        <div className="xl:col-span-2">
+          <EmptyState
+            description={
+              searchActive
+                ? "当前筛选条件下没有匹配的汇报成员，请调整搜索关键词后重试。"
+                : "当前日期下还没有可展示的汇报记录，提交后会集中显示在这里。"
+            }
+            icon={CalendarDays}
+            title={searchActive ? "没有搜索结果" : "暂无汇报记录"}
+          />
+        </div>
+      )}
+    </section>
+
+    {!selectedDateHasSavedReports && visibleReportMembersCount > 0 ? (
+      <p className="report-empty-hint text-center text-sm text-slate-400">
+        {formatShortDate(selectedDate)} 暂无保存记录。选择其他历史日期，或点击“提交这天汇报”补录保存。
+      </p>
+    ) : null}
+  </>
+);
+
+type ReportEvaluationItem = {
+  id: string;
+  reportId: string;
+  evaluatorId: string;
+  evaluatorRole: string;
+  evaluatorRoleLabel: string;
+  type: "praise" | "improve" | "comment";
+  content: string;
+  isRead: boolean;
+  createdAt: string;
+  updatedAt: string;
+  revokedAt: string | null;
+  evaluator: {
+    id: string;
+    name: string;
+    avatar: string;
+    avatarUrl?: string | null;
+    roleLabel: string;
+  };
+  report?: {
+    id: string;
+    date: string;
+    summary: string;
+    submittedAt: string;
+    userId: string;
+  } | null;
+};
+
+type EvaluationComposerState = {
+  reportId: string;
+  type: "improve" | "comment";
+  value: string;
+};
+
+type SummaryState = {
+  text: string;
+  updatedAt: string | null;
+  loading: boolean;
+  error: string | null;
+};
+
+type TrendPoint = {
+  date: string;
+  label: string;
+  submitRate: number;
+  praiseCount: number;
+  evaluationCount: number;
+};
+
+type GroupHealthItem = {
+  id: string;
+  name: string;
+  submittedCount: number;
+  expectedCount: number;
+  submitRate: number;
+  tone: "danger" | "warning" | "success";
+  summary: string;
+  alerts: string[];
+  members: ReportMember[];
+  reports: ReportRecord[];
+};
+
+const REPORT_REMINDER_COOLDOWN_MS = 2 * 60 * 60 * 1000;
+const REPORT_REMINDER_COOLDOWN_STORAGE_KEY = "workspace-report-reminder-cooldowns";
+const concernKeywordPattern = /卡住|不会|没思路|受阻|困难|没进展|没有方向|不清楚/i;
+
+const evaluationTypeMeta: Record<
+  ReportEvaluationItem["type"],
+  {
+    label: string;
+    badgeClassName: string;
+    icon: string;
+  }
+> = {
+  praise: {
+    label: "点赞",
+    badgeClassName: "border-emerald-200 bg-emerald-50 text-emerald-700",
+    icon: "🌟",
+  },
+  improve: {
+    label: "待改进",
+    badgeClassName: "border-amber-200 bg-amber-50 text-amber-700",
+    icon: "⚠️",
+  },
+  comment: {
+    label: "批注",
+    badgeClassName: "border-slate-200 bg-slate-100 text-slate-700",
+    icon: "💬",
+  },
+};
+
+const getRecentDateKeys = (dateKeys: string[], anchorDate: string, limit: number) =>
+  dateKeys.filter((date) => date <= anchorDate).slice(0, limit);
+
+const getReminderCooldownKey = (memberId: string, date: string) => `${memberId}:${date}`;
+
+const loadReminderCooldowns = () => {
+  if (typeof window === "undefined") {
+    return {} as Record<string, number>;
+  }
+
+  try {
+    const raw = window.localStorage.getItem(REPORT_REMINDER_COOLDOWN_STORAGE_KEY);
+    if (!raw) {
+      return {};
+    }
+
+    const parsed = JSON.parse(raw) as Record<string, number>;
+    const now = Date.now();
+    return Object.fromEntries(Object.entries(parsed).filter(([, expiresAt]) => Number.isFinite(expiresAt) && expiresAt > now));
+  } catch {
+    return {};
+  }
+};
+
+const persistReminderCooldowns = (value: Record<string, number>) => {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.localStorage.setItem(REPORT_REMINDER_COOLDOWN_STORAGE_KEY, JSON.stringify(value));
+};
+
+const getReportTextCorpus = (report?: ReportRecord) =>
+  [report?.summary ?? "", report?.nextPlan ?? "", report?.attachment ?? ""].join(" ");
+
+const getConcernText = (report?: ReportRecord) => {
+  if (!report) {
+    return null;
+  }
+
+  const matched = getReportTextCorpus(report).match(concernKeywordPattern);
+  return matched?.[0] ?? null;
+};
+
+const getEvaluationTotal = (report?: ReportRecord) =>
+  (report?.praiseCount ?? 0) + (report?.improveCount ?? 0) + (report?.commentCount ?? 0);
+
+const getMemberReportForDate = (
+  reportEntriesByDay: Record<string, ReportRecord[]>,
+  date: string,
+  memberId: string,
+) => (reportEntriesByDay[date] ?? []).find((item) => item.memberId === memberId);
+
+const getMissingDaysStreak = (
+  memberId: string,
+  dateKeys: string[],
+  reportEntriesByDay: Record<string, ReportRecord[]>,
+) => {
+  let streak = 0;
+
+  for (const date of dateKeys) {
+    const report = getMemberReportForDate(reportEntriesByDay, date, memberId);
+    if (report) {
+      break;
+    }
+
+    streak += 1;
+  }
+
+  return streak;
+};
+
+const getNoFeedbackStreak = (
+  memberId: string,
+  dateKeys: string[],
+  reportEntriesByDay: Record<string, ReportRecord[]>,
+) => {
+  let streak = 0;
+
+  for (const date of dateKeys) {
+    const report = getMemberReportForDate(reportEntriesByDay, date, memberId);
+    if (!report) {
+      continue;
+    }
+
+    if (getEvaluationTotal(report) > 0) {
+      break;
+    }
+
+    streak += 1;
+  }
+
+  return streak;
+};
+
+const getShortDateLabel = (value: string) => value.slice(5).replace("-", "/");
+
+const buildTrendSeries = ({
+  dateKeys,
+  members,
+  reportEntriesByDay,
+  evaluationsByReportId,
+}: {
+  dateKeys: string[];
+  members: ReportMember[];
+  reportEntriesByDay: Record<string, ReportRecord[]>;
+  evaluationsByReportId: Record<string, ReportEvaluationItem[]>;
+}) =>
+  [...dateKeys]
+    .reverse()
+    .map((date) => {
+      const dayReports = (reportEntriesByDay[date] ?? []).filter((report) =>
+        members.some((member) => member.id === report.memberId),
+      );
+      const expectedCount = members.length;
+      const submitRate = expectedCount > 0 ? Math.round((dayReports.length / expectedCount) * 100) : 0;
+      const evaluations = dayReports.flatMap((report) => evaluationsByReportId[report.id ?? ""] ?? []);
+
+      return {
+        date,
+        label: getShortDateLabel(date),
+        submitRate,
+        praiseCount: evaluations.filter((item) => item.type === "praise").length,
+        evaluationCount: evaluations.length,
+      };
+    });
+
+const buildLinePath = (series: TrendPoint[], accessor: (point: TrendPoint) => number, height = 84) => {
+  if (series.length === 0) {
+    return "";
+  }
+
+  const width = 100;
+  const step = series.length === 1 ? width : width / (series.length - 1);
+  return series
+    .map((point, index) => {
+      const x = Number((index * step).toFixed(2));
+      const y = Number((height - (Math.min(100, Math.max(0, accessor(point))) / 100) * height).toFixed(2));
+      return `${index === 0 ? "M" : "L"} ${x} ${y}`;
+    })
+    .join(" ");
+};
+
+const MiniTrendChart = ({
+  series,
+  lineClassName,
+  accessor,
+  fillClassName,
+}: {
+  series: TrendPoint[];
+  lineClassName: string;
+  accessor: (point: TrendPoint) => number;
+  fillClassName?: string;
+}) => {
+  const path = buildLinePath(series, accessor);
+
+  if (series.length === 0 || !path) {
+    return (
+      <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-center text-sm text-slate-400">
+        暂无趋势数据
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <svg className="h-24 w-full overflow-visible" viewBox="0 0 100 84" preserveAspectRatio="none">
+        <path d="M0 83.5 H100" className="stroke-slate-200" fill="none" strokeWidth="1" />
+        <path d={path} className={lineClassName} fill="none" strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" />
+        {fillClassName ? (
+          <path
+            d={`${path} L 100 84 L 0 84 Z`}
+            className={fillClassName}
+            fillOpacity="0.08"
+            stroke="none"
+          />
+        ) : null}
+      </svg>
+      <div className="grid grid-cols-7 gap-2 text-center text-[11px] text-slate-400">
+        {series.map((point) => (
+          <span key={point.date}>{point.label}</span>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+const MiniBarChart = ({
+  series,
+  accessor,
+  barClassName,
+}: {
+  series: TrendPoint[];
+  accessor: (point: TrendPoint) => number;
+  barClassName: string;
+}) => {
+  const maxValue = Math.max(1, ...series.map(accessor));
+
+  if (series.length === 0) {
+    return (
+      <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-center text-sm text-slate-400">
+        暂无趋势数据
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="grid h-24 grid-cols-7 items-end gap-2">
+        {series.map((point) => {
+          const value = accessor(point);
+          return (
+            <div className="flex h-full flex-col justify-end gap-2" key={point.date}>
+              <div
+                className={`min-h-1 rounded-full ${barClassName}`}
+                style={{ height: `${Math.max(8, Math.round((value / maxValue) * 96))}px` }}
+              />
+            </div>
+          );
+        })}
+      </div>
+      <div className="grid grid-cols-7 gap-2 text-center text-[11px] text-slate-400">
+        {series.map((point) => (
+          <span key={point.date}>{point.label}</span>
+        ))}
+      </div>
+    </div>
+  );
+};
+
+const EvaluationBadge = ({ type }: { type: ReportEvaluationItem["type"] }) => (
+  <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium ${evaluationTypeMeta[type].badgeClassName}`}>
+    <span>{evaluationTypeMeta[type].icon}</span>
+    <span>{evaluationTypeMeta[type].label}</span>
+  </span>
+);
+
+const EvaluationTimeline = ({
+  evaluations,
+  currentMemberId,
+  onRevoke,
+  revokingEvaluationId,
+}: {
+  evaluations: ReportEvaluationItem[];
+  currentMemberId: string;
+  onRevoke: (reportId: string, evaluationId: string) => void;
+  revokingEvaluationId: string | null;
+}) => {
+  if (evaluations.length === 0) {
+    return (
+      <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-400">
+        暂无评价记录
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-3">
+      {evaluations.map((evaluation) => {
+        const canRevoke = evaluation.evaluatorId === currentMemberId;
+
+        return (
+          <div className="rounded-xl border border-slate-200 bg-slate-50/80 px-4 py-3" key={evaluation.id}>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-3">
+                <EvaluationBadge type={evaluation.type} />
+                <span className="text-sm font-medium text-slate-700">{evaluation.evaluator.name}</span>
+                <span className="text-xs text-slate-400">{evaluation.createdAt}</span>
+              </div>
+              {canRevoke ? (
+                <button
+                  className="text-xs font-medium text-rose-600 transition hover:text-rose-700"
+                  disabled={revokingEvaluationId === evaluation.id}
+                  onClick={() => onRevoke(evaluation.reportId, evaluation.id)}
+                  type="button"
+                >
+                  {revokingEvaluationId === evaluation.id ? "撤回中..." : "撤回"}
+                </button>
+              ) : null}
+            </div>
+            <p className="mt-2 text-sm leading-6 text-slate-600">
+              {evaluation.content.trim() || (evaluation.type === "praise" ? "老师送出了一朵红花。" : "未填写详细内容")}
+            </p>
+          </div>
+        );
+      })}
+    </div>
+  );
+};
+
+const StudentReportsView = (props: ReportsViewProps) => (
+  <div className="space-y-4">
+    <Workspace.SectionHeader description={props.viewDescription} title="日程汇报" />
+    <section className={props.surfaceCardClassName}>
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px] xl:items-start">
+        <DateSelector
+          fieldClassName={props.fieldClassName}
+          formatShortDate={props.formatShortDate}
+          hasGlobalAdminRole={false}
+          reportDateOptions={props.reportDateOptions}
+          reportEntriesByDay={props.reportEntriesByDay}
+          selectedDate={props.selectedDate}
+          selectedReportTeamGroupId={props.selectedReportTeamGroupId}
+          setSelectedDate={props.setSelectedDate}
+          setSelectedReportTeamGroupId={props.setSelectedReportTeamGroupId}
+          teamGroups={props.teamGroups}
+          todayDateKey={props.todayDateKey}
+        />
+        <ReportSummaryPanel
+          ActionButton={props.ActionButton}
+          canShowAdminDangerZone={false}
+          currentUserSelectedReport={props.currentUserSelectedReport}
+          fieldClassName={props.fieldClassName}
+          formatShortDate={props.formatShortDate}
+          onCreateOrEdit={() =>
+            props.currentUserSelectedReport
+              ? props.openEditReportModal(props.currentUserSelectedReport)
+              : props.openCreateReportModal()
+          }
+          onDeleteTeamReports={props.removeTeamReports}
+          permissions={props.permissions}
+          reportDeleteTeamGroupId={props.reportDeleteTeamGroupId}
+          selectedDate={props.selectedDate}
+          selectedReportExpectedCount={props.selectedReportExpectedCount}
+          selectedReportMissingCount={props.selectedReportMissingCount}
+          selectedReportSubmittedCount={props.selectedReportSubmittedCount}
+          setReportDeleteTeamGroupId={props.setReportDeleteTeamGroupId}
+          teamGroups={props.teamGroups}
+        />
+      </div>
+    </section>
+
+    <ReportsResultSection
+      ActionButton={props.ActionButton}
+      BellPlus={props.BellPlus}
+      CalendarDays={props.CalendarDays}
+      EmptyState={props.EmptyState}
+      currentMemberId={props.currentMemberId}
+      filteredReportMembers={props.filteredReportMembers}
+      formatShortDate={props.formatShortDate}
+      getReportAttachmentNote={props.getReportAttachmentNote}
+      onEdit={props.openEditReportModal}
+      onRemind={props.sendReportReminder}
+      onRemove={props.removeReport}
+      permissions={props.permissions}
+      reportEntryMap={props.reportEntryMap}
+      searchActive={false}
+      selectedDate={props.selectedDate}
+      selectedDateHasSavedReports={props.selectedDateHasSavedReports}
+      showTeamGroupTag={false}
+      visibleReportMembersCount={props.visibleReportMembers.length}
+    />
+  </div>
+);
+
+const GroupOperationsBoard = ({
+  groupName,
+  members,
+  searchEnabled,
+}: {
+  groupName: string;
+  members: ReportMember[];
+  searchEnabled?: boolean;
+}) => {
+  const {
+    currentMemberId,
+    permissions,
+    reportEntriesByDay,
+    reportDateOptions,
+    selectedDate,
+    showSuccessToast,
+    setLoadError,
+  } = Workspace.useWorkspaceContext();
+  const [search, setSearch] = useState("");
+  const [evaluationsByReportId, setEvaluationsByReportId] = useState<Record<string, ReportEvaluationItem[]>>({});
+  const [summaryState, setSummaryState] = useState<SummaryState>({
+    text: "",
+    updatedAt: null,
+    loading: false,
+    error: null,
+  });
+  const [composer, setComposer] = useState<EvaluationComposerState | null>(null);
+  const [submittingEvaluationKey, setSubmittingEvaluationKey] = useState<string | null>(null);
+  const [revokingEvaluationId, setRevokingEvaluationId] = useState<string | null>(null);
+  const [sendingReminderId, setSendingReminderId] = useState<string | null>(null);
+  const [reminderCooldowns, setReminderCooldowns] = useState<Record<string, number>>({});
+
+  useEffect(() => {
+    setReminderCooldowns(loadReminderCooldowns());
+  }, []);
+
+  const scopedMemberIds = useMemo(() => new Set(members.map((member) => member.id)), [members]);
+  const recentDateKeys = useMemo(
+    () => getRecentDateKeys(reportDateOptions, selectedDate, 7),
+    [reportDateOptions, selectedDate],
+  );
+
+  const memberCards = useMemo(
+    () =>
+      members.map((member) => ({
+        member,
+        report: getMemberReportForDate(reportEntriesByDay, selectedDate, member.id),
+      })),
+    [members, reportEntriesByDay, selectedDate],
+  );
+
+  const filteredCards = useMemo(() => {
+    const keyword = search.trim().toLowerCase();
+    if (!keyword) {
+      return memberCards;
+    }
+
+    return memberCards.filter(({ member, report }) =>
+      [member.name, member.role, member.teamGroupName ?? "", report?.summary ?? "", report?.nextPlan ?? ""]
+        .join(" ")
+        .toLowerCase()
+        .includes(keyword),
+    );
+  }, [memberCards, search]);
+
+  const weeklyReportIds = useMemo(
+    () =>
+      recentDateKeys.flatMap((date) =>
+        (reportEntriesByDay[date] ?? [])
+          .filter((report) => scopedMemberIds.has(report.memberId))
+          .map((report) => report.id)
+          .filter((value): value is string => Boolean(value)),
+      ),
+    [recentDateKeys, reportEntriesByDay, scopedMemberIds],
+  );
+
+  useEffect(() => {
+    const missingIds = [...new Set(weeklyReportIds)].filter((reportId) => !evaluationsByReportId[reportId]);
+    if (missingIds.length === 0) {
+      return;
+    }
+
+    let active = true;
+
+    void (async () => {
+      try {
+        const responses = await Promise.all(
+          missingIds.map((reportId) =>
+            Workspace.requestJson<{ evaluations: ReportEvaluationItem[] }>(`/api/reports/${reportId}/evaluations?limit=20`),
+          ),
+        );
+
+        if (!active) {
+          return;
+        }
+
+        setEvaluationsByReportId((current) => {
+          const next = { ...current };
+          missingIds.forEach((reportId, index) => {
+            next[reportId] = responses[index].evaluations;
+          });
+          return next;
+        });
+      } catch (error) {
+        if (active) {
+          setLoadError(error instanceof Error ? error.message : "汇报评价加载失败");
+        }
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [evaluationsByReportId, setLoadError, weeklyReportIds]);
+
+  const currentReports = useMemo(
+    () => memberCards.map((item) => item.report).filter((report): report is ReportRecord => Boolean(report)),
+    [memberCards],
+  );
+
+  const refreshSummary = useCallback(async () => {
+    if (currentReports.length === 0) {
+      setSummaryState({
+        text: "今日还没有可总结的汇报内容，成员提交后会自动生成摘要。",
+        updatedAt: null,
+        loading: false,
+        error: null,
+      });
+      return;
+    }
+
+    setSummaryState((current) => ({ ...current, loading: true, error: null }));
+
+    try {
+      const prompt = [
+        `你是一名项目指导教师助理，请基于 ${selectedDate} ${groupName} 的成员日程汇报生成 2-3 句摘要。`,
+        "要求：",
+        "1. 只总结实际提交内容，不允许编造。",
+        "2. 先写今日关键推进，再写需要关注的异常或阻塞。",
+        "3. 输出精炼中文，不要使用列表。",
+        "",
+        "汇报内容：",
+        currentReports
+          .map((report) => {
+            const memberName =
+              members.find((member) => member.id === report.memberId)?.name ??
+              report.user?.name ??
+              "成员";
+            return `- ${memberName}：今日完成=${report.summary}；明日计划=${report.nextPlan}`;
+          })
+          .join("\n"),
+      ].join("\n");
+
+      const payload = await Workspace.requestJson<{ answer: string }>("/api/ai/chat", {
+        method: "POST",
+        body: JSON.stringify({ query: prompt }),
+      });
+
+      setSummaryState({
+        text: payload.answer.trim(),
+        updatedAt: new Date().toISOString(),
+        loading: false,
+        error: null,
+      });
+    } catch (error) {
+      setSummaryState({
+        text: "",
+        updatedAt: null,
+        loading: false,
+        error: error instanceof Error ? error.message : "AI 摘要生成失败",
+      });
+    }
+  }, [currentReports, groupName, members, selectedDate]);
+
+  useEffect(() => {
+    void refreshSummary();
+  }, [refreshSummary]);
+
+  const attentionItems = useMemo(() => {
+    const focusDateKeys = recentDateKeys.slice(0, 3);
+    return members.flatMap((member) => {
+      const todayReport = getMemberReportForDate(reportEntriesByDay, selectedDate, member.id);
+      const alerts: Array<{
+        id: string;
+        tone: "danger" | "warning" | "normal";
+        title: string;
+        detail: string;
+        member: ReportMember;
+        action: "remind" | "detail" | "feedback";
+      }> = [];
+
+      const missingDays = getMissingDaysStreak(member.id, focusDateKeys, reportEntriesByDay);
+      if (missingDays >= 2) {
+        alerts.push({
+          id: `${member.id}-missing`,
+          tone: "danger",
+          title: `${member.name} 已连续 ${missingDays} 天未提交`,
+          detail: "建议尽快催交并确认是否存在客观阻塞。",
+          member,
+          action: "remind",
+        });
+      }
+
+      const concern = getConcernText(todayReport);
+      if (concern && todayReport) {
+        alerts.push({
+          id: `${member.id}-concern`,
+          tone: "warning",
+          title: `${member.name} 汇报出现风险关键词`,
+          detail: `检测到“${concern}”，建议查看详情并及时跟进。`,
+          member,
+          action: "detail",
+        });
+      }
+
+      const noFeedbackDays = getNoFeedbackStreak(member.id, focusDateKeys, reportEntriesByDay);
+      if (noFeedbackDays >= 3) {
+        alerts.push({
+          id: `${member.id}-feedback`,
+          tone: "normal",
+          title: `${member.name} 连续 ${noFeedbackDays} 天未收到评价`,
+          detail: "建议补充点评，避免成员长期缺少反馈闭环。",
+          member,
+          action: "feedback",
+        });
+      }
+
+      return alerts;
+    });
+  }, [members, recentDateKeys, reportEntriesByDay, selectedDate]);
+
+  const trendSeries = useMemo(
+    () =>
+      buildTrendSeries({
+        dateKeys: recentDateKeys,
+        members,
+        reportEntriesByDay,
+        evaluationsByReportId,
+      }),
+    [evaluationsByReportId, members, recentDateKeys, reportEntriesByDay],
+  );
+
+  const handleSendReminder = useCallback(
+    async (member: ReportMember) => {
+      if (!permissions.canSendDirective) {
+        setLoadError("当前账号没有发送提醒的权限");
+        return;
+      }
+
+      const cooldownKey = getReminderCooldownKey(member.id, selectedDate);
+      if ((reminderCooldowns[cooldownKey] ?? 0) > Date.now()) {
+        return;
+      }
+
+      setSendingReminderId(member.id);
+      try {
+        const payload = await Workspace.requestJson<Workspace.DirectReminderResponse>("/api/notifications", {
+          method: "POST",
+          body: JSON.stringify({
+            userId: member.id,
+            title: `汇报催交：${Workspace.formatShortDate(selectedDate)} 日程汇报待提交`,
+            detail: `请及时补交 ${Workspace.formatShortDate(selectedDate)} 的工作汇报，提交后教师会继续跟进点评。`,
+            targetTab: "reports",
+          }),
+        });
+
+        const expiresAt = Date.now() + REPORT_REMINDER_COOLDOWN_MS;
+        setReminderCooldowns((current) => {
+          const next = { ...current, [cooldownKey]: expiresAt };
+          persistReminderCooldowns(next);
+          return next;
+        });
+
+        showSuccessToast(
+          "催交已发送",
+          Workspace.getReminderDeliveryDetail(payload.delivery, `已提醒 ${member.name} 尽快补交当日汇报。`),
+        );
+      } catch (error) {
+        setLoadError(error instanceof Error ? error.message : "催交发送失败");
+      } finally {
+        setSendingReminderId(null);
+      }
+    },
+    [permissions.canSendDirective, reminderCooldowns, selectedDate, setLoadError, showSuccessToast],
+  );
+
+  const handleCreateEvaluation = useCallback(
+    async (reportId: string, type: ReportEvaluationItem["type"], content?: string) => {
+      setSubmittingEvaluationKey(`${reportId}:${type}`);
+      try {
+        const payload = await Workspace.requestJson<{ evaluation: ReportEvaluationItem }>(`/api/reports/${reportId}/evaluations`, {
+          method: "POST",
+          body: JSON.stringify({ type, content }),
+        });
+
+        setEvaluationsByReportId((current) => ({
+          ...current,
+          [reportId]: [payload.evaluation, ...(current[reportId] ?? [])],
+        }));
+        setComposer(null);
+        showSuccessToast("评价已发送", "学生端将收到新的汇报评价提醒。");
+      } catch (error) {
+        setLoadError(error instanceof Error ? error.message : "评价发送失败");
+      } finally {
+        setSubmittingEvaluationKey(null);
+      }
+    },
+    [setLoadError, showSuccessToast],
+  );
+
+  const handleRevokeEvaluation = useCallback(
+    async (reportId: string, evaluationId: string) => {
+      setRevokingEvaluationId(evaluationId);
+      try {
+        await Workspace.requestJson<{ success: boolean }>(`/api/reports/${reportId}/evaluations/${evaluationId}`, {
+          method: "DELETE",
+        });
+        setEvaluationsByReportId((current) => ({
+          ...current,
+          [reportId]: (current[reportId] ?? []).filter((item) => item.id !== evaluationId),
+        }));
+        showSuccessToast("评价已撤回", "该评价已从学生可见记录中移除。");
+      } catch (error) {
+        setLoadError(error instanceof Error ? error.message : "评价撤回失败");
+      } finally {
+        setRevokingEvaluationId(null);
+      }
+    },
+    [setLoadError, showSuccessToast],
+  );
+
+  return (
+    <div className="space-y-4">
+      <section className={Workspace.surfaceCardClassName}>
+        <div className="flex flex-wrap items-start justify-between gap-4">
+          <div>
+            <div className="flex items-center gap-3">
+              <span className="inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
+                <Workspace.Users className="h-5 w-5" />
+              </span>
+              <div>
+                <p className="text-sm font-semibold text-slate-900">我负责的项目组</p>
+                <p className="mt-1 text-sm text-slate-500">{groupName}</p>
+              </div>
+            </div>
+            <div className="mt-4 flex flex-wrap gap-3">
+              <span className="rounded-full border border-blue-100 bg-blue-50 px-3 py-1 text-sm font-medium text-blue-700">
+                今日提交比 {currentReports.length}/{members.length}
+              </span>
+              <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-sm font-medium text-slate-600">
+                本周组内排名 1/{Math.max(1, members.length)}
+              </span>
+            </div>
+          </div>
+          {searchEnabled ? (
+            <div className="w-full max-w-sm">
+              <SearchBar onChange={setSearch} placeholder="搜索组内成员或汇报关键词" value={search} />
+            </div>
+          ) : null}
+        </div>
+      </section>
+
+      <section className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
+        <article className={Workspace.surfaceCardClassName}>
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h3 className="text-base font-semibold text-slate-900">AI 日报摘要</h3>
+              <p className="mt-1 text-sm text-slate-500">基于本组今日汇报自动提炼关键进展与异常。</p>
+            </div>
+            <Workspace.ActionButton
+              loading={summaryState.loading}
+              loadingLabel="生成中..."
+              onClick={() => void refreshSummary()}
+            >
+              <Workspace.RotateCcw className="h-4 w-4" />
+              刷新
+            </Workspace.ActionButton>
+          </div>
+
+          <div className="mt-4 rounded-2xl border border-blue-100 bg-blue-50/70 px-5 py-4">
+            {summaryState.error ? (
+              <p className="text-sm text-rose-600">{summaryState.error}</p>
+            ) : (
+              <p className="text-sm leading-7 text-slate-700">{summaryState.text || "正在生成摘要..."}</p>
+            )}
+            {summaryState.updatedAt ? (
+              <p className="mt-3 text-xs text-slate-400">最近更新：{Workspace.formatBeijingDateTimeShort(summaryState.updatedAt)}</p>
+            ) : null}
+          </div>
+        </article>
+
+        <article className={Workspace.surfaceCardClassName}>
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h3 className="text-base font-semibold text-slate-900">需要关注</h3>
+              <p className="mt-1 text-sm text-slate-500">系统自动识别未提交、卡点和缺少反馈的成员。</p>
+            </div>
+            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-500">
+              {attentionItems.length} 条预警
+            </span>
+          </div>
+
+          <div className="mt-4 space-y-3">
+            {attentionItems.length > 0 ? (
+              attentionItems.map((item) => {
+                const cooldownKey = getReminderCooldownKey(item.member.id, selectedDate);
+                const coolingDown = (reminderCooldowns[cooldownKey] ?? 0) > Date.now();
+
+                return (
+                  <div
+                    className={`rounded-xl border px-4 py-3 ${
+                      item.tone === "danger"
+                        ? "border-rose-100 bg-rose-50/80"
+                        : item.tone === "warning"
+                          ? "border-amber-100 bg-amber-50/80"
+                          : "border-slate-200 bg-slate-50/80"
+                    }`}
+                    key={item.id}
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-semibold text-slate-900">{item.title}</p>
+                        <p className="mt-1 text-sm text-slate-500">{item.detail}</p>
+                      </div>
+                      {item.action === "remind" ? (
+                        <Workspace.ActionButton
+                          disabled={coolingDown}
+                          loading={sendingReminderId === item.member.id}
+                          loadingLabel="发送中..."
+                          onClick={() => void handleSendReminder(item.member)}
+                        >
+                          <Workspace.BellPlus className="h-4 w-4" />
+                          {coolingDown ? "2 小时内已催交" : "一键催交"}
+                        </Workspace.ActionButton>
+                      ) : item.action === "detail" ? (
+                        <button
+                          className="text-sm font-medium text-blue-600 transition hover:text-blue-700"
+                          onClick={() => setSearch(item.member.name)}
+                          type="button"
+                        >
+                          查看详情
+                        </button>
+                      ) : (
+                        <button
+                          className="text-sm font-medium text-blue-600 transition hover:text-blue-700"
+                          onClick={() => setSearch(item.member.name)}
+                          type="button"
+                        >
+                          去评价
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })
+            ) : (
+              <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-center text-sm text-slate-400">
+                当前没有需要额外关注的成员，组内状态平稳。
+              </div>
+            )}
+          </div>
+        </article>
+      </section>
+
+      <section className={Workspace.surfaceCardClassName}>
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h3 className="text-base font-semibold text-slate-900">成员汇报列表</h3>
+            <p className="mt-1 text-sm text-slate-500">支持快速点赞、待改进和详细批注，评价会直接通知到学生。</p>
+          </div>
+          <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-500">
+            {filteredCards.length}/{members.length} 人
+          </span>
+        </div>
+
+        <div className="mt-4 grid gap-4 xl:grid-cols-2">
+          {filteredCards.map(({ member, report }) => {
+            const reportId = report?.id ?? "";
+            const evaluations = reportId ? evaluationsByReportId[reportId] ?? [] : [];
+
+            return (
+              <article className="rounded-2xl border border-slate-200 bg-white/90 p-5 shadow-sm" key={member.id}>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex items-start gap-3">
+                    <Workspace.UserAvatar
+                      avatar={member.avatar}
+                      avatarUrl={member.avatarUrl}
+                      className="h-11 w-11 rounded-2xl bg-slate-100"
+                      name={member.name}
+                    />
+                    <div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h4 className="text-base font-semibold text-slate-900">{member.name}</h4>
+                        <span className="rounded-full border border-slate-200 px-2.5 py-1 text-xs text-slate-500">
+                          {member.role}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-sm text-slate-500">
+                        {report ? `已于 ${report.submittedAt} 提交` : `尚未提交 ${Workspace.formatShortDate(selectedDate)} 汇报`}
+                      </p>
+                    </div>
+                  </div>
+                  <span
+                    className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                      report ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"
+                    }`}
+                  >
+                    {report ? "已提交" : "未提交"}
+                  </span>
+                </div>
+
+                {report ? (
+                  <>
+                    <div className="mt-4 grid gap-3">
+                      <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+                        <p className="text-xs font-semibold tracking-wide text-slate-400">今日完成</p>
+                        <p className="mt-2 text-sm leading-7 text-slate-700">{report.summary}</p>
+                      </div>
+                      <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+                        <p className="text-xs font-semibold tracking-wide text-slate-400">明日计划</p>
+                        <p className="mt-2 text-sm leading-7 text-slate-700">{report.nextPlan}</p>
+                      </div>
+                    </div>
+
+                    <div className="mt-4 flex flex-wrap items-center gap-2">
+                      <Workspace.ActionButton
+                        loading={submittingEvaluationKey === `${reportId}:praise`}
+                        loadingLabel="发送中..."
+                        onClick={() => void handleCreateEvaluation(reportId, "praise")}
+                      >
+                        🌟 点赞
+                      </Workspace.ActionButton>
+                      <Workspace.ActionButton onClick={() => setComposer({ reportId, type: "improve", value: "" })}>
+                        ⚠️ 待改进
+                      </Workspace.ActionButton>
+                      <Workspace.ActionButton onClick={() => setComposer({ reportId, type: "comment", value: "" })}>
+                        💬 批注
+                      </Workspace.ActionButton>
+                    </div>
+
+                    {composer?.reportId === reportId ? (
+                      <div className="mt-4 rounded-2xl border border-blue-100 bg-blue-50/70 p-4">
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="text-sm font-semibold text-slate-900">
+                            {composer.type === "improve" ? "待改进理由" : "详细批注"}
+                          </p>
+                          <button
+                            className="text-xs text-slate-400 transition hover:text-slate-600"
+                            onClick={() => setComposer(null)}
+                            type="button"
+                          >
+                            取消
+                          </button>
+                        </div>
+                        <textarea
+                          className="mt-3 min-h-24 w-full rounded-xl border border-blue-100 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-blue-300"
+                          placeholder={composer.type === "improve" ? "请写明具体待改进点" : "请写下详细批注"}
+                          value={composer.value}
+                          onChange={(event) => setComposer((current) => (current ? { ...current, value: event.target.value } : current))}
+                        />
+                        <div className="mt-3 flex justify-end">
+                          <Workspace.ActionButton
+                            loading={submittingEvaluationKey === `${reportId}:${composer.type}`}
+                            loadingLabel="发送中..."
+                            onClick={() => void handleCreateEvaluation(reportId, composer.type, composer.value)}
+                            variant="primary"
+                          >
+                            发送评价
+                          </Workspace.ActionButton>
+                        </div>
+                      </div>
+                    ) : null}
+
+                    <div className="mt-5 space-y-2">
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-semibold text-slate-900">已评价</p>
+                        <span className="text-xs text-slate-400">{evaluations.length} 条</span>
+                      </div>
+                      <EvaluationTimeline
+                        currentMemberId={currentMemberId}
+                        evaluations={evaluations}
+                        onRevoke={handleRevokeEvaluation}
+                        revokingEvaluationId={revokingEvaluationId}
+                      />
+                    </div>
+                  </>
+                ) : (
+                  <div className="mt-4 rounded-2xl border border-dashed border-slate-200 bg-slate-50 px-4 py-5">
+                    <p className="text-sm text-slate-500">该成员当天尚未提交汇报，建议先催交再继续跟进点评。</p>
+                    <div className="mt-3">
+                      <Workspace.ActionButton
+                        disabled={(reminderCooldowns[getReminderCooldownKey(member.id, selectedDate)] ?? 0) > Date.now()}
+                        loading={sendingReminderId === member.id}
+                        loadingLabel="发送中..."
+                        onClick={() => void handleSendReminder(member)}
+                      >
+                        <Workspace.BellPlus className="h-4 w-4" />
+                        {(reminderCooldowns[getReminderCooldownKey(member.id, selectedDate)] ?? 0) > Date.now()
+                          ? "2 小时内已催交"
+                          : "一键催交"}
+                      </Workspace.ActionButton>
+                    </div>
+                  </div>
+                )}
+              </article>
+            );
+          })}
+        </div>
+      </section>
+
+      <section className={Workspace.surfaceCardClassName}>
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h3 className="text-base font-semibold text-slate-900">本组本周趋势</h3>
+            <p className="mt-1 text-sm text-slate-500">查看每日提交率和红花变化，快速判断项目组健康度。</p>
+          </div>
+        </div>
+
+        <div className="mt-4 grid gap-4 xl:grid-cols-2">
+          <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <p className="text-sm font-semibold text-slate-900">每日提交率</p>
+              <span className="text-xs text-slate-400">折线图</span>
+            </div>
+            <MiniTrendChart
+              accessor={(point) => point.submitRate}
+              fillClassName="fill-blue-600"
+              lineClassName="stroke-blue-600"
+              series={trendSeries}
+            />
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+            <div className="mb-3 flex items-center justify-between">
+              <p className="text-sm font-semibold text-slate-900">每日获得红花数</p>
+              <span className="text-xs text-slate-400">柱状图</span>
+            </div>
+            <MiniBarChart
+              accessor={(point) => point.praiseCount}
+              barClassName="bg-amber-400"
+              series={trendSeries}
+            />
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+};
+
+const TeacherReportsView = (props: ReportsViewProps) => {
+  const {
+    hasGlobalAdminRole,
+    reportDateOptions,
+    reportEntriesByDay,
+    selectedDate,
+    selectedReportTeamGroupId,
+    setSelectedDate,
+    setSelectedReportTeamGroupId,
+    teamGroups,
+    todayDateKey,
+    visibleReportMembers,
+  } = Workspace.useWorkspaceContext();
+
+  const teacherGroupIds = useMemo(
+    () => [...new Set(visibleReportMembers.map((member) => member.teamGroupId).filter((value): value is string => Boolean(value)))],
+    [visibleReportMembers],
+  );
+  const teacherGroups = useMemo(
+    () => teamGroups.filter((group) => teacherGroupIds.includes(group.id)),
+    [teacherGroupIds, teamGroups],
+  );
+  const activeGroupName =
+    teacherGroups.find((group) => group.id === selectedReportTeamGroupId)?.name ??
+    teacherGroups[0]?.name ??
+    "当前项目组";
+
+  return (
+    <div className="space-y-4">
+      <Workspace.SectionHeader
+        description={props.viewDescription || "教师视角聚焦组内摘要、异常预警和快速点评，进入页面后可直接完成跟进闭环。"}
+        title="日程汇报"
+      />
+      <section className={Workspace.surfaceCardClassName}>
+        <DateSelector
+          fieldClassName={Workspace.fieldClassName}
+          formatShortDate={Workspace.formatShortDate}
+          hasGlobalAdminRole={hasGlobalAdminRole && teacherGroups.length > 1}
+          reportDateOptions={reportDateOptions}
+          reportEntriesByDay={reportEntriesByDay}
+          selectedDate={selectedDate}
+          selectedReportTeamGroupId={selectedReportTeamGroupId}
+          setSelectedDate={setSelectedDate}
+          setSelectedReportTeamGroupId={setSelectedReportTeamGroupId}
+          teamGroups={teacherGroups}
+          todayDateKey={todayDateKey}
+        />
+      </section>
+      <GroupOperationsBoard groupName={activeGroupName} members={visibleReportMembers} searchEnabled />
+    </div>
+  );
+};
+
+const AdminReportsView = (props: ReportsViewProps) => {
+  const {
+    members,
+    teamGroups,
+    reportEntriesByDay,
+    reportDateOptions,
+    selectedDate,
+    selectedReportTeamGroupId,
+    setSelectedReportTeamGroupId,
+    selectedReportSubmittedCount,
+    selectedReportExpectedCount,
+    showSuccessToast,
+    setLoadError,
+    currentMemberId,
+    removeTeamReports,
+    reportDeleteTeamGroupId,
+    setReportDeleteTeamGroupId,
+  } = Workspace.useWorkspaceContext();
+  const [search, setSearch] = useState("");
+  const [teacherFilter, setTeacherFilter] = useState("");
+  const [expandedGroupId, setExpandedGroupId] = useState<string>("");
+  const [bulkRemindLoading, setBulkRemindLoading] = useState(false);
+
+  const reportMembers = useMemo(
+    () =>
+      members.filter(
+        (member) =>
+          (member.systemRole === "项目负责人" || member.systemRole === "团队成员") &&
+          member.approvalStatus !== "pending" &&
+          Boolean(member.teamGroupId),
+      ),
+    [members],
+  );
+  const teacherMembers = useMemo(
+    () => members.filter((member) => member.systemRole === "指导教师"),
+    [members],
+  );
+  const recentDateKeys = useMemo(
+    () => getRecentDateKeys(reportDateOptions, selectedDate, 7),
+    [reportDateOptions, selectedDate],
+  );
+
+  const groupHealthItems = useMemo(() => {
+    const teacherMap = new Map(
+      teacherMembers
+        .filter((teacher) => teacher.teamGroupId)
+        .map((teacher) => [teacher.teamGroupId as string, teacher.name]),
+    );
+
+    return teamGroups
+      .map((group) => {
+        const groupMembers = reportMembers.filter((member) => member.teamGroupId === group.id);
+        const dayReports = (reportEntriesByDay[selectedDate] ?? []).filter((report) => report.teamGroupId === group.id);
+        const submittedCount = dayReports.length;
+        const expectedCount = groupMembers.length;
+        const submitRate = expectedCount > 0 ? Math.round((submittedCount / expectedCount) * 100) : 0;
+        const missingCount = Math.max(0, expectedCount - submittedCount);
+        const concernCount = dayReports.filter((report) => Boolean(getConcernText(report))).length;
+        const noFeedbackCount = groupMembers.filter(
+          (member) => getNoFeedbackStreak(member.id, recentDateKeys.slice(0, 3), reportEntriesByDay) >= 3,
+        ).length;
+
+        const alerts = [
+          missingCount > 0 ? `今日有 ${missingCount} 人未提交` : null,
+          concernCount > 0 ? `${concernCount} 条汇报存在卡点关键词` : null,
+          noFeedbackCount > 0 ? `${noFeedbackCount} 人连续 3 天未收到评价` : null,
+          teacherMap.get(group.id) ? `指导教师：${teacherMap.get(group.id)}` : null,
+        ].filter((item): item is string => Boolean(item));
+
+        const tone: GroupHealthItem["tone"] =
+          missingCount >= 2 || concernCount > 0
+            ? "danger"
+            : missingCount > 0 || noFeedbackCount > 0 || submitRate < 80
+              ? "warning"
+              : "success";
+
+        return {
+          id: group.id,
+          name: group.name,
+          submittedCount,
+          expectedCount,
+          submitRate,
+          tone,
+          summary:
+            tone === "danger"
+              ? "存在明显异常，建议优先跟进。"
+              : tone === "warning"
+                ? "整体可控，但仍需继续关注。"
+                : "提交和反馈节奏稳定。",
+          alerts,
+          members: groupMembers,
+          reports: dayReports,
+          teacherName: teacherMap.get(group.id) ?? "未绑定教师",
+        };
+      })
+      .filter((group) => (teacherFilter ? group.teacherName === teacherFilter : true))
+      .sort((left, right) => {
+        const toneOrder: Record<GroupHealthItem["tone"], number> = { danger: 0, warning: 1, success: 2 };
+        if (toneOrder[left.tone] !== toneOrder[right.tone]) {
+          return toneOrder[left.tone] - toneOrder[right.tone];
+        }
+
+        return left.submitRate - right.submitRate;
+      });
+  }, [reportEntriesByDay, reportMembers, recentDateKeys, selectedDate, teacherFilter, teacherMembers, teamGroups]);
+
+  const activeGroupId = expandedGroupId || selectedReportTeamGroupId || groupHealthItems[0]?.id || "";
+  const activeGroup = groupHealthItems.find((item) => item.id === activeGroupId) ?? null;
+
+  const adminSearchResults = useMemo(() => {
+    const keyword = search.trim().toLowerCase();
+    if (!keyword) {
+      return {
+        groups: [] as GroupHealthItem[],
+        teachers: [] as ReportMember[],
+        students: [] as ReportMember[],
+      };
+    }
+
+    return {
+      groups: groupHealthItems.filter((group) => group.name.toLowerCase().includes(keyword)).slice(0, 5),
+      teachers: teacherMembers.filter((member) => member.name.toLowerCase().includes(keyword)).slice(0, 5),
+      students: reportMembers.filter((member) => member.name.toLowerCase().includes(keyword)).slice(0, 8),
+    };
+  }, [groupHealthItems, reportMembers, search, teacherMembers]);
+
+  const globalRecentReportIds = useMemo(
+    () =>
+      recentDateKeys.flatMap((date) =>
+        (reportEntriesByDay[date] ?? [])
+          .map((report) => report.id)
+          .filter((value): value is string => Boolean(value)),
+      ),
+    [recentDateKeys, reportEntriesByDay],
+  );
+  const [adminEvaluationsByReportId, setAdminEvaluationsByReportId] = useState<Record<string, ReportEvaluationItem[]>>({});
+
+  useEffect(() => {
+    const missingIds = [...new Set(globalRecentReportIds)].filter((reportId) => !adminEvaluationsByReportId[reportId]);
+    if (missingIds.length === 0) {
+      return;
+    }
+
+    let active = true;
+    void (async () => {
+      try {
+        const responses = await Promise.all(
+          missingIds.map((reportId) =>
+            Workspace.requestJson<{ evaluations: ReportEvaluationItem[] }>(`/api/reports/${reportId}/evaluations?limit=20`),
+          ),
+        );
+
+        if (!active) {
+          return;
+        }
+
+        setAdminEvaluationsByReportId((current) => {
+          const next = { ...current };
+          missingIds.forEach((reportId, index) => {
+            next[reportId] = responses[index].evaluations;
+          });
+          return next;
+        });
+      } catch (error) {
+        if (active) {
+          setLoadError(error instanceof Error ? error.message : "全校评价统计加载失败");
+        }
+      }
+    })();
+
+    return () => {
+      active = false;
+    };
+  }, [adminEvaluationsByReportId, globalRecentReportIds, setLoadError]);
+
+  const teacherActivity = useMemo(() => {
+    const entries = new Map<
+      string,
+      {
+        name: string;
+        commentCount: number;
+        praiseCount: number;
+        improveCount: number;
+      }
+    >();
+
+    Object.values(adminEvaluationsByReportId)
+      .flat()
+      .forEach((evaluation) => {
+        const current = entries.get(evaluation.evaluatorId) ?? {
+          name: evaluation.evaluator.name,
+          commentCount: 0,
+          praiseCount: 0,
+          improveCount: 0,
+        };
+
+        current.commentCount += 1;
+        if (evaluation.type === "praise") {
+          current.praiseCount += 1;
+        }
+        if (evaluation.type === "improve") {
+          current.improveCount += 1;
+        }
+
+        entries.set(evaluation.evaluatorId, current);
+      });
+
+    return Array.from(entries.entries())
+      .map(([id, value]) => ({
+        id,
+        ...value,
+      }))
+      .sort((left, right) => right.commentCount - left.commentCount);
+  }, [adminEvaluationsByReportId]);
+
+  const overallSubmitRate =
+    selectedReportExpectedCount > 0 ? Math.round((selectedReportSubmittedCount / selectedReportExpectedCount) * 100) : 0;
+
+  const previousWeekDateKeys = useMemo(
+    () =>
+      reportDateOptions.filter((date) => date < recentDateKeys[recentDateKeys.length - 1]).slice(0, 7),
+    [recentDateKeys, reportDateOptions],
+  );
+  const currentWeekAverage = useMemo(() => {
+    const total = recentDateKeys.reduce((sum, date) => {
+      const expected = reportMembers.length || 1;
+      return sum + Math.round((((reportEntriesByDay[date] ?? []).length) / expected) * 100);
+    }, 0);
+    return recentDateKeys.length > 0 ? Math.round(total / recentDateKeys.length) : 0;
+  }, [recentDateKeys, reportEntriesByDay, reportMembers.length]);
+  const previousWeekAverage = useMemo(() => {
+    const total = previousWeekDateKeys.reduce((sum, date) => {
+      const expected = reportMembers.length || 1;
+      return sum + Math.round((((reportEntriesByDay[date] ?? []).length) / expected) * 100);
+    }, 0);
+    return previousWeekDateKeys.length > 0 ? Math.round(total / previousWeekDateKeys.length) : currentWeekAverage;
+  }, [currentWeekAverage, previousWeekDateKeys, reportEntriesByDay, reportMembers.length]);
+  const weekDelta = currentWeekAverage - previousWeekAverage;
+
+  const adminWarnings = useMemo(() => {
+    const warnings: Array<{
+      id: string;
+      title: string;
+      detail: string;
+      actionLabel: string;
+      onAction: () => void;
+    }> = [];
+
+    groupHealthItems.forEach((group) => {
+      const noSubmitThreeDays = group.members.every(
+        (member) => getMissingDaysStreak(member.id, recentDateKeys.slice(0, 3), reportEntriesByDay) >= 3,
+      );
+      if (noSubmitThreeDays && group.members.length > 0) {
+        warnings.push({
+          id: `${group.id}-nosubmit`,
+          title: `${group.name} 已连续 3 天无提交`,
+          detail: "建议立刻下钻查看详情并催交。",
+          actionLabel: "查看详情",
+          onAction: () => setExpandedGroupId(group.id),
+        });
+      }
+    });
+
+    teacherActivity
+      .filter((teacher, index, source) => source.length > 1 && index >= source.length - 1)
+      .forEach((teacher) => {
+        warnings.push({
+          id: `${teacher.id}-inactive`,
+          title: `${teacher.name} 点评次数偏低`,
+          detail: "本周点评活跃度落后，建议管理员关注。",
+          actionLabel: "发通知",
+          onAction: () => setSearch(teacher.name),
+        });
+      });
+
+    if (weekDelta <= -5) {
+      warnings.push({
+        id: "week-delta",
+        title: "全校提交率环比下降超过 5%",
+        detail: `当前周均提交率 ${currentWeekAverage}% ，较上周下降 ${Math.abs(weekDelta)}%。`,
+        actionLabel: "查看详情",
+        onAction: () => setExpandedGroupId(groupHealthItems[0]?.id ?? ""),
+      });
+    }
+
+    return warnings;
+  }, [currentWeekAverage, groupHealthItems, recentDateKeys, reportEntriesByDay, teacherActivity, weekDelta]);
+
+  const adminTrendSeries = useMemo(
+    () =>
+      buildTrendSeries({
+        dateKeys: recentDateKeys,
+        members: reportMembers,
+        reportEntriesByDay,
+        evaluationsByReportId: adminEvaluationsByReportId,
+      }),
+    [adminEvaluationsByReportId, recentDateKeys, reportEntriesByDay, reportMembers],
+  );
+
+  const handleBulkRemind = useCallback(async () => {
+    const missingMembers = reportMembers.filter(
+      (member) => !getMemberReportForDate(reportEntriesByDay, selectedDate, member.id),
+    );
+
+    const recipientIds = missingMembers.map((member) => member.id).filter((memberId) => memberId !== currentMemberId);
+    if (recipientIds.length === 0) {
+      setLoadError("当前没有需要批量催交的成员");
+      return;
+    }
+
+    setBulkRemindLoading(true);
+    try {
+      const responses = await Promise.all(
+        recipientIds.map((userId) =>
+          Workspace.requestJson<Workspace.DirectReminderResponse>("/api/notifications", {
+            method: "POST",
+            body: JSON.stringify({
+              userId,
+              title: `汇报催交：${Workspace.formatShortDate(selectedDate)} 日程汇报待提交`,
+              detail: `请及时补交 ${Workspace.formatShortDate(selectedDate)} 的工作汇报，学校管理端已同步关注进度。`,
+              targetTab: "reports",
+            }),
+          }),
+        ),
+      );
+
+      showSuccessToast(
+        "批量催交已发送",
+        Workspace.getBatchReminderDeliveryDetail(
+          responses.map((item) => item.delivery),
+          `已提醒 ${recipientIds.length} 名成员尽快补交当日汇报。`,
+        ),
+      );
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "批量催交失败");
+    } finally {
+      setBulkRemindLoading(false);
+    }
+  }, [currentMemberId, reportEntriesByDay, reportMembers, selectedDate, setLoadError, showSuccessToast]);
+
+  return (
+    <div className="space-y-4">
+      <Workspace.SectionHeader
+        description={props.viewDescription || "管理员视角聚焦全校提交健康度、教师点评活跃度和异常项目组，优先暴露学校级风险。"}
+        title="日程汇报"
+      />
+
+      <section className={Workspace.surfaceCardClassName}>
+        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+          <div>
+            <p className="text-sm font-semibold text-slate-900">全校概览</p>
+            <div className="mt-3 flex flex-wrap items-end gap-4">
+              <div>
+                <p className="text-[32px] font-semibold text-slate-900">{overallSubmitRate}%</p>
+                <p className="text-sm text-slate-500">今日全校提交率</p>
+              </div>
+              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
+                <p className="text-xs font-medium text-slate-400">本周趋势</p>
+                <p className={`mt-1 text-sm font-semibold ${weekDelta >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
+                  {weekDelta >= 0 ? "↑" : "↓"} {Math.abs(weekDelta)}%
+                </p>
+              </div>
+            </div>
+          </div>
+          <div className="w-full max-w-xl space-y-3">
+            <SearchBar onChange={setSearch} placeholder="搜索学生、教师、项目组名" value={search} />
+            {search.trim() ? (
+              <div className="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50/80 p-4 md:grid-cols-3">
+                <div>
+                  <p className="text-xs font-semibold text-slate-400">项目组</p>
+                  <div className="mt-2 space-y-2">
+                    {adminSearchResults.groups.map((group) => (
+                      <button
+                        className="block w-full rounded-lg bg-white px-3 py-2 text-left text-sm text-slate-700 transition hover:border-blue-200 hover:text-blue-600"
+                        key={group.id}
+                        onClick={() => {
+                          setExpandedGroupId(group.id);
+                          setSelectedReportTeamGroupId(group.id);
+                        }}
+                        type="button"
+                      >
+                        {group.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-slate-400">教师</p>
+                  <div className="mt-2 space-y-2">
+                    {adminSearchResults.teachers.map((member) => (
+                      <button
+                        className="block w-full rounded-lg bg-white px-3 py-2 text-left text-sm text-slate-700 transition hover:text-blue-600"
+                        key={member.id}
+                        onClick={() => {
+                          if (member.teamGroupId) {
+                            setExpandedGroupId(member.teamGroupId);
+                            setSelectedReportTeamGroupId(member.teamGroupId);
+                          }
+                        }}
+                        type="button"
+                      >
+                        {member.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div>
+                  <p className="text-xs font-semibold text-slate-400">学生</p>
+                  <div className="mt-2 space-y-2">
+                    {adminSearchResults.students.map((member) => (
+                      <button
+                        className="block w-full rounded-lg bg-white px-3 py-2 text-left text-sm text-slate-700 transition hover:text-blue-600"
+                        key={member.id}
+                        onClick={() => {
+                          if (member.teamGroupId) {
+                            setExpandedGroupId(member.teamGroupId);
+                            setSelectedReportTeamGroupId(member.teamGroupId);
+                          }
+                        }}
+                        type="button"
+                      >
+                        {member.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ) : null}
+          </div>
+        </div>
+      </section>
+
+      <section className={Workspace.surfaceCardClassName}>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <h3 className="text-base font-semibold text-slate-900">项目组健康度总览</h3>
+            <p className="mt-1 text-sm text-slate-500">异常项目组自动置顶，支持直接展开查看该组详情。</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <select
+              className={Workspace.fieldClassName}
+              value=""
+              onChange={() => undefined}
+            >
+              <option value="">全部学院</option>
+            </select>
+            <select
+              className={Workspace.fieldClassName}
+              value=""
+              onChange={() => undefined}
+            >
+              <option value="">全部年级</option>
+            </select>
+            <select
+              className={Workspace.fieldClassName}
+              value={teacherFilter}
+              onChange={(event) => setTeacherFilter(event.target.value)}
+            >
+              <option value="">全部指导教师</option>
+              {teacherMembers.map((member) => (
+                <option key={member.id} value={member.name}>
+                  {member.name}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        <div className="mt-4 space-y-3">
+          {groupHealthItems.map((group) => (
+            <div className="rounded-2xl border border-slate-200 bg-white/90" key={group.id}>
+              <button
+                className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left"
+                onClick={() => setExpandedGroupId((current) => (current === group.id ? "" : group.id))}
+                type="button"
+              >
+                <div className="flex items-center gap-3">
+                  <span
+                    className={`h-3 w-3 rounded-full ${
+                      group.tone === "danger" ? "bg-rose-500" : group.tone === "warning" ? "bg-amber-500" : "bg-emerald-500"
+                    }`}
+                  />
+                  <div>
+                    <p className="text-sm font-semibold text-slate-900">{group.name}</p>
+                    <p className="mt-1 text-xs text-slate-500">{group.alerts.join(" · ") || group.summary}</p>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <p className="text-sm font-semibold text-slate-900">
+                    {group.submittedCount}/{group.expectedCount}
+                  </p>
+                  <p className="mt-1 text-xs text-slate-400">{group.summary}</p>
+                </div>
+              </button>
+
+              {expandedGroupId === group.id ? (
+                <div className="border-t border-slate-100 px-5 py-4">
+                  <div className="flex flex-wrap gap-2">
+                    {group.alerts.map((alert) => (
+                      <span className="rounded-full bg-slate-100 px-3 py-1 text-xs text-slate-600" key={alert}>
+                        {alert}
+                      </span>
+                    ))}
+                  </div>
+                  <div className="mt-4 flex justify-end">
+                    <Workspace.ActionButton
+                      onClick={() => {
+                        setSelectedReportTeamGroupId(group.id);
+                        setExpandedGroupId(group.id);
+                      }}
+                    >
+                      查看该组详情
+                    </Workspace.ActionButton>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          ))}
+        </div>
+      </section>
+
+      <section className="grid gap-4 xl:grid-cols-2">
+        <article className={Workspace.surfaceCardClassName}>
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h3 className="text-base font-semibold text-slate-900">教师活跃度排行</h3>
+              <p className="mt-1 text-sm text-slate-500">按本周点评次数排序，帮助管理员识别可能失管的教师。</p>
+            </div>
+          </div>
+          <div className="mt-4 space-y-3">
+            {teacherActivity.length > 0 ? (
+              teacherActivity.map((teacher, index) => (
+                <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-3" key={teacher.id}>
+                  <div>
+                    <p className="text-sm font-semibold text-slate-900">
+                      {index + 1}. {teacher.name}
+                    </p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      点评 {teacher.commentCount} 次 · 红花 {teacher.praiseCount} 次 · 待改进 {teacher.improveCount} 次
+                    </p>
+                  </div>
+                  {index === teacherActivity.length - 1 && teacher.commentCount <= 1 ? (
+                    <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700">
+                      ⚠️ 疑似失管
+                    </span>
+                  ) : null}
+                </div>
+              ))
+            ) : (
+              <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-center text-sm text-slate-400">
+                当前暂无教师点评数据
+              </div>
+            )}
+          </div>
+        </article>
+
+        <article className={Workspace.surfaceCardClassName}>
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h3 className="text-base font-semibold text-slate-900">全校预警</h3>
+              <p className="mt-1 text-sm text-slate-500">把最需要管理员处理的问题集中收口，不需要逐组翻找。</p>
+            </div>
+          </div>
+          <div className="mt-4 space-y-3">
+            {adminWarnings.length > 0 ? (
+              adminWarnings.map((warning) => (
+                <div className="rounded-xl border border-rose-100 bg-rose-50/80 px-4 py-3" key={warning.id}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">{warning.title}</p>
+                      <p className="mt-1 text-sm text-slate-500">{warning.detail}</p>
+                    </div>
+                    <button
+                      className="text-sm font-medium text-blue-600 transition hover:text-blue-700"
+                      onClick={warning.onAction}
+                      type="button"
+                    >
+                      {warning.actionLabel}
+                    </button>
+                  </div>
+                </div>
+              ))
+            ) : (
+              <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-center text-sm text-slate-400">
+                当前没有学校级预警
+              </div>
+            )}
+          </div>
+        </article>
+      </section>
+
+      <section className={Workspace.surfaceCardClassName}>
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h3 className="text-base font-semibold text-slate-900">本周趋势</h3>
+            <p className="mt-1 text-sm text-slate-500">叠加查看提交率、点评总数和红花数量变化。</p>
+          </div>
+          <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-500">本周</span>
+        </div>
+
+        <div className="mt-4 grid gap-4 xl:grid-cols-3">
+          <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+            <p className="text-sm font-semibold text-slate-900">全校提交率</p>
+            <div className="mt-3">
+              <MiniTrendChart
+                accessor={(point) => point.submitRate}
+                fillClassName="fill-blue-600"
+                lineClassName="stroke-blue-600"
+                series={adminTrendSeries}
+              />
+            </div>
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+            <p className="text-sm font-semibold text-slate-900">总点评数</p>
+            <div className="mt-3">
+              <MiniTrendChart
+                accessor={(point) => Math.min(100, point.evaluationCount * 20)}
+                fillClassName="fill-slate-500"
+                lineClassName="stroke-slate-500"
+                series={adminTrendSeries}
+              />
+            </div>
+          </div>
+          <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+            <p className="text-sm font-semibold text-slate-900">总红花数</p>
+            <div className="mt-3">
+              <MiniBarChart
+                accessor={(point) => point.praiseCount}
+                barClassName="bg-amber-400"
+                series={adminTrendSeries}
+              />
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {activeGroup ? (
+        <GroupOperationsBoard groupName={activeGroup.name} members={activeGroup.members} />
+      ) : null}
+
+      <section className={Workspace.surfaceCardClassName}>
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h3 className="text-base font-semibold text-slate-900">管理工具</h3>
+            <p className="mt-1 text-sm text-slate-500">危险操作下沉到底部，避免抢占主视线。</p>
+          </div>
+        </div>
+        <div className="mt-4 flex flex-wrap gap-3">
+          <Workspace.ActionButton loading={bulkRemindLoading} loadingLabel="发送中..." onClick={() => void handleBulkRemind()}>
+            <Workspace.BellPlus className="h-4 w-4" />
+            批量催交
+          </Workspace.ActionButton>
+          <Workspace.ActionButton onClick={() => {
+            const csvRows = [
+              ["项目组", "今日提交比", "健康度"],
+              ...groupHealthItems.map((group) => [
+                group.name,
+                `${group.submittedCount}/${group.expectedCount}`,
+                group.tone,
+              ]),
+            ];
+            const csv = csvRows.map((row) => row.join(",")).join("\n");
+            const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
+            const url = window.URL.createObjectURL(blob);
+            const link = document.createElement("a");
+            link.href = url;
+            link.download = `reports-weekly-${selectedDate}.csv`;
+            link.click();
+            window.URL.revokeObjectURL(url);
+          }}>
+            <Workspace.Download className="h-4 w-4" />
+            导出周报
+          </Workspace.ActionButton>
+          <div className="flex flex-wrap gap-2 rounded-2xl border border-rose-100 bg-rose-50/60 px-3 py-2">
+            <select
+              className={Workspace.fieldClassName}
+              value={reportDeleteTeamGroupId}
+              onChange={(event) => setReportDeleteTeamGroupId(event.target.value)}
+            >
+              <option value="">选择项目组</option>
+              {teamGroups.map((group) => (
+                <option key={group.id} value={group.id}>
+                  {group.name}
+                </option>
+              ))}
+            </select>
+            <Workspace.ActionButton disabled={!reportDeleteTeamGroupId} onClick={removeTeamReports} variant="danger">
+              <Workspace.Trash2 className="h-4 w-4" />
+              数据清理
+            </Workspace.ActionButton>
+          </div>
+        </div>
+      </section>
+    </div>
+  );
+};
 
 export default function ScheduleTab() {
   const {
+    currentUser,
+    currentRole,
     teamGroups,
     reportEntriesByDay,
     selectedDate,
@@ -43,277 +2354,96 @@ export default function ScheduleTab() {
     ActionButton,
   } = Workspace;
 
-const renderReports = () => (
-    <div className="space-y-4">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <SectionHeader
-          description={
-            permissions.canViewAllReports
-              ? "按日期查看团队汇报归档，历史记录会一直保留，可随时回看。"
-              : "按日期查看自己的历史汇报，已提交内容会持续保存。"
-          }
-          title="日程汇报"
-        />
-      </div>
+  const [reportSearch, setReportSearch] = useState("");
+  const reportsViewRole = getReportsViewRole(currentRole);
 
-      <section className={surfaceCardClassName}>
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px] xl:items-start">
-          <div className="report-filter-column flex h-full flex-col space-y-4 self-stretch">
-            <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-semibold text-slate-900">选择查看日期</p>
-                <p className="mt-1 text-sm text-slate-500">
-                  可以直接选择过去任意一天；有保存记录的日期会在下方显示。
-                </p>
-              </div>
-              <div className="flex flex-col gap-3 md:flex-row md:items-end">
-                {hasGlobalAdminRole ? (
-                  <label className="block w-full md:min-w-56 text-sm font-medium text-slate-600">
-                    项目组
-                    <select
-                      className={`${fieldClassName} mt-1.5`}
-                      value={selectedReportTeamGroupId}
-                      onChange={(event) => setSelectedReportTeamGroupId(event.target.value)}
-                    >
-                      <option value="">全部项目组</option>
-                      {teamGroups.map((group) => (
-                        <option key={group.id} value={group.id}>
-                          {group.name}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                ) : null}
-                <label className="block w-full md:min-w-56 text-sm font-medium text-slate-600">
-                  日期
-                  <input
-                    className={`${fieldClassName} mt-1.5`}
-                    max={todayDateKey}
-                    type="date"
-                    value={selectedDate}
-                    onChange={(event) => {
-                      if (event.target.value) {
-                        setSelectedDate(event.target.value);
-                      }
-                    }}
-                  />
-                </label>
-              </div>
-            </div>
+  const filteredReportMembers = useMemo(() => {
+    const keyword = reportSearch.trim().toLowerCase();
+    if (!keyword) {
+      return visibleReportMembers;
+    }
 
-            <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 sm:flex-wrap sm:overflow-visible">
-              {reportDateOptions.slice(0, 10).map((date) => {
-                const hasReport = (reportEntriesByDay[date] ?? []).length > 0;
-                const isSelected = date === selectedDate;
+    return visibleReportMembers.filter((member) => {
+      const report = reportEntryMap.get(member.id);
+      const haystack = [
+        member.name,
+        member.systemRole,
+        member.teamGroupName ?? "",
+        report?.summary ?? "",
+        report?.nextPlan ?? "",
+      ]
+        .join(" ")
+        .toLowerCase();
 
-                return (
-                  <button
-                    className={`report-date-chip ${isSelected ? "selected" : ""} ${hasReport ? "has-record" : "muted"}`}
-                    key={date}
-                    onClick={() => setSelectedDate(date)}
-                    type="button"
-                  >
-                    {date === todayDateKey ? "今天" : formatShortDate(date)}
-                    {hasReport ? <span className="report-date-dot" /> : null}
-                  </button>
-                );
-              })}
-            </div>
-            {hasGlobalAdminRole ? (
-              <div className="report-record-legend mt-auto rounded-xl border border-dashed border-slate-200 bg-slate-50/70 px-4 py-3">
-                <p className="text-sm font-medium text-slate-700">日期标签说明</p>
-                <p className="mt-1 text-sm text-slate-500">
-                  右上角带蓝点代表该日期已有汇报记录；未标记的日期表示当前还没有保存内容。
-                </p>
-              </div>
-            ) : null}
-          </div>
+      return haystack.includes(keyword);
+    });
+  }, [reportEntryMap, reportSearch, visibleReportMembers]);
 
-          <aside className="flex flex-col justify-between rounded-xl border border-slate-200 bg-slate-50 p-4">
-            <div>
-              <p className="text-sm text-slate-500">当前日期</p>
-              <h3 className="mt-1 text-xl font-bold text-slate-900">{formatShortDate(selectedDate)}</h3>
-              <div className="mt-4 grid grid-cols-3 gap-2">
-                <div className="report-stat-card expected">
-                  <p className="text-xs text-slate-400">应提交</p>
-                  <p className="mt-1 text-lg font-semibold text-slate-900">{selectedReportExpectedCount}</p>
-                </div>
-                <div className="report-stat-card submitted">
-                  <p className="text-xs text-slate-400">已提交</p>
-                  <p className="mt-1 text-lg font-semibold">{selectedReportSubmittedCount}</p>
-                </div>
-                <div className="report-stat-card missing">
-                  <p className="text-xs text-slate-400">未提交</p>
-                  <p className="mt-1 text-lg font-semibold">{selectedReportMissingCount}</p>
-                </div>
-              </div>
-              <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-200">
-                <div
-                  className="h-full rounded-full bg-blue-600 transition-all"
-                  style={{
-                    width:
-                      selectedReportExpectedCount > 0
-                        ? `${Math.round((selectedReportSubmittedCount / selectedReportExpectedCount) * 100)}%`
-                        : "0%",
-                  }}
-                />
-              </div>
-            </div>
-            <div className="report-stats-divider" />
-            {permissions.canSubmitReport ? (
-              <ActionButton
-                className="mt-4 w-full justify-center"
-                onClick={() =>
-                  currentUserSelectedReport
-                    ? openEditReportModal(currentUserSelectedReport)
-                    : openCreateReportModal()
-                }
-                variant="primary"
-              >
-                {currentUserSelectedReport ? "修改我的汇报" : "提交这天汇报"}
-              </ActionButton>
-            ) : (
-              <p className="mt-4 text-sm text-slate-500">
-                当前角色只查看归档，不需要提交汇报。
-              </p>
-            )}
-            {hasGlobalAdminRole ? (
-              <div className="report-admin-danger-zone mt-4">
-                <p className="text-xs font-semibold text-rose-700">管理员清理</p>
-                <p className="mt-1 text-xs leading-5 text-slate-500">
-                  只删除指定项目组在当前日期的汇报记录。
-                </p>
-                <select
-                  className={`${fieldClassName} mt-2`}
-                  value={reportDeleteTeamGroupId}
-                  onChange={(event) => setReportDeleteTeamGroupId(event.target.value)}
-                >
-                  <option value="">选择项目组</option>
-                  {teamGroups.map((group) => (
-                    <option key={group.id} value={group.id}>
-                      {group.name}
-                    </option>
-                  ))}
-                </select>
-                <ActionButton
-                  className="mt-2 w-full justify-center"
-                  disabled={!reportDeleteTeamGroupId}
-                  onClick={removeTeamReports}
-                  variant="secondary"
-                >
-                  删除该组本日汇报
-                </ActionButton>
-              </div>
-            ) : null}
-          </aside>
-        </div>
-      </section>
+  const sharedProps: ReportsViewProps = {
+    ActionButton,
+    BellPlus,
+    CalendarDays,
+    EmptyState,
+    SectionHeader,
+    currentMemberId,
+    currentUserSelectedReport,
+    fieldClassName,
+    filteredReportMembers,
+    formatShortDate,
+    getReportAttachmentNote,
+    hasGlobalAdminRole,
+    openCreateReportModal,
+    openEditReportModal,
+    permissions,
+    removeReport,
+    removeTeamReports,
+    reportDateOptions,
+    reportDeleteTeamGroupId,
+    reportEntriesByDay,
+    reportEntryMap,
+    reportSearch,
+    reportSearchPlaceholder:
+      reportsViewRole === "admin"
+        ? "搜索成员、项目组或汇报内容"
+        : "搜索组内成员或汇报内容",
+    reportSearchScopeLabel:
+      reportsViewRole === "admin"
+        ? "管理员搜索范围：当前筛选项目组内的成员、汇报内容和项目组信息。"
+        : "教师搜索范围：所绑定项目组内的成员姓名和汇报内容。",
+    selectedDate,
+    selectedDateHasSavedReports,
+    selectedReportExpectedCount,
+    selectedReportMissingCount,
+    selectedReportSubmittedCount,
+    selectedReportTeamGroupId,
+    sendReportReminder,
+    setReportDeleteTeamGroupId,
+    setReportSearch,
+    setSelectedDate,
+    setSelectedReportTeamGroupId,
+    surfaceCardClassName,
+    teamGroups,
+    todayDateKey,
+    viewDescription:
+      reportsViewRole === "admin"
+        ? "按日期查看全校项目组汇报归档，可筛选项目组并全局搜索。"
+        : reportsViewRole === "teacher"
+          ? "按日期查看所绑定项目组的汇报归档，可搜索组内成员并定向提醒。"
+          : `按日期查看${currentUser?.teamGroupName ?? "本项目组"}成员的汇报记录，并补交或修改自己的内容。`,
+    visibleReportMembers,
+  };
 
-      <section className="grid gap-4 xl:grid-cols-2">
-        {visibleReportMembers.length > 0 ? (
-          visibleReportMembers.map((member) => {
-            const report = reportEntryMap.get(member.id);
-            const attachmentNote = getReportAttachmentNote(report?.attachment);
+  if (reportsViewRole === "student") {
+    return <StudentReportsView {...sharedProps} />;
+  }
 
-            return (
-              <article
-                key={member.id}
-                className={`${surfaceCardClassName} overflow-hidden p-0`}
-              >
-                <div className="flex items-start justify-between gap-4 border-b border-slate-100 bg-slate-50/80 px-5 py-4">
-                  <div className="min-w-0">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <h3 className="text-base font-semibold text-slate-900">{member.name}</h3>
-                      <span className="rounded-md bg-white px-2 py-1 text-xs text-slate-500 ring-1 ring-slate-200">
-                        {member.systemRole}
-                      </span>
-                      {member.teamGroupName ? (
-                        <span className="rounded-md bg-white px-2 py-1 text-xs text-slate-500 ring-1 ring-slate-200">
-                          {member.teamGroupName}
-                        </span>
-                      ) : null}
-                    </div>
-                    <p className="mt-2 text-sm text-slate-500">提交人：{member.name}</p>
-                  </div>
-                  {report ? (
-                    <span className="shrink-0 rounded-md bg-blue-50 px-3 py-1 text-sm text-blue-600">
-                      已提交 {report.submittedAt}
-                    </span>
-                  ) : (
-                    <span className="shrink-0 rounded-md bg-red-50 px-3 py-1 text-sm text-red-700">
-                      未提交
-                    </span>
-                  )}
-                </div>
+  if (reportsViewRole === "teacher") {
+    return <TeacherReportsView {...sharedProps} />;
+  }
 
-                <div className="p-5">
-                  {report ? (
-                    <>
-                      <div className="grid gap-3 lg:grid-cols-2">
-                        <div className="rounded-xl border border-slate-200 bg-white p-4">
-                          <p className="text-xs font-semibold text-slate-400">今日完成</p>
-                          <p className="mt-2 text-sm leading-7 text-slate-700">{report.summary}</p>
-                        </div>
-                        <div className="rounded-xl border border-slate-200 bg-white p-4">
-                          <p className="text-xs font-semibold text-slate-400">明日计划</p>
-                          <p className="mt-2 text-sm leading-7 text-slate-700">{report.nextPlan}</p>
-                        </div>
-                      </div>
-                      {attachmentNote ? (
-                        <p className="mt-4 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-500">
-                          附件备注：{attachmentNote}
-                        </p>
-                      ) : null}
-                      {member.id === currentMemberId && permissions.canSubmitReport ? (
-                        <div className="mt-4 flex flex-wrap gap-3">
-                          <ActionButton onClick={() => openEditReportModal(report)}>修改汇报</ActionButton>
-                          <ActionButton onClick={() => removeReport(report.date)} variant="danger">
-                            撤回汇报
-                          </ActionButton>
-                        </div>
-                      ) : null}
-                    </>
-                  ) : (
-                    <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-5">
-                      <p className="text-sm font-semibold text-slate-700">这一天还没有汇报</p>
-                      <p className="mt-2 text-sm leading-7 text-slate-500">
-                        {member.id === currentMemberId && permissions.canSubmitReport
-                          ? "可以补交这一天的工作汇报，保存后会进入历史记录。"
-                          : `该成员在 ${formatShortDate(selectedDate)} 尚未提交当日汇报。`}
-                      </p>
-                      {permissions.canSendDirective && member.id !== currentMemberId ? (
-                        <ActionButton
-                          className="report-remind-button mt-3"
-                          onClick={() => sendReportReminder(member)}
-                        >
-                          <BellPlus className="h-4 w-4" />
-                          发送提醒
-                        </ActionButton>
-                      ) : null}
-                    </div>
-                  )}
-                </div>
-              </article>
-            );
-          })
-        ) : (
-          <div className="xl:col-span-2">
-            <EmptyState
-              description="当前日期下还没有可展示的汇报记录，提交后会集中显示在这里。"
-              icon={CalendarDays}
-              title="暂无汇报记录"
-            />
-          </div>
-        )}
-      </section>
+  if (reportsViewRole === "admin") {
+    return <AdminReportsView {...sharedProps} />;
+  }
 
-      {!selectedDateHasSavedReports && visibleReportMembers.length > 0 ? (
-        <p className="report-empty-hint text-center text-sm text-slate-400">
-          {formatShortDate(selectedDate)} 暂无保存记录。选择其他历史日期，或点击“提交这天汇报”补录保存。
-        </p>
-      ) : null}
-    </div>
-  );
-
-  return renderReports();
+  return <StudentReportsView {...sharedProps} />;
 }
