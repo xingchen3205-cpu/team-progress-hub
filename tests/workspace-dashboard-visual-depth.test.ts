@@ -146,7 +146,7 @@ test("sidebar logo area uses transparent shell and white-treated logo", () => {
 test("overview uses tailwind-first structure for the redesigned dashboard shell", () => {
   assert.match(globalsSource, /\.sidebar-user-area\s*\{[\s\S]*background:\s*transparent/);
   assert.match(overviewSource, /grid gap-3 lg:grid-cols-4/);
-  assert.match(overviewSource, /grid gap-3 xl:grid-cols-2/);
+  assert.match(overviewSource, /grid items-start gap-4 lg:grid-cols-\[minmax\(0,1\.05fr\)_minmax\(0,0\.95fr\)\]/);
   assert.match(overviewSource, /rounded-xl border border-gray-200 bg-white/);
   assert.match(overviewSource, /bg-gray-50/);
   assert.match(globalsSource, /\.topbar\s*\{[\s\S]*border-bottom:\s*1px solid rgba\(200,\s*215,\s*235,\s*0\.50\)/);
@@ -161,7 +161,17 @@ test("overview layout uses the new welcome rail, metric strip, and split content
   assert.match(overviewSource, /今日汇报/);
   assert.match(overviewSource, /赛事日程/);
   assert.match(overviewSource, /通知公告/);
-  assert.match(overviewSource, /lg:grid-cols-\[minmax\(0,1\.05fr\)_minmax\(0,0\.95fr\)\]/);
+  const businessIndex = overviewSource.indexOf('title="业务进度"');
+  const urgentIndex = overviewSource.indexOf('title="紧急事项"');
+  const reportIndex = overviewSource.indexOf('title="今日汇报"');
+  const eventIndex = overviewSource.indexOf('title="赛事日程"');
+  const announcementIndex = overviewSource.indexOf('title="通知公告"');
+  assert.ok(
+    businessIndex < urgentIndex &&
+      urgentIndex < reportIndex &&
+      reportIndex < eventIndex &&
+      eventIndex < announcementIndex,
+  );
   assert.doesNotMatch(overviewSource, /待办中心/);
   assert.doesNotMatch(overviewSource, /发布公告/);
   assert.doesNotMatch(overviewSource, /快捷办理提示/);
@@ -186,8 +196,9 @@ test("overview renders svg progress rings, urgent deadline pills, event countdow
   assert.doesNotMatch(overviewSource, /badgeText:\s*"进行中"/);
   assert.match(overviewSource, /\.slice\(0,\s*3\)/);
   assert.match(overviewSource, /h-\[44px\] w-\[44px\]/);
-  assert.match(overviewSource, /px-3 py-3/);
+  assert.doesNotMatch(overviewSource, /min-h-\[104px\]/);
   assert.match(overviewSource, /px-3 py-2/);
+  assert.match(overviewSource, /space-y-4/);
 });
 
 test("timeline view uses proportional positioning, inline add button, and refined node cards", () => {

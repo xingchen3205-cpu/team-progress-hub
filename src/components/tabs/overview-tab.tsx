@@ -555,7 +555,7 @@ function OverviewMetricCard({ item }: { item: OverviewMetricCardItem }) {
 
   return (
     <button
-      className="group relative flex min-h-[104px] flex-col overflow-hidden rounded-xl border border-gray-200 bg-white px-3 py-3 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-[#2563EB]/25 hover:bg-[#F8FBFF]"
+      className="group relative flex flex-col overflow-hidden rounded-xl border border-gray-200 bg-white px-3 py-3 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-[#2563EB]/25 hover:bg-[#F8FBFF]"
       onClick={item.onClick}
       type="button"
     >
@@ -762,7 +762,7 @@ export default function OverviewTab() {
     "同学";
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-4">
       <section className="rounded-xl border border-gray-200 bg-white px-5 py-3">
         <div className="min-w-0">
           <h1 className="truncate text-[18px] font-medium text-gray-900">欢迎回来，{welcomeName}</h1>
@@ -776,8 +776,8 @@ export default function OverviewTab() {
         ))}
       </section>
 
-      <section className="grid gap-3 xl:grid-cols-2 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
-        <div className="space-y-3">
+      <section className="grid items-start gap-4 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
+        <div className="space-y-4">
           <article className="rounded-xl border border-gray-200 bg-white p-4">
             <SectionTitle
               actionLabel="查看全部 →"
@@ -837,9 +837,47 @@ export default function OverviewTab() {
               )}
             </div>
           </article>
+
+          <article className="rounded-xl border border-gray-200 bg-white p-4">
+            <SectionTitle title="今日汇报" />
+
+            <div className="mt-2.5 flex items-center justify-between gap-3">
+              <p className="text-[12px] text-gray-500">团队成员提交状态</p>
+              <span className="text-[13px] font-semibold text-gray-900">
+                {reportSubmittedCount}/{reportExpectedCount || 0} 人已提交
+              </span>
+            </div>
+
+            <div className="mt-3 flex flex-wrap gap-2">
+              {reportStatusItems.length > 0 ? (
+                reportStatusItems.map((item) => (
+                  <button
+                    className={`inline-flex items-center gap-2 rounded-full px-2.5 py-1.5 text-[11px] font-medium transition-all duration-200 ${
+                      item.submitted
+                        ? "bg-[#EAF3DE] text-[#3B6D11] hover:bg-[#dcecc5]"
+                        : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                    }`}
+                    data-slot="report-pill"
+                    key={item.id}
+                    onClick={() => openOverviewTarget("reports")}
+                    type="button"
+                  >
+                    <span
+                      className={`h-2 w-2 rounded-full ${item.submitted ? "bg-[#1D9E75]" : "bg-gray-400"}`}
+                    />
+                    <span>{item.name}</span>
+                  </button>
+                ))
+              ) : (
+                <span className="rounded-full bg-gray-100 px-2.5 py-1.5 text-[11px] text-gray-500">
+                  当前暂无需提交成员
+                </span>
+              )}
+            </div>
+          </article>
         </div>
 
-        <div className="space-y-3">
+        <div className="space-y-4">
           <article className="rounded-xl border border-gray-200 bg-white p-4">
             <SectionTitle
               actionLabel="完整日程 →"
@@ -924,44 +962,6 @@ export default function OverviewTab() {
                 ))
               ) : (
                 <p className="py-6 text-[13px] text-gray-400">当前暂无公告</p>
-              )}
-            </div>
-          </article>
-
-          <article className="rounded-xl border border-gray-200 bg-white p-4">
-            <SectionTitle title="今日汇报" />
-
-            <div className="mt-2.5 flex items-center justify-between gap-3">
-              <p className="text-[12px] text-gray-500">团队成员提交状态</p>
-              <span className="text-[13px] font-semibold text-gray-900">
-                {reportSubmittedCount}/{reportExpectedCount || 0} 人已提交
-              </span>
-            </div>
-
-            <div className="mt-3 flex flex-wrap gap-2">
-              {reportStatusItems.length > 0 ? (
-                reportStatusItems.map((item) => (
-                  <button
-                    className={`inline-flex items-center gap-2 rounded-full px-2.5 py-1.5 text-[11px] font-medium transition-all duration-200 ${
-                      item.submitted
-                        ? "bg-[#EAF3DE] text-[#3B6D11] hover:bg-[#dcecc5]"
-                        : "bg-gray-100 text-gray-500 hover:bg-gray-200"
-                    }`}
-                    data-slot="report-pill"
-                    key={item.id}
-                    onClick={() => openOverviewTarget("reports")}
-                    type="button"
-                  >
-                    <span
-                      className={`h-2 w-2 rounded-full ${item.submitted ? "bg-[#1D9E75]" : "bg-gray-400"}`}
-                    />
-                    <span>{item.name}</span>
-                  </button>
-                ))
-              ) : (
-                <span className="rounded-full bg-gray-100 px-2.5 py-1.5 text-[11px] text-gray-500">
-                  当前暂无需提交成员
-                </span>
               )}
             </div>
           </article>
