@@ -166,7 +166,7 @@ const renderDocuments = () => (
 
                 <div className="document-comment-panel mt-3">
                   <span className="document-comment-label">批注</span>
-                  <p className="document-comment-text">{doc.comment || "暂无批注"}</p>
+                  <p className="document-comment-text">{doc.comment ?? ""}</p>
                 </div>
 
                 <div className="mt-4 flex flex-wrap items-center gap-3">

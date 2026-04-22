@@ -86,7 +86,7 @@ export async function PATCH(
     where: { id },
     data: {
       status: transition.nextStatus,
-      comment: body?.comment?.trim() || transition.defaultComment,
+      comment: body?.comment?.trim() ?? null,
     },
     include: {
       owner: {
