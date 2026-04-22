@@ -96,23 +96,12 @@ test("teacher and admin reports views expose the new operational sections", () =
   );
 
   assert.match(scheduleSource, /我负责的项目组/);
-  assert.match(scheduleSource, /AI 日报摘要/);
   assert.match(scheduleSource, /需要关注/);
   assert.match(scheduleSource, /成员汇报列表/);
   assert.match(scheduleSource, /全校概览/);
   assert.match(scheduleSource, /项目组健康度总览/);
   assert.match(scheduleSource, /教师活跃度排行/);
   assert.match(scheduleSource, /趋势分析/);
-});
-
-test("teacher summary falls back to local digest when ai chat is unavailable", () => {
-  const scheduleSource = readFileSync(
-    path.join(process.cwd(), "src/components/tabs/schedule-tab.tsx"),
-    "utf8",
-  );
-
-  assert.match(scheduleSource, /buildFallbackReportSummary/);
-  assert.match(scheduleSource, /已切换为本地摘要/);
 });
 
 test("member cards keep latest submitted report visible and use localized role labels", () => {
@@ -393,4 +382,52 @@ test("student achievement streak badge has 7 30 100 tier thresholds", () => {
   assert.match(scheduleSource, />= 100/);
   assert.match(scheduleSource, />= 30/);
   assert.match(scheduleSource, />= 7/);
+});
+
+test("teacher view removes AI daily summary and related states", () => {
+  const scheduleSource = readFileSync(
+    path.join(process.cwd(), "src/components/tabs/schedule-tab.tsx"),
+    "utf8",
+  );
+
+  assert.doesNotMatch(scheduleSource, /AI 日报摘要/);
+  assert.doesNotMatch(scheduleSource, /生成中\.\.\./);
+  assert.doesNotMatch(scheduleSource, /最近更新/);
+  assert.doesNotMatch(scheduleSource, /已切换为本地摘要/);
+});
+
+test("teacher view no longer calls api ai chat from GroupOperationsBoard", () => {
+  const scheduleSource = readFileSync(
+    path.join(process.cwd(), "src/components/tabs/schedule-tab.tsx"),
+    "utf8",
+  );
+
+  const teacherStart = scheduleSource.indexOf("const GroupOperationsBoard");
+  const teacherEnd = scheduleSource.indexOf("const TeacherReportsView", teacherStart);
+  const teacherBlock = scheduleSource.slice(teacherStart, teacherEnd);
+
+  assert.doesNotMatch(teacherBlock, /\/api\/ai\/chat/);
+  assert.doesNotMatch(teacherBlock, /refreshSummary/);
+  assert.doesNotMatch(teacherBlock, /summaryState/);
+});
+
+test("teacher view keeps core blocks and members list before trend", () => {
+  const scheduleSource = readFileSync(
+    path.join(process.cwd(), "src/components/tabs/schedule-tab.tsx"),
+    "utf8",
+  );
+
+  const teacherStart = scheduleSource.indexOf("const GroupOperationsBoard");
+  const teacherEnd = scheduleSource.indexOf("const TeacherReportsView", teacherStart);
+  const teacherBlock = scheduleSource.slice(teacherStart, teacherEnd);
+
+  assert.match(teacherBlock, /需要关注/);
+  assert.match(teacherBlock, /成员汇报列表/);
+  assert.match(teacherBlock, /本组本周趋势/);
+
+  const membersIndex = teacherBlock.indexOf("成员汇报列表");
+  const trendIndex = teacherBlock.indexOf("本组本周趋势");
+  assert.ok(membersIndex > -1);
+  assert.ok(trendIndex > -1);
+  assert.ok(membersIndex < trendIndex, "成员汇报列表 should appear before 本组本周趋势");
 });

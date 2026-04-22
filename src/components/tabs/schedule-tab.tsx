@@ -203,14 +203,6 @@ type EvaluationComposerState = {
   value: string;
 };
 
-type SummaryState = {
-  text: string;
-  updatedAt: string | null;
-  loading: boolean;
-  error: string | null;
-  warning: string | null;
-};
-
 type TrendPoint = {
   date: string;
   label: string;
@@ -343,36 +335,6 @@ const getConcernText = (report?: ReportRecord) => {
 
   const matched = getReportTextCorpus(report).match(concernKeywordPattern);
   return matched?.[0] ?? null;
-};
-
-const buildFallbackReportSummary = ({
-  currentReports,
-  groupName,
-  members,
-}: {
-  currentReports: ReportRecord[];
-  groupName: string;
-  members: ReportMember[];
-}) => {
-  const submittedCount = currentReports.length;
-  const totalCount = members.length;
-  const concernMembers = currentReports
-    .filter((report) => Boolean(getConcernText(report)))
-    .map(
-      (report) =>
-        members.find((member) => member.id === report.memberId)?.name ??
-        report.user?.name ??
-        "成员",
-    );
-  const uniqueConcernMembers = [...new Set(concernMembers)];
-
-  return [
-    `${groupName} 今日共有 ${submittedCount}/${totalCount} 人提交汇报。`,
-    uniqueConcernMembers.length > 0
-      ? `需要重点关注 ${uniqueConcernMembers.join("、")}，汇报中出现了卡点或困难描述。`
-      : "当前已提交汇报中未发现明显卡点关键词，整体推进相对平稳。",
-    "系统已切换为本地摘要，建议稍后重试 AI 日报摘要以获取更细的语言总结。",
-  ].join("");
 };
 
 const getEvaluationTotal = (report?: ReportRecord) =>
@@ -1407,13 +1369,6 @@ const GroupOperationsBoard = ({
   } = Workspace.useWorkspaceContext();
   const [search, setSearch] = useState("");
   const [evaluationsByReportId, setEvaluationsByReportId] = useState<Record<string, ReportEvaluationItem[]>>({});
-  const [summaryState, setSummaryState] = useState<SummaryState>({
-    text: "",
-    updatedAt: null,
-    loading: false,
-    error: null,
-    warning: null,
-  });
   const [composer, setComposer] = useState<EvaluationComposerState | null>(null);
   const [submittingEvaluationKey, setSubmittingEvaluationKey] = useState<string | null>(null);
   const [revokingEvaluationId, setRevokingEvaluationId] = useState<string | null>(null);
@@ -1443,6 +1398,11 @@ const GroupOperationsBoard = ({
         ),
       })),
     [members, reportDateOptions, reportEntriesByDay, selectedDate],
+  );
+
+  const currentReports = useMemo(
+    () => memberCards.map((item) => item.report).filter((report): report is ReportRecord => Boolean(report)),
+    [memberCards],
   );
 
   const filteredCards = useMemo(() => {
@@ -1516,77 +1476,6 @@ const GroupOperationsBoard = ({
       active = false;
     };
   }, [evaluationsByReportId, setLoadError, weeklyReportIds]);
-
-  const currentReports = useMemo(
-    () => memberCards.map((item) => item.report).filter((report): report is ReportRecord => Boolean(report)),
-    [memberCards],
-  );
-
-  const refreshSummary = useCallback(async () => {
-    if (currentReports.length === 0) {
-      setSummaryState({
-        text: "今日还没有可总结的汇报内容，成员提交后会自动生成摘要。",
-        updatedAt: null,
-        loading: false,
-        error: null,
-        warning: null,
-      });
-      return;
-    }
-
-    setSummaryState((current) => ({ ...current, loading: true, error: null, warning: null }));
-
-    try {
-      const prompt = [
-        `你是一名项目指导教师助理，请基于 ${selectedDate} ${groupName} 的成员日程汇报生成 2-3 句摘要。`,
-        "要求：",
-        "1. 只总结实际提交内容，不允许编造。",
-        "2. 先写今日关键推进，再写需要关注的异常或阻塞。",
-        "3. 输出精炼中文，不要使用列表。",
-        "",
-        "汇报内容：",
-        currentReports
-          .map((report) => {
-            const memberName =
-              members.find((member) => member.id === report.memberId)?.name ??
-              report.user?.name ??
-              "成员";
-            return `- ${memberName}：今日完成=${report.summary}；明日计划=${report.nextPlan}`;
-          })
-          .join("\n"),
-      ].join("\n");
-
-      const payload = await Workspace.requestJson<{ answer: string }>("/api/ai/chat", {
-        method: "POST",
-        body: JSON.stringify({ query: prompt }),
-      });
-
-      setSummaryState({
-        text: payload.answer.trim(),
-        updatedAt: new Date().toISOString(),
-        loading: false,
-        error: null,
-        warning: null,
-      });
-    } catch (error) {
-      const fallbackSummary = buildFallbackReportSummary({
-        currentReports,
-        groupName,
-        members,
-      });
-      setSummaryState({
-        text: fallbackSummary,
-        updatedAt: new Date().toISOString(),
-        loading: false,
-        error: null,
-        warning: error instanceof Error ? `${error.message}，已切换为本地摘要` : "AI 日报摘要暂不可用，已切换为本地摘要",
-      });
-    }
-  }, [currentReports, groupName, members, selectedDate]);
-
-  useEffect(() => {
-    void refreshSummary();
-  }, [refreshSummary]);
 
   const attentionItems = useMemo(() => {
     const focusDateKeys = recentDateKeys.slice(0, 3);
@@ -1773,71 +1662,40 @@ const GroupOperationsBoard = ({
         </div>
       </section>
 
-      <section className="grid gap-4 xl:grid-cols-[1.15fr_0.85fr]">
-        <article className={Workspace.surfaceCardClassName}>
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <h3 className="text-base font-semibold text-slate-900">AI 日报摘要</h3>
-              <p className="mt-1 text-sm text-slate-500">基于本组今日汇报自动提炼关键进展与异常。</p>
-            </div>
-            <Workspace.ActionButton
-              loading={summaryState.loading}
-              loadingLabel="生成中..."
-              onClick={() => void refreshSummary()}
-            >
-              <Workspace.RotateCcw className="h-4 w-4" />
-              刷新
-            </Workspace.ActionButton>
+      <article className={Workspace.surfaceCardClassName}>
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h3 className="text-base font-semibold text-slate-900">需要关注</h3>
+            <p className="mt-1 text-sm text-slate-500">系统自动识别未提交、卡点和缺少反馈的成员。</p>
           </div>
+          <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-500">
+            {attentionItems.length} 条预警
+          </span>
+        </div>
 
-          <div className="mt-4 rounded-2xl border border-blue-100 bg-blue-50/70 px-5 py-4">
-            {summaryState.warning ? (
-              <p className="mb-2 text-xs font-medium text-amber-700">{summaryState.warning}</p>
-            ) : null}
-            {summaryState.error ? (
-              <p className="text-sm text-rose-600">{summaryState.error}</p>
-            ) : (
-              <p className="text-sm leading-7 text-slate-700">{summaryState.text || "正在生成摘要..."}</p>
-            )}
-            {summaryState.updatedAt ? (
-              <p className="mt-3 text-xs text-slate-400">最近更新：{Workspace.formatBeijingDateTimeShort(summaryState.updatedAt)}</p>
-            ) : null}
-          </div>
-        </article>
+        <div className="mt-4 space-y-3">
+          {attentionItems.length > 0 ? (
+            attentionItems.map((item) => {
+              const cooldownKey = getReminderCooldownKey(item.member.id, selectedDate);
+              const coolingDown = (reminderCooldowns[cooldownKey] ?? 0) > Date.now();
 
-        <article className={Workspace.surfaceCardClassName}>
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <h3 className="text-base font-semibold text-slate-900">需要关注</h3>
-              <p className="mt-1 text-sm text-slate-500">系统自动识别未提交、卡点和缺少反馈的成员。</p>
-            </div>
-            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-500">
-              {attentionItems.length} 条预警
-            </span>
-          </div>
-
-          <div className="mt-4 space-y-3">
-            {attentionItems.length > 0 ? (
-              attentionItems.map((item) => {
-                const cooldownKey = getReminderCooldownKey(item.member.id, selectedDate);
-                const coolingDown = (reminderCooldowns[cooldownKey] ?? 0) > Date.now();
-
-                return (
-                  <div
-                    className={`rounded-xl border px-4 py-3 ${
-                      item.tone === "danger"
-                        ? "border-rose-100 bg-rose-50/80"
-                        : item.tone === "warning"
-                          ? "border-amber-100 bg-amber-50/80"
-                          : "border-slate-200 bg-slate-50/80"
-                    }`}
-                    key={item.id}
-                  >
-                    <div className="flex flex-wrap items-start justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-semibold text-slate-900">{item.title}</p>
-                        <p className="mt-1 text-sm text-slate-500">{item.detail}</p>
-                      </div>
+              return (
+                <div
+                  className={`rounded-xl border px-4 py-3 ${
+                    item.tone === "danger"
+                      ? "border-rose-100 bg-rose-50/80"
+                      : item.tone === "warning"
+                        ? "border-amber-100 bg-amber-50/80"
+                        : "border-slate-200 bg-slate-50/80"
+                  }`}
+                  key={item.id}
+                >
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-slate-900">{item.title}</p>
+                      <p className="mt-1 text-sm text-slate-500">{item.detail}</p>
+                    </div>
+                    <div className="shrink-0">
                       {item.action === "remind" ? (
                         <Workspace.ActionButton
                           disabled={coolingDown}
@@ -1867,30 +1725,31 @@ const GroupOperationsBoard = ({
                       )}
                     </div>
                   </div>
-                );
-              })
-            ) : (
-              <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-center text-sm text-slate-400">
-                当前没有需要额外关注的成员，组内状态平稳。
-              </div>
-            )}
-          </div>
-        </article>
-      </section>
-
-      <section className={Workspace.surfaceCardClassName}>
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <h3 className="text-base font-semibold text-slate-900">成员汇报列表</h3>
-            <p className="mt-1 text-sm text-slate-500">支持快速点赞、待改进和详细批注，评价会直接通知到学生。</p>
-          </div>
-          <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-500">
-            {filteredCards.length}/{members.length} 人
-          </span>
+                </div>
+              );
+            })
+          ) : (
+            <div className="rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-6 text-center text-sm text-slate-400">
+              当前没有需要额外关注的成员，组内状态平稳。
+            </div>
+          )}
         </div>
+      </article>
 
-        <div className="mt-4 grid gap-4 xl:grid-cols-2">
-          {filteredCards.map(({ member, report, latestReport }) => {
+      <div className="grid gap-4 xl:grid-cols-[65%_1fr]">
+        <section className={Workspace.surfaceCardClassName}>
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h3 className="text-base font-semibold text-slate-900">成员汇报列表</h3>
+              <p className="mt-1 text-sm text-slate-500">支持快速点赞、待改进和详细批注，评价会直接通知到学生。</p>
+            </div>
+            <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-500">
+              {filteredCards.length}/{members.length} 人
+            </span>
+          </div>
+
+          <div className="mt-4 grid gap-4">
+            {filteredCards.map(({ member, report, latestReport }) => {
             const activeReport = report ?? latestReport;
             const isHistoricalFallback = !report && Boolean(activeReport);
             const reportId = activeReport?.id ?? "";
@@ -2082,6 +1941,7 @@ const GroupOperationsBoard = ({
           </div>
         </div>
       </section>
+      </div>
     </div>
   );
 };
