@@ -59,3 +59,30 @@ test("workspace-shell brand area contains full system name and school", () => {
   assert.match(source, /南京铁道职业技术学院/);
   assert.match(source, /智在必行/);
 });
+
+test("overview-tab supports admin-wide report group summary", () => {
+  const source = readFileSync(
+    path.join(process.cwd(), "src/components/tabs/overview-tab.tsx"),
+    "utf8",
+  );
+
+  assert.match(source, /全校今日汇报/);
+  assert.match(source, /组已全员提交/);
+  assert.match(source, /expandedReportGroupId/);
+  assert.match(source, /一键展开查看成员/);
+  assert.match(source, /查看详情 →/);
+});
+
+test("workspace desktop sidebar is content-height instead of full viewport height", () => {
+  const source = readFileSync(
+    path.join(process.cwd(), "src/components/workspace-shell.tsx"),
+    "utf8",
+  );
+
+  const desktopSidebarStart = source.indexOf('<aside className="hidden xl:block xl:w-[260px] xl:flex-none">');
+  const mobileSidebarStart = source.indexOf('className={`depth-sidebar depth-sidebar-enhanced', desktopSidebarStart);
+  const desktopSidebarBlock = source.slice(desktopSidebarStart, mobileSidebarStart);
+
+  assert.doesNotMatch(desktopSidebarBlock, /xl:h-\[calc\(100vh-2rem\)\]/);
+  assert.doesNotMatch(desktopSidebarBlock, /className="sidebar depth-sidebar/);
+});

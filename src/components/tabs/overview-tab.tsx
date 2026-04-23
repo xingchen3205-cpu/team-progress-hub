@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
   AlertCircle,
@@ -17,7 +17,7 @@ import {
   UserPlus,
 } from "lucide-react";
 
-import type { BoardTask, EventItem, TeamMember } from "@/components/workspace-context";
+import type { BoardTask, EventItem, TeamGroupItem, TeamMember } from "@/components/workspace-context";
 import * as Workspace from "@/components/workspace-context";
 
 const SCHOOL_NAME = "南京铁道职业技术学院";
@@ -58,6 +58,17 @@ type ReportStatusItem = {
   id: string;
   name: string;
   submitted: boolean;
+};
+
+type AdminReportGroupStatus = "complete" | "partial" | "none";
+
+type AdminReportGroupItem = {
+  id: string;
+  name: string;
+  status: AdminReportGroupStatus;
+  submittedCount: number;
+  totalCount: number;
+  members: ReportStatusItem[];
 };
 
 const metricToneMap: Record<
@@ -134,6 +145,31 @@ const urgentToneMap: Record<
   warning: {
     dotClassName: "bg-[var(--color-warning)]",
     badgeClassName: "bg-[var(--color-warning-soft)] text-[color:var(--color-warning)]",
+  },
+};
+
+const adminReportGroupStatusMap: Record<
+  AdminReportGroupStatus,
+  {
+    dotClassName: string;
+    rowClassName: string;
+    label: string;
+  }
+> = {
+  complete: {
+    dotClassName: "bg-emerald-500",
+    rowClassName: "hover:border-emerald-200 hover:bg-emerald-50/40",
+    label: "全员提交",
+  },
+  partial: {
+    dotClassName: "bg-amber-500",
+    rowClassName: "hover:border-amber-200 hover:bg-amber-50/40",
+    label: "部分提交",
+  },
+  none: {
+    dotClassName: "bg-rose-500",
+    rowClassName: "hover:border-rose-200 hover:bg-rose-50/40",
+    label: "无人提交",
   },
 };
 
@@ -558,6 +594,91 @@ const buildReportStatusItems = (
     submitted: todayReportEntryMap.has(member.id),
   }));
 
+const getAdminReportGroupStatus = (submittedCount: number, totalCount: number): AdminReportGroupStatus => {
+  if (totalCount > 0 && submittedCount >= totalCount) {
+    return "complete";
+  }
+
+  if (submittedCount > 0) {
+    return "partial";
+  }
+
+  return "none";
+};
+
+const getAdminReportGroupSortWeight = (status: AdminReportGroupStatus) => {
+  if (status === "none") {
+    return 0;
+  }
+
+  if (status === "partial") {
+    return 1;
+  }
+
+  return 2;
+};
+
+const buildAdminReportGroupItems = ({
+  members,
+  teamGroups,
+  todayReportEntryMap,
+}: {
+  members: TeamMember[];
+  teamGroups: TeamGroupItem[];
+  todayReportEntryMap: Map<string, unknown>;
+}): AdminReportGroupItem[] => {
+  const groupNameMap = new Map(teamGroups.map((group) => [group.id, group.name]));
+  const groups = new Map<string, { id: string; name: string; members: ReportStatusItem[] }>();
+
+  for (const member of members) {
+    if (!member.teamGroupId) {
+      continue;
+    }
+
+    const groupId = member.teamGroupId;
+    const groupName = groupNameMap.get(groupId) ?? member.teamGroupName ?? "未命名项目组";
+    const group = groups.get(groupId) ?? { id: groupId, name: groupName, members: [] };
+
+    group.members.push({
+      id: member.id,
+      name: member.name,
+      submitted: todayReportEntryMap.has(member.id),
+    });
+    groups.set(groupId, group);
+  }
+
+  return [...groups.values()]
+    .map((group) => {
+      const submittedCount = group.members.filter((member) => member.submitted).length;
+      const totalCount = group.members.length;
+      const status = getAdminReportGroupStatus(submittedCount, totalCount);
+
+      return {
+        ...group,
+        status,
+        submittedCount,
+        totalCount,
+      };
+    })
+    .sort((left, right) => {
+      const statusDiff = getAdminReportGroupSortWeight(left.status) - getAdminReportGroupSortWeight(right.status);
+      if (statusDiff !== 0) {
+        return statusDiff;
+      }
+
+      const completionDiff =
+        left.totalCount === 0
+          ? 0
+          : left.submittedCount / left.totalCount - (right.totalCount === 0 ? 0 : right.submittedCount / right.totalCount);
+
+      if (completionDiff !== 0) {
+        return completionDiff;
+      }
+
+      return left.name.localeCompare(right.name, "zh-CN");
+    });
+};
+
 function OverviewMetricCard({ item }: { item: OverviewMetricCardItem }) {
   const Icon = item.icon;
   const tone = metricToneMap[item.tone];
@@ -658,6 +779,7 @@ function SectionTitle({
 }
 
 export default function OverviewTab() {
+  const [expandedReportGroupId, setExpandedReportGroupId] = useState("");
   const {
     currentUser,
     currentDateTime,
@@ -671,6 +793,7 @@ export default function OverviewTab() {
     currentRole,
     hasGlobalAdminRole,
     currentMemberId,
+    teamGroups,
     nearestEvent,
     todayReportEntryMap,
     myOpenTasks,
@@ -761,6 +884,11 @@ export default function OverviewTab() {
   });
 
   const reportStatusItems = buildReportStatusItems(reportableMembers, todayReportEntryMap);
+  const adminReportGroupItems = useMemo(
+    () => buildAdminReportGroupItems({ members: reportableMembers, teamGroups, todayReportEntryMap }),
+    [reportableMembers, teamGroups, todayReportEntryMap],
+  );
+  const fullySubmittedGroupCount = adminReportGroupItems.filter((group) => group.status === "complete").length;
   const visibleEvents = sortedEvents.slice(0, 3);
   const visibleAnnouncements = announcements.slice(0, 3);
 
@@ -875,39 +1003,123 @@ export default function OverviewTab() {
 
           {/* 今日汇报 */}
           <article className="overview-card p-5">
-            <SectionTitle icon={CheckCircle2} title="今日汇报" />
+            <SectionTitle icon={CheckCircle2} title={hasGlobalAdminRole ? "全校今日汇报" : "今日汇报"} />
             <div className="mt-3 flex items-center justify-between gap-3">
-              <p className="text-[12px] text-slate-500">团队成员提交状态</p>
+              <p className="text-[12px] text-slate-500">
+                {hasGlobalAdminRole ? "项目组提交状态" : "团队成员提交状态"}
+              </p>
               <span className="text-[14px] font-bold text-slate-900">
-                {reportSubmittedCount}/{reportExpectedCount || 0} 人已提交
+                {hasGlobalAdminRole
+                  ? `${fullySubmittedGroupCount}/${adminReportGroupItems.length || 0} 组已全员提交`
+                  : `${reportSubmittedCount}/${reportExpectedCount || 0} 人已提交`}
               </span>
             </div>
-            <div className="mt-4 flex flex-wrap gap-2">
-              {reportStatusItems.length > 0 ? (
-                reportStatusItems.map((item) => (
-                  <button
-                    className={`report-pill ${
-                      item.submitted
-                        ? "bg-emerald-50 text-emerald-700"
-                        : "bg-slate-100 text-slate-600"
-                    }`}
-                    data-slot="report-pill"
-                    key={item.id}
-                    onClick={() => openOverviewTarget("reports")}
-                    type="button"
-                  >
-                    <span
-                      className={`h-2 w-2 rounded-full ${item.submitted ? "bg-emerald-500" : "bg-slate-400"}`}
-                    />
-                    <span>{item.name}</span>
-                  </button>
-                ))
-              ) : (
-                <span className="rounded-full bg-slate-100 px-3 py-1.5 text-[12px] text-slate-500">
-                  当前暂无需提交成员
-                </span>
-              )}
-            </div>
+            {hasGlobalAdminRole ? (
+              <>
+                <div className="mt-4 space-y-2">
+                  {adminReportGroupItems.length > 0 ? (
+                    adminReportGroupItems.map((group) => {
+                      const meta = adminReportGroupStatusMap[group.status];
+                      const isExpanded = expandedReportGroupId === group.id;
+
+                      return (
+                        <div
+                          className={`rounded-xl border border-slate-200 bg-white transition ${meta.rowClassName}`}
+                          data-slot="admin-report-group-row"
+                          key={group.id}
+                        >
+                          <button
+                            className="flex w-full items-center gap-3 px-3 py-2.5 text-left"
+                            onClick={() => setExpandedReportGroupId((current) => (current === group.id ? "" : group.id))}
+                            type="button"
+                          >
+                            <span className={`h-2.5 w-2.5 shrink-0 rounded-full ${meta.dotClassName}`} />
+                            <div className="min-w-0 flex-1">
+                              <div className="flex min-w-0 items-center gap-2">
+                                <p className="truncate text-[13px] font-semibold text-slate-900">{group.name}</p>
+                                <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] text-slate-500">
+                                  {meta.label}
+                                </span>
+                              </div>
+                            </div>
+                            <span className="shrink-0 text-[13px] font-bold text-slate-900">
+                              {group.submittedCount}/{group.totalCount}
+                            </span>
+                            <span className="shrink-0 text-[11px] font-medium text-blue-600">
+                              {isExpanded ? "收起成员" : "一键展开查看成员"}
+                            </span>
+                          </button>
+                          {isExpanded ? (
+                            <div className="border-t border-slate-100 px-3 py-3">
+                              <div className="flex flex-wrap gap-2">
+                                {group.members.map((item) => (
+                                  <button
+                                    className={`report-pill ${
+                                      item.submitted
+                                        ? "bg-emerald-50 text-emerald-700"
+                                        : "bg-slate-100 text-slate-600"
+                                    }`}
+                                    data-slot="report-pill"
+                                    key={item.id}
+                                    onClick={() => openOverviewTarget("reports")}
+                                    type="button"
+                                  >
+                                    <span
+                                      className={`h-2 w-2 rounded-full ${
+                                        item.submitted ? "bg-emerald-500" : "bg-slate-400"
+                                      }`}
+                                    />
+                                    <span>{item.name}</span>
+                                  </button>
+                                ))}
+                              </div>
+                            </div>
+                          ) : null}
+                        </div>
+                      );
+                    })
+                  ) : (
+                    <span className="rounded-full bg-slate-100 px-3 py-1.5 text-[12px] text-slate-500">
+                      当前暂无项目组汇报数据
+                    </span>
+                  )}
+                </div>
+                <button
+                  className="mt-4 text-[12px] font-semibold text-blue-600 transition hover:text-blue-700"
+                  onClick={() => openOverviewTarget("reports")}
+                  type="button"
+                >
+                  查看详情 →
+                </button>
+              </>
+            ) : (
+              <div className="mt-4 flex flex-wrap gap-2">
+                {reportStatusItems.length > 0 ? (
+                  reportStatusItems.map((item) => (
+                    <button
+                      className={`report-pill ${
+                        item.submitted
+                          ? "bg-emerald-50 text-emerald-700"
+                          : "bg-slate-100 text-slate-600"
+                      }`}
+                      data-slot="report-pill"
+                      key={item.id}
+                      onClick={() => openOverviewTarget("reports")}
+                      type="button"
+                    >
+                      <span
+                        className={`h-2 w-2 rounded-full ${item.submitted ? "bg-emerald-500" : "bg-slate-400"}`}
+                      />
+                      <span>{item.name}</span>
+                    </button>
+                  ))
+                ) : (
+                  <span className="rounded-full bg-slate-100 px-3 py-1.5 text-[12px] text-slate-500">
+                    当前暂无需提交成员
+                  </span>
+                )}
+              </div>
+            )}
           </article>
         </div>
 

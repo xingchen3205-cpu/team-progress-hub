@@ -120,7 +120,7 @@ test("trend charts expose axis ticks and hoverable numeric labels", () => {
     "utf8",
   );
 
-  assert.match(scheduleSource, /const buildChartTicks =/);
+  assert.match(scheduleSource, /\[100, 50, 0\]\.map/);
   assert.match(scheduleSource, /<title>/);
 });
 
@@ -492,6 +492,44 @@ test("teacher trend panel uses metric cards plus one main chart layout", () => {
   assert.match(scheduleSource, /本周累计获赞/);
   assert.match(scheduleSource, /本周点评发起/);
   assert.match(scheduleSource, /每日提交率/);
+});
+
+test("teacher trend chart uses thin SVG strokes and subtle fill", () => {
+  const scheduleSource = readFileSync(
+    path.join(process.cwd(), "src/components/tabs/schedule-tab.tsx"),
+    "utf8",
+  );
+
+  assert.match(scheduleSource, /const chartWidth = 420/);
+  assert.match(scheduleSource, /const chartHeight = 140/);
+  assert.match(scheduleSource, /strokeWidth="1\.5"/);
+  assert.match(scheduleSource, /fillOpacity="0\.08"/);
+  assert.match(scheduleSource, /strokeDasharray="2 2"/);
+  assert.match(scheduleSource, /strokeDasharray="3 2"/);
+  assert.match(scheduleSource, /vectorEffect="non-scaling-stroke"/);
+});
+
+test("teacher trend chart marks today and exposes point tooltips", () => {
+  const scheduleSource = readFileSync(
+    path.join(process.cwd(), "src/components/tabs/schedule-tab.tsx"),
+    "utf8",
+  );
+
+  assert.match(scheduleSource, /displayLabel: isToday \? "今日" : point\.label/);
+  assert.match(scheduleSource, /fill=\{point\.isToday \? "#FFFFFF" : "#2563EB"\}/);
+  assert.match(scheduleSource, /stroke=\{point\.isToday \? "#2563EB" : "none"\}/);
+  assert.match(scheduleSource, /`\$\{point\.label\} · 提交率 \$\{point\.value\}%`/);
+});
+
+test("teacher member avatars prefer stable name initials over raw avatar data", () => {
+  const scheduleSource = readFileSync(
+    path.join(process.cwd(), "src/components/tabs/schedule-tab.tsx"),
+    "utf8",
+  );
+
+  assert.match(scheduleSource, /const getMemberAvatarFallback =/);
+  assert.match(scheduleSource, /member\.name\.trim\(\)\.slice\(0, 1\)/);
+  assert.match(scheduleSource, /avatar=\{getMemberAvatarFallback\(member\)\}/);
 });
 
 test("teacher view passes todayDateKey to TeacherMemberReportCard", () => {

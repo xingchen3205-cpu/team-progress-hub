@@ -375,6 +375,9 @@ const getConcernText = (report?: ReportRecord) => {
   return matched?.[0] ?? null;
 };
 
+const getMemberAvatarFallback = (member: Pick<ReportMember, "avatar" | "name">) =>
+  member.name.trim().slice(0, 1) || member.avatar.trim().slice(0, 1) || "?";
+
 const getEvaluationTotal = (report?: ReportRecord) =>
   (report?.praiseCount ?? 0) + (report?.improveCount ?? 0) + (report?.commentCount ?? 0);
 
@@ -453,12 +456,6 @@ const getNoFeedbackStreak = (
 
 const getShortDateLabel = (value: string) => value.slice(5).replace("-", "/");
 
-const buildChartTicks = (maxValue: number) => {
-  const safeMax = Math.max(1, maxValue);
-  const middle = safeMax <= 1 ? 1 : Math.ceil(safeMax / 2);
-  return [safeMax, middle, 0];
-};
-
 const buildTrendSeries = ({
   dateKeys,
   members,
@@ -528,44 +525,6 @@ const formatTrendDelta = (delta: number, unit: string, emptyLabel: string) => {
   return `${delta > 0 ? "↑" : "↓"} 较上期 ${delta > 0 ? "+" : "-"}${Math.abs(delta)}${unit}`;
 };
 
-const buildLinePath = (series: TrendPoint[], accessor: (point: TrendPoint) => number | null, height = 84) => {
-  if (series.length === 0) {
-    return "";
-  }
-
-  const width = 100;
-  const step = series.length === 1 ? width : width / (series.length - 1);
-  const segments: Array<Array<{ x: number; y: number }>> = [];
-  let currentSegment: Array<{ x: number; y: number }> = [];
-
-  series.forEach((point, index) => {
-    const value = accessor(point);
-    const x = Number((index * step).toFixed(2));
-
-    if (value === null || value === undefined) {
-      if (currentSegment.length > 0) {
-        segments.push(currentSegment);
-        currentSegment = [];
-      }
-
-      return;
-    }
-
-    const y = Number((height - (Math.min(100, Math.max(0, value)) / 100) * height).toFixed(2));
-    currentSegment.push({ x, y });
-  });
-
-  if (currentSegment.length > 0) {
-    segments.push(currentSegment);
-  }
-
-  return segments
-    .map((segment) =>
-      segment.map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`).join(" "),
-    )
-    .join(" ");
-};
-
 const ChartEmptyState = ({ accumulatedDays, compact }: { accumulatedDays: number; compact?: boolean }) => (
   <div className={`flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 text-center ${compact ? "py-4" : "py-8"}`}>
     <Workspace.BarChart3 className={`text-slate-300 ${compact ? "mb-1 h-6 w-6" : "mb-2 h-8 w-8"}`} />
@@ -581,8 +540,6 @@ const MainTrendChart = ({
   series: TrendPoint[];
   todayDateKey: string;
 }) => {
-  const accessor = (point: TrendPoint) => point.submitRate;
-  const path = buildLinePath(series, accessor, 220);
   const effectiveDays = getEffectiveDataDays(
     series.map((s) => s.date),
     todayDateKey,
@@ -603,82 +560,148 @@ const MainTrendChart = ({
     );
   }
 
-  const ticks = buildChartTicks(100);
-  const width = 100;
-  const step = series.length === 1 ? width : width / (series.length - 1);
+  const chartWidth = 420;
+  const chartHeight = 140;
+  const plotLeft = 30;
+  const plotRight = 410;
+  const plotTop = 20;
+  const plotBottom = 100;
+  const plotHeight = plotBottom - plotTop;
+  const step = series.length === 1 ? 0 : (plotRight - plotLeft) / (series.length - 1);
+  const yForValue = (value: number) =>
+    Number((plotBottom - (Math.min(100, Math.max(0, value)) / 100) * plotHeight).toFixed(2));
+  const lastKnownValue =
+    [...series]
+      .reverse()
+      .find((point) => typeof point.submitRate === "number")?.submitRate ?? 0;
+  const chartPoints = series.map((point, index) => {
+    const isToday = point.date === todayDateKey || index === series.length - 1;
+    const value = point.submitRate;
+    const fallbackValue = typeof value === "number" ? value : lastKnownValue;
+
+    return {
+      ...point,
+      displayLabel: isToday ? "今日" : point.label,
+      isToday,
+      x: Number((series.length === 1 ? (plotLeft + plotRight) / 2 : plotLeft + index * step).toFixed(2)),
+      y: yForValue(fallbackValue),
+      value,
+    };
+  });
+  const knownPoints = chartPoints.filter((point) => typeof point.value === "number");
+  const areaPath =
+    knownPoints.length > 1
+      ? [
+          `M ${knownPoints[0].x} ${plotBottom}`,
+          ...knownPoints.map((point, index) => `${index === 0 ? "L" : "L"} ${point.x} ${point.y}`),
+          `L ${knownPoints[knownPoints.length - 1].x} ${plotBottom}`,
+          "Z",
+        ].join(" ")
+      : "";
+  const solidSegments: Array<{ from: (typeof chartPoints)[number]; to: (typeof chartPoints)[number] }> = [];
+  const todaySegments: Array<{ from: (typeof chartPoints)[number]; to: (typeof chartPoints)[number] }> = [];
+
+  chartPoints.forEach((point, index) => {
+    if (index === 0) {
+      return;
+    }
+
+    const previous = chartPoints[index - 1];
+    if (typeof previous.value !== "number") {
+      return;
+    }
+
+    if (point.isToday) {
+      todaySegments.push({ from: previous, to: point });
+      return;
+    }
+
+    if (typeof point.value === "number") {
+      solidSegments.push({ from: previous, to: point });
+    }
+  });
 
   return (
-    <div className="grid grid-cols-[42px_minmax(0,1fr)] gap-3">
-      <div className="flex h-[220px] flex-col justify-between text-[11px] text-slate-400">
-        {ticks.map((tick) => (
-          <span key={tick}>{tick}%</span>
-        ))}
-      </div>
-      <div className="space-y-2">
-        <svg className="h-[220px] w-full overflow-visible" viewBox="0 0 100 220" preserveAspectRatio="none">
-          <path d="M0 219.5 H100" className="stroke-slate-200" fill="none" strokeWidth="1" />
-          <path d="M0 110 H100" className="stroke-slate-100" fill="none" strokeDasharray="3 3" strokeWidth="1" />
-          {path ? (
-            <>
-              <path
-                d={path}
-                className="stroke-blue-600"
-                fill="none"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth="2.5"
-              />
-              <path
-                d={`${path} L 100 220 L 0 220 Z`}
-                className="fill-blue-600"
-                fillOpacity="0.15"
-                stroke="none"
-              />
-            </>
-          ) : null}
-          {series.map((point, index) => {
-            const value = accessor(point);
-            const x = series.length === 1 ? 50 : Number(((index * 100) / (series.length - 1)).toFixed(2));
-            if (value === null || value === undefined) {
-              const prev = series[index - 1];
-              const next = series[index + 1];
-              const prevY = prev?.submitRate != null ? 220 - (Math.min(100, Math.max(0, prev.submitRate)) / 100) * 220 : null;
-              const nextY = next?.submitRate != null ? 220 - (Math.min(100, Math.max(0, next.submitRate)) / 100) * 220 : null;
-              const startY = prevY ?? nextY ?? 110;
-              const endY = nextY ?? prevY ?? 110;
-              return (
-                <g key={point.date}>
-                  {prevY != null && nextY != null ? (
-                    <path
-                      d={`M ${x - (step / 2)} ${prevY} L ${x + (step / 2)} ${nextY}`}
-                      className="stroke-slate-300"
-                      fill="none"
-                      strokeDasharray="4 3"
-                      strokeWidth="1.5"
-                    />
-                  ) : null}
-                  <circle className="fill-slate-200 stroke-slate-300" cx={x} cy={(startY + endY) / 2} r="2.5" strokeWidth="1" />
-                  <title>{`${point.label} 数据待更新`}</title>
-                </g>
-              );
-            }
-            const y = Number((220 - (Math.min(100, Math.max(0, value)) / 100) * 220).toFixed(2));
-            return (
-              <g key={point.date}>
-                <circle className="fill-blue-600" cx={x} cy={y} r="3">
-                  <title>{`${point.label} 提交率 ${value}%`}</title>
-                </circle>
-              </g>
-            );
-          })}
-        </svg>
-        <div className="flex justify-between text-center text-[11px] text-slate-400">
-          {series.map((point) => (
-            <span key={point.date}>{point.label}</span>
-          ))}
-        </div>
-      </div>
-    </div>
+    <svg
+      className="h-[140px] w-full overflow-visible"
+      preserveAspectRatio="none"
+      role="img"
+      viewBox={`0 0 ${chartWidth} ${chartHeight}`}
+    >
+      <title>每日提交率趋势</title>
+      {[100, 50, 0].map((tick) => {
+        const y = yForValue(tick);
+        return (
+          <g key={tick}>
+            <line
+              stroke="#E5E7EB"
+              strokeDasharray="2 2"
+              strokeWidth="0.5"
+              vectorEffect="non-scaling-stroke"
+              x1={plotLeft}
+              x2={plotRight}
+              y1={y}
+              y2={y}
+            />
+            <text fill="#9CA3AF" fontSize="10" x="4" y={y + 4}>
+              {tick}%
+            </text>
+          </g>
+        );
+      })}
+      {areaPath ? (
+        <path d={areaPath} fill="#2563EB" fillOpacity="0.08" stroke="none" />
+      ) : null}
+      {solidSegments.map((segment) => (
+        <line
+          key={`${segment.from.date}-${segment.to.date}`}
+          stroke="#2563EB"
+          strokeLinecap="round"
+          strokeWidth="1.5"
+          vectorEffect="non-scaling-stroke"
+          x1={segment.from.x}
+          x2={segment.to.x}
+          y1={segment.from.y}
+          y2={segment.to.y}
+        />
+      ))}
+      {todaySegments.map((segment) => (
+        <line
+          key={`${segment.from.date}-${segment.to.date}-today`}
+          stroke="#2563EB"
+          strokeDasharray="3 2"
+          strokeLinecap="round"
+          strokeWidth="1.5"
+          vectorEffect="non-scaling-stroke"
+          x1={segment.from.x}
+          x2={segment.to.x}
+          y1={segment.from.y}
+          y2={segment.to.y}
+        />
+      ))}
+      {chartPoints.map((point) => (
+        <g key={point.date}>
+          <circle
+            cx={point.x}
+            cy={point.y}
+            fill={point.isToday ? "#FFFFFF" : "#2563EB"}
+            r={point.isToday ? 3 : 2.5}
+            stroke={point.isToday ? "#2563EB" : "none"}
+            strokeWidth={point.isToday ? 1.5 : 0}
+            vectorEffect="non-scaling-stroke"
+          >
+            <title>
+              {typeof point.value === "number"
+                ? `${point.label} · 提交率 ${point.value}%`
+                : `${point.label} · 数据待更新`}
+            </title>
+          </circle>
+          <text fill="#9CA3AF" fontSize="10" textAnchor="middle" x={point.x} y="126">
+            {point.displayLabel}
+          </text>
+        </g>
+      ))}
+    </svg>
   );
 };
 
@@ -1228,7 +1251,7 @@ const StudentReportsView = (props: ReportsViewProps) => {
                     <Workspace.UserAvatar
                       className="h-8 w-8"
                       name={member.name}
-                      avatar={member.avatar}
+                      avatar={getMemberAvatarFallback(member)}
                       avatarUrl={member.avatarUrl}
                     />
                     <div className="min-w-0 flex-1">
@@ -1367,7 +1390,7 @@ const TeacherMemberReportCard = ({
         <Workspace.UserAvatar
           className={`h-9 w-9 shrink-0 rounded-full ${cardMode === "overdue" || cardMode === "missing-today" ? "bg-slate-100 text-slate-400" : "bg-blue-50 text-blue-600"}`}
           name={member.name}
-          avatar={member.avatar}
+          avatar={getMemberAvatarFallback(member)}
           avatarUrl={member.avatarUrl}
         />
         <div className="min-w-0 flex-1">
