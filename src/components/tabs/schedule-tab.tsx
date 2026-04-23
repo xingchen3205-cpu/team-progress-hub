@@ -227,7 +227,7 @@ type GroupHealthItem = {
 
 type TeacherTrendRange = "week" | "month";
 type TeacherMemberFilter = "all" | "pending" | "missing";
-type TeacherMemberCardMode = "collapsed" | "expanded" | "compact" | "warning" | "missing";
+type TeacherMemberCardMode = "collapsed" | "expanded" | "compact" | "warning" | "missing" | "missing-today" | "overdue";
 
 const adminSurfaceCardClassName =
   "rounded-[20px] border border-slate-200/80 bg-white p-5 shadow-[0_4px_16px_rgba(16,24,40,0.04)]";
@@ -408,10 +408,15 @@ const getMissingDaysStreak = (
   memberId: string,
   dateKeys: string[],
   reportEntriesByDay: Record<string, ReportRecord[]>,
+  todayDateKey: string,
 ) => {
   let streak = 0;
 
   for (const date of dateKeys) {
+    if (isBeforeReportDeadline(date, todayDateKey)) {
+      continue;
+    }
+
     const report = getMemberReportForDate(reportEntriesByDay, date, memberId);
     if (report) {
       break;
@@ -577,7 +582,7 @@ const MainTrendChart = ({
   todayDateKey: string;
 }) => {
   const accessor = (point: TrendPoint) => point.submitRate;
-  const path = buildLinePath(series, accessor, 160);
+  const path = buildLinePath(series, accessor, 220);
   const effectiveDays = getEffectiveDataDays(
     series.map((s) => s.date),
     todayDateKey,
@@ -591,7 +596,7 @@ const MainTrendChart = ({
   const allNull = series.every((p) => p.submitRate === null);
   if (!hasRealVariance && !allNull) {
     return (
-      <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-8 text-center">
+      <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-10 text-center">
         <Workspace.BarChart3 className="mb-2 h-8 w-8 text-slate-300" />
         <p className="text-sm font-medium text-slate-500">本周数据平稳，暂无显著波动</p>
       </div>
@@ -603,16 +608,16 @@ const MainTrendChart = ({
   const step = series.length === 1 ? width : width / (series.length - 1);
 
   return (
-    <div className="grid grid-cols-[42px_minmax(0,1fr)] gap-4">
-      <div className="flex h-40 flex-col justify-between text-[11px] text-slate-400">
+    <div className="grid grid-cols-[42px_minmax(0,1fr)] gap-3">
+      <div className="flex h-[220px] flex-col justify-between text-[11px] text-slate-400">
         {ticks.map((tick) => (
           <span key={tick}>{tick}%</span>
         ))}
       </div>
-      <div className="space-y-3">
-        <svg className="h-40 w-full overflow-visible" viewBox="0 0 100 160" preserveAspectRatio="none">
-          <path d="M0 159.5 H100" className="stroke-slate-200" fill="none" strokeWidth="1" />
-          <path d="M0 80 H100" className="stroke-slate-100" fill="none" strokeDasharray="3 3" strokeWidth="1" />
+      <div className="space-y-2">
+        <svg className="h-[220px] w-full overflow-visible" viewBox="0 0 100 220" preserveAspectRatio="none">
+          <path d="M0 219.5 H100" className="stroke-slate-200" fill="none" strokeWidth="1" />
+          <path d="M0 110 H100" className="stroke-slate-100" fill="none" strokeDasharray="3 3" strokeWidth="1" />
           {path ? (
             <>
               <path
@@ -624,7 +629,7 @@ const MainTrendChart = ({
                 strokeWidth="2.5"
               />
               <path
-                d={`${path} L 100 160 L 0 160 Z`}
+                d={`${path} L 100 220 L 0 220 Z`}
                 className="fill-blue-600"
                 fillOpacity="0.15"
                 stroke="none"
@@ -637,10 +642,10 @@ const MainTrendChart = ({
             if (value === null || value === undefined) {
               const prev = series[index - 1];
               const next = series[index + 1];
-              const prevY = prev?.submitRate != null ? 160 - (Math.min(100, Math.max(0, prev.submitRate)) / 100) * 160 : null;
-              const nextY = next?.submitRate != null ? 160 - (Math.min(100, Math.max(0, next.submitRate)) / 100) * 160 : null;
-              const startY = prevY ?? nextY ?? 80;
-              const endY = nextY ?? prevY ?? 80;
+              const prevY = prev?.submitRate != null ? 220 - (Math.min(100, Math.max(0, prev.submitRate)) / 100) * 220 : null;
+              const nextY = next?.submitRate != null ? 220 - (Math.min(100, Math.max(0, next.submitRate)) / 100) * 220 : null;
+              const startY = prevY ?? nextY ?? 110;
+              const endY = nextY ?? prevY ?? 110;
               return (
                 <g key={point.date}>
                   {prevY != null && nextY != null ? (
@@ -657,7 +662,7 @@ const MainTrendChart = ({
                 </g>
               );
             }
-            const y = Number((160 - (Math.min(100, Math.max(0, value)) / 100) * 160).toFixed(2));
+            const y = Number((220 - (Math.min(100, Math.max(0, value)) / 100) * 220).toFixed(2));
             return (
               <g key={point.date}>
                 <circle className="fill-blue-600" cx={x} cy={y} r="3">
@@ -1299,6 +1304,7 @@ const TeacherMemberReportCard = ({
   reminderCoolingDown,
   quickPraiseLoading,
   composerSubmitting,
+  todayDateKey,
 }: {
   currentMemberId: string;
   member: ReportMember;
@@ -1320,32 +1326,50 @@ const TeacherMemberReportCard = ({
   reminderCoolingDown: boolean;
   quickPraiseLoading: boolean;
   composerSubmitting: boolean;
+  todayDateKey: string;
 }) => {
   const concernText = getConcernText(report);
-  const cardMode: TeacherMemberCardMode = !report
-    ? "missing"
-    : composer?.reportId === report.id || isExpanded
+  const isTodayBeforeDeadline = isBeforeReportDeadline(selectedDate, todayDateKey);
+  const cardMode: TeacherMemberCardMode = report
+    ? composer?.reportId === report.id || isExpanded
       ? "expanded"
       : concernText
         ? "warning"
         : evaluations.length > 0
           ? "compact"
-          : "collapsed";
+          : "collapsed"
+    : isTodayBeforeDeadline
+      ? "missing-today"
+      : "overdue";
+
+  const statusBadgeMeta: Record<TeacherMemberCardMode, { label: string; className: string }> = {
+    collapsed: { label: "已提交", className: "bg-emerald-50 text-emerald-700" },
+    expanded: { label: "已提交", className: "bg-emerald-50 text-emerald-700" },
+    compact: { label: "已提交", className: "bg-emerald-50 text-emerald-700" },
+    warning: { label: "需关注", className: "bg-amber-50 text-amber-700" },
+    missing: { label: "未提交", className: "bg-slate-100 text-slate-600" },
+    "missing-today": { label: "今日待提交", className: "bg-slate-100 text-slate-500" },
+    overdue: { label: "连续未提交", className: "bg-rose-50 text-rose-700" },
+  };
 
   const containerClassName =
-    cardMode === "missing"
-      ? "border-dashed border-[var(--color-line)] bg-[var(--color-paper)]"
-      : cardMode === "expanded"
-        ? "border-[var(--color-primary)] bg-[var(--color-primary-soft)]/40"
-        : cardMode === "warning"
-          ? "border-[var(--color-warning)]/20 bg-[var(--color-paper)]"
-          : "border-[var(--color-line)] bg-[var(--color-paper)]";
+    cardMode === "overdue"
+      ? "border-rose-200 bg-white"
+      : cardMode === "missing-today"
+        ? "border-slate-200 bg-white"
+        : cardMode === "expanded"
+          ? "border-blue-300 bg-blue-50/40"
+          : cardMode === "warning"
+            ? "border-amber-200 bg-white"
+            : "border-slate-200 bg-white";
+
+  const badge = statusBadgeMeta[cardMode];
 
   return (
-    <article className={`rounded-lg border px-4 py-3 shadow-sm transition ${containerClassName}`}>
+    <article className={`rounded-2xl border px-4 py-3.5 shadow-sm transition ${containerClassName}`}>
       <div className="flex items-start gap-3">
         <Workspace.UserAvatar
-          className={`h-9 w-9 shrink-0 rounded-full ${cardMode === "missing" ? "bg-[var(--color-bg-subtle)] text-[var(--color-text-tertiary)]" : "bg-[var(--color-primary-soft)] text-[var(--color-primary)]"}`}
+          className={`h-9 w-9 shrink-0 rounded-full ${cardMode === "overdue" || cardMode === "missing-today" ? "bg-slate-100 text-slate-400" : "bg-blue-50 text-blue-600"}`}
           name={member.name}
           avatar={member.avatar}
           avatarUrl={member.avatarUrl}
@@ -1353,32 +1377,26 @@ const TeacherMemberReportCard = ({
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <span className="truncate text-sm font-medium text-slate-900">{member.name}</span>
-            <span className="rounded-md border border-[var(--color-line)] bg-[var(--color-bg-subtle)] px-2 py-0.5 text-[11px] text-[var(--color-text-secondary)]">
+            <span className="rounded-md border border-slate-200 bg-slate-50 px-2 py-0.5 text-[11px] text-slate-500">
               {member.systemRole}
             </span>
             {cardMode === "warning" ? (
-              <span className="rounded-md bg-[var(--color-warning-soft)] px-2 py-0.5 text-[11px] font-medium text-[var(--color-warning)]">
+              <span className="rounded-md bg-amber-50 px-2 py-0.5 text-[11px] font-medium text-amber-700">
                 关键词预警
               </span>
             ) : null}
           </div>
-          <p className="mt-1 text-xs text-[var(--color-text-secondary)]">
+          <p className="mt-1 text-xs text-slate-500">
             {report ? `${selectedDate.replaceAll("-", "/")} 汇报` : `尚未提交 ${selectedDate.replaceAll("-", "/")} 汇报`}
           </p>
         </div>
         <div className="flex flex-col items-end gap-2">
-          <span
-            className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${
-              report
-                ? "bg-[var(--color-success-soft)] text-[var(--color-success)]"
-                : "bg-[var(--color-bg-subtle)] text-[var(--color-text-secondary)]"
-            }`}
-          >
-            {report ? `已提交 ${report.submittedAt}` : "未提交"}
+          <span className={`rounded-full px-2.5 py-1 text-[11px] font-medium ${badge.className}`}>
+            {badge.label}
           </span>
           {report ? (
             <button
-              className="text-[11px] text-[var(--color-text-secondary)] transition hover:text-[var(--color-primary)]"
+              className="text-[11px] text-slate-500 transition hover:text-blue-600"
               onClick={onToggleExpand}
               type="button"
             >
@@ -1388,18 +1406,15 @@ const TeacherMemberReportCard = ({
         </div>
       </div>
 
-      {cardMode === "missing" ? (
-        <div className="mt-3 rounded-lg border border-dashed border-[var(--color-line)] bg-[var(--color-bg-subtle)] px-4 py-4">
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-xs font-medium text-[var(--color-danger)]">连续 3 天未提交</span>
-            <span className="text-xs text-[var(--color-text-secondary)]">该成员当天尚未提交汇报，建议先催交再继续跟进点评。</span>
-          </div>
-          <div className="mt-3">
+      {cardMode === "overdue" ? (
+        <div className="mt-3 rounded-xl border border-dashed border-rose-200 bg-rose-50/50 px-4 py-3">
+          <div className="flex items-center justify-between gap-3">
+            <span className="text-xs text-rose-700">该成员已连续多日未提交汇报，建议尽快催交。</span>
             <button
               className={`inline-flex items-center gap-1 rounded-md border px-3 py-1.5 text-xs font-medium transition ${
                 reminderCoolingDown
-                  ? "cursor-not-allowed border-[var(--color-line)] bg-[var(--color-bg-subtle)] text-[var(--color-text-tertiary)]"
-                  : "border-[var(--color-danger)] bg-[var(--color-paper)] text-[var(--color-danger)] hover:bg-[var(--color-danger-soft)]"
+                  ? "cursor-not-allowed border-slate-200 bg-slate-50 text-slate-400"
+                  : "border-rose-300 bg-white text-rose-700 hover:bg-rose-50"
               }`}
               disabled={reminderCoolingDown || sendingReminder}
               onClick={onSendReminder}
@@ -1412,17 +1427,23 @@ const TeacherMemberReportCard = ({
         </div>
       ) : null}
 
-      {report && cardMode === "compact" ? (
-        <div className="mt-3 rounded-lg bg-[var(--color-bg-subtle)] px-3 py-3">
+      {cardMode === "missing-today" ? (
+        <div className="mt-3 rounded-xl border border-dashed border-slate-200 bg-slate-50 px-4 py-3">
+          <p className="text-xs text-slate-500">今日汇报截止时间前，暂不标记为异常。</p>
+        </div>
+      ) : null}
+
+      {report && (cardMode === "compact" || cardMode === "collapsed") ? (
+        <div className="mt-3 rounded-xl bg-slate-50 px-3 py-3">
           <span className="sr-only">最近一次汇报</span>
           <p className="line-clamp-1 text-sm text-slate-700">
-            <span className="text-[var(--color-text-tertiary)]">今日完成：</span>
+            <span className="text-slate-400">今日完成：</span>
             {report.summary}
           </p>
           <div className="mt-2 flex items-center justify-between gap-3">
-            <span className="text-[11px] text-[var(--color-text-secondary)]">已收到 {evaluations.length} 条点评</span>
+            <span className="text-[11px] text-slate-500">已收到 {evaluations.length} 条点评</span>
             <button
-              className="text-[11px] font-medium text-[var(--color-primary)] transition hover:opacity-80"
+              className="text-[11px] font-medium text-blue-600 transition hover:opacity-80"
               onClick={onToggleExpand}
               type="button"
             >
@@ -1432,51 +1453,51 @@ const TeacherMemberReportCard = ({
         </div>
       ) : null}
 
-      {report && cardMode !== "missing" && cardMode !== "compact" ? (
+      {report && (cardMode === "expanded" || cardMode === "warning") ? (
         <>
           {cardMode === "warning" && concernText ? (
-            <div className="mt-3 rounded-lg bg-[var(--color-warning-soft)] px-3 py-2 text-xs text-[var(--color-warning)]">
-              检测到关键词“{concernText}”，建议优先查看该成员进展并及时跟进。
+            <div className="mt-3 rounded-xl bg-amber-50 px-3 py-2 text-xs text-amber-700">
+              {`检测到关键词"${concernText}"，建议优先查看该成员进展并及时跟进。`}
             </div>
           ) : null}
 
           <div className="mt-3 space-y-3">
-            <div className="rounded-lg bg-[var(--color-bg-subtle)] px-3 py-3">
-              <p className="text-[11px] font-medium text-[var(--color-text-tertiary)]">今日完成</p>
+            <div className="rounded-xl bg-slate-50 px-3 py-3">
+              <p className="text-[11px] font-medium text-slate-400">今日完成</p>
               <p className="mt-1 text-sm leading-6 text-slate-700">{report.summary}</p>
             </div>
-            <div className="rounded-lg bg-[var(--color-bg-subtle)] px-3 py-3">
-              <p className="text-[11px] font-medium text-[var(--color-text-tertiary)]">明日计划</p>
+            <div className="rounded-xl bg-slate-50 px-3 py-3">
+              <p className="text-[11px] font-medium text-slate-400">明日计划</p>
               <p className="mt-1 text-sm leading-6 text-slate-700">{report.nextPlan}</p>
             </div>
           </div>
 
           <div className="mt-3 flex flex-wrap items-center gap-2">
             <button
-              className="inline-flex items-center gap-1 rounded-md border border-[var(--color-line)] bg-[var(--color-paper)] px-3 py-1.5 text-xs font-medium text-[var(--color-text-secondary)] transition hover:bg-[var(--color-bg-subtle)]"
+              className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
               disabled={quickPraiseLoading}
               onClick={onQuickPraise}
               type="button"
             >
-              <span className="text-[var(--color-primary)]">▲</span>
+              <span className="text-blue-600">▲</span>
               <span>{quickPraiseLoading ? "发送中..." : "点赞"}</span>
             </button>
             <button
-              className="inline-flex items-center gap-1 rounded-md border border-[var(--color-line)] bg-[var(--color-paper)] px-3 py-1.5 text-xs font-medium text-[var(--color-text-secondary)] transition hover:bg-[var(--color-bg-subtle)]"
+              className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
               onClick={() => onOpenComposer("improve")}
               type="button"
             >
-              <span className="text-[var(--color-warning)]">!</span>
+              <span className="text-amber-600">!</span>
               <span>待改进</span>
             </button>
             <button
-              className="inline-flex items-center gap-1 rounded-md border border-[var(--color-line)] bg-[var(--color-paper)] px-3 py-1.5 text-xs font-medium text-[var(--color-text-secondary)] transition hover:bg-[var(--color-bg-subtle)]"
+              className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-600 transition hover:bg-slate-50"
               onClick={() => onOpenComposer("comment")}
               type="button"
             >
               <span>批注</span>
             </button>
-            <span className="ml-auto text-[11px] text-[var(--color-text-tertiary)]">
+            <span className="ml-auto text-[11px] text-slate-400">
               {evaluations.length > 0 ? `已收到 ${evaluations.length} 条点评` : "待点评"}
             </span>
           </div>
@@ -1489,13 +1510,13 @@ const TeacherMemberReportCard = ({
                 }
 
                 return (
-                  <div className="mt-3 rounded-lg border border-[var(--color-primary)] bg-[var(--color-paper)] px-3 py-3">
+                  <div className="mt-3 rounded-xl border border-blue-300 bg-white px-3 py-3">
                     <div className="flex items-center justify-between gap-3">
-                      <p className="text-xs font-semibold text-[var(--color-primary)]">
+                      <p className="text-xs font-semibold text-blue-700">
                         {activeComposer.type === "improve" ? "快速评价 · 待改进" : "快速评价 · 批注"}
                       </p>
                       <button
-                        className="text-[11px] text-[var(--color-text-secondary)] transition hover:text-[var(--color-primary)]"
+                        className="text-[11px] text-slate-500 transition hover:text-blue-600"
                         onClick={onCloseComposer}
                         type="button"
                       >
@@ -1503,7 +1524,7 @@ const TeacherMemberReportCard = ({
                       </button>
                     </div>
                     <textarea
-                      className="mt-2 min-h-20 w-full rounded-md border border-[var(--color-line)] bg-[var(--color-paper)] px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-[var(--color-primary)]"
+                      className="mt-2 min-h-20 w-full rounded-md border border-slate-200 bg-white px-3 py-2 text-sm text-slate-700 outline-none transition focus:border-blue-500"
                       placeholder={activeComposer.type === "improve" ? "请写明具体待改进点" : "写下对该汇报的详细批注"}
                       value={activeComposer.value}
                       onChange={(event) => onComposerChange(event.target.value)}
@@ -1512,8 +1533,8 @@ const TeacherMemberReportCard = ({
                       <button
                         className={`inline-flex items-center gap-1 rounded-md px-3 py-1.5 text-xs font-medium transition ${
                           activeComposer.type === "improve"
-                            ? "bg-[var(--color-warning-soft)] text-[var(--color-warning)] hover:opacity-80"
-                            : "bg-[var(--color-primary-soft)] text-[var(--color-primary)] hover:opacity-80"
+                            ? "bg-amber-50 text-amber-700 hover:opacity-80"
+                            : "bg-blue-50 text-blue-700 hover:opacity-80"
                         }`}
                         disabled={composerSubmitting}
                         onClick={onSubmitComposer}
@@ -1529,7 +1550,7 @@ const TeacherMemberReportCard = ({
 
           {isExpanded && evaluations.length > 0 ? (
             <div className="mt-3">
-              <p className="mb-2 text-[11px] font-medium text-[var(--color-text-tertiary)]">已评价</p>
+              <p className="mb-2 text-[11px] font-medium text-slate-400">已评价</p>
               <EvaluationTimeline
                 currentMemberId={currentMemberId}
                 evaluations={evaluations}
@@ -1758,7 +1779,7 @@ const GroupOperationsBoard = ({
         action: "remind" | "detail" | "feedback";
       }> = [];
 
-      const missingDays = getMissingDaysStreak(member.id, focusDateKeys, reportEntriesByDay);
+      const missingDays = getMissingDaysStreak(member.id, focusDateKeys, reportEntriesByDay, todayDateKey);
       if (missingDays >= 2) {
         alerts.push({
           id: `${member.id}-missing`,
@@ -1776,7 +1797,7 @@ const GroupOperationsBoard = ({
           id: `${member.id}-concern`,
           tone: "warning",
           title: `${member.name} 汇报出现风险关键词`,
-          detail: `检测到“${concern}”，建议查看详情并及时跟进。`,
+          detail: `检测到"${concern}"，建议查看详情并及时跟进。`,
           member,
           action: "detail",
         });
@@ -1796,7 +1817,7 @@ const GroupOperationsBoard = ({
 
       return alerts;
     });
-  }, [members, recentDateKeys, reportEntriesByDay, selectedDate]);
+  }, [members, recentDateKeys, reportEntriesByDay, selectedDate, todayDateKey]);
 
   const trendSeries = useMemo(
     () =>
@@ -2048,24 +2069,26 @@ const GroupOperationsBoard = ({
               </p>
             </div>
             <div className="flex items-center gap-2">
-              {([
-                { key: "all", label: "全部" },
-                { key: "pending", label: `待点评 ${pendingReviewCount}` },
-                { key: "missing", label: `未提交 ${missingCount}` },
-              ] as const).map((filter) => (
-                <button
-                  key={filter.key}
-                  className={`rounded-md px-3 py-1.5 text-xs font-medium transition ${
-                    memberFilter === filter.key
-                      ? "bg-[var(--color-primary-soft)] text-[var(--color-primary)]"
-                      : "border border-[var(--color-line)] bg-[var(--color-paper)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)]"
-                  }`}
-                  onClick={() => setMemberFilter(filter.key)}
-                  type="button"
-                >
-                  {filter.label}
-                </button>
-              ))}
+              <div className="inline-flex rounded-lg bg-slate-100 p-1">
+                {([
+                  { key: "all", label: "全部" },
+                  { key: "pending", label: `待点评 ${pendingReviewCount}` },
+                  { key: "missing", label: `未提交 ${missingCount}` },
+                ] as const).map((filter) => (
+                  <button
+                    key={filter.key}
+                    className={`rounded-md px-3 py-1 text-xs font-medium transition ${
+                      memberFilter === filter.key
+                        ? "bg-white text-slate-900 shadow-sm"
+                        : "text-slate-500 hover:text-slate-700"
+                    }`}
+                    onClick={() => setMemberFilter(filter.key)}
+                    type="button"
+                  >
+                    {filter.label}
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 
@@ -2118,6 +2141,7 @@ const GroupOperationsBoard = ({
                       composer?.type &&
                       submittingEvaluationKey === `${report.id}:${composer.type}`,
                   )}
+                  todayDateKey={todayDateKey}
                 />
               );
             })}
@@ -2155,23 +2179,23 @@ const GroupOperationsBoard = ({
             </div>
           </div>
 
-          <div className="mt-4 grid gap-4 xl:grid-cols-[180px_minmax(0,1fr)]">
+          <div className="mt-4 grid gap-3 xl:grid-cols-[180px_minmax(0,1fr)]">
             <div className="space-y-2">
-              <div className="rounded-md bg-[var(--color-bg-subtle)] px-3 py-3">
+              <div className="rounded-md bg-[var(--color-bg-subtle)] px-3 py-2">
                 <p className="text-[11px] text-[var(--color-text-secondary)]">本周平均提交率</p>
                 <p className="mt-1 text-2xl font-semibold text-slate-900">{trendAverage}%</p>
                 <p className={`mt-1 text-[11px] ${trendAverage >= previousTrendAverage ? "text-[var(--color-success)]" : "text-[var(--color-danger)]"}`}>
                   {formatTrendDelta(trendAverage - previousTrendAverage, "%", "与上期持平")}
                 </p>
               </div>
-              <div className="rounded-md bg-[var(--color-bg-subtle)] px-3 py-3">
+              <div className="rounded-md bg-[var(--color-bg-subtle)] px-3 py-2">
                 <p className="text-[11px] text-[var(--color-text-secondary)]">本周累计获赞</p>
                 <p className="mt-1 text-2xl font-semibold text-slate-900">{trendPraiseTotal}</p>
                 <p className={`mt-1 text-[11px] ${trendPraiseTotal >= previousTrendPraiseTotal ? "text-[var(--color-success)]" : "text-[var(--color-danger)]"}`}>
                   {formatTrendDelta(trendPraiseTotal - previousTrendPraiseTotal, "", "与上期持平")}
                 </p>
               </div>
-              <div className="rounded-md bg-[var(--color-bg-subtle)] px-3 py-3">
+              <div className="rounded-md bg-[var(--color-bg-subtle)] px-3 py-2">
                 <p className="text-[11px] text-[var(--color-text-secondary)]">本周点评发起</p>
                 <p className="mt-1 text-2xl font-semibold text-slate-900">{trendEvaluationTotal}</p>
                 <p className="mt-1 text-[11px] text-[var(--color-text-tertiary)]">
@@ -2180,8 +2204,8 @@ const GroupOperationsBoard = ({
               </div>
             </div>
 
-            <div className="rounded-md bg-[var(--color-bg-subtle)] px-3 py-3">
-              <div className="mb-3 flex items-center justify-between">
+            <div className="rounded-md bg-[var(--color-bg-subtle)] px-3 py-2">
+              <div className="mb-2 flex items-center justify-between">
                 <p className="text-xs font-medium text-slate-900">每日提交率</p>
                 <span className="text-[11px] text-[var(--color-text-tertiary)]">单位：%</span>
               </div>
@@ -2461,10 +2485,13 @@ const TeacherReportsView = () => {
             <p className="mt-1 text-2xl font-semibold text-slate-900">{weeklyPraiseTotal}</p>
           </div>
           <div>
-            <p className="text-[11px] text-[var(--color-text-secondary)]">全校项目组排名</p>
+            <p className="text-[11px] text-[var(--color-text-secondary)]">本组本周排名</p>
             <p className="mt-1 text-2xl font-semibold text-[var(--color-primary)]">
               {projectRank.rank || "--"}
               <span className="ml-1 text-xs font-normal text-[var(--color-text-tertiary)]">/ {projectRank.total || "--"}</span>
+            </p>
+            <p className="mt-1 text-[11px] text-[var(--color-text-tertiary)]">
+              每日 {REPORT_DEADLINE_HOUR}:00 截止统计
             </p>
           </div>
         </div>
@@ -2794,7 +2821,7 @@ const AdminReportsView = (props: ReportsViewProps) => {
 
     groupHealthItems.forEach((group) => {
       const noSubmitThreeDays = group.members.every(
-        (member) => getMissingDaysStreak(member.id, recentDateKeys.slice(0, 3), reportEntriesByDay) >= 3,
+        (member) => getMissingDaysStreak(member.id, recentDateKeys.slice(0, 3), reportEntriesByDay, todayDateKey) >= 3,
       );
       if (noSubmitThreeDays && group.members.length > 0) {
         warnings.push({
@@ -2830,7 +2857,7 @@ const AdminReportsView = (props: ReportsViewProps) => {
     }
 
     return warnings;
-  }, [currentWeekAverage, groupHealthItems, recentDateKeys, reportEntriesByDay, teacherActivity, weekDelta]);
+  }, [currentWeekAverage, groupHealthItems, recentDateKeys, reportEntriesByDay, teacherActivity, todayDateKey, weekDelta]);
 
   const adminTrendSeries = useMemo(
     () =>

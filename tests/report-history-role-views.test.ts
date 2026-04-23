@@ -462,7 +462,7 @@ test("teacher view follows template header and overview structure", () => {
   assert.match(scheduleSource, /今日提交/);
   assert.match(scheduleSource, /本周提交率/);
   assert.match(scheduleSource, /本周获赞/);
-  assert.match(scheduleSource, /全校项目组排名/);
+  assert.match(scheduleSource, /本组本周排名/);
 });
 
 test("teacher view uses compact member report controls from template", () => {
@@ -475,7 +475,7 @@ test("teacher view uses compact member report controls from template", () => {
   assert.match(scheduleSource, /未提交/);
   assert.match(scheduleSource, /▲ 点赞/);
   assert.match(scheduleSource, /关键词预警/);
-  assert.match(scheduleSource, /连续 3 天未提交/);
+  assert.match(scheduleSource, /连续.*天未提交/);
 });
 
 test("teacher trend panel uses metric cards plus one main chart layout", () => {
@@ -488,4 +488,59 @@ test("teacher trend panel uses metric cards plus one main chart layout", () => {
   assert.match(scheduleSource, /本周累计获赞/);
   assert.match(scheduleSource, /本周点评发起/);
   assert.match(scheduleSource, /每日提交率/);
+});
+
+test("teacher view passes todayDateKey to TeacherMemberReportCard", () => {
+  const scheduleSource = readFileSync(
+    path.join(process.cwd(), "src/components/tabs/schedule-tab.tsx"),
+    "utf8",
+  );
+
+  assert.match(scheduleSource, /todayDateKey=\{todayDateKey\}/);
+});
+
+test("teacher view uses segmented control for member filter tabs", () => {
+  const scheduleSource = readFileSync(
+    path.join(process.cwd(), "src/components/tabs/schedule-tab.tsx"),
+    "utf8",
+  );
+
+  assert.match(scheduleSource, /inline-flex rounded-lg bg-slate-100 p-1/);
+  assert.match(scheduleSource, /bg-white text-slate-900 shadow-sm/);
+});
+
+test("teacher member cards support missing-today and overdue states", () => {
+  const scheduleSource = readFileSync(
+    path.join(process.cwd(), "src/components/tabs/schedule-tab.tsx"),
+    "utf8",
+  );
+
+  assert.match(scheduleSource, /"missing-today"/);
+  assert.match(scheduleSource, /"overdue"/);
+  assert.match(scheduleSource, /今日待提交/);
+  assert.match(scheduleSource, /连续未提交/);
+  assert.match(scheduleSource, /今日汇报截止时间前，暂不标记为异常/);
+  assert.match(scheduleSource, /该成员已连续多日未提交汇报，建议尽快催交/);
+});
+
+test("teacher attention items exclude today before deadline from missing streak", () => {
+  const scheduleSource = readFileSync(
+    path.join(process.cwd(), "src/components/tabs/schedule-tab.tsx"),
+    "utf8",
+  );
+
+  const teacherStart = scheduleSource.indexOf("const GroupOperationsBoard");
+  const teacherEnd = scheduleSource.indexOf("const TeacherReportsView", teacherStart);
+  const teacherBlock = scheduleSource.slice(teacherStart, teacherEnd);
+
+  assert.match(teacherBlock, /getMissingDaysStreak\(member\.id, focusDateKeys, reportEntriesByDay, todayDateKey\)/);
+});
+
+test("teacher view shows deadline hint in overview", () => {
+  const scheduleSource = readFileSync(
+    path.join(process.cwd(), "src/components/tabs/schedule-tab.tsx"),
+    "utf8",
+  );
+
+  assert.match(scheduleSource, /每日 \{REPORT_DEADLINE_HOUR\}:00 截止统计/);
 });
