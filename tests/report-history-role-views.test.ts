@@ -226,7 +226,7 @@ test("admin trend section shows three metric cards and one main chart", () => {
 
   assert.match(scheduleSource, /本周平均提交率/);
   assert.match(scheduleSource, /本周总点评数/);
-  assert.match(scheduleSource, /本周总红花数/);
+  assert.match(scheduleSource, /本周总点赞数/);
   assert.match(scheduleSource, /MainTrendChart/);
 });
 
@@ -329,7 +329,7 @@ test("student achievement panel shows four metrics", () => {
 
   assert.match(scheduleSource, /连续提交/);
   assert.match(scheduleSource, /本月提交率/);
-  assert.match(scheduleSource, /红花数/);
+  assert.match(scheduleSource, /点赞数/);
   assert.match(scheduleSource, /当前排名/);
 });
 
@@ -462,7 +462,7 @@ test("teacher view follows template header and overview structure", () => {
   assert.match(scheduleSource, /今日提交/);
   assert.match(scheduleSource, /本周提交率/);
   assert.match(scheduleSource, /本周获赞/);
-  assert.match(scheduleSource, /本组本周排名/);
+  assert.match(scheduleSource, /全校项目组排名/);
 });
 
 test("teacher view uses compact member report controls from template", () => {
@@ -474,6 +474,10 @@ test("teacher view uses compact member report controls from template", () => {
   assert.match(scheduleSource, /待点评/);
   assert.match(scheduleSource, /未提交/);
   assert.match(scheduleSource, /▲ 点赞/);
+  assert.match(scheduleSource, /快速点评/);
+  assert.match(scheduleSource, /▲ 发送点赞/);
+  assert.match(scheduleSource, /! 标记待改进/);
+  assert.match(scheduleSource, /仅批注/);
   assert.match(scheduleSource, /关键词预警/);
   assert.match(scheduleSource, /连续.*天未提交/);
 });
