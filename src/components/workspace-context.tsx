@@ -1723,7 +1723,7 @@ export function UserAvatar({
   const [imageFailed, setImageFailed] = useState(false);
 
   return (
-    <div className={`${className} relative overflow-hidden`}>
+    <div className={`${className} relative flex items-center justify-center overflow-hidden`}>
       {avatarUrl && !imageFailed ? (
         <Image
           alt={`${name} 的头像`}
@@ -1735,7 +1735,7 @@ export function UserAvatar({
           src={avatarUrl}
         />
       ) : (
-        <span className={textClassName}>{avatar}</span>
+        <span className={textClassName ?? "text-sm font-semibold leading-none"}>{avatar}</span>
       )}
     </div>
   );

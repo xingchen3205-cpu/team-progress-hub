@@ -20,6 +20,15 @@ test("workspace dashboard uses next/image for avatars", () => {
   assert.doesNotMatch(avatarBlock, /<img/);
 });
 
+test("text avatar fallback is centered by default", () => {
+  const avatarComponentStart = contextSource.indexOf("export function UserAvatar(");
+  const dashboardStart = contextSource.indexOf("function useWorkspaceController(");
+  const avatarBlock = contextSource.slice(avatarComponentStart, dashboardStart);
+
+  assert.match(avatarBlock, /flex items-center justify-center/);
+  assert.match(avatarBlock, /text-sm font-semibold leading-none/);
+});
+
 test("next config keeps response compression enabled", () => {
   assert.match(nextConfigSource, /compress:\s*true/);
 });
