@@ -229,6 +229,40 @@ type TeacherTrendRange = "week" | "month";
 type TeacherMemberFilter = "all" | "pending" | "missing";
 type TeacherMemberCardMode = "collapsed" | "expanded" | "compact" | "warning" | "missing";
 
+const adminSurfaceCardClassName =
+  "rounded-[20px] border border-slate-200/80 bg-white p-5 shadow-[0_4px_16px_rgba(16,24,40,0.04)]";
+const adminSubtlePanelClassName = "rounded-2xl border border-slate-200/80 bg-slate-50/70";
+const adminFieldCompactClassName =
+  "h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm font-medium text-slate-700 outline-none transition focus:border-blue-300 focus:ring-2 focus:ring-blue-100";
+const adminHealthToneMeta: Record<
+  GroupHealthItem["tone"],
+  {
+    dotClassName: string;
+    badgeClassName: string;
+    progressClassName: string;
+    label: string;
+  }
+> = {
+  danger: {
+    dotClassName: "bg-rose-500",
+    badgeClassName: "border-rose-100 bg-rose-50 text-rose-700",
+    progressClassName: "bg-rose-500",
+    label: "存在明显异常",
+  },
+  warning: {
+    dotClassName: "bg-amber-500",
+    badgeClassName: "border-amber-100 bg-amber-50 text-amber-700",
+    progressClassName: "bg-amber-500",
+    label: "需要关注",
+  },
+  success: {
+    dotClassName: "bg-emerald-500",
+    badgeClassName: "border-emerald-100 bg-emerald-50 text-emerald-700",
+    progressClassName: "bg-emerald-500",
+    label: "运行稳定",
+  },
+};
+
 const REPORT_REMINDER_COOLDOWN_MS = 2 * 60 * 60 * 1000;
 const REPORT_REMINDER_COOLDOWN_STORAGE_KEY = "workspace-report-reminder-cooldowns";
 const REPORT_DEADLINE_HOUR = 18;
@@ -2922,48 +2956,54 @@ const AdminReportsView = (props: ReportsViewProps) => {
   }, [reportDeleteTeamGroupId, selectedDate, setLoadError, setConfirmDialog, removeTeamReports, teamGroups]);
 
   return (
-    <div className="space-y-4">
+    <div className="admin-reports-dashboard space-y-5">
       <Workspace.SectionHeader
         description={props.viewDescription || "管理员视角聚焦全校提交健康度、教师点评活跃度和异常项目组，优先暴露学校级风险。"}
         title="日程汇报"
       />
 
-      <section className={Workspace.surfaceCardClassName}>
-        <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
+      <section className={`admin-overview-card ${adminSurfaceCardClassName}`}>
+        <div className="grid gap-5 xl:grid-cols-[minmax(220px,0.8fr)_minmax(220px,0.65fr)_minmax(360px,1.25fr)] xl:items-center">
           <div>
-            <p className="text-sm font-semibold text-slate-900">全校概览</p>
-            <div className="mt-3 flex flex-wrap items-end gap-4">
+            <p className="text-base font-bold text-slate-900">全校概览</p>
+            <div className="mt-4">
               <div>
                 {isTodayBeforeDeadline ? (
                   <>
-                    <p className="text-[32px] font-semibold text-slate-900">
+                    <p className="admin-overview-rate text-[42px] font-bold leading-none tracking-tight text-slate-900">
                       {selectedReportSubmittedCount}/{selectedReportExpectedCount}
                     </p>
-                    <p className="text-sm text-slate-500">今日进度</p>
+                    <p className="mt-2 text-sm font-medium text-slate-500">今日进度</p>
                   </>
                 ) : (
                   <>
-                    <p className="text-[32px] font-semibold text-slate-900">{overallSubmitRate}%</p>
-                    <p className="text-sm text-slate-500">今日提交率</p>
+                    <p className="admin-overview-rate text-[42px] font-bold leading-none tracking-tight text-slate-900">{overallSubmitRate}%</p>
+                    <p className="mt-2 text-sm font-medium text-slate-500">今日提交率</p>
                   </>
                 )}
-                <p className="mt-1 text-xs text-slate-400">昨日提交率 {yesterdaySubmitRate}%</p>
-              </div>
-              <div className="rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3">
-                <p className="text-xs font-medium text-slate-400">本周均值 vs 上周均值</p>
-                <p className={`mt-1 text-sm font-semibold ${weekDelta >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
-                  {weekDelta >= 0 ? "↑" : "↓"} {Math.abs(weekDelta)}%
-                </p>
-                <span
-                  className="mt-1 inline-block cursor-help text-xs text-slate-400"
-                  title="按最近一周平均提交率与上一周平均提交率的差值计算"
-                >
-                  ?
-                </span>
+                <p className="mt-1 text-sm text-slate-500">昨日提交率 {yesterdaySubmitRate}%</p>
               </div>
             </div>
           </div>
-          <div className="w-full max-w-xl space-y-3">
+
+          <div className={`admin-compare-card ${adminSubtlePanelClassName} px-5 py-4`}>
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <p className="text-xs font-semibold text-slate-500">本周均值 vs 上周均值</p>
+                <p className={`mt-3 text-2xl font-bold leading-none ${weekDelta >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
+                  {weekDelta >= 0 ? "↑" : "↓"} {Math.abs(weekDelta)}%
+                </p>
+              </div>
+              <span
+                className="inline-flex h-6 w-6 cursor-help items-center justify-center rounded-full border border-slate-200 bg-white text-xs font-semibold text-slate-400"
+                title="按最近一周平均提交率与上一周平均提交率的差值计算"
+              >
+                ?
+              </span>
+            </div>
+          </div>
+
+          <div className="w-full space-y-3">
             <SearchBar onChange={setSearch} placeholder="搜索学生、教师、项目组名" value={search} />
             {search.trim() ? (
               <div className="grid gap-3 rounded-2xl border border-slate-200 bg-slate-50/80 p-4 md:grid-cols-3">
@@ -3021,14 +3061,15 @@ const AdminReportsView = (props: ReportsViewProps) => {
         </div>
       </section>
 
-      <section className={Workspace.surfaceCardClassName}>
-        <div className="flex flex-wrap items-center justify-between gap-3">
+      <section className={adminSurfaceCardClassName}>
+        <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
-            <h3 className="text-base font-semibold text-slate-900">项目组健康度总览</h3>
+            <h3 className="text-lg font-bold text-slate-900">项目组健康度总览</h3>
             <p className="mt-1 text-sm text-slate-500">异常项目组自动置顶，支持直接展开查看该组详情。</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Workspace.ActionButton
+              className="h-11 rounded-xl border-slate-200 bg-white text-slate-700 hover:bg-blue-50 hover:text-blue-700"
               onClick={() => {
                 const randomGroup = groupHealthItems[Math.floor(Math.random() * groupHealthItems.length)];
                 if (randomGroup) {
@@ -3036,10 +3077,11 @@ const AdminReportsView = (props: ReportsViewProps) => {
                 }
               }}
             >
+              <Workspace.Shuffle className="h-4 w-4" />
               随机抽查
             </Workspace.ActionButton>
             <select
-              className={Workspace.fieldClassName}
+              className={adminFieldCompactClassName}
               value={selectedReportTeamGroupId}
               onChange={(event) => setSelectedReportTeamGroupId(event.target.value)}
             >
@@ -3051,7 +3093,7 @@ const AdminReportsView = (props: ReportsViewProps) => {
               ))}
             </select>
             <select
-              className={Workspace.fieldClassName}
+              className={adminFieldCompactClassName}
               value={teacherFilter}
               onChange={(event) => setTeacherFilter(event.target.value)}
             >
@@ -3066,93 +3108,117 @@ const AdminReportsView = (props: ReportsViewProps) => {
         </div>
 
         <div className="mt-4 space-y-3">
-          {groupHealthItems.map((group) => (
-            <div
-              className="cursor-pointer rounded-2xl border border-slate-200 bg-white/90 transition hover:shadow-md"
-              key={group.id}
-              onClick={() => setExpandedGroupId((current) => (current === group.id ? "" : group.id))}
-              role="button"
-              tabIndex={0}
-            >
-              <div className="flex w-full items-center justify-between gap-4 px-5 py-4">
-                <div className="flex items-center gap-3">
-                  <span
-                    className={`h-3 w-3 rounded-full ${
-                      group.tone === "danger" ? "bg-rose-500" : group.tone === "warning" ? "bg-amber-500" : "bg-emerald-500"
-                    }`}
-                  />
-                  <div>
-                    <p className="text-sm font-semibold text-slate-900">{group.name}</p>
-                    <p className="mt-1 text-xs text-slate-500">{group.alerts.join(" · ") || group.summary}</p>
+          {groupHealthItems.map((group) => {
+            const toneMeta = adminHealthToneMeta[group.tone];
+            return (
+              <div
+                className="admin-health-row cursor-pointer rounded-2xl border border-slate-200 bg-white transition hover:border-blue-100 hover:bg-blue-50/20 hover:shadow-[0_8px_22px_rgba(16,24,40,0.06)]"
+                key={group.id}
+                onClick={() => setExpandedGroupId((current) => (current === group.id ? "" : group.id))}
+                role="button"
+                tabIndex={0}
+              >
+                <div className="grid w-full gap-4 px-5 py-4 xl:grid-cols-[minmax(0,1fr)_300px_28px] xl:items-center">
+                  <div className="flex min-w-0 items-start gap-3">
+                    <span className={`mt-1.5 h-3 w-3 shrink-0 rounded-full ${toneMeta.dotClassName}`} />
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="text-sm font-bold text-slate-900">{group.name}</p>
+                        <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${toneMeta.badgeClassName}`}>
+                          {toneMeta.label}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-sm text-slate-500">
+                        {group.alerts.filter((alert) => !alert.startsWith("指导教师：")).join(" · ") || group.summary}
+                      </p>
+                      <p className="mt-2 text-xs text-slate-400">
+                        {group.teacherNames.length > 0 ? `指导教师：${group.teacherNames.join("、")}` : "指导教师：未绑定"}
+                      </p>
+                    </div>
                   </div>
-                </div>
-                <div className="text-right">
-                  <p className="text-sm font-semibold text-slate-900">
-                    {group.submittedCount}/{group.expectedCount}
-                  </p>
-                  <p className="mt-1 text-xs text-slate-400">{group.summary}</p>
-                </div>
-              </div>
-
-              {expandedGroupId === group.id ? (
-                <div className="border-t border-slate-100 px-5 py-4" onClick={(event) => event.stopPropagation()}>
-                  <div className="mb-3 flex items-center justify-between">
-                    <p className="text-sm font-medium text-slate-500">成员汇报列表</p>
-                    <button
-                      className="text-xs text-slate-500"
-                      onClick={() => setExpandedGroupId("")}
-                      type="button"
-                    >
-                      收起
-                    </button>
-                  </div>
-                  <div className="space-y-3">
-                    {group.members.map((member) => {
-                      const memberReport = getMemberReportForDate(reportEntriesByDay, selectedDate, member.id);
-                      return (
-                        <AdminReadonlyReportCard
-                          key={member.id}
-                          date={selectedDate}
-                          evaluations={memberReport?.id ? (adminEvaluationsByReportId[memberReport.id] ?? []) : []}
-                          formatShortDate={props.formatShortDate}
-                          member={member}
-                          report={memberReport}
+                  <div className="min-w-0">
+                    <div className="flex items-center gap-3">
+                      <p className={`w-14 text-right text-lg font-bold ${group.tone === "danger" ? "text-rose-600" : "text-slate-900"}`}>
+                        {group.submittedCount}/{group.expectedCount}
+                      </p>
+                      <div className="admin-health-progress h-2 min-w-0 flex-1 rounded-full bg-slate-100">
+                        <div
+                          className={`h-full rounded-full ${toneMeta.progressClassName}`}
+                          style={{ width: `${Math.min(100, Math.max(0, group.submitRate))}%` }}
                         />
-                      );
-                    })}
+                      </div>
+                    </div>
+                    <p className="mt-2 text-right text-xs text-slate-400">{group.summary}</p>
                   </div>
+                  <Workspace.ChevronRight className="hidden h-5 w-5 text-slate-400 xl:block" />
                 </div>
-              ) : null}
-            </div>
-          ))}
+
+                {expandedGroupId === group.id ? (
+                  <div className="border-t border-slate-100 px-5 py-4" onClick={(event) => event.stopPropagation()}>
+                    <div className="mb-3 flex items-center justify-between">
+                      <p className="text-sm font-medium text-slate-500">成员汇报列表</p>
+                      <button
+                        className="text-xs text-slate-500"
+                        onClick={() => setExpandedGroupId("")}
+                        type="button"
+                      >
+                        收起
+                      </button>
+                    </div>
+                    <div className="space-y-3">
+                      {group.members.map((member) => {
+                        const memberReport = getMemberReportForDate(reportEntriesByDay, selectedDate, member.id);
+                        return (
+                          <AdminReadonlyReportCard
+                            key={member.id}
+                            date={selectedDate}
+                            evaluations={memberReport?.id ? (adminEvaluationsByReportId[memberReport.id] ?? []) : []}
+                            formatShortDate={props.formatShortDate}
+                            member={member}
+                            report={memberReport}
+                          />
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            );
+          })}
         </div>
       </section>
 
       <section className="grid gap-4 xl:grid-cols-2">
-        <article className={Workspace.surfaceCardClassName}>
+        <article className={adminSurfaceCardClassName}>
           <div className="flex items-center justify-between gap-3">
             <div>
-              <h3 className="text-base font-semibold text-slate-900">教师活跃度排行</h3>
+              <h3 className="text-lg font-bold text-slate-900">教师活跃度排行</h3>
               <p className="mt-1 text-sm text-slate-500">按本周点评次数排序，帮助管理员识别可能失管的教师。</p>
             </div>
           </div>
           <div className="mt-4 space-y-3">
             {teacherActivity.length > 0 ? (
               teacherActivity.map((teacher, index) => (
-                <div className="flex items-center justify-between rounded-xl border border-slate-200 bg-slate-50/70 px-4 py-3" key={teacher.id}>
-                  <div>
-                    <p className="text-sm font-semibold text-slate-900">
-                      {index + 1}. {teacher.name}
-                    </p>
-                    <p className="mt-1 text-xs text-slate-500">
-                      点评 {teacher.commentCount} 次 · 红花 {teacher.praiseCount} 次 · 待改进 {teacher.improveCount} 次
-                    </p>
+                <div className="admin-teacher-rank-card flex items-center justify-between rounded-2xl border border-slate-200 bg-slate-50/70 px-4 py-3" key={teacher.id}>
+                  <div className="flex min-w-0 items-center gap-3">
+                    <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-amber-200 bg-amber-100 text-sm font-bold text-amber-700 shadow-[inset_0_0_0_3px_rgba(255,255,255,0.6)]">
+                      {index + 1}
+                    </span>
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-slate-900">{teacher.name}</p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        点评 {teacher.commentCount} 次 <span className="mx-2 text-slate-300">|</span> 红花 {teacher.praiseCount} 次
+                        <span className="mx-2 text-slate-300">|</span> 待改进 {teacher.improveCount} 次
+                      </p>
+                    </div>
                   </div>
                   {index === teacherActivity.length - 1 && teacher.commentCount <= 1 ? (
-                    <span className="rounded-full bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700">
+                    <span className="shrink-0 rounded-full bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700">
                       ⚠️ 疑似失管
                     </span>
-                  ) : null}
+                  ) : (
+                    <Workspace.Award className="h-5 w-5 shrink-0 text-amber-500" />
+                  )}
                 </div>
               ))
             ) : (
@@ -3172,28 +3238,34 @@ const AdminReportsView = (props: ReportsViewProps) => {
           </div>
         </article>
 
-        <article className={Workspace.surfaceCardClassName}>
+        <article className={adminSurfaceCardClassName}>
           <div className="flex items-center justify-between gap-3">
             <div>
-              <h3 className="text-base font-semibold text-slate-900">全校预警</h3>
+              <h3 className="text-lg font-bold text-slate-900">全校预警</h3>
               <p className="mt-1 text-sm text-slate-500">把最需要管理员处理的问题集中收口，不需要逐组翻找。</p>
             </div>
           </div>
           <div className="mt-4 space-y-3">
             {adminWarnings.length > 0 ? (
               adminWarnings.map((warning) => (
-                <div className="rounded-xl border border-rose-100 bg-rose-50/80 px-4 py-3" key={warning.id}>
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-sm font-semibold text-slate-900">{warning.title}</p>
-                      <p className="mt-1 text-sm text-slate-500">{warning.detail}</p>
+                <div className="admin-warning-soft-card rounded-2xl border border-rose-100 bg-rose-50/80 px-4 py-3" key={warning.id}>
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex min-w-0 items-start gap-3">
+                      <span className="mt-0.5 inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-rose-500 text-white">
+                        <Workspace.AlertCircle className="h-4 w-4" />
+                      </span>
+                      <div className="min-w-0">
+                        <p className="text-sm font-bold text-slate-900">{warning.title}</p>
+                        <p className="mt-1 text-sm text-slate-500">{warning.detail}</p>
+                      </div>
                     </div>
                     <button
-                      className="text-sm font-medium text-blue-600 transition hover:text-blue-700"
+                      className="inline-flex shrink-0 items-center gap-1 text-sm font-semibold text-blue-600 transition hover:text-blue-700"
                       onClick={warning.onAction}
                       type="button"
                     >
                       {warning.actionLabel}
+                      <Workspace.ChevronRight className="h-4 w-4" />
                     </button>
                   </div>
                 </div>
@@ -3207,11 +3279,11 @@ const AdminReportsView = (props: ReportsViewProps) => {
         </article>
       </section>
 
-      <section className={Workspace.surfaceCardClassName}>
+      <section className={adminSurfaceCardClassName}>
         <div className="flex items-center justify-between gap-3">
           <div>
-            <h3 className="text-base font-semibold text-slate-900">趋势分析</h3>
-            <p className="mt-1 text-sm text-slate-500">叠加查看提交率、点评总数和红花数量变化。</p>
+            <h3 className="text-lg font-bold text-slate-900">趋势分析</h3>
+            <p className="mt-1 text-sm text-slate-500">按加权值看提交率、点评总数和红花数量变化。</p>
           </div>
           <div className="flex gap-2">
             {(["week", "month", "semester"] as const).map((range) => (
@@ -3231,25 +3303,46 @@ const AdminReportsView = (props: ReportsViewProps) => {
           </div>
         </div>
 
-        <div className="mt-4 grid gap-4 xl:grid-cols-[280px_1fr]">
+        <div className="admin-trend-layout mt-4 grid gap-5 xl:grid-cols-[260px_minmax(0,1fr)]">
           <div className="space-y-3">
-            <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
-              <p className="text-xs text-slate-500">本周平均提交率</p>
-              <p className="mt-1 text-2xl font-semibold text-slate-900">{currentWeekAverage}%</p>
-              <p className={`mt-1 text-xs font-medium ${weekDelta >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
-                {weekDelta >= 0 ? "↑" : "↓"} {Math.abs(weekDelta)}%
+            <div className="admin-trend-stat-card rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+              <div className="flex items-center gap-3">
+                <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+                  <Workspace.TrendingUp className="h-4 w-4" />
+                </span>
+                <div>
+                  <p className="text-xs text-slate-500">本周平均提交率</p>
+                  <p className="mt-1 text-2xl font-bold text-slate-900">{currentWeekAverage}%</p>
+                </div>
+              </div>
+              <p className={`mt-3 text-xs font-medium ${weekDelta >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
+                {weekDelta >= 0 ? "↑" : "↓"} 较上周 {Math.abs(weekDelta)}%
               </p>
             </div>
-            <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
-              <p className="text-xs text-slate-500">本周总点评数</p>
-              <p className="mt-1 text-2xl font-semibold text-slate-900">{totalEvaluationCount}</p>
+            <div className="admin-trend-stat-card rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+              <div className="flex items-center gap-3">
+                <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+                  <Workspace.MessageSquareText className="h-4 w-4" />
+                </span>
+                <div>
+                  <p className="text-xs text-slate-500">本周总点评数</p>
+                  <p className="mt-1 text-2xl font-bold text-slate-900">{totalEvaluationCount}</p>
+                </div>
+              </div>
               {totalEvaluationCount === 0 ? (
-                <p className="mt-1 text-xs text-slate-400">本周暂无点评活动</p>
+                <p className="mt-3 text-xs text-slate-400">本周暂无点评活动</p>
               ) : null}
             </div>
-            <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
-              <p className="text-xs text-slate-500">本周总红花数</p>
-              <p className="mt-1 text-2xl font-semibold text-slate-900">{totalPraiseCount}</p>
+            <div className="admin-trend-stat-card rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+              <div className="flex items-center gap-3">
+                <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-amber-50 text-amber-600">
+                  <Workspace.Award className="h-4 w-4" />
+                </span>
+                <div>
+                  <p className="text-xs text-slate-500">本周总红花数</p>
+                  <p className="mt-1 text-2xl font-bold text-slate-900">{totalPraiseCount}</p>
+                </div>
+              </div>
             </div>
           </div>
           <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
@@ -3262,16 +3355,16 @@ const AdminReportsView = (props: ReportsViewProps) => {
         <GroupOperationsBoard groupName={activeGroup.name} members={activeGroup.members} title="我作为教师负责的项目组" />
       ) : null}
 
-      <section className={Workspace.surfaceCardClassName}>
+      <section className={`admin-management-tools ${adminSurfaceCardClassName}`}>
         <div className="flex items-center justify-between gap-3">
           <div>
-            <h3 className="text-base font-semibold text-slate-900">管理工具</h3>
+            <h3 className="text-lg font-bold text-slate-900">管理工具</h3>
             <p className="mt-1 text-sm text-slate-500">批量操作与数据导出，危险操作需要二次确认。</p>
           </div>
         </div>
         <div className="mt-4 flex flex-wrap items-center gap-3">
           <Workspace.ActionButton
-            className="bg-blue-50 text-blue-700 hover:bg-blue-100"
+            className="h-11 rounded-xl bg-blue-50 text-blue-700 hover:bg-blue-100"
             loading={bulkRemindLoading}
             loadingLabel="发送中..."
             onClick={() => void handleBulkRemind()}
@@ -3280,6 +3373,7 @@ const AdminReportsView = (props: ReportsViewProps) => {
             批量催交
           </Workspace.ActionButton>
           <Workspace.ActionButton
+            className="h-11 rounded-xl"
             onClick={() => {
               const csvRows = [
                 ["项目组", "今日提交比", "健康度"],
@@ -3304,7 +3398,7 @@ const AdminReportsView = (props: ReportsViewProps) => {
           </Workspace.ActionButton>
           <div className="flex flex-wrap items-center gap-2">
             <select
-              className={Workspace.fieldClassName}
+              className={adminFieldCompactClassName}
               value={reportDeleteTeamGroupId}
               onChange={(event) => setReportDeleteTeamGroupId(event.target.value)}
             >
@@ -3316,7 +3410,7 @@ const AdminReportsView = (props: ReportsViewProps) => {
               ))}
             </select>
             <Workspace.ActionButton
-              className="border border-rose-500 bg-white text-rose-600 hover:bg-rose-50"
+              className="h-11 rounded-xl border border-slate-200 bg-white text-slate-700 hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700"
               disabled={!reportDeleteTeamGroupId}
               onClick={handleCleanupClick}
             >

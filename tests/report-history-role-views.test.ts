@@ -230,6 +230,25 @@ test("admin trend section shows three metric cards and one main chart", () => {
   assert.match(scheduleSource, /MainTrendChart/);
 });
 
+test("admin reports view uses high-fidelity governance dashboard sections", () => {
+  const scheduleSource = readFileSync(
+    path.join(process.cwd(), "src/components/tabs/schedule-tab.tsx"),
+    "utf8",
+  );
+
+  assert.match(scheduleSource, /admin-reports-dashboard/);
+  assert.match(scheduleSource, /admin-overview-card/);
+  assert.match(scheduleSource, /admin-overview-rate/);
+  assert.match(scheduleSource, /admin-compare-card/);
+  assert.match(scheduleSource, /admin-health-row/);
+  assert.match(scheduleSource, /admin-health-progress/);
+  assert.match(scheduleSource, /admin-teacher-rank-card/);
+  assert.match(scheduleSource, /admin-warning-soft-card/);
+  assert.match(scheduleSource, /admin-trend-layout/);
+  assert.match(scheduleSource, /admin-trend-stat-card/);
+  assert.match(scheduleSource, /admin-management-tools/);
+});
+
 test("admin trend section handles flat or zero data gracefully", () => {
   const scheduleSource = readFileSync(
     path.join(process.cwd(), "src/components/tabs/schedule-tab.tsx"),

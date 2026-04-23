@@ -17,4 +17,24 @@ describe("login screen defaults", () => {
     assert.equal(initialLoginValues?.[1], "");
     assert.equal(loginScreenSource.includes("724000296@qq.com"), false);
   });
+
+  it("uses the required campus login visual structure", () => {
+    assert.match(loginScreenSource, /login-visual-panel/);
+    assert.match(loginScreenSource, /login-function-panel/);
+    assert.match(loginScreenSource, /login-campus\.jpg/);
+    assert.match(loginScreenSource, /NANJING VOCATIONAL INSTITUTE OF RAILWAY TECHNOLOGY/);
+    assert.match(loginScreenSource, /南京铁道职业技术学院/);
+    assert.match(loginScreenSource, /大赛管理系统/);
+    assert.match(loginScreenSource, /以赛促学 · 以赛促教 · 以赛促创 · 以赛促用/);
+    assert.match(loginScreenSource, /USER LOGIN/);
+    assert.match(loginScreenSource, /© 2026 中国国际大学生创新大赛管理系统 · 南京铁道职业技术学院/);
+  });
+
+  it("keeps login assets and interactions local", () => {
+    assert.match(loginScreenSource, /showPassword/);
+    assert.match(loginScreenSource, /localStorage\.getItem\("team-progress-login-account"\)/);
+    assert.match(loginScreenSource, /localStorage\.setItem\("team-progress-login-account"/);
+    assert.match(loginScreenSource, /localStorage\.removeItem\("team-progress-login-account"\)/);
+    assert.doesNotMatch(loginScreenSource, /t2\.chei\.com\.cn/);
+  });
 });

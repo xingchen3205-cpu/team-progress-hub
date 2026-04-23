@@ -309,21 +309,21 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
             />
           ) : null}
 
-          <aside className="hidden xl:block xl:w-[220px] xl:flex-none">
-            <div className="sidebar depth-sidebar rounded-xl px-4 py-6 text-white xl:sticky xl:top-4 xl:flex xl:h-[calc(100vh-2rem)] xl:flex-col">
+          <aside className="hidden xl:block xl:w-[260px] xl:flex-none">
+            <div className="sidebar depth-sidebar depth-sidebar-enhanced sidebar-government-pattern rounded-xl px-4 py-6 text-white xl:sticky xl:top-4 xl:flex xl:h-[calc(100vh-2rem)] xl:flex-col">
               <div className="sidebar-header pb-5">
                 <div className="sidebar-logo flex items-center gap-3">
-                  <div className="sidebar-logo-wrapper flex h-10 w-10 items-center justify-center">
-                    <Image alt="南铁校徽" className="h-9 w-auto object-contain" height={77} src="/official-logo.png" width={430} />
+                  <div className="sidebar-logo-wrapper flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/15 bg-white/10">
+                    <Image alt="南铁校徽" className="h-7 w-7 object-contain" height={77} src="/official-logo.png" width={430} />
                   </div>
                   <div className="min-w-0">
-                    <h1 className="school-name text-base tracking-[0.02em]">管理中心</h1>
+                    <h1 className="school-name text-[15px] font-bold leading-tight tracking-[0.01em]">中国国际大学生创新大赛管理系统</h1>
                     <p className="school-sub mt-1">南京铁道职业技术学院</p>
                   </div>
                 </div>
               </div>
 
-              <nav className="sidebar-nav mt-5 space-y-1.5">
+              <nav className="sidebar-nav mt-5 space-y-1">
                 {sidebarTabs.map((item) => {
                   const Icon = item.icon;
                   const isActive = item.key === safeActiveTab;
@@ -333,7 +333,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                   return (
                     <Link
                       key={item.key}
-                      className={`sidebar-item relative flex items-center gap-2.5 rounded-lg px-4 py-3 text-sm no-underline ${isActive ? "sidebar-item-active" : ""}`}
+                      className={`sidebar-nav-item no-underline ${isActive ? "sidebar-nav-item-active" : ""}`}
                       href={href}
                     >
                       <Icon className="h-[18px] w-[18px]" strokeWidth={2.1} />
@@ -345,19 +345,17 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
 
               <div className="sidebar-user-area mt-auto">
                 <div className="flex items-center gap-3">
-                <UserAvatar
-                  avatar={currentUser.profile.avatar}
-                  avatarUrl={currentUser.profile.avatarUrl}
-                  className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-600 text-sm font-semibold text-white"
-                  name={currentUser.profile.name}
-                  textClassName="text-sm font-semibold text-white"
-                />
+                  <UserAvatar
+                    avatar={currentUser.profile.avatar}
+                    avatarUrl={currentUser.profile.avatarUrl}
+                    className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-500 text-sm font-semibold text-white"
+                    name={currentUser.profile.name}
+                    textClassName="text-sm font-semibold text-white"
+                  />
                   <div className="min-w-0">
                     <p className="sidebar-user-name truncate">{currentUser.profile.name}</p>
-                    <p className="sidebar-user-role mt-1">{roleLabels[currentRole]}</p>
-                    {currentUser.teamGroupName ? (
-                      <p className="mt-1 truncate text-xs text-white/50">{currentUser.teamGroupName}</p>
-                    ) : null}
+                    <p className="sidebar-user-role mt-0.5">{roleLabels[currentRole]}</p>
+                    <p className="mt-0.5 text-[11px] text-white/45">智在必行</p>
                   </div>
                 </div>
                 <button
@@ -373,7 +371,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
           </aside>
 
           <aside
-            className={`depth-sidebar fixed inset-y-0 left-0 z-50 w-[min(82vw,260px)] overflow-hidden px-4 py-6 text-white transition-all duration-200 xl:hidden ${
+            className={`depth-sidebar depth-sidebar-enhanced sidebar-government-pattern fixed inset-y-0 left-0 z-50 w-[min(82vw,260px)] overflow-hidden px-4 py-6 text-white transition-all duration-200 xl:hidden ${
               mobileSidebarOpen
                 ? "translate-x-0 opacity-100 shadow-xl"
                 : "-translate-x-[calc(100%+2rem)] opacity-0 shadow-none pointer-events-none"
@@ -382,11 +380,11 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
             <div className="sidebar flex h-full flex-col">
               <div className="sidebar-header flex items-center justify-between pb-5">
                 <div className="sidebar-logo flex items-center gap-3">
-                  <div className="sidebar-logo-wrapper flex h-10 w-10 items-center justify-center">
-                    <Image alt="南铁校徽" className="h-8 w-auto object-contain" height={77} src="/official-logo.png" width={430} />
+                  <div className="sidebar-logo-wrapper flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/15 bg-white/10">
+                    <Image alt="南铁校徽" className="h-7 w-7 object-contain" height={77} src="/official-logo.png" width={430} />
                   </div>
-                  <div>
-                    <h1 className="school-name text-base tracking-[0.02em]">管理中心</h1>
+                  <div className="min-w-0">
+                    <h1 className="school-name text-[15px] font-bold leading-tight tracking-[0.01em]">中国国际大学生创新大赛管理系统</h1>
                     <p className="school-sub mt-1">南京铁道职业技术学院</p>
                   </div>
                 </div>
@@ -399,7 +397,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                 </button>
               </div>
 
-              <nav className="sidebar-nav mt-5 space-y-1.5">
+              <nav className="sidebar-nav mt-5 space-y-1">
                 {sidebarTabs.map((item) => {
                   const Icon = item.icon;
                   const isActive = item.key === safeActiveTab;
@@ -409,7 +407,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                   return (
                     <Link
                       key={`mobile-${item.key}`}
-                      className={`sidebar-item relative flex items-center gap-2.5 rounded-lg px-4 py-3 text-sm no-underline ${isActive ? "sidebar-item-active" : ""}`}
+                      className={`sidebar-nav-item no-underline ${isActive ? "sidebar-nav-item-active" : ""}`}
                       href={href}
                       onClick={() => setMobileSidebarOpen(false)}
                     >
@@ -422,19 +420,17 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
 
               <div className="sidebar-user-area mt-auto">
                 <div className="flex items-center gap-3">
-                <UserAvatar
-                  avatar={currentUser.profile.avatar}
-                  avatarUrl={currentUser.profile.avatarUrl}
-                  className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-600 text-sm font-semibold text-white"
-                  name={currentUser.profile.name}
-                  textClassName="text-sm font-semibold text-white"
-                />
+                  <UserAvatar
+                    avatar={currentUser.profile.avatar}
+                    avatarUrl={currentUser.profile.avatarUrl}
+                    className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-500 text-sm font-semibold text-white"
+                    name={currentUser.profile.name}
+                    textClassName="text-sm font-semibold text-white"
+                  />
                   <div className="min-w-0">
                     <p className="sidebar-user-name truncate">{currentUser.profile.name}</p>
-                    <p className="sidebar-user-role mt-1">{roleLabels[currentRole]}</p>
-                    {currentUser.teamGroupName ? (
-                      <p className="mt-1 truncate text-xs text-white/50">{currentUser.teamGroupName}</p>
-                    ) : null}
+                    <p className="sidebar-user-role mt-0.5">{roleLabels[currentRole]}</p>
+                    <p className="mt-0.5 text-[11px] text-white/45">智在必行</p>
                   </div>
                 </div>
                 <button
@@ -450,8 +446,8 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
           </aside>
 
           <section className="min-w-0 flex-1 overflow-x-hidden">
-            <header className="depth-mid rounded-xl">
-              <div className="topbar mx-auto flex max-w-[1200px] flex-col gap-3 lg:flex-row lg:items-center lg:justify-between lg:gap-4">
+            <header className="topbar-enhanced mx-auto max-w-[1200px]">
+              <div className="mx-auto flex max-w-[1200px] flex-col gap-3 lg:flex-row lg:items-center lg:justify-between lg:gap-4">
                 <div className="flex min-h-10 items-center gap-3">
                   <button
                     className="depth-button-secondary inline-flex h-10 w-10 items-center justify-center rounded-lg text-[color:var(--color-neutral)] xl:hidden"
@@ -460,14 +456,14 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                   >
                     <Menu className="h-5 w-5" />
                   </button>
-                  <p className="text-lg font-semibold text-slate-900">{activeTabItem.label}</p>
+                  <p className="topbar-page-title">{activeTabItem.label}</p>
                 </div>
 
-                <div className="relative w-full lg:w-[320px]">
+                <div className="relative w-full lg:w-[440px]">
                   <div className="relative">
                     <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                     <input
-                      className="h-9 w-full rounded-lg border border-transparent bg-gray-100 pl-9 pr-3 text-sm text-slate-700 outline-none transition-all duration-200 placeholder:text-slate-400 focus:border-[color:var(--color-primary)] focus:bg-white focus:shadow-[0_0_0_3px_rgba(var(--color-primary-rgb),0.12)]"
+                      className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-4 text-sm text-slate-700 outline-none transition-all duration-200 placeholder:text-slate-400 focus:border-[color:var(--color-primary)] focus:bg-white focus:shadow-[0_0_0_3px_rgba(var(--color-primary-rgb),0.12)]"
                       onChange={(event) => {
                         setGlobalSearchQuery(event.target.value);
                         setGlobalSearchOpen(true);
@@ -501,13 +497,13 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                     {formatFriendlyDate(currentDateTime)}
                   </span>
                   <div className="header-sync-indicator group relative hidden md:inline-flex">
-                    <span className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-white/65 bg-white/70 text-slate-500">
-                      <Cloud className="h-3.5 w-3.5" />
+                    <span className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500">
+                      <Cloud className="h-4 w-4" />
                     </span>
                     <span className="header-sync-tooltip">数据自动同步至云端数据库</span>
                   </div>
                   <button
-                    className="depth-button-secondary relative inline-flex h-10 items-center gap-2 rounded-lg px-3 text-[color:var(--color-neutral)]"
+                    className="depth-button-secondary relative inline-flex h-10 items-center gap-2 rounded-xl px-3 text-[color:var(--color-neutral)]"
                     onClick={() => setNotificationsOpen(true)}
                     type="button"
                   >
@@ -521,20 +517,20 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                   </button>
                   <div className="header-profile-menu relative" ref={profileMenuRef}>
                     <button
-                      className="depth-button-secondary flex items-center gap-2 rounded-lg px-2.5 py-2 text-left transition sm:gap-3 sm:px-3"
+                      className="depth-button-secondary flex items-center gap-2 rounded-xl px-2.5 py-2 text-left transition sm:gap-3 sm:px-3"
                       onClick={() => setProfileMenuOpen((current) => !current)}
                       type="button"
                     >
                       <UserAvatar
                         avatar={currentUser.profile.avatar}
                         avatarUrl={currentUser.profile.avatarUrl}
-                        className="flex h-10 w-10 items-center justify-center rounded-full bg-[var(--color-primary)] text-sm font-semibold text-white"
+                        className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--color-primary)] text-sm font-semibold text-white"
                         name={currentUser.profile.name}
                         textClassName="text-sm font-semibold text-white"
                       />
                       <div className="hidden min-w-0 sm:block">
                         <p className="truncate text-sm font-medium text-slate-900">{currentUser.profile.name}</p>
-                        <p className="mt-1 text-xs text-slate-400">查看个人信息</p>
+                        <p className="mt-0.5 text-xs text-slate-400">查看个人信息</p>
                       </div>
                       <ChevronDown className={`h-4 w-4 text-slate-400 transition ${profileMenuOpen ? "rotate-180" : ""}`} />
                     </button>
