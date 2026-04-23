@@ -218,6 +218,27 @@ test("admin data cleanup requires confirmation before execution", () => {
   assert.match(scheduleSource, /setConfirmDialog/);
 });
 
+test("student evaluation list shows the related report date", () => {
+  const scheduleSource = readFileSync(
+    path.join(process.cwd(), "src/components/tabs/schedule-tab.tsx"),
+    "utf8",
+  );
+
+  assert.match(scheduleSource, /评价对象/);
+  assert.match(scheduleSource, /ev\.report\?\.date/);
+});
+
+test("teacher date chips keep today visible after selecting history dates", () => {
+  const scheduleSource = readFileSync(
+    path.join(process.cwd(), "src/components/tabs/schedule-tab.tsx"),
+    "utf8",
+  );
+
+  assert.match(scheduleSource, /const visibleDateChips = useMemo/);
+  assert.match(scheduleSource, /new Set\(\[todayDateKey, selectedDate/);
+  assert.match(scheduleSource, /\[reportDateOptions, selectedDate, todayDateKey\]/);
+});
+
 test("admin trend section shows three metric cards and one main chart", () => {
   const scheduleSource = readFileSync(
     path.join(process.cwd(), "src/components/tabs/schedule-tab.tsx"),
@@ -359,6 +380,17 @@ test("student evaluation section has unread read handling", () => {
 
   assert.match(scheduleSource, /isRead/);
   assert.match(scheduleSource, /mark_read/);
+});
+
+test("student evaluation cards show the evaluated report date", () => {
+  const scheduleSource = readFileSync(
+    path.join(process.cwd(), "src/components/tabs/schedule-tab.tsx"),
+    "utf8",
+  );
+
+  assert.match(scheduleSource, /getEvaluationReportDateLabel/);
+  assert.match(scheduleSource, /ev\.report\?\.date/);
+  assert.match(scheduleSource, /评价汇报/);
 });
 
 test("student history date shows makeup label and hides countdown", () => {
@@ -585,4 +617,15 @@ test("teacher view shows deadline hint in overview", () => {
   );
 
   assert.match(scheduleSource, /每日 \{REPORT_DEADLINE_HOUR\}:00 截止统计/);
+});
+
+test("teacher date chips keep today visible when viewing history", () => {
+  const scheduleSource = readFileSync(
+    path.join(process.cwd(), "src/components/tabs/schedule-tab.tsx"),
+    "utf8",
+  );
+
+  assert.match(scheduleSource, /getPinnedDateChips/);
+  assert.match(scheduleSource, /todayDateKey/);
+  assert.match(scheduleSource, /selectedDate/);
 });

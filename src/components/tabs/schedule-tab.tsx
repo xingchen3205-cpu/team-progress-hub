@@ -129,7 +129,7 @@ const DateSelector = ({
     </div>
 
     <div className="-mx-1 flex gap-2 overflow-x-auto px-1 pb-1 sm:flex-wrap sm:overflow-visible">
-      {reportDateOptions.slice(0, 10).map((date) => {
+      {getPinnedDateChips(reportDateOptions, selectedDate, todayDateKey, 10).map((date) => {
         const hasReport = (reportEntriesByDay[date] ?? []).length > 0;
         const isSelected = date === selectedDate;
 
@@ -333,6 +333,16 @@ const evaluationTypeMeta: Record<
 
 const getRecentDateKeys = (dateKeys: string[], anchorDate: string, limit: number) =>
   dateKeys.filter((date) => date <= anchorDate).slice(0, limit);
+
+const getPinnedDateChips = (dateKeys: string[], selectedDate: string, todayDateKey: string, limit: number) => {
+  const pinnedDates = new Set([todayDateKey, selectedDate].filter(Boolean));
+  return Array.from(new Set([...dateKeys.slice(0, limit), ...pinnedDates])).sort((left, right) => (left < right ? 1 : -1));
+};
+
+const getEvaluationReportDateLabel = (
+  reportDate: string | null | undefined,
+  formatShortDate: (value: string) => string,
+) => (reportDate ? `${formatShortDate(reportDate)} 评价汇报` : "未知日期评价汇报");
 
 const getReminderCooldownKey = (memberId: string, date: string) => `${memberId}:${date}`;
 
@@ -1171,6 +1181,9 @@ const StudentReportsView = (props: ReportsViewProps) => {
                     </span>
                     {!ev.isRead && <span className="h-2 w-2 rounded-full bg-red-500" />}
                   </div>
+                  <p className="mt-1 text-xs font-medium text-blue-600">
+                    评价对象：{getEvaluationReportDateLabel(ev.report?.date, props.formatShortDate)}
+                  </p>
                   <p className="mt-1 text-sm text-slate-600">{ev.content || "未填写详细内容"}</p>
                   <p className="mt-1 text-xs text-slate-400">{ev.createdAt}</p>
                 </div>
@@ -2357,11 +2370,8 @@ const TeacherReportsView = () => {
     };
   }, [activeGroupId, members, overviewDateKeys, reportEntriesByDay, teamGroups, todayDateKey]);
   const visibleDateChips = useMemo(() => {
-    const recentDates = getRecentDateKeys(reportDateOptions, selectedDate, 5);
-    return recentDates.some((date) => date === selectedDate)
-      ? recentDates
-      : [selectedDate, ...recentDates].filter((date, index, source) => source.indexOf(date) === index).slice(0, 5);
-  }, [reportDateOptions, selectedDate]);
+    return getPinnedDateChips(reportDateOptions, selectedDate, todayDateKey, 5);
+  }, [reportDateOptions, selectedDate, todayDateKey]);
 
   if (teacherGroups.length === 0) {
     return (
