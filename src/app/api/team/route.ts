@@ -162,9 +162,20 @@ export async function GET(request: NextRequest) {
       }),
     );
 
-  const groups =
-    hasGlobalAdminPrivileges(user.role)
+  const groups = hasGlobalAdminPrivileges(user.role)
+    ? await prisma.teamGroup.findMany({
+        orderBy: { createdAt: "asc" },
+        include: {
+          _count: {
+            select: {
+              members: true,
+            },
+          },
+        },
+      })
+    : user.teamGroupId
       ? await prisma.teamGroup.findMany({
+          where: { id: user.teamGroupId },
           orderBy: { createdAt: "asc" },
           include: {
             _count: {

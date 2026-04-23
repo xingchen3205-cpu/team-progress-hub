@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useMemo } from "react";
 import type { LucideIcon } from "lucide-react";
 
@@ -550,10 +551,11 @@ function OverviewMetricCard({ item }: { item: OverviewMetricCardItem }) {
 
   return (
     <button
-      className="group relative flex flex-col overflow-hidden rounded-xl border border-[color:var(--color-border-tertiary)] bg-white px-5 py-4 text-left transition-all duration-200 hover:-translate-y-0.5 hover:bg-[var(--color-bg-subtle)]"
+      className="group relative flex flex-col overflow-hidden rounded-xl border border-[color:var(--color-border-tertiary)] bg-white px-5 py-4 text-left shadow-[0_6px_18px_rgba(31,42,55,0.06)] transition-all duration-200 hover:-translate-y-0.5 hover:bg-[var(--color-bg-subtle)] hover:shadow-[0_14px_30px_rgba(31,42,55,0.10)]"
       onClick={item.onClick}
       type="button"
     >
+      <span className="pointer-events-none absolute -right-5 -top-5 h-20 w-20 rounded-full bg-[var(--color-primary-soft)] opacity-0 transition-opacity duration-200 group-hover:opacity-80" />
       <div className={`flex h-8 w-8 items-center justify-center rounded-[10px] ${tone.iconContainerClassName}`}>
         <Icon className={`h-4.5 w-4.5 ${tone.iconClassName}`} />
       </div>
@@ -667,6 +669,7 @@ export default function OverviewTab() {
     Clock3,
     FileCheck,
     FileText,
+    Landmark,
     KanbanSquare,
     Mail,
     UserPlus,
@@ -757,10 +760,31 @@ export default function OverviewTab() {
 
   return (
     <div className="space-y-4">
-      <section className="rounded-xl border border-gray-200 bg-white px-5 py-3">
-        <div className="min-w-0">
-          <h1 className="truncate text-[18px] font-medium text-gray-900">欢迎回来，{welcomeName}</h1>
-          <p className="mt-1 text-[13px] text-gray-500">{getDateHeadline(currentDateTime)}</p>
+      <section className="campus-welcome-banner relative overflow-hidden rounded-2xl border border-white/70 bg-[var(--color-primary)] px-5 py-5 shadow-[0_16px_36px_rgba(15,42,92,0.16)] sm:px-6">
+        <Image
+          alt="南京铁道职业技术学院校园背景"
+          className="absolute inset-y-0 right-0 h-full w-full object-cover opacity-35 mix-blend-screen lg:w-[58%]"
+          height={1200}
+          priority
+          src="/login-campus.jpg"
+          width={800}
+        />
+        <div className="absolute inset-0 bg-[linear-gradient(90deg,var(--color-primary),rgba(var(--color-primary-rgb),0.92)_42%,rgba(var(--color-primary-rgb),0.56)_100%)]" />
+        <div className="pointer-events-none absolute right-8 top-4 hidden h-24 w-24 rounded-full border border-white/20 lg:block" />
+        <div className="pointer-events-none absolute bottom-0 right-0 h-px w-3/4 bg-white/20" />
+        <div className="relative z-[1] flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div className="min-w-0">
+            <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[12px] font-medium text-white/85">
+              <Landmark className="h-3.5 w-3.5" />
+              <span>中国国际大学生创新大赛管理系统</span>
+            </div>
+            <h1 className="truncate text-[24px] font-semibold tracking-[-0.03em] text-white">欢迎回来，{welcomeName}</h1>
+            <p className="mt-2 text-[13px] text-white/80">{getDateHeadline(currentDateTime)}</p>
+          </div>
+          <div className="hidden max-w-[280px] rounded-2xl border border-white/15 bg-white/10 px-4 py-3 text-right text-white/80 backdrop-blur md:block">
+            <p className="text-[12px]">组织单位</p>
+            <p className="mt-1 text-[15px] font-semibold text-white">{SCHOOL_NAME}</p>
+          </div>
         </div>
       </section>
 
@@ -770,9 +794,9 @@ export default function OverviewTab() {
         ))}
       </section>
 
-      <section className="grid items-start gap-4 lg:grid-cols-[minmax(0,1.05fr)_minmax(0,0.95fr)]">
+      <section className="grid items-start gap-4 lg:grid-cols-[minmax(0,1.18fr)_minmax(360px,0.82fr)]">
         <div className="space-y-4">
-          <article className="rounded-xl border border-gray-200 bg-white p-4">
+          <article className="rounded-xl border border-gray-200 bg-white p-4 shadow-[0_6px_18px_rgba(31,42,55,0.06)]">
             <SectionTitle
               actionLabel="查看全部 →"
               onAction={() => openOverviewTarget(currentRole === "member" ? "board" : "reports")}
@@ -797,7 +821,7 @@ export default function OverviewTab() {
             </div>
           </article>
 
-          <article className="rounded-xl border border-gray-200 bg-white p-4">
+          <article className="rounded-xl border border-gray-200 bg-white p-4 shadow-[0_6px_18px_rgba(31,42,55,0.06)]">
             <SectionTitle
               actionLabel="全部任务 →"
               onAction={() => openOverviewTarget("board")}
@@ -832,7 +856,7 @@ export default function OverviewTab() {
             </div>
           </article>
 
-          <article className="rounded-xl border border-gray-200 bg-white p-4">
+          <article className="rounded-xl border border-gray-200 bg-white p-4 shadow-[0_6px_18px_rgba(31,42,55,0.06)]">
             <SectionTitle title="今日汇报" />
 
             <div className="mt-2.5 flex items-center justify-between gap-3">
@@ -872,7 +896,7 @@ export default function OverviewTab() {
         </div>
 
         <div className="space-y-4">
-          <article className="rounded-xl border border-gray-200 bg-white p-4">
+          <article className="rounded-xl border border-gray-200 bg-white p-4 shadow-[0_6px_18px_rgba(31,42,55,0.06)]">
             <SectionTitle
               actionLabel="完整日程 →"
               onAction={() => openOverviewTarget("timeline")}
@@ -928,7 +952,7 @@ export default function OverviewTab() {
             </div>
           </article>
 
-          <article className="rounded-xl border border-gray-200 bg-white p-4">
+          <article className="rounded-xl border border-gray-200 bg-white p-4 shadow-[0_6px_18px_rgba(31,42,55,0.06)]">
             <SectionTitle
               actionLabel="查看全部 →"
               onAction={() => openOverviewTarget("notifications")}

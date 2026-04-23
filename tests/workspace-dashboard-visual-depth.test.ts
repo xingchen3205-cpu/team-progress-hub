@@ -154,7 +154,7 @@ test("sidebar logo area uses transparent shell and white-treated logo", () => {
 test("overview uses tailwind-first structure for the redesigned dashboard shell", () => {
   assert.match(globalsSource, /\.sidebar-user-area\s*\{[\s\S]*background:\s*transparent/);
   assert.match(overviewSource, /grid gap-3 lg:grid-cols-4/);
-  assert.match(overviewSource, /grid items-start gap-4 lg:grid-cols-\[minmax\(0,1\.05fr\)_minmax\(0,0\.95fr\)\]/);
+  assert.match(overviewSource, /grid items-start gap-4 lg:grid-cols-\[minmax\(0,1\.18fr\)_minmax\(360px,0\.82fr\)\]/);
   assert.match(overviewSource, /rounded-xl border border-gray-200 bg-white/);
   assert.match(overviewSource, /bg-gray-50/);
   assert.match(globalsSource, /\.topbar\s*\{[\s\S]*border-bottom:\s*1px solid rgba\(200,\s*215,\s*235,\s*0\.50\)/);
@@ -164,6 +164,9 @@ test("overview uses tailwind-first structure for the redesigned dashboard shell"
 
 test("overview layout uses the new welcome rail, metric strip, and split content columns", () => {
   assert.match(overviewSource, /欢迎回来，/);
+  assert.match(overviewSource, /campus-welcome-banner/);
+  assert.match(overviewSource, /login-campus\.jpg/);
+  assert.match(overviewSource, /南京铁道职业技术学院/);
   assert.match(overviewSource, /业务进度/);
   assert.match(overviewSource, /紧急事项/);
   assert.match(overviewSource, /今日汇报/);
