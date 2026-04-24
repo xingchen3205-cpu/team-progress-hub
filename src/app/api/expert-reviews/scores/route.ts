@@ -70,6 +70,8 @@ export async function POST(request: NextRequest) {
   const body = (await request.json().catch(() => null)) as
     | {
         assignmentId?: string;
+        totalScore?: number;
+        roadshowScore?: number;
         scorePersonalGrowth?: number;
         scoreInnovation?: number;
         scoreIndustry?: number;
@@ -79,21 +81,9 @@ export async function POST(request: NextRequest) {
     | null;
 
   const assignmentId = body?.assignmentId?.trim();
-  const commentTotal = body?.commentTotal?.trim();
-  const scorePayload = {
-    scorePersonalGrowth: Number(body?.scorePersonalGrowth),
-    scoreInnovation: Number(body?.scoreInnovation),
-    scoreIndustry: Number(body?.scoreIndustry),
-    scoreTeamwork: Number(body?.scoreTeamwork),
-  };
 
-  if (!assignmentId || !commentTotal) {
+  if (!assignmentId) {
     return NextResponse.json({ message: "评分信息不完整" }, { status: 400 });
-  }
-
-  const validationError = validateExpertReviewScores(scorePayload);
-  if (validationError) {
-    return NextResponse.json({ message: validationError }, { status: 400 });
   }
 
   const assignment = await prisma.expertReviewAssignment.findUnique({
@@ -123,11 +113,83 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: "评审已截止，当前记录已锁定" }, { status: 409 });
   }
 
-  const totalScore =
-    scorePayload.scorePersonalGrowth +
-    scorePayload.scoreInnovation +
-    scorePayload.scoreIndustry +
-    scorePayload.scoreTeamwork;
+  const commentTotal = body?.commentTotal?.trim() || "无";
+  const hasRoadshowScore = typeof body?.roadshowScore === "number";
+  const hasTotalScore = typeof body?.totalScore === "number";
+  const hasLegacyScore =
+    typeof body?.scorePersonalGrowth === "number" ||
+    typeof body?.scoreInnovation === "number" ||
+    typeof body?.scoreIndustry === "number" ||
+    typeof body?.scoreTeamwork === "number";
+
+  let scorePayload: {
+    scorePersonalGrowth: number;
+    scoreInnovation: number;
+    scoreIndustry: number;
+    scoreTeamwork: number;
+  };
+  let totalScore: number;
+
+  if (hasRoadshowScore) {
+    const roadshowScore = Number(body.roadshowScore);
+    const scaledRoadshowScore = Math.round(roadshowScore * 100);
+    const hasValidRoadshowPrecision =
+      Number.isInteger(roadshowScore * 100) ||
+      Math.abs(roadshowScore * 100 - scaledRoadshowScore) < 1e-6;
+    if (
+      !Number.isFinite(roadshowScore) ||
+      roadshowScore < 0 ||
+      roadshowScore > 100 ||
+      !hasValidRoadshowPrecision
+    ) {
+      return NextResponse.json({ message: "路演分数需为 0.00-100.00，最多保留两位小数" }, { status: 400 });
+    }
+
+    scorePayload = {
+      scorePersonalGrowth: 0,
+      scoreInnovation: 0,
+      scoreIndustry: 0,
+      scoreTeamwork: 0,
+    };
+    totalScore = scaledRoadshowScore;
+  } else if (hasTotalScore) {
+    const simpleTotalScore = Number(body.totalScore);
+    if (!Number.isInteger(simpleTotalScore) || simpleTotalScore < 0 || simpleTotalScore > 100) {
+      return NextResponse.json({ message: "网评分数需为 0-100 分的整数" }, { status: 400 });
+    }
+
+    scorePayload = {
+      scorePersonalGrowth: 0,
+      scoreInnovation: 0,
+      scoreIndustry: 0,
+      scoreTeamwork: 0,
+    };
+    totalScore = simpleTotalScore;
+  } else if (hasLegacyScore) {
+    scorePayload = {
+      scorePersonalGrowth: Number(body?.scorePersonalGrowth),
+      scoreInnovation: Number(body?.scoreInnovation),
+      scoreIndustry: Number(body?.scoreIndustry),
+      scoreTeamwork: Number(body?.scoreTeamwork),
+    };
+
+    if (!body?.commentTotal?.trim()) {
+      return NextResponse.json({ message: "请填写综合评语" }, { status: 400 });
+    }
+
+    const validationError = validateExpertReviewScores(scorePayload);
+    if (validationError) {
+      return NextResponse.json({ message: validationError }, { status: 400 });
+    }
+
+    totalScore =
+      scorePayload.scorePersonalGrowth +
+      scorePayload.scoreInnovation +
+      scorePayload.scoreIndustry +
+      scorePayload.scoreTeamwork;
+  } else {
+    return NextResponse.json({ message: "评分信息不完整" }, { status: 400 });
+  }
 
   const updatedAssignment = await prisma.$transaction(async (tx) => {
     await tx.expertReviewScore.upsert({

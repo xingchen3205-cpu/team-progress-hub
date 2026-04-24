@@ -800,7 +800,19 @@ export const textareaClassName = `${fieldClassName} min-h-28`;
 
 export const rolePermissions = {
   admin: {
-    visibleTabs: ["overview", "timeline", "board", "training", "reports", "experts", "review", "documents", "team", "assistant", "profile"] as TabKey[],
+    visibleTabs: [
+      "overview",
+      "timeline",
+      "board",
+      "training",
+      "reports",
+      "experts",
+      "review",
+      "documents",
+      "team",
+      "assistant",
+      "profile",
+    ] as TabKey[],
     canPublishAnnouncement: true,
     canSendDirective: true,
     canCreateTask: true,
@@ -821,7 +833,19 @@ export const rolePermissions = {
     canResetPassword: true,
   },
   school_admin: {
-    visibleTabs: ["overview", "timeline", "board", "training", "reports", "experts", "review", "documents", "team", "assistant", "profile"] as TabKey[],
+    visibleTabs: [
+      "overview",
+      "timeline",
+      "board",
+      "training",
+      "reports",
+      "experts",
+      "review",
+      "documents",
+      "team",
+      "assistant",
+      "profile",
+    ] as TabKey[],
     canPublishAnnouncement: true,
     canSendDirective: true,
     canCreateTask: true,
@@ -842,7 +866,7 @@ export const rolePermissions = {
     canResetPassword: true,
   },
   teacher: {
-    visibleTabs: ["overview", "timeline", "board", "training", "reports", "experts", "review", "documents", "team", "assistant", "profile"] as TabKey[],
+    visibleTabs: ["overview", "timeline", "board", "training", "reports", "experts", "documents", "team", "assistant", "profile"] as TabKey[],
     canPublishAnnouncement: true,
     canSendDirective: true,
     canCreateTask: true,
@@ -863,7 +887,7 @@ export const rolePermissions = {
     canResetPassword: true,
   },
   leader: {
-    visibleTabs: ["overview", "timeline", "board", "training", "reports", "experts", "review", "documents", "team", "assistant", "profile"] as TabKey[],
+    visibleTabs: ["overview", "timeline", "board", "training", "reports", "experts", "documents", "team", "assistant", "profile"] as TabKey[],
     canPublishAnnouncement: true,
     canSendDirective: false,
     canCreateTask: true,
@@ -884,7 +908,7 @@ export const rolePermissions = {
     canResetPassword: false,
   },
   member: {
-    visibleTabs: ["overview", "timeline", "board", "training", "reports", "experts", "review", "documents", "team", "assistant", "profile"] as TabKey[],
+    visibleTabs: ["overview", "timeline", "board", "training", "reports", "experts", "documents", "team", "assistant", "profile"] as TabKey[],
     canPublishAnnouncement: false,
     canSendDirective: false,
     canCreateTask: true,
@@ -905,7 +929,7 @@ export const rolePermissions = {
     canResetPassword: false,
   },
   expert: {
-    visibleTabs: ["review", "assistant", "profile"] as TabKey[],
+    visibleTabs: ["review", "profile"] as TabKey[],
     canPublishAnnouncement: false,
     canSendDirective: false,
     canCreateTask: false,
@@ -3496,8 +3520,8 @@ function useWorkspaceController({
     ((doc.ownerId === currentMemberId || version.uploaderId === currentMemberId) &&
       doc.statusKey !== "approved");
 
-  const canManageReviewMaterials = ["admin", "school_admin", "teacher", "leader"].includes(currentRole);
-  const canCreateReviewPackage = ["admin", "school_admin", "teacher", "leader"].includes(currentRole);
+  const canManageReviewMaterials = ["admin", "school_admin"].includes(currentRole);
+  const canCreateReviewPackage = ["admin", "school_admin"].includes(currentRole);
   const canManageTrainingQuestion = (question: TrainingQuestionItem) =>
     ["admin", "school_admin", "teacher", "leader"].includes(currentRole) || question.createdById === currentMemberId;
   const activeDrillQuestion =

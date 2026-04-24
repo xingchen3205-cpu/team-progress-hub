@@ -38,7 +38,7 @@ describe("school admin permissions", () => {
     assert.equal(canApproveRegistration("school_admin", "teacher"), true);
     assert.equal(canApproveRegistration("school_admin", "leader"), true);
     assert.equal(canApproveRegistration("school_admin", "member"), true);
-    assert.equal(canApproveRegistration("school_admin", "expert"), true);
+    assert.equal(canApproveRegistration("school_admin", "expert"), false);
   });
 
   it("lets school administrators view approved team members globally", () => {

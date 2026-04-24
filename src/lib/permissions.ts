@@ -47,7 +47,7 @@ const roleRank: Record<Role, number> = {
   expert: 1,
 };
 
-export const selfRegisterableRoles: Role[] = ["teacher", "leader", "member", "expert"];
+export const selfRegisterableRoles: Role[] = ["teacher", "leader", "member"];
 
 export const getRegistrationApproverRoles = (role: Role): Role[] | null => {
   switch (role) {
@@ -57,8 +57,6 @@ export const getRegistrationApproverRoles = (role: Role): Role[] | null => {
       return ["teacher", "school_admin", "admin"];
     case "member":
       return ["leader", "teacher", "school_admin", "admin"];
-    case "expert":
-      return ["teacher", "school_admin", "admin"];
     default:
       return null;
   }
@@ -126,7 +124,7 @@ export const canManageUser = (
   }
 
   if (targetRole === "expert" || nextRole === "expert") {
-    return hasGlobalAdminPrivileges(actorRole) || actorRole === "teacher";
+    return hasGlobalAdminPrivileges(actorRole);
   }
 
   if (actorRole === "admin") {

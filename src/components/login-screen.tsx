@@ -19,7 +19,7 @@ import { EMAIL_RULE_HINT, USERNAME_RULE_HINT, validateRequiredEmail, validateUse
 
 type FormMode = "login" | "register" | "forgot" | "reset";
 
-const registerRoleOptions = ["指导教师", "项目负责人", "团队成员", "评审专家"] as const;
+const registerRoleOptions = ["指导教师", "项目负责人", "团队成员"] as const;
 
 const initialLoginValues = {
   username: "",

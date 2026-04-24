@@ -10,14 +10,12 @@ const registrationRoleMap = {
   指导教师: "teacher",
   项目负责人: "leader",
   团队成员: "member",
-  评审专家: "expert",
 } as const;
 
 const defaultResponsibilityByRole = {
   teacher: "待审核通过后补充指导职责",
   leader: "待审核通过后补充负责内容",
   member: "待审核通过后补充负责内容",
-  expert: "待审核通过后补充评审方向",
 } as const;
 
 export async function POST(request: Request) {
