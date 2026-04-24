@@ -190,7 +190,7 @@ const renderBoard = () => {
             </div>
           </div>
 
-          <div className="max-h-[min(780px,calc(100vh-300px))] min-h-[420px] space-y-3 overflow-y-auto bg-slate-50/40 p-4">
+          <div className="max-h-[min(780px,calc(100vh-300px))] space-y-3 overflow-y-auto bg-slate-50/40 p-4">
             {filteredTasks.length > 0 ? (
               filteredTasks.map((task) => {
                 const isTaskExpanded = expandedBoardTaskIds.includes(task.id);

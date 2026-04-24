@@ -166,7 +166,7 @@ test("admin overview shows progress count before deadline and rate after deadlin
   assert.match(scheduleSource, /REPORT_DEADLINE_HOUR/);
 });
 
-test("admin trend section supports week month semester range toggle", () => {
+test("admin trend section only exposes week and month range toggles", () => {
   const scheduleSource = readFileSync(
     path.join(process.cwd(), "src/components/tabs/schedule-tab.tsx"),
     "utf8",
@@ -174,7 +174,8 @@ test("admin trend section supports week month semester range toggle", () => {
 
   assert.match(scheduleSource, /本周/);
   assert.match(scheduleSource, /本月/);
-  assert.match(scheduleSource, /本学期/);
+  assert.doesNotMatch(scheduleSource, /本学期/);
+  assert.doesNotMatch(scheduleSource, /semester/);
   assert.match(scheduleSource, /trendRange/);
 });
 
@@ -393,6 +394,16 @@ test("student evaluation cards show the evaluated report date", () => {
   assert.match(scheduleSource, /评价汇报/);
 });
 
+test("date selector stays content-height instead of stretching empty space", () => {
+  const scheduleSource = readFileSync(
+    path.join(process.cwd(), "src/components/tabs/schedule-tab.tsx"),
+    "utf8",
+  );
+
+  assert.doesNotMatch(scheduleSource, /report-filter-column flex h-full flex-col space-y-4 self-stretch/);
+  assert.doesNotMatch(scheduleSource, /report-record-legend mt-auto/);
+});
+
 test("student history date shows makeup label and hides countdown", () => {
   const scheduleSource = readFileSync(
     path.join(process.cwd(), "src/components/tabs/schedule-tab.tsx"),
@@ -595,6 +606,8 @@ test("teacher member cards support missing-today and overdue states", () => {
   assert.match(scheduleSource, /连续未提交/);
   assert.match(scheduleSource, /今日汇报截止时间前，暂不标记为异常/);
   assert.match(scheduleSource, /该成员已连续多日未提交汇报，建议尽快催交/);
+  assert.doesNotMatch(scheduleSource, /ml-12 mt-2/);
+  assert.doesNotMatch(scheduleSource, /ml-12 mt-2\.5/);
 });
 
 test("teacher attention items exclude today before deadline from missing streak", () => {
@@ -617,6 +630,17 @@ test("teacher view shows deadline hint in overview", () => {
   );
 
   assert.match(scheduleSource, /每日 \{REPORT_DEADLINE_HOUR\}:00 截止统计/);
+});
+
+test("admin overview card top-aligns metrics and search instead of vertically centering them", () => {
+  const scheduleSource = readFileSync(
+    path.join(process.cwd(), "src/components/tabs/schedule-tab.tsx"),
+    "utf8",
+  );
+
+  assert.match(scheduleSource, /admin-overview-card/);
+  assert.doesNotMatch(scheduleSource, /xl:items-center/);
+  assert.match(scheduleSource, /xl:items-start/);
 });
 
 test("teacher date chips keep today visible when viewing history", () => {

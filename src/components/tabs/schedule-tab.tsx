@@ -87,7 +87,7 @@ const DateSelector = ({
   teamGroups,
   todayDateKey,
 }: DateSelectorProps) => (
-  <div className="report-filter-column flex h-full flex-col space-y-4 self-stretch">
+  <div className="report-filter-column flex flex-col space-y-4">
     <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
       <div className="min-w-0 flex-1">
         <p className="text-sm font-semibold text-slate-900">选择查看日期</p>
@@ -148,7 +148,7 @@ const DateSelector = ({
     </div>
 
     {hasGlobalAdminRole ? (
-      <div className="report-record-legend mt-auto rounded-xl border border-dashed border-slate-200 bg-slate-50/70 px-4 py-3">
+      <div className="report-record-legend rounded-xl border border-dashed border-slate-200 bg-slate-50/70 px-4 py-3">
         <p className="text-sm font-medium text-slate-700">日期标签说明</p>
         <p className="mt-1 text-sm text-slate-500">右上角带蓝点代表该日期已有汇报记录；未标记的日期表示当前还没有保存内容。</p>
       </div>
@@ -287,24 +287,6 @@ const isBeforeReportDeadline = (dateKey: string, todayKey: string) => {
 
 const getEffectiveDataDays = (dateKeys: string[], todayKey: string) =>
   dateKeys.filter((date) => !isBeforeReportDeadline(date, todayKey)).length;
-
-const getSemesterStartDate = (todayKey: string) => {
-  // Rough semester boundary heuristic without external config:
-  // Spring semester: Feb 1 – Jul 31
-  // Autumn semester: Sep 1 – Jan 31
-  const month = Number(todayKey.slice(5, 7));
-  const year = Number(todayKey.slice(0, 4));
-
-  if (month >= 2 && month <= 7) {
-    return `${year}-02-01`;
-  }
-
-  if (month >= 8) {
-    return `${year}-09-01`;
-  }
-
-  return `${year - 1}-09-01`;
-};
 
 const evaluationTypeMeta: Record<
   ReportEvaluationItem["type"],
@@ -1473,7 +1455,7 @@ const TeacherMemberReportCard = ({
             </div>
           ) : null}
 
-          <div className="ml-12 mt-2 text-[12px] leading-relaxed text-slate-600">
+          <div className="mt-2 rounded-lg bg-slate-50/70 px-3 py-2 text-[12px] leading-relaxed text-slate-600">
             <span className="sr-only">最近一次汇报</span>
             <div>
               <span className="text-slate-400">今日完成：</span>
@@ -1487,7 +1469,7 @@ const TeacherMemberReportCard = ({
             ) : null}
           </div>
 
-          <div className="ml-12 mt-2.5 flex flex-wrap items-center gap-1.5">
+          <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
             <button
               className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-transparent px-2.5 py-1 text-[12px] text-slate-600 transition hover:bg-slate-50"
               onClick={() => onOpenComposer("praise")}
@@ -1524,7 +1506,7 @@ const TeacherMemberReportCard = ({
                 }
 
                 return (
-                  <div className="ml-12 mt-2.5 rounded-md border border-blue-300 bg-white p-2.5">
+                  <div className="mt-2.5 rounded-md border border-blue-300 bg-white p-2.5">
                     <div className="flex items-center justify-between gap-3">
                       <p className="text-[11px] font-medium text-blue-700">快速点评</p>
                       <button
@@ -2399,7 +2381,7 @@ const TeacherReportsView = () => {
       </div>
 
       <section className="rounded-lg border border-[var(--color-line)] bg-[var(--color-paper)] px-4 py-3 shadow-sm">
-        <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
           <div className="flex flex-wrap items-center gap-3">
             <span className="text-sm font-medium text-slate-900">日期</span>
             <div className="flex flex-wrap items-center gap-2">
@@ -2474,7 +2456,7 @@ const TeacherReportsView = () => {
       </section>
 
       <section className="rounded-lg border border-[var(--color-line)] bg-[var(--color-paper)] px-4 py-4 shadow-sm">
-        <div className="grid gap-5 xl:grid-cols-[1.5fr_repeat(4,minmax(0,1fr))] xl:items-center">
+        <div className="grid gap-5 xl:grid-cols-[1.5fr_repeat(4,minmax(0,1fr))] xl:items-start">
           <div>
             <p className="text-[11px] text-[var(--color-text-secondary)]">我负责的项目组</p>
             <p className="mt-1 text-base font-medium text-slate-900">{activeGroupName}</p>
@@ -2545,7 +2527,7 @@ const AdminReportsView = (props: ReportsViewProps) => {
   const [teacherFilter, setTeacherFilter] = useState("");
   const [expandedGroupId, setExpandedGroupId] = useState<string>("");
   const [bulkRemindLoading, setBulkRemindLoading] = useState(false);
-  const [trendRange, setTrendRange] = useState<"week" | "month" | "semester">("week");
+  const [trendRange, setTrendRange] = useState<"week" | "month">("week");
   const [notifyTeachersLoading, setNotifyTeachersLoading] = useState(false);
   const [studentDrawer, setStudentDrawer] = useState<{ open: boolean; memberId: string }>({ open: false, memberId: "" });
   const [teacherDrawer, setTeacherDrawer] = useState<{ open: boolean; memberId: string }>({ open: false, memberId: "" });
@@ -2793,14 +2775,8 @@ const AdminReportsView = (props: ReportsViewProps) => {
       return getRecentDateKeys(reportDateOptions, selectedDate, 7);
     }
 
-    if (trendRange === "month") {
-      return reportDateOptions.filter((date) => date.startsWith(selectedDate.slice(0, 7)));
-    }
-
-    // semester: fall back to all available dates back to the computed semester start
-    const semesterStart = getSemesterStartDate(todayDateKey);
-    return reportDateOptions.filter((date) => date >= semesterStart);
-  }, [reportDateOptions, selectedDate, todayDateKey, trendRange]);
+    return reportDateOptions.filter((date) => date.startsWith(selectedDate.slice(0, 7)));
+  }, [reportDateOptions, selectedDate, trendRange]);
 
   const previousWeekDateKeys = useMemo(
     () =>
@@ -3003,7 +2979,7 @@ const AdminReportsView = (props: ReportsViewProps) => {
       />
 
       <section className={`admin-overview-card ${adminSurfaceCardClassName}`}>
-        <div className="grid gap-5 xl:grid-cols-[minmax(220px,0.8fr)_minmax(220px,0.65fr)_minmax(360px,1.25fr)] xl:items-center">
+        <div className="grid gap-5 xl:grid-cols-[minmax(220px,0.8fr)_minmax(220px,0.65fr)_minmax(360px,1.25fr)] xl:items-start">
           <div>
             <p className="text-base font-bold text-slate-900">全校概览</p>
             <div className="mt-4">
@@ -3158,7 +3134,7 @@ const AdminReportsView = (props: ReportsViewProps) => {
                 role="button"
                 tabIndex={0}
               >
-                <div className="grid w-full gap-4 px-5 py-4 xl:grid-cols-[minmax(0,1fr)_300px_28px] xl:items-center">
+                <div className="grid w-full gap-4 px-5 py-4 xl:grid-cols-[minmax(0,1fr)_300px_28px] xl:items-start">
                   <div className="flex min-w-0 items-start gap-3">
                     <span className={`mt-1.5 h-3 w-3 shrink-0 rounded-full ${toneMeta.dotClassName}`} />
                     <div className="min-w-0">
@@ -3326,7 +3302,7 @@ const AdminReportsView = (props: ReportsViewProps) => {
             <p className="mt-1 text-sm text-slate-500">按加权值看提交率、点评总数和点赞数量变化。</p>
           </div>
           <div className="flex gap-2">
-            {(["week", "month", "semester"] as const).map((range) => (
+            {(["week", "month"] as const).map((range) => (
               <button
                 className={`rounded-full px-3 py-1 text-xs font-medium transition ${
                   trendRange === range
@@ -3337,7 +3313,7 @@ const AdminReportsView = (props: ReportsViewProps) => {
                 onClick={() => setTrendRange(range)}
                 type="button"
               >
-                {range === "week" ? "本周" : range === "month" ? "本月" : "本学期"}
+                {range === "week" ? "本周" : "本月"}
               </button>
             ))}
           </div>

@@ -73,7 +73,7 @@ test("overview-tab supports admin-wide report group summary", () => {
   assert.match(source, /查看详情 →/);
 });
 
-test("workspace desktop sidebar is content-height instead of full viewport height", () => {
+test("workspace desktop sidebar keeps a full-height shell on wide screens", () => {
   const source = readFileSync(
     path.join(process.cwd(), "src/components/workspace-shell.tsx"),
     "utf8",
@@ -83,6 +83,19 @@ test("workspace desktop sidebar is content-height instead of full viewport heigh
   const mobileSidebarStart = source.indexOf('className={`depth-sidebar depth-sidebar-enhanced', desktopSidebarStart);
   const desktopSidebarBlock = source.slice(desktopSidebarStart, mobileSidebarStart);
 
-  assert.doesNotMatch(desktopSidebarBlock, /xl:h-\[calc\(100vh-2rem\)\]/);
-  assert.doesNotMatch(desktopSidebarBlock, /className="sidebar depth-sidebar/);
+  assert.match(desktopSidebarBlock, /xl:min-h-\[calc\(100vh-2rem\)\]/);
+  assert.match(desktopSidebarBlock, /xl:flex/);
+  assert.match(desktopSidebarBlock, /xl:flex-col/);
+});
+
+test("overview main grid stretches columns and lets the notice card fill remaining height", () => {
+  const source = readFileSync(
+    path.join(process.cwd(), "src/components/tabs/overview-tab.tsx"),
+    "utf8",
+  );
+
+  assert.match(source, /xl:items-stretch/);
+  assert.match(source, /<div className="flex h-full flex-col gap-5">/);
+  assert.match(source, /<article className="overview-card flex flex-1 flex-col p-5">/);
+  assert.match(source, /<div className="mt-4 flex-1 space-y-3">/);
 });

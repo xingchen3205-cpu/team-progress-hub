@@ -247,7 +247,6 @@ a:hover {
 }
 
 .sidebar-nav {
-  flex: 1;
   overflow-y: auto;
 }
 

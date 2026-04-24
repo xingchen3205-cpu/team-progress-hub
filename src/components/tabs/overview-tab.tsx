@@ -938,9 +938,9 @@ export default function OverviewTab() {
       </section>
 
       {/* Main Grid */}
-      <section className="grid items-start gap-5 xl:grid-cols-[minmax(0,1.38fr)_minmax(420px,1fr)]">
+      <section className="grid items-start gap-5 xl:grid-cols-[minmax(0,1.38fr)_minmax(420px,1fr)] xl:items-stretch">
         {/* Left Column */}
-        <div className="space-y-5">
+        <div className="flex h-full flex-col gap-5">
           {/* 业务进度 */}
           <article className="overview-card p-5">
             <SectionTitle
@@ -1124,7 +1124,7 @@ export default function OverviewTab() {
         </div>
 
         {/* Right Column */}
-        <div className="space-y-5">
+        <div className="flex h-full flex-col gap-5">
           {/* 赛事日程 */}
           <article className="overview-card p-5">
             <SectionTitle
@@ -1180,14 +1180,14 @@ export default function OverviewTab() {
           </article>
 
           {/* 通知公告 */}
-          <article className="overview-card p-5">
+          <article className="overview-card flex flex-1 flex-col p-5">
             <SectionTitle
               actionLabel="查看全部 →"
               icon={Megaphone}
               onAction={() => openOverviewTarget("notifications")}
               title="通知公告"
             />
-            <div className="mt-4 space-y-3">
+            <div className="mt-4 flex-1 space-y-3">
               {visibleAnnouncements.length > 0 ? (
                 visibleAnnouncements.map((item) => (
                   <button

@@ -310,7 +310,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
           ) : null}
 
           <aside className="hidden xl:block xl:w-[260px] xl:flex-none">
-            <div className="depth-sidebar depth-sidebar-enhanced sidebar-government-pattern rounded-xl px-4 py-6 text-white xl:sticky xl:top-4 xl:flex xl:flex-col">
+            <div className="depth-sidebar depth-sidebar-enhanced sidebar-government-pattern rounded-xl px-4 py-6 text-white xl:sticky xl:top-4 xl:flex xl:min-h-[calc(100vh-2rem)] xl:flex-col">
               <div className="sidebar-header pb-5">
                 <div className="sidebar-logo flex items-center gap-3">
                   <div className="sidebar-logo-wrapper flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/15 bg-white/10">

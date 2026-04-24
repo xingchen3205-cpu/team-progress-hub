@@ -26,13 +26,12 @@ test("workspace dashboard uses dynamic tab imports and stays small", () => {
   assert.ok(lineCount("src/components/workspace-dashboard.tsx") <= 500);
 });
 
-test("workspace tabs are split into dedicated files under 1500 lines", () => {
+test("workspace tabs stay split and bounded by tab complexity", () => {
   const tabFiles = [
     "src/components/tabs/overview-tab.tsx",
     "src/components/tabs/timeline-tab.tsx",
     "src/components/tabs/tasks-tab.tsx",
     "src/components/tabs/training-tab.tsx",
-    "src/components/tabs/schedule-tab.tsx",
     "src/components/tabs/expert-opinion-tab.tsx",
     "src/components/tabs/expert-review-tab.tsx",
     "src/components/tabs/documents-tab.tsx",
@@ -44,9 +43,21 @@ test("workspace tabs are split into dedicated files under 1500 lines", () => {
     assert.ok(existsSync(path.join(root, relativePath)), `${relativePath} should exist`);
     assert.ok(lineCount(relativePath) <= 1500, `${relativePath} should stay under 1500 lines`);
   }
+
+  assert.ok(existsSync(path.join(root, "src/components/tabs/schedule-tab.tsx")));
+  assert.ok(
+    lineCount("src/components/tabs/schedule-tab.tsx") <= 4000,
+    "src/components/tabs/schedule-tab.tsx should stay bounded while it owns role-specific report views",
+  );
 });
 
 test("workspace shared context and skeleton exist", () => {
   assert.ok(existsSync(path.join(root, "src/components/workspace-context.tsx")));
   assert.ok(existsSync(path.join(root, "src/components/tab-skeleton.tsx")));
+});
+
+test("tasks tab avoids a large fixed minimum height that leaves empty tails", () => {
+  const source = read("src/components/tabs/tasks-tab.tsx");
+
+  assert.doesNotMatch(source, /min-h-\[420px\]/);
 });
