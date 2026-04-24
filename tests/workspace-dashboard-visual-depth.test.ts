@@ -99,3 +99,12 @@ test("overview main grid stretches columns and lets the notice card fill remaini
   assert.match(source, /<article className="overview-card flex flex-1 flex-col p-5">/);
   assert.match(source, /<div className="mt-4 flex-1 space-y-3">/);
 });
+
+test("overview report card fills the left column bottom instead of ending early", () => {
+  const source = readFileSync(
+    path.join(process.cwd(), "src/components/tabs/overview-tab.tsx"),
+    "utf8",
+  );
+
+  assert.match(source, /\{\/\* 今日汇报 \*\/\}\s*<article className="overview-card flex flex-1 flex-col p-5">/);
+});

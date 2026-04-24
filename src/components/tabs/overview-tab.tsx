@@ -1002,7 +1002,7 @@ export default function OverviewTab() {
           </article>
 
           {/* 今日汇报 */}
-          <article className="overview-card p-5">
+          <article className="overview-card flex flex-1 flex-col p-5">
             <SectionTitle icon={CheckCircle2} title={hasGlobalAdminRole ? "全校今日汇报" : "今日汇报"} />
             <div className="mt-3 flex items-center justify-between gap-3">
               <p className="text-[12px] text-slate-500">
