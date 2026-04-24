@@ -861,7 +861,7 @@ const EvaluationTimeline = ({
   return (
     <div className="space-y-3">
       {evaluations.map((evaluation) => {
-        const canRevoke = evaluation.evaluatorId === currentMemberId;
+        const canRevoke = evaluation.evaluatorId === currentMemberId && evaluation.type !== "praise";
 
         return (
           <div className="rounded-xl border border-slate-200 bg-slate-50/80 px-4 py-3" key={evaluation.id}>
@@ -1393,6 +1393,9 @@ const TeacherMemberReportCard = ({
             : "border-slate-200 bg-white";
 
   const badge = statusBadgeMeta[cardMode];
+  const hasPraisedByCurrentTeacher = evaluations.some(
+    (evaluation) => evaluation.evaluatorId === currentMemberId && evaluation.type === "praise",
+  );
 
   return (
     <article className={`rounded-md border p-3 transition ${containerClassName}`}>
@@ -1486,12 +1489,17 @@ const TeacherMemberReportCard = ({
 
           <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
             <button
-              className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-transparent px-2.5 py-1 text-[12px] text-slate-600 transition hover:bg-slate-50"
+              className={`inline-flex items-center gap-1 rounded-md border px-2.5 py-1 text-[12px] transition ${
+                hasPraisedByCurrentTeacher
+                  ? "cursor-not-allowed border-blue-100 bg-blue-50 text-blue-500"
+                  : "border-slate-200 bg-transparent text-slate-600 hover:bg-slate-50"
+              }`}
+              disabled={hasPraisedByCurrentTeacher}
               onClick={() => onOpenComposer("praise")}
               type="button"
             >
               <span className="text-blue-600">▲</span>
-              <span>点赞</span>
+              <span>{hasPraisedByCurrentTeacher ? "今日已点赞" : "点赞"}</span>
             </button>
             <button
               className="inline-flex items-center gap-1 rounded-md border border-slate-200 bg-transparent px-2.5 py-1 text-[12px] text-slate-600 transition hover:bg-slate-50"
@@ -1541,11 +1549,15 @@ const TeacherMemberReportCard = ({
                     <div className="mt-2 flex flex-wrap items-center gap-1.5">
                       <button
                         className="rounded-md border-0 bg-blue-50 px-3 py-1 text-[12px] font-medium text-blue-700 transition hover:bg-blue-100"
-                        disabled={composerSubmitting}
+                        disabled={composerSubmitting || hasPraisedByCurrentTeacher}
                         onClick={() => onSubmitComposer("praise")}
                         type="button"
                       >
-                        {composerSubmitting && activeComposer.type === "praise" ? "发送中..." : "▲ 发送点赞"}
+                        {hasPraisedByCurrentTeacher
+                          ? "今日已点赞"
+                          : composerSubmitting && activeComposer.type === "praise"
+                            ? "发送中..."
+                            : "▲ 发送点赞"}
                       </button>
                       <button
                         className="rounded-md border-0 bg-amber-50 px-3 py-1 text-[12px] font-medium text-amber-700 transition hover:bg-amber-100"
@@ -2161,7 +2173,7 @@ const GroupOperationsBoard = ({
           </div>
         </section>
 
-        <section className="mx-auto w-full min-w-[320px] max-w-[720px] rounded-[20px] bg-white p-8 shadow-[0_4px_24px_rgba(0,0,0,0.06),0_1px_2px_rgba(0,0,0,0.04)]">
+        <section className="w-full rounded-[20px] bg-white p-8 shadow-[0_4px_24px_rgba(0,0,0,0.06),0_1px_2px_rgba(0,0,0,0.04)]">
           <div className="flex items-start justify-between gap-4">
             <div>
               <h3 className="text-[18px] font-semibold tracking-[-0.3px] text-[#1a1a2e]">本组本周趋势</h3>

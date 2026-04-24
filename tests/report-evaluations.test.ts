@@ -230,3 +230,24 @@ test("report evaluation routes and schema extensions exist", () => {
   assert.match(statsRouteSource, /累计红花数 × 40%/);
   assert.match(statsRouteSource, /当前连续提交天数 × 20%/);
 });
+
+test("teacher praise is one-shot per report and cannot be revoked", () => {
+  const createRouteSource = readFileSync(
+    path.join(process.cwd(), "src/app/api/reports/[reportId]/evaluations/route.ts"),
+    "utf8",
+  );
+  const revokeRouteSource = readFileSync(
+    path.join(process.cwd(), "src/app/api/reports/[reportId]/evaluations/[evaluationId]/route.ts"),
+    "utf8",
+  );
+  const scheduleSource = readFileSync(path.join(process.cwd(), "src/components/tabs/schedule-tab.tsx"), "utf8");
+
+  assert.match(createRouteSource, /existingPraiseEvaluation/);
+  assert.match(createRouteSource, /evaluationType === "praise"/);
+  assert.match(createRouteSource, /今天已经给这份汇报点过赞/);
+  assert.match(revokeRouteSource, /evaluation\.type === "praise"/);
+  assert.match(revokeRouteSource, /点赞提交后不能撤回/);
+  assert.match(scheduleSource, /hasPraisedByCurrentTeacher/);
+  assert.match(scheduleSource, /今日已点赞/);
+  assert.match(scheduleSource, /evaluation\.type !== "praise"/);
+});

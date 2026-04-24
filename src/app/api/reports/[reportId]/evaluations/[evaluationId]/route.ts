@@ -41,6 +41,10 @@ export async function DELETE(
     return NextResponse.json({ message: "评价不存在" }, { status: 404 });
   }
 
+  if (evaluation.type === "praise") {
+    return NextResponse.json({ message: "点赞提交后不能撤回" }, { status: 403 });
+  }
+
   if (
     !canRevokeReportEvaluation({
       actorId: user.id,

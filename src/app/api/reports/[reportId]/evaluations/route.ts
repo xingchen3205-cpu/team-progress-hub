@@ -162,6 +162,24 @@ export async function POST(
     return NextResponse.json({ message: "只有本组绑定教师可以评价该汇报" }, { status: 403 });
   }
 
+  if (evaluationType === "praise") {
+    const existingPraiseEvaluation = await prisma.reportEvaluation.findFirst({
+      where: {
+        evaluatorId: user.id,
+        reportId,
+        revokedAt: null,
+        type: "praise",
+      },
+      select: {
+        id: true,
+      },
+    });
+
+    if (existingPraiseEvaluation) {
+      return NextResponse.json({ message: "今天已经给这份汇报点过赞" }, { status: 409 });
+    }
+  }
+
   const evaluation = await prisma.$transaction(async (tx) => {
     const createdEvaluation = await tx.reportEvaluation.create({
       data: {

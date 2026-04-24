@@ -544,7 +544,8 @@ test("teacher trend panel uses metric cards plus one main chart layout", () => {
     "utf8",
   );
 
-  assert.match(scheduleSource, /max-w-\[720px\]/);
+  assert.doesNotMatch(scheduleSource, /mx-auto w-full min-w-\[320px\] max-w-\[720px\]/);
+  assert.match(scheduleSource, /w-full rounded-\[20px\]/);
   assert.match(scheduleSource, /xl:grid-cols-\[160px_1fr\]/);
   assert.match(scheduleSource, /left-\[-16px\]/);
   assert.match(scheduleSource, /本周平均提交率/);
