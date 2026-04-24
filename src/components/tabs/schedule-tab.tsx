@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import TrendAnalysis from "@/components/trend-analysis";
 import * as Workspace from "@/components/workspace-context";
 import { getReportsViewRole } from "@/lib/report-history";
 
@@ -2860,6 +2861,27 @@ const AdminReportsView = (props: ReportsViewProps) => {
     [adminEvaluationsByReportId, trendDateKeys, reportEntriesByDay, reportMembers, todayDateKey],
   );
 
+  const previousAdminTrendDateKeys = useMemo(
+    () => getPreviousTrendDateKeys(reportDateOptions, trendDateKeys),
+    [reportDateOptions, trendDateKeys],
+  );
+  const previousAdminTrendSeries = useMemo(
+    () =>
+      buildTrendSeries({
+        dateKeys: previousAdminTrendDateKeys,
+        members: reportMembers,
+        reportEntriesByDay,
+        evaluationsByReportId: adminEvaluationsByReportId,
+        todayDateKey,
+      }),
+    [adminEvaluationsByReportId, previousAdminTrendDateKeys, reportEntriesByDay, reportMembers, todayDateKey],
+  );
+  const adminAverageSubmitRate = useMemo(() => getAverageSubmitRate(adminTrendSeries), [adminTrendSeries]);
+  const previousAdminAverageSubmitRate = useMemo(
+    () => getAverageSubmitRate(previousAdminTrendSeries),
+    [previousAdminTrendSeries],
+  );
+  const adminSubmitRateDelta = adminAverageSubmitRate - previousAdminAverageSubmitRate;
   const totalEvaluationCount = useMemo(
     () => adminTrendSeries.reduce((sum, point) => sum + point.evaluationCount, 0),
     [adminTrendSeries],
@@ -3296,75 +3318,18 @@ const AdminReportsView = (props: ReportsViewProps) => {
       </section>
 
       <section className={adminSurfaceCardClassName}>
-        <div className="flex items-center justify-between gap-3">
-          <div>
-            <h3 className="text-lg font-bold text-slate-900">趋势分析</h3>
-            <p className="mt-1 text-sm text-slate-500">按加权值看提交率、点评总数和点赞数量变化。</p>
-          </div>
-          <div className="flex gap-2">
-            {(["week", "month"] as const).map((range) => (
-              <button
-                className={`rounded-full px-3 py-1 text-xs font-medium transition ${
-                  trendRange === range
-                    ? "bg-blue-100 text-blue-700"
-                    : "bg-slate-100 text-slate-500 hover:bg-slate-200"
-                }`}
-                key={range}
-                onClick={() => setTrendRange(range)}
-                type="button"
-              >
-                {range === "week" ? "本周" : "本月"}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        <div className="admin-trend-layout mt-4 grid gap-5 xl:grid-cols-[260px_minmax(0,1fr)]">
-          <div className="space-y-3">
-            <div className="admin-trend-stat-card rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
-              <div className="flex items-center gap-3">
-                <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
-                  <Workspace.TrendingUp className="h-4 w-4" />
-                </span>
-                <div>
-                  <p className="text-xs text-slate-500">本周平均提交率</p>
-                  <p className="mt-1 text-2xl font-bold text-slate-900">{currentWeekAverage}%</p>
-                </div>
-              </div>
-              <p className={`mt-3 text-xs font-medium ${weekDelta >= 0 ? "text-emerald-600" : "text-rose-600"}`}>
-                {weekDelta >= 0 ? "↑" : "↓"} 较上周 {Math.abs(weekDelta)}%
-              </p>
-            </div>
-            <div className="admin-trend-stat-card rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
-              <div className="flex items-center gap-3">
-                <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
-                  <Workspace.MessageSquareText className="h-4 w-4" />
-                </span>
-                <div>
-                  <p className="text-xs text-slate-500">本周总点评数</p>
-                  <p className="mt-1 text-2xl font-bold text-slate-900">{totalEvaluationCount}</p>
-                </div>
-              </div>
-              {totalEvaluationCount === 0 ? (
-                <p className="mt-3 text-xs text-slate-400">本周暂无点评活动</p>
-              ) : null}
-            </div>
-            <div className="admin-trend-stat-card rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
-              <div className="flex items-center gap-3">
-                <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-amber-50 text-amber-600">
-                  <Workspace.Award className="h-4 w-4" />
-                </span>
-                <div>
-                  <p className="text-xs text-slate-500">本周总点赞数</p>
-                  <p className="mt-1 text-2xl font-bold text-slate-900">{totalPraiseCount}</p>
-                </div>
-              </div>
-            </div>
-          </div>
-          <div className="rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
-            <MainTrendChart series={adminTrendSeries} todayDateKey={todayDateKey} />
-          </div>
-        </div>
+        <TrendAnalysis
+          onRangeChange={setTrendRange}
+          range={trendRange}
+          series={adminTrendSeries}
+          stats={{
+            averageSubmitRate: adminAverageSubmitRate,
+            submitRateDelta: adminSubmitRateDelta,
+            totalEvaluationCount,
+            totalPraiseCount,
+          }}
+          todayDateKey={todayDateKey}
+        />
       </section>
 
       {activeGroup && canShowTeacherBoard ? (

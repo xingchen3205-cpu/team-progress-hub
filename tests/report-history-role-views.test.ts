@@ -94,6 +94,10 @@ test("teacher and admin reports views expose the new operational sections", () =
     path.join(process.cwd(), "src/components/tabs/schedule-tab.tsx"),
     "utf8",
   );
+  const trendSource = readFileSync(
+    path.join(process.cwd(), "src/components/trend-analysis.tsx"),
+    "utf8",
+  );
 
   assert.match(scheduleSource, /我负责的项目组/);
   assert.match(scheduleSource, /需要关注/);
@@ -101,7 +105,7 @@ test("teacher and admin reports views expose the new operational sections", () =
   assert.match(scheduleSource, /全校概览/);
   assert.match(scheduleSource, /项目组健康度总览/);
   assert.match(scheduleSource, /教师活跃度排行/);
-  assert.match(scheduleSource, /趋势分析/);
+  assert.match(trendSource, /趋势分析/);
 });
 
 test("member cards keep latest submitted report visible and use localized role labels", () => {
@@ -245,11 +249,20 @@ test("admin trend section shows three metric cards and one main chart", () => {
     path.join(process.cwd(), "src/components/tabs/schedule-tab.tsx"),
     "utf8",
   );
+  const trendSource = readFileSync(
+    path.join(process.cwd(), "src/components/trend-analysis.tsx"),
+    "utf8",
+  );
 
-  assert.match(scheduleSource, /本周平均提交率/);
-  assert.match(scheduleSource, /本周总点评数/);
-  assert.match(scheduleSource, /本周总点赞数/);
-  assert.match(scheduleSource, /MainTrendChart/);
+  assert.match(scheduleSource, /<TrendAnalysis/);
+  assert.match(trendSource, /ResponsiveContainer/);
+  assert.match(trendSource, /AreaChart/);
+  assert.match(trendSource, /ReferenceLine/);
+  assert.match(trendSource, /警戒线 70%/);
+  assert.match(trendSource, /低于70%的点/);
+  assert.match(trendSource, /本周平均提交率/);
+  assert.match(trendSource, /本周总点评数/);
+  assert.match(trendSource, /本周总点赞数/);
 });
 
 test("admin reports view uses high-fidelity governance dashboard sections", () => {
@@ -266,18 +279,18 @@ test("admin reports view uses high-fidelity governance dashboard sections", () =
   assert.match(scheduleSource, /admin-health-progress/);
   assert.match(scheduleSource, /admin-teacher-rank-card/);
   assert.match(scheduleSource, /admin-warning-soft-card/);
-  assert.match(scheduleSource, /admin-trend-layout/);
-  assert.match(scheduleSource, /admin-trend-stat-card/);
+  assert.match(scheduleSource, /<TrendAnalysis/);
   assert.match(scheduleSource, /admin-management-tools/);
 });
 
 test("admin trend section handles flat or zero data gracefully", () => {
-  const scheduleSource = readFileSync(
-    path.join(process.cwd(), "src/components/tabs/schedule-tab.tsx"),
+  const trendSource = readFileSync(
+    path.join(process.cwd(), "src/components/trend-analysis.tsx"),
     "utf8",
   );
 
-  assert.match(scheduleSource, /本周暂无点评活动/);
+  assert.match(trendSource, /本周暂无点评活动/);
+  assert.match(trendSource, /数据积累中，3 天后显示趋势/);
 });
 
 test("admin health overview supports expand collapse with member cards", () => {
