@@ -74,59 +74,74 @@ enum ReportEvaluationType {
   comment
 }
 
+enum ProjectReviewStageType {
+  online_review
+  roadshow
+}
+
+enum ProjectMaterialStatus {
+  pending
+  approved
+  rejected
+}
+
 model User {
-  id                   String                   @id @default(cuid())
-  name                 String
-  username             String                   @unique
-  email                String?                  @unique
-  password             String
-  role                 Role
-  approvalStatus       UserApprovalStatus       @default(approved)
-  approvedAt           DateTime?
-  approvedById         String?
-  teamGroupId          String?
-  avatar               String
-  avatarImagePath      String?
-  responsibility       String?
-  createdAt            DateTime                 @default(now())
-  approvedBy           User?                    @relation("UserApprovals", fields: [approvedById], references: [id])
-  approvedUsers        User[]                   @relation("UserApprovals")
-  teamGroup            TeamGroup?               @relation(fields: [teamGroupId], references: [id], onDelete: SetNull)
-  tasksAssigned        Task[]                   @relation("TaskAssignee")
-  taskAssignments      TaskAssignment[]         @relation("TaskAssignmentAssignee")
-  tasksCreated         Task[]                   @relation("TaskCreator")
-  tasksReviewed        Task[]                   @relation("TaskReviewer")
-  taskAttachments      TaskAttachment[]         @relation("TaskAttachmentUploader")
-  reports              Report[]
-  announcements        Announcement[]
-  events               Event[]                   @relation("EventCreator")
-  expertFeedbacks      ExpertFeedback[]          @relation("ExpertFeedbackCreator")
-  documents            Document[]               @relation("DocumentOwner")
-  documentEdits        DocumentVersion[]        @relation("DocumentVersionUploader")
-  notifications        Notification[]           @relation("NotificationRecipient")
-  sentNotifications    Notification[]           @relation("NotificationSender")
-  aiPermission         AiPermission?
-  aiConversations      AiConversation[]
-  pushDevices          PushDevice[]
-  expertReviewPackages ExpertReviewPackage[]    @relation("ExpertReviewPackageCreator")
-  expertAssignments    ExpertReviewAssignment[] @relation("ExpertAssignmentUser")
-  expertScores         ExpertReviewScore[]      @relation("ExpertScoreReviewer")
-  trainingQuestions    TrainingQuestion[]       @relation("TrainingQuestionCreator")
-  trainingSessions     TrainingSession[]        @relation("TrainingSessionCreator")
-  passwordResetTokens  PasswordResetToken[]
-  reportEvaluations    ReportEvaluation[]       @relation("ReportEvaluationCreator")
+  id                        String                      @id @default(cuid())
+  name                      String
+  username                  String                      @unique
+  email                     String?                     @unique
+  password                  String
+  role                      Role
+  approvalStatus            UserApprovalStatus          @default(approved)
+  approvedAt                DateTime?
+  approvedById              String?
+  teamGroupId               String?
+  avatar                    String
+  avatarImagePath           String?
+  responsibility            String?
+  createdAt                 DateTime                    @default(now())
+  approvedBy                User?                       @relation("UserApprovals", fields: [approvedById], references: [id])
+  approvedUsers             User[]                      @relation("UserApprovals")
+  teamGroup                 TeamGroup?                  @relation(fields: [teamGroupId], references: [id], onDelete: SetNull)
+  tasksAssigned             Task[]                      @relation("TaskAssignee")
+  taskAssignments           TaskAssignment[]            @relation("TaskAssignmentAssignee")
+  tasksCreated              Task[]                      @relation("TaskCreator")
+  tasksReviewed             Task[]                      @relation("TaskReviewer")
+  taskAttachments           TaskAttachment[]            @relation("TaskAttachmentUploader")
+  reports                   Report[]
+  announcements             Announcement[]
+  events                    Event[]                     @relation("EventCreator")
+  expertFeedbacks           ExpertFeedback[]            @relation("ExpertFeedbackCreator")
+  documents                 Document[]                  @relation("DocumentOwner")
+  documentEdits             DocumentVersion[]           @relation("DocumentVersionUploader")
+  notifications             Notification[]              @relation("NotificationRecipient")
+  sentNotifications         Notification[]              @relation("NotificationSender")
+  aiPermission              AiPermission?
+  aiConversations           AiConversation[]
+  pushDevices               PushDevice[]
+  expertReviewPackages      ExpertReviewPackage[]       @relation("ExpertReviewPackageCreator")
+  expertAssignments         ExpertReviewAssignment[]    @relation("ExpertAssignmentUser")
+  expertScores              ExpertReviewScore[]         @relation("ExpertScoreReviewer")
+  trainingQuestions         TrainingQuestion[]          @relation("TrainingQuestionCreator")
+  trainingSessions          TrainingSession[]           @relation("TrainingSessionCreator")
+  passwordResetTokens       PasswordResetToken[]
+  reportEvaluations         ReportEvaluation[]          @relation("ReportEvaluationCreator")
+  projectReviewStages       ProjectReviewStage[]        @relation("ProjectReviewStageCreator")
+  projectMaterialsSubmitted ProjectMaterialSubmission[] @relation("ProjectMaterialSubmitter")
+  projectMaterialsApproved  ProjectMaterialSubmission[] @relation("ProjectMaterialApprover")
+  projectMaterialsRejected  ProjectMaterialSubmission[] @relation("ProjectMaterialRejecter")
 }
 
 model AiPermission {
-  id        String   @id @default(cuid())
-  userId    String   @unique
-  isEnabled Boolean  @default(false)
+  id        String    @id @default(cuid())
+  userId    String    @unique
+  isEnabled Boolean   @default(false)
   maxCount  Int?
-  usedCount Int      @default(0)
+  usedCount Int       @default(0)
   resetAt   DateTime?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([isEnabled, updatedAt])
 }
@@ -159,18 +174,20 @@ model PushDevice {
 }
 
 model TeamGroup {
-  id          String   @id @default(cuid())
-  name        String   @unique
-  description String?
-  createdAt   DateTime @default(now())
-  members     User[]
-  tasks       Task[]
-  announcements Announcement[]
-  events      Event[]
-  expertFeedbacks ExpertFeedback[]
-  expertReviewPackages ExpertReviewPackage[]
-  trainingQuestions TrainingQuestion[]
-  trainingSessions TrainingSession[]
+  id                         String                      @id @default(cuid())
+  name                       String                      @unique
+  description                String?
+  createdAt                  DateTime                    @default(now())
+  members                    User[]
+  tasks                      Task[]
+  announcements              Announcement[]
+  events                     Event[]
+  expertFeedbacks            ExpertFeedback[]
+  expertReviewPackages       ExpertReviewPackage[]
+  trainingQuestions          TrainingQuestion[]
+  trainingSessions           TrainingSession[]
+  projectReviewStages        ProjectReviewStage[]
+  projectMaterialSubmissions ProjectMaterialSubmission[]
 }
 
 model Task {
@@ -205,7 +222,7 @@ model Task {
 }
 
 model TaskAssignment {
-  id              String   @id @default(cuid())
+  id              String    @id @default(cuid())
   taskId          String
   assigneeId      String
   acceptedAt      DateTime?
@@ -214,9 +231,9 @@ model TaskAssignment {
   rejectedAt      DateTime?
   rejectionReason String?
   completionNote  String?
-  createdAt       DateTime @default(now())
-  task            Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  assignee        User     @relation("TaskAssignmentAssignee", fields: [assigneeId], references: [id])
+  createdAt       DateTime  @default(now())
+  task            Task      @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  assignee        User      @relation("TaskAssignmentAssignee", fields: [assigneeId], references: [id])
 
   @@unique([taskId, assigneeId])
   @@index([assigneeId, submittedAt])
@@ -239,18 +256,18 @@ model TaskAttachment {
 }
 
 model Report {
-  id          String   @id @default(cuid())
-  userId      String
-  date        String
-  summary     String
-  nextPlan    String
-  attachment  String?
-  praiseCount Int      @default(0)
-  improveCount Int     @default(0)
-  commentCount Int     @default(0)
-  submittedAt DateTime @default(now())
-  user        User     @relation(fields: [userId], references: [id])
-  evaluations ReportEvaluation[]
+  id           String             @id @default(cuid())
+  userId       String
+  date         String
+  summary      String
+  nextPlan     String
+  attachment   String?
+  praiseCount  Int                @default(0)
+  improveCount Int                @default(0)
+  commentCount Int                @default(0)
+  submittedAt  DateTime           @default(now())
+  user         User               @relation(fields: [userId], references: [id])
+  evaluations  ReportEvaluation[]
 
   @@unique([userId, date])
 }
@@ -361,23 +378,23 @@ model DocumentVersion {
 }
 
 model Notification {
-  id         String    @id @default(cuid())
-  userId     String
-  senderId   String?
-  documentId String?
-  title      String
-  detail     String
-  type       String
-  targetTab  String?
-  relatedId  String?
-  isRead     Boolean   @default(false)
-  readAt     DateTime?
+  id          String                   @id @default(cuid())
+  userId      String
+  senderId    String?
+  documentId  String?
+  title       String
+  detail      String
+  type        String
+  targetTab   String?
+  relatedId   String?
+  isRead      Boolean                  @default(false)
+  readAt      DateTime?
   emailStatus NotificationEmailStatus?
   emailError  String?
   emailSentAt DateTime?
-  createdAt  DateTime  @default(now())
-  user       User      @relation("NotificationRecipient", fields: [userId], references: [id])
-  sender     User?     @relation("NotificationSender", fields: [senderId], references: [id])
+  createdAt   DateTime                 @default(now())
+  user        User                     @relation("NotificationRecipient", fields: [userId], references: [id])
+  sender      User?                    @relation("NotificationSender", fields: [senderId], references: [id])
 
   @@index([userId, isRead, createdAt])
   @@index([senderId, type, createdAt])
@@ -394,6 +411,55 @@ model EmailReminderSetting {
   dailyReportMissingEnabled Boolean  @default(true)
   dailyReportHour           Int      @default(20)
   updatedAt                 DateTime @updatedAt
+}
+
+model ProjectReviewStage {
+  id          String                      @id @default(cuid())
+  name        String
+  type        ProjectReviewStageType
+  description String?
+  isOpen      Boolean                     @default(false)
+  startAt     DateTime?
+  deadline    DateTime?
+  createdById String
+  teamGroupId String?
+  createdAt   DateTime                    @default(now())
+  updatedAt   DateTime                    @updatedAt
+  creator     User                        @relation("ProjectReviewStageCreator", fields: [createdById], references: [id])
+  teamGroup   TeamGroup?                  @relation(fields: [teamGroupId], references: [id], onDelete: SetNull)
+  submissions ProjectMaterialSubmission[]
+
+  @@index([isOpen, deadline])
+  @@index([teamGroupId, createdAt])
+}
+
+model ProjectMaterialSubmission {
+  id            String                @id @default(cuid())
+  stageId       String
+  teamGroupId   String
+  submittedById String
+  title         String
+  fileName      String
+  filePath      String
+  fileSize      Int
+  mimeType      String
+  status        ProjectMaterialStatus @default(pending)
+  approvedById  String?
+  approvedAt    DateTime?
+  rejectedById  String?
+  rejectedAt    DateTime?
+  rejectReason  String?
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+  stage         ProjectReviewStage    @relation(fields: [stageId], references: [id], onDelete: Cascade)
+  teamGroup     TeamGroup             @relation(fields: [teamGroupId], references: [id], onDelete: Cascade)
+  submitter     User                  @relation("ProjectMaterialSubmitter", fields: [submittedById], references: [id])
+  approver      User?                 @relation("ProjectMaterialApprover", fields: [approvedById], references: [id], onDelete: SetNull)
+  rejecter      User?                 @relation("ProjectMaterialRejecter", fields: [rejectedById], references: [id], onDelete: SetNull)
+
+  @@index([stageId, status, createdAt])
+  @@index([teamGroupId, stageId, status])
+  @@index([submittedById, createdAt])
 }
 
 model ExpertReviewPackage {
@@ -461,15 +527,15 @@ model ExpertReviewScore {
 }
 
 model TrainingQuestion {
-  id           String   @id @default(cuid())
+  id           String     @id @default(cuid())
   category     String
   question     String
   answerPoints String
   createdById  String
   teamGroupId  String?
-  createdAt    DateTime @default(now())
-  updatedAt    DateTime @updatedAt
-  createdBy    User     @relation("TrainingQuestionCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now())
+  updatedAt    DateTime   @updatedAt
+  createdBy    User       @relation("TrainingQuestionCreator", fields: [createdById], references: [id], onDelete: Cascade)
   teamGroup    TeamGroup? @relation(fields: [teamGroupId], references: [id], onDelete: SetNull)
 
   @@index([category, createdAt])
@@ -478,17 +544,17 @@ model TrainingQuestion {
 }
 
 model TrainingSession {
-  id              String   @id @default(cuid())
+  id              String     @id @default(cuid())
   title           String?
   durationSeconds Int
-  overtimeSeconds Int      @default(0)
-  qaTotal         Int      @default(0)
-  qaHit           Int      @default(0)
+  overtimeSeconds Int        @default(0)
+  qaTotal         Int        @default(0)
+  qaHit           Int        @default(0)
   notes           String?
   createdById     String
   teamGroupId     String?
-  createdAt       DateTime @default(now())
-  createdBy       User     @relation("TrainingSessionCreator", fields: [createdById], references: [id], onDelete: Cascade)
+  createdAt       DateTime   @default(now())
+  createdBy       User       @relation("TrainingSessionCreator", fields: [createdById], references: [id], onDelete: Cascade)
   teamGroup       TeamGroup? @relation(fields: [teamGroupId], references: [id], onDelete: SetNull)
 
   @@index([createdAt])
@@ -497,13 +563,13 @@ model TrainingSession {
 }
 
 model PasswordResetToken {
-  id        String   @id @default(cuid())
-  userId     String
-  tokenHash String   @unique
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
   expiresAt DateTime
   usedAt    DateTime?
-  createdAt DateTime @default(now())
-  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, expiresAt])
 }
