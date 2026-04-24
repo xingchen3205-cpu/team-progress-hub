@@ -67,4 +67,13 @@ describe("expert review v2 constraints", () => {
     assert.doesNotMatch(roleBlock("leader"), /visibleTabs:\s*\[[^\]]*"review"/);
     assert.doesNotMatch(roleBlock("member"), /visibleTabs:\s*\[[^\]]*"review"/);
   });
+
+  it("allows expert accounts to load their own notification inbox during workspace bootstrap", () => {
+    const notificationsRouteSource = readSource("src/app/api/notifications/route.ts");
+    const getBlockMatch = notificationsRouteSource.match(/export async function GET[\s\S]*?\n}\n\nexport async function POST/);
+
+    assert.ok(getBlockMatch, "missing notifications GET handler");
+    assert.match(getBlockMatch[0], /assertRole\(user\.role,\s*\["admin",\s*"school_admin",\s*"teacher",\s*"leader",\s*"member",\s*"expert"\]\)/);
+    assert.doesNotMatch(getBlockMatch[0], /assertMainWorkspaceRole\(user\.role\)/);
+  });
 });

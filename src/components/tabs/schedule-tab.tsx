@@ -510,12 +510,25 @@ const getPreviousTrendDateKeys = (reportDateOptions: string[], currentDateKeys: 
   return reportDateOptions.filter((date) => date < oldestCurrentDate).slice(0, currentDateKeys.length);
 };
 
-const formatTrendDelta = (delta: number, unit: string, emptyLabel: string) => {
-  if (delta === 0) {
-    return emptyLabel;
-  }
+const TrendDeltaIndicator = ({ delta, unit }: { delta: number; unit: string }) => {
+  const isUp = delta > 0;
+  const isFlat = delta === 0;
+  const colorClassName = isFlat ? "text-[#9ca3af]" : isUp ? "text-[#10b981]" : "text-[#ef4444]";
 
-  return `${delta > 0 ? "↑" : "↓"} 较上期 ${delta > 0 ? "+" : "-"}${Math.abs(delta)}${unit}`;
+  return (
+    <span className={`mt-2 inline-flex items-center gap-[3px] text-xs font-medium ${colorClassName}`}>
+      {!isFlat ? (
+        <svg aria-hidden="true" className="h-3 w-3" fill="none" viewBox="0 0 12 12">
+          {isUp ? (
+            <path d="M6 9V3m0 0L3.5 5.5M6 3l2.5 2.5" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" />
+          ) : (
+            <path d="M6 3v6m0 0L3.5 6.5M6 9l2.5-2.5" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.5" />
+          )}
+        </svg>
+      ) : null}
+      {isFlat ? "与上期持平" : `较上期 ${isUp ? "+" : "-"}${Math.abs(delta)}${unit}`}
+    </span>
+  );
 };
 
 const ChartEmptyState = ({ accumulatedDays, compact }: { accumulatedDays: number; compact?: boolean }) => (
@@ -553,16 +566,16 @@ const MainTrendChart = ({
     );
   }
 
-  const chartWidth = 420;
-  const chartHeight = 140;
-  const plotLeft = 30;
-  const plotRight = 410;
+  const chartWidth = 480;
+  const chartHeight = 180;
+  const plotLeft = 40;
+  const plotRight = 460;
   const plotTop = 20;
-  const plotBottom = 100;
+  const plotBottom = 160;
+  const plotWidth = plotRight - plotLeft;
   const plotHeight = plotBottom - plotTop;
-  const step = series.length === 1 ? 0 : (plotRight - plotLeft) / (series.length - 1);
   const yForValue = (value: number) =>
-    Number((plotBottom - (Math.min(100, Math.max(0, value)) / 100) * plotHeight).toFixed(2));
+    Number((plotTop + (1 - Math.min(100, Math.max(0, value)) / 100) * plotHeight).toFixed(2));
   const lastKnownValue =
     [...series]
       .reverse()
@@ -571,127 +584,128 @@ const MainTrendChart = ({
     const isToday = point.date === todayDateKey || index === series.length - 1;
     const value = point.submitRate;
     const fallbackValue = typeof value === "number" ? value : lastKnownValue;
+    const x = Number((series.length === 1 ? (plotLeft + plotRight) / 2 : plotLeft + (index / (series.length - 1)) * plotWidth).toFixed(2));
+    const y = yForValue(fallbackValue);
 
     return {
       ...point,
       displayLabel: isToday ? "今日" : point.label,
       isToday,
-      x: Number((series.length === 1 ? (plotLeft + plotRight) / 2 : plotLeft + index * step).toFixed(2)),
-      y: yForValue(fallbackValue),
+      isAbnormal: typeof value === "number" && value < 70,
+      tooltipX: x > 400 ? x - 72 : x < 88 ? x + 8 : x - 32,
+      tooltipY: Math.max(8, y - 48),
+      x,
+      y,
       value,
     };
   });
-  const knownPoints = chartPoints.filter((point) => typeof point.value === "number");
-  const areaPath =
-    knownPoints.length > 1
-      ? [
-          `M ${knownPoints[0].x} ${plotBottom}`,
-          ...knownPoints.map((point, index) => `${index === 0 ? "L" : "L"} ${point.x} ${point.y}`),
-          `L ${knownPoints[knownPoints.length - 1].x} ${plotBottom}`,
-          "Z",
-        ].join(" ")
-      : "";
-  const solidSegments: Array<{ from: (typeof chartPoints)[number]; to: (typeof chartPoints)[number] }> = [];
-  const todaySegments: Array<{ from: (typeof chartPoints)[number]; to: (typeof chartPoints)[number] }> = [];
-
-  chartPoints.forEach((point, index) => {
-    if (index === 0) {
-      return;
-    }
-
-    const previous = chartPoints[index - 1];
-    if (typeof previous.value !== "number") {
-      return;
-    }
-
-    if (point.isToday) {
-      todaySegments.push({ from: previous, to: point });
-      return;
-    }
-
-    if (typeof point.value === "number") {
-      solidSegments.push({ from: previous, to: point });
-    }
-  });
+  const linePath = chartPoints
+    .map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`)
+    .join(" ");
+  const areaPath = `${linePath} L ${plotRight} ${plotBottom} L ${plotLeft} ${plotBottom} Z`;
 
   return (
     <svg
-      className="h-[140px] w-full overflow-visible"
-      preserveAspectRatio="none"
+      className="h-[180px] w-full overflow-visible"
       role="img"
       viewBox={`0 0 ${chartWidth} ${chartHeight}`}
     >
       <title>每日提交率趋势</title>
+      <defs>
+        <linearGradient id="teacherTrendAreaGradient" x1="0" x2="0" y1="0" y2="1">
+          <stop offset="0%" stopColor="#3b82f6" stopOpacity="0.3" />
+          <stop offset="100%" stopColor="#3b82f6" stopOpacity="0" />
+        </linearGradient>
+      </defs>
       {[100, 50, 0].map((tick) => {
         const y = yForValue(tick);
         return (
           <g key={tick}>
             <line
-              stroke="#E5E7EB"
+              stroke="#f3f4f6"
               strokeDasharray="2 2"
-              strokeWidth="0.5"
+              strokeWidth="1"
               vectorEffect="non-scaling-stroke"
               x1={plotLeft}
               x2={plotRight}
               y1={y}
               y2={y}
             />
-            <text fill="#9CA3AF" fontSize="10" x="4" y={y + 4}>
+            <text fill="#d1d5db" fontSize="11" textAnchor="end" x="35" y={y + 4}>
               {tick}%
             </text>
           </g>
         );
       })}
-      {areaPath ? (
-        <path d={areaPath} fill="#2563EB" fillOpacity="0.08" stroke="none" />
-      ) : null}
-      {solidSegments.map((segment) => (
-        <line
-          key={`${segment.from.date}-${segment.to.date}`}
-          stroke="#2563EB"
-          strokeLinecap="round"
-          strokeWidth="1.5"
-          vectorEffect="non-scaling-stroke"
-          x1={segment.from.x}
-          x2={segment.to.x}
-          y1={segment.from.y}
-          y2={segment.to.y}
-        />
-      ))}
-      {todaySegments.map((segment) => (
-        <line
-          key={`${segment.from.date}-${segment.to.date}-today`}
-          stroke="#2563EB"
-          strokeDasharray="3 2"
-          strokeLinecap="round"
-          strokeWidth="1.5"
-          vectorEffect="non-scaling-stroke"
-          x1={segment.from.x}
-          x2={segment.to.x}
-          y1={segment.from.y}
-          y2={segment.to.y}
-        />
-      ))}
+      <path d={areaPath} fill="url(#teacherTrendAreaGradient)" fillOpacity="0.15" stroke="none" />
+      <path
+        d={linePath}
+        fill="none"
+        stroke="#3b82f6"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2.5"
+        vectorEffect="non-scaling-stroke"
+      />
+      {chartPoints
+        .filter((point) => point.isAbnormal)
+        .map((point) => (
+          <circle cx={point.x} cy={point.y} fill="rgba(245, 158, 11, 0.15)" key={`${point.date}-halo`} r="14" />
+        ))}
       {chartPoints.map((point) => (
-        <g key={point.date}>
+        <g className="group cursor-default" key={point.date}>
+          <line
+            className="teacher-trend-hover-line opacity-0 transition-opacity group-hover:opacity-100"
+            stroke="#e5e7eb"
+            strokeDasharray="4 4"
+            strokeWidth="1"
+            vectorEffect="non-scaling-stroke"
+            x1={point.x}
+            x2={point.x}
+            y1={plotTop}
+            y2="140"
+          />
           <circle
             cx={point.x}
             cy={point.y}
-            fill={point.isToday ? "#FFFFFF" : "#2563EB"}
-            r={point.isToday ? 3 : 2.5}
-            stroke={point.isToday ? "#2563EB" : "none"}
-            strokeWidth={point.isToday ? 1.5 : 0}
+            data-tooltip={`${point.label}: ${point.value}%`}
+            fill={point.isAbnormal ? "#f59e0b" : "#3b82f6"}
+            r={point.isAbnormal ? 6 : 4}
+            stroke="#ffffff"
+            strokeWidth={point.isAbnormal ? 3 : 2.5}
             vectorEffect="non-scaling-stroke"
           >
             <title>
               {typeof point.value === "number"
-                ? `${point.label} · 提交率 ${point.value}%`
+                ? `${point.label}: ${point.value}%`
                 : `${point.label} · 数据待更新`}
             </title>
           </circle>
-          <text fill="#9CA3AF" fontSize="10" textAnchor="middle" x={point.x} y="126">
-            {point.displayLabel}
+          <g className="teacher-trend-tooltip opacity-0 transition-opacity group-hover:opacity-100">
+            <rect
+              fill="rgba(17, 24, 39, 0.9)"
+              height="28"
+              rx="6"
+              width="72"
+              x={point.tooltipX}
+              y={point.tooltipY}
+            />
+            <text fill="#ffffff" fontSize="12" textAnchor="middle" x={point.tooltipX + 36} y={point.tooltipY + 18}>
+              {typeof point.value === "number" ? `${point.label}: ${point.value}%` : `${point.label}: 待更新`}
+            </text>
+            <path
+              d={`M ${point.tooltipX + 32} ${point.tooltipY + 28} L ${point.tooltipX + 40} ${point.tooltipY + 28} L ${point.tooltipX + 36} ${point.tooltipY + 34} Z`}
+              fill="rgba(17, 24, 39, 0.9)"
+            />
+          </g>
+          <text fill="#9ca3af" fontSize="11" textAnchor="middle" x={point.x} y="165">
+            {point.isToday ? point.label : point.displayLabel}
           </text>
+          {point.isToday ? (
+            <text fill="#9ca3af" fontSize="10" textAnchor="middle" x={point.x} y="177">
+              今日
+            </text>
+          ) : null}
         </g>
       ))}
     </svg>
@@ -1855,11 +1869,6 @@ const GroupOperationsBoard = ({
     () => getTrendTotal(previousTrendSeries, (point) => point.praiseCount),
     [previousTrendSeries],
   );
-  const trendEvaluationTotal = useMemo(
-    () => getTrendTotal(trendSeries, (point) => point.evaluationCount),
-    [trendSeries],
-  );
-
   const handleSendReminder = useCallback(
     async (member: ReportMember) => {
       if (!permissions.canSendDirective) {
@@ -2152,22 +2161,22 @@ const GroupOperationsBoard = ({
           </div>
         </section>
 
-        <section className="rounded-lg border border-[var(--color-line)] bg-[var(--color-paper)] px-4 py-4 shadow-sm">
-          <div className="flex items-center justify-between gap-3">
+        <section className="mx-auto w-full min-w-[320px] max-w-[720px] rounded-[20px] bg-white p-8 shadow-[0_4px_24px_rgba(0,0,0,0.06),0_1px_2px_rgba(0,0,0,0.04)]">
+          <div className="flex items-start justify-between gap-4">
             <div>
-              <h3 className="text-sm font-medium text-slate-900">本组本周趋势</h3>
-              <p className="mt-1 text-xs text-[var(--color-text-tertiary)]">
+              <h3 className="text-[18px] font-semibold tracking-[-0.3px] text-[#1a1a2e]">本组本周趋势</h3>
+              <p className="mt-1 text-[13px] text-[#9ca3af]">
                 {trendDateKeys[trendDateKeys.length - 1]?.replaceAll("-", "/") ?? "--"} - {trendDateKeys[0]?.replaceAll("-", "/") ?? "--"}
               </p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex rounded-lg bg-[#f3f4f6] p-[3px]">
               {(["week", "month"] as const).map((range) => (
                 <button
                   key={range}
-                  className={`rounded-md px-2.5 py-1 text-[11px] font-medium transition ${
+                  className={`rounded-md border-0 px-3.5 py-[5px] text-[13px] transition ${
                     trendRange === range
-                      ? "bg-[var(--color-primary-soft)] text-[var(--color-primary)]"
-                      : "border border-[var(--color-line)] bg-[var(--color-paper)] text-[var(--color-text-secondary)] hover:bg-[var(--color-bg-subtle)]"
+                      ? "bg-white font-medium text-[#2563eb] shadow-[0_1px_3px_rgba(0,0,0,0.08)]"
+                      : "bg-transparent text-[#6b7280] hover:text-[#374151]"
                   }`}
                   onClick={() => setTrendRange(range)}
                   type="button"
@@ -2178,37 +2187,37 @@ const GroupOperationsBoard = ({
             </div>
           </div>
 
-          <div className="mt-4 grid gap-3 xl:grid-cols-[180px_minmax(0,1fr)]">
-            <div className="space-y-2">
-              <div className="rounded-md bg-[var(--color-bg-subtle)] px-3 py-2">
-                <p className="text-[11px] text-[var(--color-text-secondary)]">本周平均提交率</p>
-                <p className="mt-1 text-2xl font-semibold text-slate-900">{trendAverage}%</p>
-                <p className={`mt-1 text-[11px] ${trendAverage >= previousTrendAverage ? "text-[var(--color-success)]" : "text-[var(--color-danger)]"}`}>
-                  {formatTrendDelta(trendAverage - previousTrendAverage, "%", "与上期持平")}
+          <div className="mt-8 grid items-start gap-8 xl:grid-cols-[160px_1fr] max-[600px]:grid-cols-1 max-[600px]:gap-6">
+            <div className="flex flex-col gap-6 pt-2 max-[600px]:flex-row max-[600px]:gap-8">
+              <div className="relative">
+                <span className="absolute bottom-1 left-[-16px] top-1 w-[3px] rounded-[2px] bg-[#2563eb]" />
+                <p className="text-xs text-[#9ca3af]">本周平均提交率</p>
+                <p className="mt-2 text-[36px] font-bold leading-none tracking-[-1px] text-[#111827] max-[600px]:text-[28px]">
+                  {trendAverage}
+                  <span className="ml-0.5 align-baseline text-lg font-medium text-[#6b7280]">%</span>
                 </p>
+                <TrendDeltaIndicator delta={trendAverage - previousTrendAverage} unit="%" />
               </div>
-              <div className="rounded-md bg-[var(--color-bg-subtle)] px-3 py-2">
-                <p className="text-[11px] text-[var(--color-text-secondary)]">本周累计获赞</p>
-                <p className="mt-1 text-2xl font-semibold text-slate-900">{trendPraiseTotal}</p>
-                <p className={`mt-1 text-[11px] ${trendPraiseTotal >= previousTrendPraiseTotal ? "text-[var(--color-success)]" : "text-[var(--color-danger)]"}`}>
-                  {formatTrendDelta(trendPraiseTotal - previousTrendPraiseTotal, "", "与上期持平")}
+              <div className="relative">
+                <span className="absolute bottom-1 left-[-16px] top-1 w-[3px] rounded-[2px] bg-[#10b981]" />
+                <p className="text-xs text-[#9ca3af]">本周累计获赞</p>
+                <p className="mt-2 text-[36px] font-bold leading-none tracking-[-1px] text-[#111827] max-[600px]:text-[28px]">
+                  {trendPraiseTotal}
                 </p>
-              </div>
-              <div className="rounded-md bg-[var(--color-bg-subtle)] px-3 py-2">
-                <p className="text-[11px] text-[var(--color-text-secondary)]">本周点评发起</p>
-                <p className="mt-1 text-2xl font-semibold text-slate-900">{trendEvaluationTotal}</p>
-                <p className="mt-1 text-[11px] text-[var(--color-text-tertiary)]">
-                  {trendEvaluationTotal > 0 ? `覆盖 ${currentReports.length} 份当日汇报` : "待教师启动"}
-                </p>
+                <TrendDeltaIndicator delta={trendPraiseTotal - previousTrendPraiseTotal} unit="" />
               </div>
             </div>
 
-            <div className="rounded-md bg-[var(--color-bg-subtle)] px-3 py-2">
-              <div className="mb-2 flex items-center justify-between">
-                <p className="text-xs font-medium text-slate-900">每日提交率</p>
-                <span className="text-[11px] text-[var(--color-text-tertiary)]">单位：%</span>
+            <div>
+              <div className="mb-4 flex items-center justify-between">
+                <p className="text-sm font-semibold text-[#374151]">每日提交率</p>
+                <span className="text-xs text-[#9ca3af]">单位：%</span>
               </div>
               <MainTrendChart series={trendSeries} todayDateKey={todayDateKey} />
+              <div className="mt-3 flex items-center gap-1.5">
+                <span className="h-2 w-2 rounded-full bg-[#f59e0b]" />
+                <span className="text-xs text-[#6b7280]">04/21 提交率异常，建议关注</span>
+              </div>
             </div>
           </div>
         </section>

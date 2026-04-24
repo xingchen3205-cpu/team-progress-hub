@@ -17,7 +17,7 @@ export async function GET(request: NextRequest) {
   }
 
   try {
-    assertMainWorkspaceRole(user.role);
+    assertRole(user.role, ["admin", "school_admin", "teacher", "leader", "member", "expert"]);
   } catch {
     return NextResponse.json({ message: "无权限" }, { status: 403 });
   }

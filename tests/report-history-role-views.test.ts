@@ -544,10 +544,13 @@ test("teacher trend panel uses metric cards plus one main chart layout", () => {
     "utf8",
   );
 
+  assert.match(scheduleSource, /max-w-\[720px\]/);
+  assert.match(scheduleSource, /xl:grid-cols-\[160px_1fr\]/);
+  assert.match(scheduleSource, /left-\[-16px\]/);
   assert.match(scheduleSource, /本周平均提交率/);
   assert.match(scheduleSource, /本周累计获赞/);
-  assert.match(scheduleSource, /本周点评发起/);
   assert.match(scheduleSource, /每日提交率/);
+  assert.match(scheduleSource, /04\/21 提交率异常，建议关注/);
 });
 
 test("teacher trend chart uses thin SVG strokes and subtle fill", () => {
@@ -556,13 +559,17 @@ test("teacher trend chart uses thin SVG strokes and subtle fill", () => {
     "utf8",
   );
 
-  assert.match(scheduleSource, /const chartWidth = 420/);
-  assert.match(scheduleSource, /const chartHeight = 140/);
-  assert.match(scheduleSource, /strokeWidth="1\.5"/);
-  assert.match(scheduleSource, /fillOpacity="0\.08"/);
+  assert.match(scheduleSource, /const chartWidth = 480/);
+  assert.match(scheduleSource, /const chartHeight = 180/);
+  assert.match(scheduleSource, /const plotLeft = 40/);
+  assert.match(scheduleSource, /const plotRight = 460/);
+  assert.match(scheduleSource, /const plotBottom = 160/);
+  assert.match(scheduleSource, /id="teacherTrendAreaGradient"/);
+  assert.match(scheduleSource, /stopColor="#3b82f6" stopOpacity="0\.3"/);
+  assert.match(scheduleSource, /fillOpacity="0\.15"/);
+  assert.match(scheduleSource, /strokeWidth="2\.5"/);
   assert.match(scheduleSource, /strokeDasharray="2 2"/);
-  assert.match(scheduleSource, /strokeDasharray="3 2"/);
-  assert.match(scheduleSource, /vectorEffect="non-scaling-stroke"/);
+  assert.match(scheduleSource, /r="14"/);
 });
 
 test("teacher trend chart marks today and exposes point tooltips", () => {
@@ -572,9 +579,10 @@ test("teacher trend chart marks today and exposes point tooltips", () => {
   );
 
   assert.match(scheduleSource, /displayLabel: isToday \? "今日" : point\.label/);
-  assert.match(scheduleSource, /fill=\{point\.isToday \? "#FFFFFF" : "#2563EB"\}/);
-  assert.match(scheduleSource, /stroke=\{point\.isToday \? "#2563EB" : "none"\}/);
-  assert.match(scheduleSource, /`\$\{point\.label\} · 提交率 \$\{point\.value\}%`/);
+  assert.match(scheduleSource, /fill=\{point\.isAbnormal \? "#f59e0b" : "#3b82f6"\}/);
+  assert.match(scheduleSource, /data-tooltip=\{`\$\{point\.label\}: \$\{point\.value\}%`\}/);
+  assert.match(scheduleSource, /teacher-trend-tooltip/);
+  assert.match(scheduleSource, /teacher-trend-hover-line/);
 });
 
 test("teacher member avatars prefer stable name initials over raw avatar data", () => {
