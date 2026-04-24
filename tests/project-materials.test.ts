@@ -398,3 +398,38 @@ test("project material api placeholders preserve action-specific auth boundaries
   assert.match(approveRoute, /canReviewProjectMaterial\(/);
   assert.match(rejectRoute, /canReviewProjectMaterial\(/);
 });
+
+test("project stage api routes expose management actions", () => {
+  const stageRoute = readFileSync(
+    path.join(process.cwd(), "src/app/api/project-stages/route.ts"),
+    "utf8",
+  );
+  const stageItemRoute = readFileSync(
+    path.join(process.cwd(), "src/app/api/project-stages/[stageId]/route.ts"),
+    "utf8",
+  );
+
+  assert.match(stageRoute, /canManageProjectReviewStage\(user\.role\)/);
+  assert.match(stageRoute, /prisma\.projectReviewStage\.findMany/);
+  assert.match(stageRoute, /OR:\s*\[\{ teamGroupId: null \}, \{ teamGroupId: user\.teamGroupId \}\]/);
+  assert.match(stageRoute, /serializeProjectReviewStage/);
+  assert.match(stageRoute, /export async function POST/);
+  assert.match(stageRoute, /name:\s*name/);
+  assert.match(stageRoute, /type:\s*stageType/);
+  assert.match(stageRoute, /typeof body\?\.name !== "string"/);
+  assert.match(stageRoute, /typeof body\?\.type !== "string"/);
+  assert.match(stageRoute, /typeof body\.teamGroupId !== "string"/);
+  assert.match(stageRoute, /typeof body\.isOpen !== "boolean"/);
+  assert.match(stageRoute, /Prisma\.PrismaClientKnownRequestError/);
+  assert.match(stageRoute, /error\.code === "P2003"/);
+  assert.match(stageRoute, /message: "项目组不存在" \}, \{ status: 400 \}/);
+  assert.match(stageItemRoute, /export async function PUT/);
+  assert.match(stageItemRoute, /canManageProjectReviewStage\(user\.role\)/);
+  assert.match(stageItemRoute, /prisma\.projectReviewStage\s*\.\s*update/);
+  assert.match(stageItemRoute, /typeof body\?\.name !== "string"/);
+  assert.match(stageItemRoute, /typeof body\?\.type !== "string"/);
+  assert.match(stageItemRoute, /typeof body\.teamGroupId !== "string"/);
+  assert.match(stageItemRoute, /typeof body\.isOpen !== "boolean"/);
+  assert.match(stageItemRoute, /error\.code === "P2025"/);
+  assert.match(stageItemRoute, /error\.code === "P2003"/);
+});
