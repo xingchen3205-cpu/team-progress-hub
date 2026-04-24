@@ -2,6 +2,7 @@ import type { Role } from "@prisma/client";
 
 import { prisma } from "@/lib/prisma";
 import { buildAiPermissionSnapshot, parseAiMaxCountInput, resolveAiAccessState } from "@/lib/ai-permissions";
+import { ThinkTagFilter, removeThinkTags } from "@/hooks/use-think-filter";
 
 type AiPermissionPayload = {
   isEnabled: boolean;
@@ -297,7 +298,7 @@ async function sendDifyChatMessageBlocking(input: {
   }
 
   return {
-    answer: payload.answer,
+    answer: removeThinkTags(payload.answer),
     conversationId: payload.conversation_id,
     messageId: payload.message_id ?? null,
   };
@@ -579,6 +580,7 @@ export async function streamAiChatMessage(input: {
       let conversationId = input.conversationId ?? null;
       let messageId: string | null = null;
       let finalized = false;
+      const thinkFilter = new ThinkTagFilter();
 
       const reader = difyResponse.body!.getReader();
 
@@ -647,22 +649,38 @@ export async function streamAiChatMessage(input: {
             const payload = JSON.parse(dataLine.replace(/^data:\s*/, "")) as DifyStreamingEvent;
 
             if (payload.event === "message" || payload.event === "agent_message") {
-              const delta = payload.answer ?? "";
+              const result = thinkFilter.process(payload.answer ?? "");
+              const delta = result.content;
               conversationId = payload.conversation_id ?? conversationId;
               messageId = payload.message_id ?? messageId;
-              answer += delta;
 
-              emit("delta", {
-                delta,
-                answer,
-                conversationId,
-                messageId,
-              });
+              if (delta) {
+                answer += delta;
+
+                emit("delta", {
+                  delta,
+                  answer,
+                  conversationId,
+                  messageId,
+                });
+              }
             }
 
             if (payload.event === "message_end") {
               conversationId = payload.conversation_id ?? conversationId;
               messageId = payload.message_id ?? messageId;
+              const flushed = thinkFilter.flush();
+
+              if (flushed.content) {
+                answer += flushed.content;
+                emit("delta", {
+                  delta: flushed.content,
+                  answer,
+                  conversationId,
+                  messageId,
+                });
+              }
+
               await finalizeSuccess();
               return;
             }
@@ -674,6 +692,17 @@ export async function streamAiChatMessage(input: {
         }
 
         buffer += decoder.decode();
+        const flushed = thinkFilter.flush();
+
+        if (flushed.content) {
+          answer += flushed.content;
+          emit("delta", {
+            delta: flushed.content,
+            answer,
+            conversationId,
+            messageId,
+          });
+        }
 
         if (!finalized && answer && conversationId) {
           await finalizeSuccess();

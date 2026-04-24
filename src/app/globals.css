@@ -1329,6 +1329,70 @@ a:hover {
   padding-right: 76px;
 }
 
+.timeline-scroll-track {
+  display: flex;
+  min-width: max-content;
+  align-items: flex-start;
+  padding: 12px 24px 10px;
+}
+
+.timeline-step {
+  position: relative;
+  width: 168px;
+  flex: 0 0 168px;
+  text-align: center;
+}
+
+.timeline-step-rail {
+  position: relative;
+  display: flex;
+  height: 34px;
+  align-items: center;
+  justify-content: center;
+}
+
+.timeline-step-connector {
+  position: absolute;
+  top: 50%;
+  width: calc(50% - 16px);
+  transform: translateY(-50%);
+  border-top: 2px solid rgba(51, 65, 85, 0.34);
+}
+
+.timeline-step-connector.left {
+  left: 0;
+}
+
+.timeline-step-connector.right {
+  right: 0;
+}
+
+.timeline-step-connector.dashed {
+  border-top-style: dashed;
+  border-top-color: rgba(26, 111, 212, 0.32);
+}
+
+.timeline-step-title {
+  margin: 10px auto 0;
+  max-width: 120px;
+  overflow: hidden;
+  color: #0f172a;
+  font-size: 13px;
+  font-weight: 600;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.timeline-step-date {
+  margin: 5px auto 0;
+  max-width: 60px;
+  overflow: hidden;
+  color: rgba(15, 23, 42, 0.46);
+  font-size: 12px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .timeline-segment {
   position: absolute;
   top: 36px;
@@ -1414,6 +1478,31 @@ a:hover {
   color: #1a6fd4;
 }
 
+.timeline-status-tag {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.timeline-status-tag.past {
+  background: rgba(100, 116, 139, 0.1);
+  color: rgba(71, 85, 105, 0.92);
+}
+
+.timeline-status-tag.current {
+  background: rgba(26, 111, 212, 0.1);
+  color: #1a6fd4;
+}
+
+.timeline-status-tag.future {
+  background: rgba(226, 232, 240, 0.75);
+  color: rgba(71, 85, 105, 0.86);
+}
+
 .timeline-edit-button {
   display: inline-flex;
   align-items: center;
@@ -1466,6 +1555,13 @@ a:hover {
   transform: translateY(-1px);
   border-color: rgba(26, 111, 212, 0.62);
   background: rgba(26, 111, 212, 0.08);
+}
+
+.timeline-add-button-inline {
+  position: static;
+  margin-left: 8px;
+  margin-top: 18px;
+  flex-shrink: 0;
 }
 
 .pending-badge {

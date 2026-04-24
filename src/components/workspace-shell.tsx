@@ -295,11 +295,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
 
   return (
     <>
-      <main
-        className={`workspace-depth-bg workspace-shell-fade-in overflow-x-hidden p-4 md:p-6 ${
-          safeActiveTab === "timeline" || safeActiveTab === "reports" ? "h-auto pb-8" : "min-h-screen"
-        }`}
-      >
+      <main className="workspace-depth-bg workspace-shell-fade-in min-h-screen overflow-x-hidden p-4 md:p-6">
         <div aria-hidden className="workspace-orb-field" />
         <div className="relative z-[1] mx-auto flex max-w-[1500px] flex-col gap-4 overflow-x-hidden xl:flex-row">
           {mobileSidebarOpen ? (
@@ -309,8 +305,8 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
             />
           ) : null}
 
-          <aside className="hidden xl:block xl:w-[260px] xl:flex-none">
-            <div className="depth-sidebar depth-sidebar-enhanced sidebar-government-pattern rounded-xl px-4 py-6 text-white xl:sticky xl:top-4 xl:flex xl:min-h-[calc(100vh-2rem)] xl:flex-col">
+          <aside className="hidden xl:sticky xl:top-4 xl:block xl:h-[calc(100svh-2rem)] xl:w-[260px] xl:flex-none xl:self-start">
+            <div className="depth-sidebar depth-sidebar-enhanced sidebar-government-pattern flex h-full flex-col rounded-xl px-4 py-6 text-white">
               <div className="sidebar-header pb-5">
                 <div className="sidebar-logo flex items-center gap-3">
                   <div className="sidebar-logo-wrapper flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/15 bg-white/10">
@@ -323,7 +319,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                 </div>
               </div>
 
-              <nav className="sidebar-nav mt-5 space-y-1">
+              <nav className="sidebar-nav mt-5 flex-1 overflow-y-auto space-y-1 pr-1">
                 {sidebarTabs.map((item) => {
                   const Icon = item.icon;
                   const isActive = item.key === safeActiveTab;

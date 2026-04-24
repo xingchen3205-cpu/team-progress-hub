@@ -73,3 +73,12 @@ test("assistant dify bridge accepts both message and agent_message streaming eve
   assert.match(source, /payload\.event === "message" \|\| payload\.event === "agent_message"/);
   assert.match(source, /response_mode:\s*"streaming"/);
 });
+
+test("assistant bridge filters DeepSeek think tags before streaming to the UI", () => {
+  const source = readFileSync(aiChatLibPath, "utf8");
+
+  assert.match(source, /new ThinkTagFilter\(\)/);
+  assert.match(source, /thinkFilter\.process\(payload\.answer \?\? ""\)/);
+  assert.match(source, /thinkFilter\.flush\(\)/);
+  assert.match(source, /removeThinkTags\(payload\.answer\)/);
+});

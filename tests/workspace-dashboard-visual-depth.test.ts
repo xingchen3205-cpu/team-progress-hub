@@ -79,13 +79,13 @@ test("workspace desktop sidebar keeps a full-height shell on wide screens", () =
     "utf8",
   );
 
-  const desktopSidebarStart = source.indexOf('<aside className="hidden xl:block xl:w-[260px] xl:flex-none">');
+  const desktopSidebarStart = source.indexOf('<aside className="hidden xl:sticky xl:top-4');
   const mobileSidebarStart = source.indexOf('className={`depth-sidebar depth-sidebar-enhanced', desktopSidebarStart);
   const desktopSidebarBlock = source.slice(desktopSidebarStart, mobileSidebarStart);
 
-  assert.match(desktopSidebarBlock, /xl:min-h-\[calc\(100vh-2rem\)\]/);
-  assert.match(desktopSidebarBlock, /xl:flex/);
-  assert.match(desktopSidebarBlock, /xl:flex-col/);
+  assert.match(desktopSidebarBlock, /xl:h-\[calc\(100svh-2rem\)\]/);
+  assert.match(desktopSidebarBlock, /flex h-full flex-col/);
+  assert.match(desktopSidebarBlock, /flex-1 overflow-y-auto/);
 });
 
 test("overview main grid stretches columns and lets the notice card fill remaining height", () => {

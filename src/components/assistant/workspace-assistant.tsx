@@ -12,6 +12,7 @@ import {
   formatAssistantDateDivider,
   shouldShowAssistantDateDivider,
 } from "./assistant-utils";
+import { removeThinkTags } from "@/hooks/use-think-filter";
 import { requestJson } from "@/lib/request-json";
 import styles from "./workspace-assistant.module.css";
 
@@ -375,7 +376,7 @@ export function WorkspaceAssistant() {
         setActiveConversationId(payload.conversationId);
         setPermission(payload.permission);
         replaceThinkingMessage(thinkingMessage.id, {
-          content: payload.answer,
+          content: removeThinkTags(payload.answer),
           createdAt: new Date().toISOString(),
           messageId: payload.messageId,
           state: "ready",
