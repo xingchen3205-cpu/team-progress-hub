@@ -1,8 +1,12 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import test from "node:test";
 
+import {
+  serializeProjectMaterialSubmission,
+  serializeProjectReviewStage,
+} from "@/lib/api-serializers";
 import {
   buildProjectMaterialVisibilityWhere,
   canManageProjectReviewStage,
@@ -14,6 +18,10 @@ import {
 } from "@/lib/project-materials";
 
 const schemaSource = readFileSync(path.join(process.cwd(), "prisma/schema.prisma"), "utf8");
+const apiSerializersSource = readFileSync(
+  path.join(process.cwd(), "src/lib/api-serializers.ts"),
+  "utf8",
+);
 
 test("project material schema contains stages and submissions", () => {
   const stageTypeEnum = schemaSource.match(/enum ProjectReviewStageType \{[\s\S]*?\n\}/)?.[0] ?? "";
@@ -245,4 +253,148 @@ test("current approved material selection ignores invalid dates when newer valid
     selected.map((item) => item.id),
     ["valid-date"],
   );
+});
+
+test("project material serializers are exported and use stable status labels", () => {
+  assert.match(apiSerializersSource, /serializeProjectReviewStage/);
+  assert.match(apiSerializersSource, /serializeProjectMaterialSubmission/);
+  assert.match(apiSerializersSource, /statusLabel:\s*getProjectMaterialStatusLabel/);
+});
+
+test("project material serializers emit stable api payloads", () => {
+  const createdAt = new Date("2026-04-21T09:00:00.000Z");
+  const updatedAt = new Date("2026-04-21T10:00:00.000Z");
+  const deadline = new Date("2026-04-30T15:00:00.000Z");
+
+  assert.deepEqual(
+    serializeProjectReviewStage({
+      id: "stage-1",
+      name: "第一轮网评",
+      type: "online_review",
+      description: null,
+      isOpen: true,
+      startAt: null,
+      deadline,
+      createdAt,
+      updatedAt,
+      creator: { id: "admin-1", name: "系统管理员", avatar: "系", role: "admin" },
+      teamGroup: { id: "group-1", name: "智在必行" },
+      _count: { submissions: 2 },
+    } as any),
+    {
+      id: "stage-1",
+      name: "第一轮网评",
+      type: "online_review",
+      typeLabel: "网络评审",
+      description: "",
+      isOpen: true,
+      startAt: null,
+      deadline: "2026-04-30T15:00:00.000Z",
+      createdAt: "2026-04-21T09:00:00.000Z",
+      updatedAt: "2026-04-21T10:00:00.000Z",
+      creator: {
+        id: "admin-1",
+        name: "系统管理员",
+        avatar: "系",
+        roleLabel: "系统管理员",
+      },
+      teamGroup: { id: "group-1", name: "智在必行" },
+      submissionCount: 2,
+    },
+  );
+
+  assert.deepEqual(
+    serializeProjectMaterialSubmission({
+      id: "submission-1",
+      stageId: "stage-1",
+      teamGroupId: "group-1",
+      submittedById: "member-1",
+      title: "网评材料",
+      fileName: "deck.pdf",
+      filePath: "project-materials/deck.pdf",
+      fileSize: 2048,
+      mimeType: "application/pdf",
+      status: "approved",
+      rejectReason: null,
+      approvedAt: updatedAt,
+      rejectedAt: null,
+      approvedById: "teacher-1",
+      rejectedById: null,
+      createdAt,
+      updatedAt,
+      stage: {
+        id: "stage-1",
+        name: "第一轮网评",
+        type: "online_review",
+        isOpen: true,
+        deadline,
+      },
+      teamGroup: { id: "group-1", name: "智在必行" },
+      submitter: { id: "member-1", name: "学生甲", avatar: "甲", role: "member" },
+      approver: { id: "teacher-1", name: "贾老师", avatar: "贾", role: "teacher" },
+      rejecter: null,
+    } as any),
+    {
+      id: "submission-1",
+      stageId: "stage-1",
+      stageName: "第一轮网评",
+      stageType: "online_review",
+      teamGroupId: "group-1",
+      teamGroupName: "智在必行",
+      title: "网评材料",
+      fileName: "deck.pdf",
+      filePath: "project-materials/deck.pdf",
+      fileSize: 2048,
+      mimeType: "application/pdf",
+      status: "approved",
+      statusLabel: "已生效",
+      rejectReason: "",
+      submittedAt: "2026-04-21T09:00:00.000Z",
+      updatedAt: "2026-04-21T10:00:00.000Z",
+      approvedAt: "2026-04-21T10:00:00.000Z",
+      rejectedAt: null,
+      submitter: { id: "member-1", name: "学生甲", avatar: "甲", roleLabel: "团队成员" },
+      approver: { id: "teacher-1", name: "贾老师", avatar: "贾", roleLabel: "指导教师" },
+      rejecter: null,
+    },
+  );
+});
+
+test("project material api route placeholders exist", () => {
+  const routePaths = [
+    "src/app/api/project-stages/route.ts",
+    "src/app/api/project-stages/[stageId]/route.ts",
+    "src/app/api/project-materials/route.ts",
+    "src/app/api/project-materials/upload-url/route.ts",
+    "src/app/api/project-materials/[submissionId]/approve/route.ts",
+    "src/app/api/project-materials/[submissionId]/reject/route.ts",
+  ];
+
+  for (const routePath of routePaths) {
+    assert.equal(existsSync(path.join(process.cwd(), routePath)), true, `${routePath} exists`);
+  }
+});
+
+test("project material api placeholders preserve action-specific auth boundaries", () => {
+  const stageItemRoute = readFileSync(
+    path.join(process.cwd(), "src/app/api/project-stages/[stageId]/route.ts"),
+    "utf8",
+  );
+  const uploadRoute = readFileSync(
+    path.join(process.cwd(), "src/app/api/project-materials/upload-url/route.ts"),
+    "utf8",
+  );
+  const approveRoute = readFileSync(
+    path.join(process.cwd(), "src/app/api/project-materials/[submissionId]/approve/route.ts"),
+    "utf8",
+  );
+  const rejectRoute = readFileSync(
+    path.join(process.cwd(), "src/app/api/project-materials/[submissionId]/reject/route.ts"),
+    "utf8",
+  );
+
+  assert.match(stageItemRoute, /canManageProjectReviewStage\(user\.role\)/);
+  assert.match(uploadRoute, /canUploadProjectMaterial\(\{ role: user\.role, teamGroupId: user\.teamGroupId \}\)/);
+  assert.match(approveRoute, /canReviewProjectMaterial\(/);
+  assert.match(rejectRoute, /canReviewProjectMaterial\(/);
 });

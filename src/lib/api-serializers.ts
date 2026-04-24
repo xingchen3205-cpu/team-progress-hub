@@ -8,6 +8,8 @@ import type {
   ExpertAttachment,
   ExpertFeedback,
   Notification,
+  ProjectMaterialSubmission,
+  ProjectReviewStage,
   Report,
   ReportEvaluation,
   ReportEvaluationType,
@@ -17,6 +19,7 @@ import type {
   TaskAttachment,
   TaskPriority,
   TaskStatus,
+  TeamGroup,
   TrainingQuestion,
   TrainingSession,
   User,
@@ -24,6 +27,7 @@ import type {
 
 import { formatBeijingDateTime, formatBeijingTimeOnly } from "@/lib/date";
 import { approvalStatusLabels, roleLabels } from "@/lib/permissions";
+import { getProjectMaterialStatusLabel } from "@/lib/project-materials";
 
 export const categoryLabels: Record<DocumentCategory, "计划书" | "PPT" | "答辩材料" | "证明附件"> = {
   plan: "计划书",
@@ -497,4 +501,79 @@ export const serializeTrainingSession = (
   notes: session.notes ?? "",
   createdByName: session.createdBy.name,
   createdAt: formatDateTime(session.createdAt),
+});
+
+type ProjectReviewStageWithRelations = ProjectReviewStage & {
+  creator?: Pick<User, "id" | "name" | "avatar" | "role"> | null;
+  teamGroup?: Pick<TeamGroup, "id" | "name"> | null;
+  _count?: {
+    submissions?: number;
+  };
+};
+
+type ProjectMaterialSubmissionWithRelations = ProjectMaterialSubmission & {
+  stage: Pick<ProjectReviewStage, "id" | "name" | "type" | "isOpen" | "deadline">;
+  teamGroup: Pick<TeamGroup, "id" | "name">;
+  submitter: Pick<User, "id" | "name" | "avatar" | "role">;
+  approver?: Pick<User, "id" | "name" | "avatar" | "role"> | null;
+  rejecter?: Pick<User, "id" | "name" | "avatar" | "role"> | null;
+};
+
+const serializeProjectMaterialUser = (
+  user?: Pick<User, "id" | "name" | "avatar" | "role"> | null,
+) =>
+  user
+    ? {
+        id: user.id,
+        name: user.name,
+        avatar: user.avatar,
+        roleLabel: roleLabels[user.role],
+      }
+    : null;
+
+export const serializeProjectReviewStage = (stage: ProjectReviewStageWithRelations) => ({
+  id: stage.id,
+  name: stage.name,
+  type: stage.type,
+  typeLabel: stage.type === "online_review" ? "网络评审" : "路演材料",
+  description: stage.description ?? "",
+  isOpen: stage.isOpen,
+  startAt: stage.startAt?.toISOString() ?? null,
+  deadline: stage.deadline?.toISOString() ?? null,
+  createdAt: stage.createdAt.toISOString(),
+  updatedAt: stage.updatedAt.toISOString(),
+  creator: serializeProjectMaterialUser(stage.creator),
+  teamGroup: stage.teamGroup
+    ? {
+        id: stage.teamGroup.id,
+        name: stage.teamGroup.name,
+      }
+    : null,
+  submissionCount: stage._count?.submissions ?? 0,
+});
+
+export const serializeProjectMaterialSubmission = (
+  submission: ProjectMaterialSubmissionWithRelations,
+) => ({
+  id: submission.id,
+  stageId: submission.stageId,
+  stageName: submission.stage.name,
+  stageType: submission.stage.type,
+  teamGroupId: submission.teamGroupId,
+  teamGroupName: submission.teamGroup.name,
+  title: submission.title,
+  fileName: submission.fileName,
+  filePath: submission.filePath,
+  fileSize: submission.fileSize,
+  mimeType: submission.mimeType,
+  status: submission.status,
+  statusLabel: getProjectMaterialStatusLabel(submission.status),
+  rejectReason: submission.rejectReason ?? "",
+  submittedAt: submission.createdAt.toISOString(),
+  updatedAt: submission.updatedAt.toISOString(),
+  approvedAt: submission.approvedAt?.toISOString() ?? null,
+  rejectedAt: submission.rejectedAt?.toISOString() ?? null,
+  submitter: serializeProjectMaterialUser(submission.submitter),
+  approver: serializeProjectMaterialUser(submission.approver),
+  rejecter: serializeProjectMaterialUser(submission.rejecter),
 });
