@@ -144,6 +144,7 @@ export type TabKey =
   | "experts"
   | "review"
   | "documents"
+  | "project"
   | "team"
   | "assistant"
   | "profile";
@@ -154,6 +155,8 @@ export type WorkspaceResourceKey =
   | "tasks"
   | "experts"
   | "documents"
+  | "projectStages"
+  | "projectMaterials"
   | "team"
   | "trainingQuestions"
   | "trainingSessions"
@@ -357,6 +360,65 @@ export type AiPermissionDraft = {
   maxCount: string;
 };
 
+export type ProjectReviewStageTypeKey = "online_review" | "roadshow";
+
+export type ProjectReviewStageItem = {
+  id: string;
+  name: string;
+  type: ProjectReviewStageTypeKey;
+  typeLabel: string;
+  description: string | null;
+  isOpen: boolean;
+  startAt: string | null;
+  deadline: string | null;
+  createdAt: string;
+  updatedAt: string;
+  creator: {
+    id: string;
+    name: string;
+    avatar: string;
+    role: RoleKey;
+  } | null;
+  teamGroup: {
+    id: string;
+    name: string;
+  } | null;
+  submissionCount: number;
+};
+
+export type ProjectMaterialStatusKey = "pending" | "approved" | "rejected";
+
+export type ProjectMaterialUser = {
+  id: string;
+  name: string;
+  avatar: string;
+  role: RoleKey;
+} | null;
+
+export type ProjectMaterialSubmissionItem = {
+  id: string;
+  stageId: string;
+  stageName: string;
+  stageType: ProjectReviewStageTypeKey;
+  teamGroupId: string;
+  teamGroupName: string;
+  title: string;
+  fileName: string;
+  filePath: string;
+  fileSize: number;
+  mimeType: string;
+  status: ProjectMaterialStatusKey;
+  statusLabel: string;
+  rejectReason: string | null;
+  submittedAt: string;
+  updatedAt: string;
+  approvedAt: string | null;
+  rejectedAt: string | null;
+  submitter: ProjectMaterialUser;
+  approver: ProjectMaterialUser;
+  rejecter: ProjectMaterialUser;
+};
+
 export type ReportEntryWithDate = ReportEntry & {
   date: string;
   praiseCount?: number;
@@ -512,6 +574,12 @@ export const allTabs: TabItem[] = [
     label: "文档中心",
     description: "分类管理计划书、PPT、答辩材料和证明附件。",
     icon: FolderOpen,
+  },
+  {
+    key: "project",
+    label: "项目管理",
+    description: "管理网评、路演等项目材料提交、审批与最终版本归档。",
+    icon: FileText,
   },
   {
     key: "team",
@@ -809,6 +877,7 @@ export const rolePermissions = {
       "experts",
       "review",
       "documents",
+      "project",
       "team",
       "assistant",
       "profile",
@@ -842,6 +911,7 @@ export const rolePermissions = {
       "experts",
       "review",
       "documents",
+      "project",
       "team",
       "assistant",
       "profile",
@@ -866,7 +936,7 @@ export const rolePermissions = {
     canResetPassword: true,
   },
   teacher: {
-    visibleTabs: ["overview", "timeline", "board", "training", "reports", "experts", "documents", "team", "assistant", "profile"] as TabKey[],
+    visibleTabs: ["overview", "timeline", "board", "training", "reports", "experts", "documents", "project", "team", "assistant", "profile"] as TabKey[],
     canPublishAnnouncement: true,
     canSendDirective: true,
     canCreateTask: true,
@@ -887,7 +957,7 @@ export const rolePermissions = {
     canResetPassword: true,
   },
   leader: {
-    visibleTabs: ["overview", "timeline", "board", "training", "reports", "experts", "documents", "team", "assistant", "profile"] as TabKey[],
+    visibleTabs: ["overview", "timeline", "board", "training", "reports", "experts", "documents", "project", "team", "assistant", "profile"] as TabKey[],
     canPublishAnnouncement: true,
     canSendDirective: false,
     canCreateTask: true,
@@ -908,7 +978,7 @@ export const rolePermissions = {
     canResetPassword: false,
   },
   member: {
-    visibleTabs: ["overview", "timeline", "board", "training", "reports", "experts", "documents", "team", "assistant", "profile"] as TabKey[],
+    visibleTabs: ["overview", "timeline", "board", "training", "reports", "experts", "documents", "project", "team", "assistant", "profile"] as TabKey[],
     canPublishAnnouncement: false,
     canSendDirective: false,
     canCreateTask: true,
@@ -1795,6 +1865,8 @@ function useWorkspaceController({
   });
   const [trainingPanel, setTrainingPanel] = useState<"qa" | "pitch">("qa");
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
+  const [projectStages, setProjectStages] = useState<ProjectReviewStageItem[]>([]);
+  const [projectMaterials, setProjectMaterials] = useState<ProjectMaterialSubmissionItem[]>([]);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [sentReminders, setSentReminders] = useState<NotificationItem[]>([]);
   const [members, setMembers] = useState<TeamMember[]>([]);
@@ -2324,6 +2396,8 @@ function useWorkspaceController({
       qaHitRate: 0,
     });
     setDocuments([]);
+    setProjectStages([]);
+    setProjectMaterials([]);
     setSentReminders([]);
     setMembers([]);
     setPendingTeamMembers([]);
@@ -2372,6 +2446,8 @@ function useWorkspaceController({
           return ["team", "reviewAssignments"];
         case "documents":
           return ["documents", "team"];
+        case "project":
+          return ["projectStages", "projectMaterials", "team"];
         case "team":
           return ["team"];
         case "assistant":
@@ -2410,6 +2486,16 @@ function useWorkspaceController({
         case "documents": {
           const payload = await requestJson<{ documents: DocumentItem[] }>("/api/documents");
           setDocuments(payload.documents);
+          return;
+        }
+        case "projectStages": {
+          const payload = await requestJson<{ stages: ProjectReviewStageItem[] }>("/api/project-stages");
+          setProjectStages(payload.stages);
+          return;
+        }
+        case "projectMaterials": {
+          const payload = await requestJson<{ materials: ProjectMaterialSubmissionItem[] }>("/api/project-materials");
+          setProjectMaterials(payload.materials);
           return;
         }
         case "team": {
@@ -5878,6 +5964,10 @@ function useWorkspaceController({
     setTrainingPanel,
     documents,
     setDocuments,
+    projectStages,
+    setProjectStages,
+    projectMaterials,
+    setProjectMaterials,
     notifications,
     setNotifications,
     sentReminders,

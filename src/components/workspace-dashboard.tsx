@@ -31,6 +31,9 @@ const ExpertReviewTab = dynamic(() => import("@/components/tabs/expert-review-ta
 const DocumentsTab = dynamic(() => import("@/components/tabs/documents-tab"), {
   loading: () => <TabSkeleton />,
 });
+const ProjectTab = dynamic(() => import("@/components/tabs/project-tab"), {
+  loading: () => <TabSkeleton />,
+});
 const TeamTab = dynamic(() => import("@/components/tabs/team-tab"), {
   loading: () => <TabSkeleton />,
 });
@@ -56,6 +59,7 @@ function WorkspaceDashboardContent() {
           {safeActiveTab === "experts" && <ExpertOpinionTab />}
           {safeActiveTab === "review" && <ExpertReviewTab />}
           {safeActiveTab === "documents" && <DocumentsTab />}
+          {safeActiveTab === "project" && <ProjectTab />}
           {safeActiveTab === "team" && <TeamTab />}
           {safeActiveTab === "assistant" && <AssistantTab />}
           {safeActiveTab === "profile" && <ProfileTab />}
