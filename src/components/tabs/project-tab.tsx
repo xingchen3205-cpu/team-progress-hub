@@ -82,6 +82,12 @@ const statusBadgeClassNames: Record<Workspace.ProjectMaterialStatusKey, string> 
   rejected: "border-rose-200 bg-rose-50 text-rose-700",
 };
 
+const projectCardClassName =
+  "rounded-2xl border border-slate-200/80 bg-white p-6 shadow-[0_4px_16px_rgba(15,23,42,0.04)]";
+
+const projectInputClassName =
+  "mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10";
+
 const isStageWithinActiveWindow = (stage: Workspace.ProjectReviewStageItem) => {
   const now = Date.now();
   const startAt = stage.startAt ? new Date(stage.startAt).getTime() : null;
@@ -216,6 +222,43 @@ export default function ProjectTab() {
       }),
     [projectMaterials],
   );
+
+  const pendingMaterialCount = projectMaterials.filter((item) => item.status === "pending").length;
+  const approvedMaterialCount = projectMaterials.filter((item) => item.status === "approved").length;
+  const rejectedMaterialCount = projectMaterials.filter((item) => item.status === "rejected").length;
+  const selectedTeamGroupCount =
+    stageDraft.teamGroupIds.length === 0 ? teamGroups.length : stageDraft.teamGroupIds.length;
+
+  const projectStatCards = [
+    {
+      label: "评审阶段",
+      value: projectStages.length,
+      icon: FolderOpen,
+      tone: "bg-blue-50 text-blue-600",
+      valueClassName: "text-slate-950",
+    },
+    {
+      label: "待审批材料",
+      value: pendingMaterialCount,
+      icon: Upload,
+      tone: "bg-orange-50 text-orange-600",
+      valueClassName: pendingMaterialCount > 0 ? "text-orange-600" : "text-slate-950",
+    },
+    {
+      label: "已生效材料",
+      value: approvedMaterialCount,
+      icon: FileCheck,
+      tone: "bg-emerald-50 text-emerald-600",
+      valueClassName: approvedMaterialCount > 0 ? "text-emerald-600" : "text-slate-950",
+    },
+    {
+      label: "已驳回材料",
+      value: rejectedMaterialCount,
+      icon: Trash2,
+      tone: "bg-rose-50 text-rose-600",
+      valueClassName: rejectedMaterialCount > 0 ? "text-rose-600" : "text-slate-950",
+    },
+  ];
 
   const resetStageForm = () => {
     setEditingStageId(null);
@@ -414,35 +457,33 @@ export default function ProjectTab() {
       />
 
       <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-        <div className="rounded-2xl border border-white/80 bg-white/90 p-5 shadow-[0_14px_36px_rgba(30,64,175,0.08)]">
-          <p className="text-xs font-medium text-slate-500">评审阶段</p>
-          <p className="mt-2 text-3xl font-semibold text-slate-950">{projectStages.length}</p>
-        </div>
-        <div className="rounded-2xl border border-white/80 bg-white/90 p-5 shadow-[0_14px_36px_rgba(30,64,175,0.08)]">
-          <p className="text-xs font-medium text-slate-500">待审批材料</p>
-          <p className="mt-2 text-3xl font-semibold text-amber-600">
-            {projectMaterials.filter((item) => item.status === "pending").length}
-          </p>
-        </div>
-        <div className="rounded-2xl border border-white/80 bg-white/90 p-5 shadow-[0_14px_36px_rgba(30,64,175,0.08)]">
-          <p className="text-xs font-medium text-slate-500">已生效材料</p>
-          <p className="mt-2 text-3xl font-semibold text-emerald-600">
-            {projectMaterials.filter((item) => item.status === "approved").length}
-          </p>
-        </div>
-        <div className="rounded-2xl border border-white/80 bg-white/90 p-5 shadow-[0_14px_36px_rgba(30,64,175,0.08)]">
-          <p className="text-xs font-medium text-slate-500">已驳回材料</p>
-          <p className="mt-2 text-3xl font-semibold text-rose-600">
-            {projectMaterials.filter((item) => item.status === "rejected").length}
-          </p>
-        </div>
+        {projectStatCards.map((card) => {
+          const Icon = card.icon;
+          return (
+            <div
+              className="project-stat-card flex items-start gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_4px_16px_rgba(15,23,42,0.04)] transition hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(15,23,42,0.07)]"
+              key={card.label}
+            >
+              <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${card.tone}`}>
+                <Icon className="h-5 w-5" />
+              </span>
+              <span>
+                <span className="block text-xs font-medium text-slate-400">{card.label}</span>
+                <span className={`mt-2 block text-3xl font-bold leading-none ${card.valueClassName}`}>
+                  {card.value}
+                </span>
+              </span>
+            </div>
+          );
+        })}
       </section>
 
       {canManageStages ? (
-        <section className="rounded-2xl border border-white/80 bg-white/90 p-5 shadow-[0_14px_36px_rgba(30,64,175,0.08)]">
+        <section className={projectCardClassName}>
           <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
             <div>
-              <h3 className="text-lg font-semibold text-slate-950">
+              <h3 className="inline-flex items-center gap-2 text-lg font-bold text-slate-950">
+                <Plus className="h-5 w-5 text-blue-600" />
                 {editingStageId ? "编辑评审阶段" : "创建评审阶段"}
               </h3>
               <p className="mt-1 text-sm text-slate-500">
@@ -460,7 +501,7 @@ export default function ProjectTab() {
             <label className="block text-sm font-medium text-slate-700">
               阶段名称
               <input
-                className={fieldClassName}
+                className={projectInputClassName}
                 onChange={(event) => setStageDraft((current) => ({ ...current, name: event.target.value }))}
                 placeholder="如：第一轮网络评审材料提交"
                 value={stageDraft.name}
@@ -469,17 +510,15 @@ export default function ProjectTab() {
             <label className="block text-sm font-medium text-slate-700">
               阶段类型
               <select
-                className={fieldClassName}
-                onChange={(event) =>
-                {
+                className={projectInputClassName}
+                onChange={(event) => {
                   const nextType = event.target.value as Workspace.ProjectReviewStageTypeKey;
                   setStageDraft((current) => ({
                     ...current,
                     type: nextType,
                     requiredMaterials: defaultRequiredMaterialsByStageType[nextType],
                   }));
-                }
-                }
+                }}
                 value={stageDraft.type}
               >
                 {stageTypeOptions.map((option) => (
@@ -494,7 +533,7 @@ export default function ProjectTab() {
             </label>
             <label className="block text-sm font-medium text-slate-700">
               开放项目组
-              <div className="mt-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
+              <div className="mt-2 overflow-hidden rounded-xl border border-slate-200 bg-white">
                 <label className="flex items-center gap-2 rounded-lg bg-white px-3 py-2 text-sm text-slate-700 ring-1 ring-slate-200">
                   <input
                     checked={stageDraft.teamGroupIds.length === 0}
@@ -504,7 +543,7 @@ export default function ProjectTab() {
                   />
                   <span className="font-medium">全部项目组可提交</span>
                 </label>
-                <div className="mt-3 grid max-h-36 gap-2 overflow-y-auto sm:grid-cols-2">
+                <div className="grid max-h-36 gap-2 overflow-y-auto border-t border-slate-100 bg-slate-50 p-3 sm:grid-cols-2">
                   {teamGroups.map((group) => {
                     const checked = stageDraft.teamGroupIds.includes(group.id);
                     return (
@@ -534,28 +573,33 @@ export default function ProjectTab() {
                     );
                   })}
                 </div>
-                <p className="mt-2 text-xs text-slate-400">
+                <p className="border-t border-slate-100 px-3 py-2 text-xs text-slate-400">
                   {stageDraft.teamGroupIds.length === 0
                     ? "当前面向全部项目组开放。"
-                    : `已选择 ${stageDraft.teamGroupIds.length} 个项目组。`}
+                    : `已选择 ${selectedTeamGroupCount} 个项目组。`}
                 </p>
               </div>
             </label>
-            <label className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-700">
-              <input
-                checked={stageDraft.isOpen}
-                className="h-4 w-4 rounded border-slate-300 text-blue-600"
-                onChange={(event) =>
-                  setStageDraft((current) => ({ ...current, isOpen: event.target.checked }))
-                }
-                type="checkbox"
-              />
-              当前开放学生上传
+            <label className="flex min-h-40 flex-col items-center justify-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-5 text-sm font-medium text-slate-700">
+              <span className="text-xs text-slate-400">学生上传权限</span>
+              <span className="relative inline-flex h-7 w-14 items-center">
+                <input
+                  checked={stageDraft.isOpen}
+                  className="peer sr-only"
+                  onChange={(event) =>
+                    setStageDraft((current) => ({ ...current, isOpen: event.target.checked }))
+                  }
+                  type="checkbox"
+                />
+                <span className="absolute inset-0 rounded-full bg-slate-300 transition peer-checked:bg-blue-600" />
+                <span className="absolute left-1 h-5 w-5 rounded-full bg-white shadow transition peer-checked:translate-x-7" />
+              </span>
+              <span>{stageDraft.isOpen ? "当前开放学生上传" : "当前已关闭学生上传"}</span>
             </label>
             <label className="block text-sm font-medium text-slate-700">
               开始时间
               <input
-                className={fieldClassName}
+                className={projectInputClassName}
                 onChange={(event) => setStageDraft((current) => ({ ...current, startAt: event.target.value }))}
                 type="datetime-local"
                 value={stageDraft.startAt}
@@ -564,18 +608,22 @@ export default function ProjectTab() {
             <label className="block text-sm font-medium text-slate-700">
               截止时间
               <input
-                className={fieldClassName}
+                className={projectInputClassName}
                 onChange={(event) => setStageDraft((current) => ({ ...current, deadline: event.target.value }))}
                 type="datetime-local"
                 value={stageDraft.deadline}
               />
             </label>
-            <div className="lg:col-span-2 rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 lg:col-span-2">
               <p className="text-sm font-medium text-slate-700">要求上传内容</p>
               <div className="mt-3 grid gap-2 sm:grid-cols-3">
                 {projectMaterialRequirementOptions.map((option) => (
                   <label
-                    className="flex items-start gap-2 rounded-lg border border-white bg-white px-3 py-2 text-sm text-slate-600"
+                    className={`flex items-start gap-2 rounded-lg border px-3 py-3 text-sm transition ${
+                      stageDraft.requiredMaterials.includes(option.key)
+                        ? "border-blue-200 bg-blue-50 text-blue-800"
+                        : "border-white bg-white text-slate-600"
+                    }`}
                     key={option.key}
                   >
                     <input
@@ -608,7 +656,7 @@ export default function ProjectTab() {
             <label className="block text-sm font-medium text-slate-700 lg:col-span-2">
               阶段说明
               <textarea
-                className={textareaClassName}
+                className={`${textareaClassName} rounded-xl border-slate-200 bg-slate-50 focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10`}
                 onChange={(event) => setStageDraft((current) => ({ ...current, description: event.target.value }))}
                 placeholder="说明提交内容、材料格式或本轮用途。"
                 value={stageDraft.description}
@@ -628,10 +676,13 @@ export default function ProjectTab() {
       ) : null}
 
       {canUploadMaterials ? (
-        <section className="rounded-2xl border border-white/80 bg-white/90 p-5 shadow-[0_14px_36px_rgba(30,64,175,0.08)]">
+        <section className={projectCardClassName}>
           <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
             <div>
-              <h3 className="text-lg font-semibold text-slate-950">提交项目材料</h3>
+              <h3 className="inline-flex items-center gap-2 text-lg font-bold text-slate-950">
+                <Upload className="h-5 w-5 text-blue-600" />
+                提交项目材料
+              </h3>
               <p className="mt-1 text-sm text-slate-500">
                 仅项目负责人可提交本项目组材料，提交后需要本组任意指导教师审批通过后生效。
               </p>
@@ -646,7 +697,7 @@ export default function ProjectTab() {
               <label className="block text-sm font-medium text-slate-700">
                 选择阶段
                 <select
-                  className={fieldClassName}
+                  className={projectInputClassName}
                   onChange={(event) =>
                     setMaterialDraft((current) => {
                       const nextStage = openStagesForUpload.find((stage) => stage.id === event.target.value);
@@ -671,7 +722,7 @@ export default function ProjectTab() {
               <label className="block text-sm font-medium text-slate-700">
                 材料类型
                 <select
-                  className={fieldClassName}
+                  className={projectInputClassName}
                   disabled={!selectedUploadStage}
                   onChange={(event) =>
                     setMaterialDraft((current) => ({
@@ -696,7 +747,7 @@ export default function ProjectTab() {
               <label className="block text-sm font-medium text-slate-700">
                 材料标题
                 <input
-                  className={fieldClassName}
+                  className={projectInputClassName}
                   onChange={(event) =>
                     setMaterialDraft((current) => ({ ...current, title: event.target.value }))
                   }
@@ -707,7 +758,7 @@ export default function ProjectTab() {
               <label className="block text-sm font-medium text-slate-700">
                 上传文件
                 <input
-                  className={`${fieldClassName} file:mr-3 file:rounded-lg file:border-0 file:bg-blue-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-blue-700`}
+                  className={`${projectInputClassName} file:mr-3 file:rounded-lg file:border-0 file:bg-blue-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-blue-700`}
                   onChange={(event) => setMaterialFile(event.target.files?.[0] ?? null)}
                   accept={selectedRequirement.accept}
                   type="file"
@@ -736,28 +787,36 @@ export default function ProjectTab() {
         </section>
       ) : null}
 
-      <section className="grid gap-4 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-        <div className="rounded-2xl border border-white/80 bg-white/90 p-5 shadow-[0_14px_36px_rgba(30,64,175,0.08)]">
+      <section className="grid gap-5 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+        <div className={projectCardClassName}>
           <div className="flex items-center justify-between gap-3">
             <div>
-              <h3 className="text-lg font-semibold text-slate-950">项目阶段</h3>
+              <h3 className="inline-flex items-center gap-2 text-lg font-bold text-slate-950">
+                <FolderOpen className="h-5 w-5 text-blue-600" />
+                项目阶段
+              </h3>
               <p className="mt-1 text-sm text-slate-500">管理员设置后，学生端按开放时间提交对应材料。</p>
             </div>
-            <FolderOpen className="h-5 w-5 text-blue-600" />
+            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+              <FolderOpen className="h-5 w-5" />
+            </span>
           </div>
           <div className="mt-4 space-y-3">
             {projectStages.length > 0 ? (
               projectStages.map((stage) => (
-                <article key={stage.id} className="rounded-xl border border-slate-200 bg-slate-50/80 p-4">
+                <article
+                  key={stage.id}
+                  className="rounded-xl border border-slate-200 bg-white p-4 transition hover:border-blue-200 hover:shadow-[0_3px_12px_rgba(15,23,42,0.05)]"
+                >
                   <div className="flex flex-wrap items-start justify-between gap-3">
                     <div className="min-w-0">
                       <div className="flex flex-wrap items-center gap-2">
                         <h4 className="font-semibold text-slate-950">{stage.name}</h4>
-                        <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700">
+                        <span className="rounded-md bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700">
                           {stage.typeLabel}
                         </span>
                         <span
-                          className={`rounded-full px-2.5 py-1 text-xs font-medium ${
+                          className={`rounded-md px-2.5 py-1 text-xs font-semibold ${
                             stage.isOpen ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"
                           }`}
                         >
@@ -786,7 +845,7 @@ export default function ProjectTab() {
                     {canManageStages ? (
                       <div className="flex items-center gap-2">
                         <button
-                          className="rounded-lg border border-slate-200 bg-white p-2 text-slate-500 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
+                          className="rounded-lg border border-blue-100 bg-blue-50 p-2 text-blue-600 transition hover:border-blue-200 hover:bg-blue-100"
                           onClick={() => editStage(stage)}
                           title="编辑阶段"
                           type="button"
@@ -794,7 +853,7 @@ export default function ProjectTab() {
                           <Pencil className="h-4 w-4" />
                         </button>
                         <button
-                          className="rounded-lg border border-slate-200 bg-white p-2 text-slate-500 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700"
+                          className="rounded-lg border border-slate-200 bg-white p-2 text-slate-400 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700"
                           onClick={() => deleteStage(stage)}
                           title="删除阶段"
                           type="button"
@@ -816,21 +875,29 @@ export default function ProjectTab() {
           </div>
         </div>
 
-        <div className="rounded-2xl border border-white/80 bg-white/90 p-5 shadow-[0_14px_36px_rgba(30,64,175,0.08)]">
+        <div className={projectCardClassName}>
           <div className="flex items-center justify-between gap-3">
             <div>
-              <h3 className="text-lg font-semibold text-slate-950">项目材料</h3>
+              <h3 className="inline-flex items-center gap-2 text-lg font-bold text-slate-950">
+                <FileText className="h-5 w-5 text-blue-600" />
+                项目材料
+              </h3>
               <p className="mt-1 text-sm text-slate-500">
                 {canReviewMaterials ? "指导教师审批本组材料；管理员可查看全校材料状态。" : "查看本组材料审批状态。"}
               </p>
             </div>
-            <FileText className="h-5 w-5 text-blue-600" />
+            <span className="flex h-9 w-9 items-center justify-center rounded-lg bg-blue-50 text-blue-600">
+              <FileText className="h-5 w-5" />
+            </span>
           </div>
 
           <div className="mt-4 space-y-3">
             {sortedMaterials.length > 0 ? (
               sortedMaterials.map((material) => (
-                <article key={material.id} className="rounded-xl border border-slate-200 bg-white p-4">
+                <article
+                  key={material.id}
+                  className="rounded-xl border border-slate-200 bg-white p-4 transition hover:border-blue-200 hover:shadow-[0_3px_12px_rgba(15,23,42,0.05)]"
+                >
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-2">

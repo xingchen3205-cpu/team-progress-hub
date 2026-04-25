@@ -43,3 +43,20 @@ test("team account action buttons use visible semantic button styles", () => {
   assert.match(teamSource, /className="team-icon-button muted"/);
   assert.match(teamSource, /className="team-icon-button danger"/);
 });
+
+test("team management adopts the refined card and table visual system", () => {
+  assert.match(teamSource, /team-page-shell/);
+  assert.match(teamSource, /team-management-card/);
+  assert.match(teamSource, /team-section-title/);
+  assert.match(teamSource, /team-filter-bar/);
+  assert.match(teamSource, /team-stat-grid/);
+  assert.match(teamSource, /team-account-table/);
+});
+
+test("expert account view is visually separate and omits group or AI controls", () => {
+  assert.match(teamSource, /team-expert-summary-card/);
+  assert.match(teamSource, /仅开放专家评审，不参与分组和 AI 助手/);
+  assert.match(teamSource, /专家账号不参与项目组分组，也不开放 AI 助手权限/);
+  assert.match(teamSource, /!isExpertAccountView && hasGlobalAdminRole/);
+  assert.match(teamSource, /!isExpertAccountView && canUseTeamGroups/);
+});

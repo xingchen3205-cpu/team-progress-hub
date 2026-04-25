@@ -62,3 +62,17 @@ test("project management data is loaded when project tab is active", () => {
   assert.match(contextSource, /case "projectStages":[\s\S]*?\/api\/project-stages/);
   assert.match(contextSource, /case "projectMaterials":[\s\S]*?\/api\/project-materials/);
 });
+
+test("project management tab uses the polished stage and material dashboard layout", () => {
+  const tabSource = read("src/components/tabs/project-tab.tsx");
+
+  assert.match(tabSource, /project-stat-card/);
+  assert.match(tabSource, /创建评审阶段/);
+  assert.match(tabSource, /要求上传内容/);
+  assert.match(tabSource, /PPT PDF/);
+  assert.match(tabSource, /计划书 PDF/);
+  assert.match(tabSource, /视频/);
+  assert.match(tabSource, /项目阶段/);
+  assert.match(tabSource, /项目材料/);
+  assert.match(tabSource, /全部项目组可提交/);
+});

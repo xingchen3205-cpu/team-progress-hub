@@ -95,10 +95,7 @@ export default function TeamTab() {
     Trash2,
     Users,
     X,
-    surfaceCardClassName,
-    fieldClassName,
     teamRoleTagClassNames,
-    SectionHeader,
     EmptyState,
     ActionButton,
     UserAvatar,
@@ -107,17 +104,15 @@ export default function TeamTab() {
   const isExpertAccountView = teamAccountView === "experts";
 
 const renderTeam = () => (
-    <div className="space-y-4">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <SectionHeader
-          description={
-            permissions.canManageTeam
-              ? "支持创建直属账号，并对自助注册的下级账号执行审核通过。"
-              : undefined
-          }
-          title="团队管理"
-        />
-        <div className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap sm:items-center sm:gap-3">
+    <div className="team-page-shell">
+      <div className="team-page-top">
+        <div>
+          <h1>团队管理</h1>
+          {permissions.canManageTeam ? (
+            <p className="sub">支持创建直属账号，并对自助注册的下级账号执行审核通过。</p>
+          ) : null}
+        </div>
+        <div className="team-page-actions">
           {permissions.canSendDirective ? (
             <ActionButton className="team-toolbar-secondary" onClick={openSentRemindersModal}>
               <span className="inline-flex items-center gap-2">
@@ -155,13 +150,13 @@ const renderTeam = () => (
 
       {pendingApprovalMembers.length > 0 ? (
         <section className="space-y-4">
-          <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-700">
+          <div className="team-pending-alert">
             当前有 {pendingApprovalMembers.length} 个账号待你审核，通过后对方才能登录系统。
           </div>
 
           <div className="grid gap-4 xl:grid-cols-2">
             {pendingApprovalMembers.map((member) => (
-              <article key={`pending-${member.id}`} className={surfaceCardClassName}>
+              <article key={`pending-${member.id}`} className="team-management-card">
                 <div className="flex items-start gap-4">
                   <UserAvatar
                     avatar={member.avatar}
@@ -220,33 +215,33 @@ const renderTeam = () => (
       ) : null}
 
       {hasGlobalAdminRole ? (
-        <section className={`${surfaceCardClassName} space-y-4`}>
-          <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
+        <section className="team-management-card">
+          <div className="team-card-head">
             <div>
-              <h3 className="text-base font-semibold text-slate-900">团队分组</h3>
-              <p className="mt-1 text-sm text-slate-500">
+              <h3 className="team-section-title">团队分组</h3>
+              <p className="team-card-desc">
                 全局管理员可见，可按学校、项目组等维度管理教师、负责人和成员；评审专家账号不参与分组。
               </p>
             </div>
-            <span className="w-fit rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-500">
+            <span className="team-card-count">
               {teamGroups.length} 个分组
             </span>
           </div>
 
-          <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)_auto]">
-            <label className="block text-sm text-slate-500">
-              分组名称
+          <div className="team-group-form">
+            <label className="team-form-label">
+              <span>分组名称</span>
               <input
-                className={fieldClassName}
+                className="team-form-input"
                 placeholder="例如：南铁院 / 智轨灯塔项目组"
                 value={teamGroupDraft.name}
                 onChange={(event) => setTeamGroupDraft((current) => ({ ...current, name: event.target.value }))}
               />
             </label>
-            <label className="block text-sm text-slate-500">
-              说明（选填）
+            <label className="team-form-label">
+              <span>说明（选填）</span>
               <input
-                className={fieldClassName}
+                className="team-form-input"
                 placeholder="可填写学校、项目方向或管理备注"
                 value={teamGroupDraft.description}
                 onChange={(event) =>
@@ -274,7 +269,7 @@ const renderTeam = () => (
           </div>
 
           {teamGroups.length > 0 ? (
-            <div className="flex flex-wrap gap-2">
+            <div className="team-group-chips">
               {teamGroups.map((group) => (
                 <div
                   className="team-group-chip"
@@ -302,21 +297,21 @@ const renderTeam = () => (
               ))}
             </div>
           ) : (
-            <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50 px-4 py-4 text-sm text-slate-500">
+            <div className="team-empty-inline">
               暂无分组。可以先按学校或项目组创建，再在账号列表里分配成员。
             </div>
           )}
         </section>
       ) : null}
 
-      <section className={`${surfaceCardClassName} p-0 overflow-hidden`}>
-        <div className="border-b border-slate-200 px-5 py-4">
-          <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+      <section className="team-management-card p-0 overflow-hidden">
+        <div className="team-account-header">
+          <div className="team-card-head">
             <div>
-              <h3 className="text-base font-semibold text-slate-900">
+              <h3 className="team-section-title">
                 {isExpertAccountView ? "评审专家账号" : "团队账号"}
               </h3>
-              <p className="mt-1 text-sm text-slate-500">
+              <p className="team-card-desc">
                 {isExpertAccountView
                   ? "专家账号不参与项目组分组，也不开放 AI 助手权限；仅用于专家评审登录与评分。"
                   : canViewTeamAccountIdentifiers
@@ -324,12 +319,14 @@ const renderTeam = () => (
                     : "仅显示你所在团队的人员姓名与角色，不展示账号名。"}
               </p>
             </div>
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          </div>
+
+          <div className="team-filter-bar">
               <label className="relative block w-full sm:min-w-[240px] text-sm text-slate-500">
                 <span className="sr-only">搜索账号</span>
                 <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                 <input
-                  className="w-full rounded-lg border border-slate-300 bg-white py-2.5 pl-9 pr-3 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                  className="team-search-input pl-9"
                   placeholder={canViewTeamAccountIdentifiers ? "搜索姓名或账号" : "搜索姓名"}
                   type="text"
                   value={teamSearch}
@@ -339,7 +336,7 @@ const renderTeam = () => (
               <label className="text-sm text-slate-500">
                 <span className="sr-only">按角色筛选</span>
                 <select
-                  className="w-full sm:min-w-[160px] rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                  className="team-filter-select"
                   value={teamRoleFilter}
                   onChange={(event) => setTeamRoleFilter(event.target.value as "全部" | TeamRoleLabel)}
                 >
@@ -354,7 +351,7 @@ const renderTeam = () => (
                 <label className="text-sm text-slate-500">
                   <span className="sr-only">按 AI 权限筛选</span>
                   <select
-                    className="w-full sm:min-w-[160px] rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                    className="team-filter-select"
                     value={teamAiFilter}
                     onChange={(event) => setTeamAiFilter(event.target.value as "全部" | "已开启" | "已关闭")}
                   >
@@ -370,7 +367,7 @@ const renderTeam = () => (
                 <label className="text-sm text-slate-500">
                   <span className="sr-only">按分组筛选</span>
                   <select
-                    className="w-full sm:min-w-[180px] rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                    className="team-filter-select"
                     value={teamGroupFilter}
                     onChange={(event) => setTeamGroupFilter(event.target.value)}
                   >
@@ -392,10 +389,9 @@ const renderTeam = () => (
                   </span>
                 </ActionButton>
               ) : null}
-            </div>
           </div>
 
-          <div className="mt-4 inline-flex rounded-xl border border-slate-200 bg-slate-50 p-1">
+          <div className="team-account-tabs">
             {[
               { key: "team", label: "团队账号", count: visibleCoreTeamMembers.length },
               ...(canViewExpertAccounts
@@ -403,10 +399,10 @@ const renderTeam = () => (
                 : []),
             ].map((item) => (
               <button
-                className={`rounded-lg px-3 py-2 text-sm font-medium transition ${
+                className={`team-account-tab ${
                   teamAccountView === item.key
-                    ? "bg-white text-blue-600 shadow-sm"
-                    : "text-slate-500 hover:text-slate-800"
+                    ? "active"
+                    : ""
                 }`}
                 key={item.key}
                 onClick={() => setTeamAccountView(item.key as "team" | "experts")}
@@ -420,20 +416,20 @@ const renderTeam = () => (
             ))}
           </div>
 
-          <div className="mt-4 flex flex-wrap gap-2 text-xs text-slate-500">
-            <span className="rounded-full bg-slate-100 px-3 py-1">
+          <div className="team-filter-info">
+            <span>
               当前共 {activeTeamMembers.length} 个账号
             </span>
-            <span className="rounded-full bg-blue-50 px-3 py-1 text-blue-600">
+            <span className="highlight">
               已筛选 {displayedTeamMembers.length} 个结果
             </span>
             {pendingApprovalMembers.length > 0 ? (
-              <span className="rounded-full bg-amber-50 px-3 py-1 text-amber-700">
+              <span className="warning">
                 待审核 {pendingApprovalMembers.length} 个
               </span>
             ) : null}
             {!isExpertAccountView && canUseTeamGroups && teamGroupFilter !== "全部" ? (
-              <span className="rounded-full bg-emerald-50 px-3 py-1 text-emerald-700">
+              <span className="success">
                 分组：{teamGroupFilter === "未分组"
                   ? "未分组"
                   : teamGroups.find((group) => group.id === teamGroupFilter)?.name ?? "已筛选"}
@@ -441,35 +437,35 @@ const renderTeam = () => (
             ) : null}
           </div>
           {!isExpertAccountView && hasGlobalAdminRole ? (
-            <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-              <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-                <p className="text-xs text-slate-400">总成员数</p>
-                <p className="mt-1 text-lg font-semibold text-[#2563EB]">{teamAiStats.totalMembers} 人</p>
+            <div className="team-stat-grid">
+              <div className="team-mini-stat">
+                <p>总成员数</p>
+                <strong>{teamAiStats.totalMembers} 人</strong>
               </div>
-              <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-                <p className="text-xs text-slate-400">已开启 AI</p>
-                <p className="mt-1 text-lg font-semibold text-[#2563EB]">{teamAiStats.enabledCount} 人</p>
+              <div className="team-mini-stat success">
+                <p>已开启 AI</p>
+                <strong>{teamAiStats.enabledCount} 人</strong>
               </div>
-              <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-                <p className="text-xs text-slate-400">累计已用</p>
-                <p className="mt-1 text-lg font-semibold text-[#2563EB]">{teamAiStats.usedTotal} 次</p>
+              <div className="team-mini-stat warning">
+                <p>累计已用</p>
+                <strong>{teamAiStats.usedTotal} 次</strong>
               </div>
-              <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-                <p className="text-xs text-slate-400">总配额消耗</p>
-                <p className="mt-1 text-lg font-semibold text-[#2563EB]">
+              <div className="team-mini-stat ink">
+                <p>总配额消耗</p>
+                <strong>
                   {teamAiStats.quotaUsed} / {teamAiStats.quotaTotal == null ? "∞" : `${teamAiStats.quotaTotal}`}
-                </p>
+                </strong>
               </div>
             </div>
           ) : isExpertAccountView ? (
-            <div className="mt-4 grid gap-3 md:grid-cols-2">
-              <div className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3">
-                <p className="text-xs text-blue-500">专家账号</p>
-                <p className="mt-1 text-lg font-semibold text-blue-700">{displayedTeamMembers.length} 人</p>
+            <div className="team-stat-grid expert">
+              <div className="team-expert-summary-card">
+                <p>专家账号</p>
+                <strong>{displayedTeamMembers.length} 人</strong>
               </div>
-              <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-                <p className="text-xs text-slate-400">权限说明</p>
-                <p className="mt-1 text-sm font-medium text-slate-700">仅开放专家评审，不参与分组和 AI 助手。</p>
+              <div className="team-expert-summary-card muted">
+                <p>权限说明</p>
+                <strong>仅开放专家评审，不参与分组和 AI 助手。</strong>
               </div>
             </div>
           ) : null}
@@ -553,8 +549,8 @@ const renderTeam = () => (
             ) : displayedTeamMembers.length > 0 ? (
               <>
                 <div className="overflow-x-auto">
-                  <table className="min-w-full table-fixed">
-                    <thead className="bg-slate-50 text-xs font-medium tracking-[0.06em] text-slate-400">
+                  <table className="team-account-table min-w-full table-fixed">
+                    <thead>
                       <tr>
                         {!isExpertAccountView ? (
                           <th className="w-12 px-3 py-3 text-left">
