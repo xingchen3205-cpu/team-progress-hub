@@ -1862,6 +1862,7 @@ function useWorkspaceController({
   const [loadError, setLoadError] = useState<string | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
   const loadedWorkspaceResourcesRef = useRef<Set<string>>(new Set());
+  const refreshResourceQueueRef = useRef<Set<WorkspaceResourceKey>>(new Set());
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [events, setEvents] = useState<EventItem[]>([]);
   const [tasks, setTasks] = useState<BoardTask[]>([]);
@@ -2473,6 +2474,12 @@ function useWorkspaceController({
     [],
   );
 
+  const getWorkspaceResourceLoadedKey = useCallback(
+    (resourceKey: WorkspaceResourceKey, role: CurrentUser["role"]) =>
+      resourceKey === "reports" ? `${resourceKey}:${buildReportsRequestUrl(role)}` : resourceKey,
+    [buildReportsRequestUrl],
+  );
+
   const loadWorkspaceResource = useCallback(
     async (resourceKey: WorkspaceResourceKey, role: CurrentUser["role"]) => {
       switch (resourceKey) {
@@ -2568,10 +2575,11 @@ function useWorkspaceController({
   );
 
   const loadWorkspaceResources = useCallback(
-    async (resourceKeys: WorkspaceResourceKey[], role: CurrentUser["role"]) => {
+    async (resourceKeys: WorkspaceResourceKey[], role: CurrentUser["role"], options?: { force?: boolean }) => {
       const uniqueKeys = Array.from(new Set(resourceKeys));
       const pendingKeys = uniqueKeys.filter(
-        (resourceKey) => resourceKey === "reports" || !loadedWorkspaceResourcesRef.current.has(resourceKey),
+        (resourceKey) =>
+          options?.force || !loadedWorkspaceResourcesRef.current.has(getWorkspaceResourceLoadedKey(resourceKey, role)),
       );
 
       if (pendingKeys.length === 0) {
@@ -2581,13 +2589,11 @@ function useWorkspaceController({
       await Promise.all(
         pendingKeys.map(async (resourceKey) => {
           await loadWorkspaceResource(resourceKey, role);
-          if (resourceKey !== "reports") {
-            loadedWorkspaceResourcesRef.current.add(resourceKey);
-          }
+          loadedWorkspaceResourcesRef.current.add(getWorkspaceResourceLoadedKey(resourceKey, role));
         }),
       );
     },
-    [loadWorkspaceResource],
+    [getWorkspaceResourceLoadedKey, loadWorkspaceResource],
   );
 
   useEffect(() => {
@@ -2692,32 +2698,20 @@ function useWorkspaceController({
 
     const refreshWorkspaceSilently = async () => {
       try {
-        loadedWorkspaceResourcesRef.current.clear();
-
-        const [mePayload, notificationsPayload] = await Promise.all([
-          requestJson<{ user: CurrentUser }>("/api/auth/me"),
-          requestJson<{ notifications: NotificationItem[] }>("/api/notifications"),
-        ]);
+        const queuedResourceKeys = Array.from(refreshResourceQueueRef.current);
+        refreshResourceQueueRef.current.clear();
 
         if (!isMounted) {
           return;
         }
 
         setLoadError(null);
-        setCurrentUser(mePayload.user);
-        setNotifications(notificationsPayload.notifications);
-        loadedWorkspaceResourcesRef.current.add("notifications");
-        if (!["admin", "school_admin", "teacher"].includes(mePayload.user.role)) {
-          setSentReminders([]);
-        }
-
-        if (mePayload.user.role === "expert") {
-          clearNonExpertWorkspaceData();
-        }
-
-        const resourceKeys = getWorkspaceTabResourceKeys(safeActiveTab, mePayload.user.role);
+        const resourceKeys =
+          queuedResourceKeys.length > 0
+            ? queuedResourceKeys
+            : getWorkspaceTabResourceKeys(safeActiveTab, currentUserRole);
         if (resourceKeys.length > 0) {
-          await loadWorkspaceResources(resourceKeys, mePayload.user.role);
+          await loadWorkspaceResources(resourceKeys, currentUserRole, { force: true });
         }
       } catch (error) {
         if (!isMounted) {
@@ -2739,7 +2733,24 @@ function useWorkspaceController({
     return () => {
       isMounted = false;
     };
-  }, [clearNonExpertWorkspaceData, currentUser?.role, getWorkspaceTabResourceKeys, loadWorkspaceResources, reloadToken, safeActiveTab]);
+  }, [currentUser?.role, getWorkspaceTabResourceKeys, loadWorkspaceResources, reloadToken, safeActiveTab]);
+
+  const refreshNotificationsSilently = useCallback(async () => {
+    try {
+      const payload = await requestJson<{ notifications: NotificationItem[] }>(
+        "/api/notifications",
+        undefined,
+        { cacheTtlMs: 0, force: true },
+      );
+      setNotifications(payload.notifications);
+      loadedWorkspaceResourcesRef.current.add("notifications");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "";
+      if (message === "未登录") {
+        window.location.replace("/login");
+      }
+    }
+  }, []);
 
   useEffect(() => {
     const currentUserRole = currentUser?.role;
@@ -2747,8 +2758,8 @@ function useWorkspaceController({
       return;
     }
 
-    void loadWorkspaceResources(getWorkspaceTabResourceKeys("overview", currentUserRole), currentUserRole);
-  }, [currentUser?.role, getWorkspaceTabResourceKeys, loadWorkspaceResources, notificationsOpen]);
+    void refreshNotificationsSilently();
+  }, [currentUser?.role, notificationsOpen, refreshNotificationsSilently]);
 
   useEffect(() => {
     if (!currentMemberId || requiresEmailCompletion || hasBlockingOverlay) {
@@ -2757,7 +2768,7 @@ function useWorkspaceController({
 
     const refreshIfVisible = () => {
       if (document.visibilityState === "visible") {
-        setReloadToken((current) => current + 1);
+        void refreshNotificationsSilently();
       }
     };
 
@@ -2776,7 +2787,7 @@ function useWorkspaceController({
       document.removeEventListener("visibilitychange", handleVisibilityChange);
       window.removeEventListener("focus", refreshIfVisible);
     };
-  }, [currentMemberId, hasBlockingOverlay, requiresEmailCompletion]);
+  }, [currentMemberId, hasBlockingOverlay, refreshNotificationsSilently, requiresEmailCompletion]);
 
   useEffect(() => {
     if (safeActiveTab !== "team" || !hasGlobalAdminRole || aiPermissionItems.length > 0 || aiPermissionsLoading) {
@@ -3657,7 +3668,13 @@ function useWorkspaceController({
     return [];
   };
 
-  const refreshWorkspace = () => {
+  const refreshWorkspace = (resourceKeys?: WorkspaceResourceKey | WorkspaceResourceKey[]) => {
+    if (resourceKeys) {
+      const keys = Array.isArray(resourceKeys) ? resourceKeys : [resourceKeys];
+      for (const key of keys) {
+        refreshResourceQueueRef.current.add(key);
+      }
+    }
     setReloadToken((current) => current + 1);
   };
 
@@ -4008,7 +4025,7 @@ function useWorkspaceController({
       setTaskDraft(defaultTaskDraft(defaultAssignableMemberIds, currentUser?.teamGroupId ?? ""));
       setTaskModalOpen(false);
       showSuccessToast(isEditing ? "工单已更新" : "工单已创建", "新的安排已经同步到工作台。");
-      refreshWorkspace();
+      refreshWorkspace("tasks");
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "任务保存失败");
     } finally {
@@ -4020,7 +4037,7 @@ function useWorkspaceController({
     await requestJson(`/api/tasks/${taskId}`, {
       method: "DELETE",
     });
-    refreshWorkspace();
+    refreshWorkspace("tasks");
   };
 
   const deleteTask = (taskId: string, taskTitle: string) => {
@@ -4043,7 +4060,7 @@ function useWorkspaceController({
         body: JSON.stringify({ action: "accept" }),
       });
       showSuccessToast("工单已接取", `「${task.title}」已进入处理中。`);
-      refreshWorkspace();
+      refreshWorkspace("tasks");
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "工单接取失败");
     } finally {
@@ -4104,7 +4121,7 @@ function useWorkspaceController({
       });
       closeTaskCompletionModal();
       showSuccessToast("工单已提交验收", `「${taskCompletionTarget.title}」已推送给验收人。`);
-      refreshWorkspace();
+      refreshWorkspace("tasks");
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "工单提交失败");
     } finally {
@@ -4125,7 +4142,7 @@ function useWorkspaceController({
           method: "PATCH",
           body: JSON.stringify({ action: "confirm" }),
         });
-        refreshWorkspace();
+        refreshWorkspace("tasks");
       },
     });
   };
@@ -4164,7 +4181,7 @@ function useWorkspaceController({
       });
       closeTaskRejectModal();
       showSuccessToast("工单已驳回", `「${taskRejectTarget.title}」已退回处理人继续完善。`);
-      refreshWorkspace();
+      refreshWorkspace("tasks");
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "工单驳回失败");
     } finally {
@@ -4236,7 +4253,7 @@ function useWorkspaceController({
 
       showSuccessToast(editingTrainingQuestionId ? "题目已更新" : "题目已加入题库", "答辩训练题库已经同步。");
       resetTrainingQuestionDraft();
-      refreshWorkspace();
+      refreshWorkspace("trainingQuestions");
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "题目保存失败");
     } finally {
@@ -4354,7 +4371,7 @@ function useWorkspaceController({
       setQuestionImportRows([]);
       setQuestionImportFileName("");
       showSuccessToast("题库导入完成", `已导入 ${rows.length} 条 Q&A 问题。`);
-      refreshWorkspace();
+      refreshWorkspace("trainingQuestions");
     } catch (error) {
       setQuestionImportError(error instanceof Error ? error.message : "题库导入失败");
     } finally {
@@ -4370,7 +4387,7 @@ function useWorkspaceController({
       setActiveDrillQuestionId(null);
     }
     setSelectedTrainingQuestionIds((current) => current.filter((item) => item !== questionId));
-    refreshWorkspace();
+    refreshWorkspace("trainingQuestions");
   };
 
   const deleteTrainingQuestion = (question: TrainingQuestionItem) => {
@@ -4418,7 +4435,7 @@ function useWorkspaceController({
       setActiveDrillQuestionId(null);
     }
     setSelectedTrainingQuestionIds([]);
-    refreshWorkspace();
+    refreshWorkspace("trainingQuestions");
   };
 
   const deleteSelectedTrainingQuestions = () => {
@@ -4519,7 +4536,7 @@ function useWorkspaceController({
       setTrainingSessionNotes("");
       setQaDrillStats({ total: 0, hit: 0 });
       showSuccessToast("训练记录已保存", "仪表盘统计已经同步更新。");
-      refreshWorkspace();
+      refreshWorkspace("trainingSessions");
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "训练记录保存失败");
     } finally {
@@ -4541,7 +4558,7 @@ function useWorkspaceController({
       setAnnouncementDraft(defaultAnnouncementDraft);
       setAnnouncementModalOpen(false);
       showSuccessToast("公告已发布", "成员将会在首页和通知里看到这条公告。");
-      refreshWorkspace();
+      refreshWorkspace("announcements");
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "公告发布失败");
     } finally {
@@ -4591,7 +4608,7 @@ function useWorkspaceController({
         "提醒已发送",
         getReminderDeliveryDetail(payload.delivery, `已通知 ${reminderTargetMember.name} 及时处理相关事项。`),
       );
-      refreshWorkspace();
+      void refreshNotificationsSilently();
     } catch (error) {
       const message = error instanceof Error ? error.message : "提醒发送失败";
       setReminderDraftErrors({ submit: message });
@@ -4652,7 +4669,7 @@ function useWorkspaceController({
           successDetail,
         ),
       );
-      refreshWorkspace();
+      void refreshNotificationsSilently();
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "提醒发送失败");
     } finally {
@@ -4691,7 +4708,7 @@ function useWorkspaceController({
         "分配提醒已发送",
         getReminderDeliveryDetail(payload.delivery, "已提醒本队项目负责人/指导教师处理待分配工单。"),
       );
-      refreshWorkspace();
+      refreshWorkspace("tasks");
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "分配提醒发送失败");
     } finally {
@@ -4793,7 +4810,7 @@ function useWorkspaceController({
       removeStoredReportDraft(reportDate);
       closeReportModal();
       showSuccessToast(editingReportDate ? "汇报已更新" : "汇报已提交", "当前日期的工作汇报已保存。");
-      refreshWorkspace();
+      refreshWorkspace("reports");
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "汇报保存失败");
     } finally {
@@ -4806,7 +4823,7 @@ function useWorkspaceController({
       method: "DELETE",
     });
     removeStoredReportDraft(date);
-    refreshWorkspace();
+    refreshWorkspace("reports");
   };
 
   const removeReport = (date: string) => {
@@ -4828,7 +4845,7 @@ function useWorkspaceController({
         method: "DELETE",
       },
     );
-    refreshWorkspace();
+    refreshWorkspace("reports");
     return result.deletedCount ?? 0;
   };
 
@@ -4876,7 +4893,7 @@ function useWorkspaceController({
       setEditingEventId(null);
       setEventModalOpen(false);
       showSuccessToast(isEditing ? "节点已更新" : "节点已创建", "时间进度已经刷新到最新安排。");
-      refreshWorkspace();
+      refreshWorkspace("events");
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "节点保存失败");
     } finally {
@@ -4957,7 +4974,7 @@ function useWorkspaceController({
       setExpertDraftErrors(defaultExpertDraftErrors());
       setExpertModalOpen(false);
       showSuccessToast("专家意见已保存", "新的专家反馈已经写入专家意见板块。");
-      refreshWorkspace();
+      refreshWorkspace("experts");
     } catch (error) {
       setExpertDraftErrors((current) => ({
         ...current,
@@ -4972,7 +4989,7 @@ function useWorkspaceController({
     await requestJson(`/api/experts/${expertId}`, {
       method: "DELETE",
     });
-    refreshWorkspace();
+    refreshWorkspace("experts");
   };
 
   const removeExpert = (expertId: string, topic: string) => {
@@ -5065,7 +5082,7 @@ function useWorkspaceController({
       setDocumentSavingLabel("上传中...");
       setDocumentUploadProgress(null);
       showSuccessToast("文档已上传", "文档中心已经记录了新的材料版本。");
-      refreshWorkspace();
+      refreshWorkspace("documents");
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "文件上传失败");
     } finally {
@@ -5161,7 +5178,7 @@ function useWorkspaceController({
       setVersionSavingLabel("上传中...");
       setVersionUploadProgress(null);
       showSuccessToast("新版本已上传", "历史版本列表已经同步更新。");
-      refreshWorkspace();
+      refreshWorkspace("documents");
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "文档版本上传失败");
     } finally {
@@ -5191,7 +5208,7 @@ function useWorkspaceController({
       setReviewAction(null);
       setReviewComment("");
       showSuccessToast("审批已提交", "文档审批状态和批注已经更新。");
-      refreshWorkspace();
+      refreshWorkspace("documents");
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "文档审核失败");
     } finally {
@@ -5251,7 +5268,7 @@ function useWorkspaceController({
         setReviewAssignmentEditAssignmentId(null);
         setReviewAssignmentDraft(defaultExpertReviewAssignmentDraft(expertMembers[0]?.id ?? ""));
         showSuccessToast("评审包已更新", "截止时间、说明和专家名单已同步到专家端。");
-        refreshWorkspace();
+        refreshWorkspace("reviewAssignments");
       } catch (error) {
         setLoadError(error instanceof Error ? error.message : "评审任务更新失败");
       } finally {
@@ -5295,7 +5312,7 @@ function useWorkspaceController({
       setReviewAssignmentEditAssignmentId(null);
       setReviewAssignmentDraft(defaultExpertReviewAssignmentDraft(expertMembers[0]?.id ?? ""));
       showSuccessToast("评审任务已生成", "已按项目管理轮次分配给专家。");
-      refreshWorkspace();
+      refreshWorkspace("reviewAssignments");
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "评审任务创建失败");
     } finally {
@@ -5381,7 +5398,7 @@ function useWorkspaceController({
       setReviewMaterialSavingLabel("上传中...");
       setReviewMaterialUploadProgress(null);
       showSuccessToast("评审材料已上传", "专家端现在可以在线查看这份材料。");
-      refreshWorkspace();
+      refreshWorkspace("reviewAssignments");
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "评审材料上传失败");
     } finally {
@@ -5401,7 +5418,7 @@ function useWorkspaceController({
         method: "DELETE",
       },
     );
-    refreshWorkspace();
+    refreshWorkspace("reviewAssignments");
   };
 
   const deleteReviewMaterial = (
@@ -5423,7 +5440,7 @@ function useWorkspaceController({
     await requestJson(`/api/expert-reviews/assignments/${assignmentId}`, {
       method: "DELETE",
     });
-    refreshWorkspace();
+    refreshWorkspace("reviewAssignments");
   };
 
   const deleteReviewAssignment = (assignmentId: string, targetName: string) => {
@@ -5502,7 +5519,7 @@ function useWorkspaceController({
         }),
       });
       showSuccessToast("评分已提交", "本次专家评分已经保存。");
-      refreshWorkspace();
+      refreshWorkspace("reviewAssignments");
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "专家评分提交失败");
     } finally {
@@ -5515,7 +5532,7 @@ function useWorkspaceController({
       method: "DELETE",
     });
     setExpandedDocs((current) => current.filter((item) => item !== docId));
-    refreshWorkspace();
+    refreshWorkspace("documents");
   };
 
   const removeDocument = (docId: string, docName: string) => {
@@ -5538,7 +5555,7 @@ function useWorkspaceController({
     await requestJson(`/api/documents/${docId}/version?versionId=${versionId}`, {
       method: "DELETE",
     });
-    refreshWorkspace();
+    refreshWorkspace("documents");
   };
 
   const removeDocumentVersion = (docId: string, versionId: string | undefined) => {
@@ -5581,7 +5598,7 @@ function useWorkspaceController({
       setTeamDraft(defaultTeamDraft);
       setTeamModalOpen(false);
       showSuccessToast("账号已创建", "新的下级账号已经可以进入系统。");
-      refreshWorkspace();
+      refreshWorkspace("team");
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "成员创建失败");
     } finally {
@@ -5610,7 +5627,7 @@ function useWorkspaceController({
         editingTeamGroupId ? "分组已更新" : "分组已创建",
         editingTeamGroupId ? "分组名称已经更新，成员归属保持不变。" : "现在可以把团队账号分配到这个分组。",
       );
-      refreshWorkspace();
+      refreshWorkspace("team");
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : editingTeamGroupId ? "分组更新失败" : "分组创建失败");
     } finally {
@@ -5639,7 +5656,7 @@ function useWorkspaceController({
     if (teamGroupFilter === groupId) {
       setTeamGroupFilter("全部");
     }
-    refreshWorkspace();
+    refreshWorkspace("team");
   };
 
   const deleteTeamGroup = (group: TeamGroupItem) => {
@@ -5709,7 +5726,7 @@ function useWorkspaceController({
       setBatchExpertModalOpen(false);
       setTeamAccountView("experts");
       showSuccessToast("专家账号已批量创建", `已新增 ${payload.createdCount} 个评审专家账号。`);
-      refreshWorkspace();
+      refreshWorkspace("team");
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "批量添加专家失败");
     } finally {
@@ -5852,7 +5869,7 @@ function useWorkspaceController({
       method: "PATCH",
       body: JSON.stringify({ action: "approve" }),
     });
-    refreshWorkspace();
+    refreshWorkspace("team");
   };
 
   const confirmApproveMemberRegistration = (member: TeamMember) => {
@@ -5924,7 +5941,7 @@ function useWorkspaceController({
           }),
         });
         cancelTeamRowEditor();
-        refreshWorkspace();
+        refreshWorkspace("team");
       },
     });
   };
@@ -5964,7 +5981,7 @@ function useWorkspaceController({
     await requestJson(`/api/team/${memberId}`, {
       method: "DELETE",
     });
-    refreshWorkspace();
+    refreshWorkspace("team");
   };
 
   const removeMember = (memberId: string, memberName: string) => {

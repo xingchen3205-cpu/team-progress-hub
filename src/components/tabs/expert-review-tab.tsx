@@ -444,7 +444,7 @@ export default function ExpertReviewTab() {
       if (pendingSubmission.kind === "roadshow") {
         setExpertMode("roadshow-done");
       }
-      refreshWorkspace();
+      refreshWorkspace("reviewAssignments");
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "专家评分提交失败");
     } finally {

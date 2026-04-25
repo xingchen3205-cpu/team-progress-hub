@@ -55,4 +55,46 @@ describe("requestJson", () => {
 
     assert.equal(callCount, 2);
   });
+
+  it("reuses completed GET responses briefly to avoid immediate refetches", async () => {
+    let callCount = 0;
+
+    global.fetch = (async () => {
+      callCount += 1;
+      return {
+        ok: true,
+        json: async () => ({ version: callCount }),
+      } as Response;
+    }) as typeof fetch;
+
+    const first = await requestJson<{ version: number }>("/api/team");
+    const second = await requestJson<{ version: number }>("/api/team");
+
+    assert.equal(callCount, 1);
+    assert.deepEqual(first, { version: 1 });
+    assert.deepEqual(second, { version: 1 });
+  });
+
+  it("clears completed GET cache after a successful mutation", async () => {
+    let callCount = 0;
+
+    global.fetch = (async () => {
+      callCount += 1;
+      return {
+        ok: true,
+        json: async () => ({ version: callCount }),
+      } as Response;
+    }) as typeof fetch;
+
+    const first = await requestJson<{ version: number }>("/api/team");
+    await requestJson<{ version: number }>("/api/team", {
+      method: "PATCH",
+      body: JSON.stringify({ name: "新名称" }),
+    });
+    const second = await requestJson<{ version: number }>("/api/team");
+
+    assert.equal(callCount, 3);
+    assert.deepEqual(first, { version: 1 });
+    assert.deepEqual(second, { version: 3 });
+  });
 });

@@ -1201,7 +1201,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                           method: "DELETE",
                         });
                         setSelectedAnnouncement(null);
-                        refreshWorkspace();
+                        refreshWorkspace("announcements");
                       },
                     });
                   }}

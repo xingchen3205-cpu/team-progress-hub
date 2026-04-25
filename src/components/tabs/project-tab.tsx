@@ -265,7 +265,7 @@ export default function ProjectTab() {
 
       resetStageForm();
       showSuccessToast(editingStageId ? "项目阶段已更新" : "项目阶段已创建");
-      refreshWorkspace();
+      refreshWorkspace(["projectStages", "projectMaterials"]);
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "项目阶段保存失败");
     } finally {
@@ -282,7 +282,7 @@ export default function ProjectTab() {
       successTitle: "项目阶段已删除",
       onConfirm: async () => {
         await requestJson(`/api/project-stages/${stage.id}`, { method: "DELETE" });
-        refreshWorkspace();
+        refreshWorkspace(["projectStages", "projectMaterials"]);
       },
     });
   };
@@ -354,7 +354,7 @@ export default function ProjectTab() {
       setMaterialDraft(defaultMaterialDraft);
       setMaterialFile(null);
       showSuccessToast("项目材料已提交", "材料已进入指导教师审批流程。");
-      refreshWorkspace();
+      refreshWorkspace("projectMaterials");
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "项目材料上传失败");
     } finally {
@@ -372,7 +372,7 @@ export default function ProjectTab() {
         { method: "POST" },
       );
       showSuccessToast("项目材料已通过", `${material.teamGroupName} 的最终材料已经生效。`);
-      refreshWorkspace();
+      refreshWorkspace("projectMaterials");
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "项目材料审批失败");
     } finally {
@@ -398,7 +398,7 @@ export default function ProjectTab() {
       );
       setRejectReasons((current) => ({ ...current, [material.id]: "" }));
       showSuccessToast("项目材料已驳回", "学生端已收到修改通知。");
-      refreshWorkspace();
+      refreshWorkspace("projectMaterials");
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "项目材料驳回失败");
     } finally {

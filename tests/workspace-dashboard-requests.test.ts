@@ -31,12 +31,24 @@ test("workspace visibility refresh no longer re-enters the boot loading shell", 
     contextSource,
     /useEffect\(\(\) => \{\s+let isMounted = true;[\s\S]*?const loadWorkspaceData = async \(\) => \{[\s\S]*?setIsBooting\(true\);[\s\S]*?\n\s*\}, \[clearNonExpertWorkspaceData\]\);/,
   );
-  assert.match(
-    contextSource,
-    /useEffect\(\(\) => \{[\s\S]*?const refreshWorkspaceSilently = async \(\) => \{[\s\S]*?requestJson<\{ user: CurrentUser \}>\("\/api\/auth\/me"\),[\s\S]*?requestJson<\{ notifications: NotificationItem\[\] \}>\("\/api\/notifications"\),/,
-  );
+  const refreshStart = contextSource.indexOf("const refreshWorkspaceSilently = async () => {");
+  const refreshEnd = contextSource.indexOf("void refreshWorkspaceSilently();", refreshStart);
+  const refreshBlock = contextSource.slice(refreshStart, refreshEnd);
+
+  assert.doesNotMatch(refreshBlock, /requestJson<\{ user: CurrentUser \}>\("\/api\/auth\/me"\)/);
+  assert.match(refreshBlock, /loadWorkspaceResources\(resourceKeys, currentUserRole, \{ force: true \}\)/);
   assert.doesNotMatch(
     contextSource,
     /const refreshWorkspaceSilently = async \(\) => \{[\s\S]*?setIsBooting\(true\);/,
   );
+});
+
+test("workspace focus refresh only updates notifications instead of all active tab data", () => {
+  const focusStart = contextSource.indexOf("const refreshIfVisible = () => {");
+  const focusEnd = contextSource.indexOf("document.addEventListener(\"visibilitychange\"", focusStart);
+  const focusBlock = contextSource.slice(focusStart, focusEnd);
+
+  assert.match(contextSource, /const refreshNotificationsSilently = useCallback/);
+  assert.match(focusBlock, /void refreshNotificationsSilently\(\)/);
+  assert.doesNotMatch(focusBlock, /setReloadToken/);
 });
