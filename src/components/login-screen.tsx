@@ -24,6 +24,7 @@ const registerRoleOptions = ["指导教师", "项目负责人", "团队成员"] 
 const initialLoginValues = {
   username: "",
   password: "",
+  captcha: "",
   remember: true,
 };
 
@@ -77,9 +78,11 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
   const [resetValues, setResetValues] = useState(initialResetValues);
   const [isCheckingSession, setIsCheckingSession] = useState(true);
   const [showPassword, setShowPassword] = useState(false);
+  const [captchaVersion, setCaptchaVersion] = useState(() => Date.now());
   const [loginErrors, setLoginErrors] = useState<{
     username?: string;
     password?: string;
+    captcha?: string;
     submit?: string;
   }>({});
   const [registerErrors, setRegisterErrors] = useState<{
@@ -176,18 +179,24 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
     }
   };
 
+  const refreshCaptcha = () => {
+    setCaptchaVersion(Date.now());
+    setLoginValues((current) => ({ ...current, captcha: "" }));
+  };
+
   const handleLoginSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     const nextErrors = {
       username: loginValues.username.trim() ? undefined : "请输入账号",
       password: loginValues.password.trim() ? undefined : "请输入密码",
+      captcha: loginValues.captcha.trim() ? undefined : "请输入验证码",
       submit: undefined,
     };
 
     setLoginErrors(nextErrors);
 
-    if (nextErrors.username || nextErrors.password) {
+    if (nextErrors.username || nextErrors.password || nextErrors.captcha) {
       return;
     }
 
@@ -202,6 +211,7 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
           email: loginValues.username.trim(),
           username: loginValues.username.trim(),
           password: loginValues.password.trim(),
+          captcha: loginValues.captcha.trim(),
         }),
       });
 
@@ -212,6 +222,7 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
           ...current,
           submit: payload?.message || "登录失败，请稍后重试。",
         }));
+        refreshCaptcha();
         return;
       }
 
@@ -234,6 +245,7 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
         ...current,
         submit: "登录请求失败，请稍后重试。",
       }));
+      refreshCaptcha();
     } finally {
       setIsSubmitting(false);
     }
@@ -595,7 +607,60 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
                       {loginErrors.password ? (
                         <p className="mt-2 mb-5 text-sm leading-6 text-[#ef4444]">{loginErrors.password}</p>
                       ) : (
-                        <div className="mb-7" />
+                        <div className="mb-5" />
+                      )}
+
+                      <div className="mb-2 grid gap-3 sm:grid-cols-[1fr_auto]">
+                        <div
+                          className={`group relative rounded-[14px] border bg-white px-4 transition duration-200 ${
+                            loginErrors.captcha
+                              ? "border-[#ef4444] ring-4 ring-[#ef4444]/10"
+                              : "border-[#e6ebf2] focus-within:border-[#1d5cff] focus-within:ring-4 focus-within:ring-[#1d5cff]/10"
+                          }`}
+                        >
+                          <ShieldUser className="absolute left-5 top-1/2 h-5 w-5 -translate-y-1/2 text-[#b7c1d0] transition group-focus-within:text-[#1d5cff]" />
+                          <input
+                            autoComplete="off"
+                            className="h-[54px] w-full border-0 bg-transparent pl-10 pr-0 text-base tracking-[0.18em] text-[#16305c] outline-none placeholder:tracking-normal placeholder:text-[#9aa6b6]"
+                            inputMode="text"
+                            maxLength={4}
+                            placeholder="请输入验证码"
+                            type="text"
+                            value={loginValues.captcha}
+                            onChange={(event) => {
+                              setLoginValues((current) => ({
+                                ...current,
+                                captcha: event.target.value.toUpperCase(),
+                              }));
+                              setLoginErrors((current) => ({
+                                ...current,
+                                captcha: undefined,
+                                submit: undefined,
+                              }));
+                              setSuccessMessage(null);
+                            }}
+                          />
+                        </div>
+                        <button
+                          aria-label="刷新验证码"
+                          className="flex h-[56px] items-center justify-center overflow-hidden rounded-[14px] border border-[#d8e2f1] bg-[#f8fbff] px-3 transition hover:border-[#1d5cff] hover:bg-white focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#1d5cff]/10"
+                          onClick={refreshCaptcha}
+                          type="button"
+                        >
+                          <Image
+                            alt="刷新验证码"
+                            className="h-12 w-[132px] rounded-[12px] object-cover"
+                            height={48}
+                            src={`/api/auth/captcha?v=${captchaVersion}`}
+                            unoptimized
+                            width={132}
+                          />
+                        </button>
+                      </div>
+                      {loginErrors.captcha ? (
+                        <p className="mt-2 mb-5 text-sm leading-6 text-[#ef4444]">{loginErrors.captcha}</p>
+                      ) : (
+                        <p className="mt-2 mb-5 text-xs leading-5 text-[#8a96a8]">看不清可点击图片刷新验证码。</p>
                       )}
 
                       <div className="mb-6 flex items-center justify-between gap-3 text-sm leading-6 text-[#6b7280]">

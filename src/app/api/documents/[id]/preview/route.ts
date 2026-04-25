@@ -93,9 +93,6 @@ export async function GET(
   const document = await prisma.document.findUnique({
     where: { id },
     include: {
-      owner: {
-        select: { teamGroupId: true },
-      },
       versions: {
         orderBy: { uploadedAt: "desc" },
       },
@@ -106,7 +103,7 @@ export async function GET(
     return NextResponse.json({ message: "文档不存在" }, { status: 404 });
   }
 
-  if (!canAccessTeamScopedResource(user, { ownerId: document.ownerId, teamGroupId: document.owner.teamGroupId })) {
+  if (!canAccessTeamScopedResource(user, { ownerId: document.ownerId, teamGroupId: document.teamGroupId })) {
     return NextResponse.json({ message: "无权限访问该文档" }, { status: 403 });
   }
 

@@ -46,7 +46,10 @@ export async function PATCH(
     where: { id },
     include: {
       owner: {
-        select: { id: true, name: true, role: true, teamGroupId: true },
+        select: { id: true, name: true, role: true },
+      },
+      teamGroup: {
+        select: { id: true, name: true },
       },
       versions: {
         orderBy: { uploadedAt: "desc" },
@@ -66,7 +69,7 @@ export async function PATCH(
   if (
     !canAccessTeamScopedResource(user, {
       ownerId: currentDocument.ownerId,
-      teamGroupId: currentDocument.owner.teamGroupId,
+      teamGroupId: currentDocument.teamGroupId,
     })
   ) {
     return NextResponse.json({ message: "无权限访问该文档" }, { status: 403 });
@@ -90,7 +93,10 @@ export async function PATCH(
     },
     include: {
       owner: {
-        select: { id: true, name: true, role: true, teamGroupId: true },
+        select: { id: true, name: true, role: true },
+      },
+      teamGroup: {
+        select: { id: true, name: true },
       },
       versions: {
         orderBy: { uploadedAt: "desc" },
@@ -124,7 +130,7 @@ export async function PATCH(
           assigneeId: document.ownerId,
           creatorId: user.id,
           reviewerId: user.id,
-          teamGroupId: document.owner.teamGroupId,
+          teamGroupId: document.teamGroupId,
           sourceDocumentId: document.id,
           dueDate: getDocumentReworkDueDate(),
           priority: "high",
@@ -148,7 +154,7 @@ export async function PATCH(
       relatedId: reworkTask.id,
       senderId: user.id,
       email: { noticeType: "工单处理", actionLabel: "进入系统处理" },
-      emailTeamGroupId: document.owner.teamGroupId ?? null,
+      emailTeamGroupId: document.teamGroupId ?? null,
     }).catch((error) => {
       console.error("Document rework task notification failed", error);
     });
@@ -158,7 +164,7 @@ export async function PATCH(
     const recipientIds = await getUserIdsByRoles({
       roles: transition.notificationTargetRoles,
       excludeUserIds: [user.id],
-      teamGroupId: document.owner.teamGroupId,
+      teamGroupId: document.teamGroupId,
     });
 
     await createNotifications({
@@ -170,7 +176,7 @@ export async function PATCH(
       targetTab: "documents",
       relatedId: document.id,
       email: { noticeType: "文档审批", actionLabel: "进入系统处理" },
-      emailTeamGroupId: document.owner.teamGroupId ?? null,
+      emailTeamGroupId: document.teamGroupId ?? null,
     }).catch((error) => {
       console.error("Document leader approval notification failed", error);
     });
@@ -178,7 +184,7 @@ export async function PATCH(
     const recipientIds = await getUserIdsByRoles({
       roles: ["leader", "admin"],
       excludeUserIds: [user.id],
-      teamGroupId: document.owner.teamGroupId,
+      teamGroupId: document.teamGroupId,
     });
 
     await createNotifications({
@@ -190,7 +196,7 @@ export async function PATCH(
       targetTab: "documents",
       relatedId: document.id,
       email: { noticeType: "文档审批", actionLabel: "进入系统处理" },
-      emailTeamGroupId: document.owner.teamGroupId ?? null,
+      emailTeamGroupId: document.teamGroupId ?? null,
     }).catch((error) => {
       console.error("Document teacher revision notification failed", error);
     });
@@ -207,7 +213,7 @@ export async function PATCH(
       targetTab: "documents",
       relatedId: document.id,
       email: { noticeType: "文档审批", actionLabel: "进入系统处理" },
-      emailTeamGroupId: document.owner.teamGroupId ?? null,
+      emailTeamGroupId: document.teamGroupId ?? null,
     }).catch((error) => {
       console.error("Document review result notification failed", error);
     });

@@ -18,6 +18,8 @@ import { serializeUser } from "@/lib/api-serializers";
 const defaultPassword = "123456";
 type TeamMemberRole = "admin" | "school_admin" | "teacher" | "leader" | "member" | "expert";
 type TeamViewerRole = TeamMemberRole;
+const teamAccountRoles: TeamMemberRole[] = ["teacher", "leader", "member"];
+const teamGroupAssignableRoles = new Set<TeamMemberRole>(teamAccountRoles);
 
 const canViewAccountIdentifier = (viewerRole: TeamViewerRole) =>
   hasGlobalAdminPrivileges(viewerRole) || viewerRole === "teacher";
@@ -168,7 +170,13 @@ export async function GET(request: NextRequest) {
         include: {
           _count: {
             select: {
-              members: true,
+              members: {
+                where: {
+                  role: {
+                    in: teamAccountRoles,
+                  },
+                },
+              },
             },
           },
         },
@@ -180,7 +188,13 @@ export async function GET(request: NextRequest) {
           include: {
             _count: {
               select: {
-                members: true,
+                members: {
+                  where: {
+                    role: {
+                      in: teamAccountRoles,
+                    },
+                  },
+                },
               },
             },
           },
@@ -255,7 +269,7 @@ export async function POST(request: NextRequest) {
   }
 
   let teamGroupId: string | null = null;
-  if (requestedTeamGroupId && role !== "expert" && role !== "school_admin") {
+  if (requestedTeamGroupId && teamGroupAssignableRoles.has(role)) {
     if (!hasGlobalAdminPrivileges(user.role)) {
       return NextResponse.json({ message: "无权限设置账号分组" }, { status: 403 });
     }
@@ -270,7 +284,7 @@ export async function POST(request: NextRequest) {
     }
 
     teamGroupId = group.id;
-  } else if (!hasGlobalAdminPrivileges(user.role) && role !== "expert" && role !== "school_admin" && user.teamGroupId) {
+  } else if (!hasGlobalAdminPrivileges(user.role) && teamGroupAssignableRoles.has(role) && user.teamGroupId) {
     teamGroupId = user.teamGroupId;
   }
 

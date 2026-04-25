@@ -188,6 +188,7 @@ model TeamGroup {
   trainingSessions           TrainingSession[]
   projectReviewStages        ProjectReviewStage[]
   projectMaterialSubmissions ProjectMaterialSubmission[]
+  documents                  Document[]
 }
 
 model Task {
@@ -354,12 +355,16 @@ model Document {
   name           String
   category       DocumentCategory
   ownerId        String
+  teamGroupId    String?
   status         DocumentStatus
   comment        String?
   currentVersion String
   createdAt      DateTime          @default(now())
   owner          User              @relation("DocumentOwner", fields: [ownerId], references: [id])
+  teamGroup      TeamGroup?        @relation(fields: [teamGroupId], references: [id], onDelete: SetNull)
   versions       DocumentVersion[]
+
+  @@index([teamGroupId])
 }
 
 model DocumentVersion {

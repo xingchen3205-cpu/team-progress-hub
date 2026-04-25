@@ -1,12 +1,12 @@
 "use client";
 
+import { useEffect } from "react";
 import type { TeamRoleLabel } from "@/components/workspace-context";
 import * as Workspace from "@/components/workspace-context";
 
 export default function TeamTab() {
   const {
     teamGroups,
-    teamSearch,
     setTeamSearch,
     teamRoleFilter,
     setTeamRoleFilter,
@@ -90,7 +90,6 @@ export default function TeamTab() {
     Pencil,
     Plus,
     RotateCcw,
-    Search,
     Shuffle,
     Trash2,
     Users,
@@ -102,6 +101,10 @@ export default function TeamTab() {
   } = Workspace;
 
   const isExpertAccountView = teamAccountView === "experts";
+
+  useEffect(() => {
+    setTeamSearch("");
+  }, [setTeamSearch]);
 
 const renderTeam = () => (
     <div className="team-page-shell">
@@ -322,17 +325,6 @@ const renderTeam = () => (
           </div>
 
           <div className="team-filter-bar">
-              <label className="relative block w-full sm:min-w-[240px] text-sm text-slate-500">
-                <span className="sr-only">搜索账号</span>
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                <input
-                  className="team-search-input pl-9"
-                  placeholder={canViewTeamAccountIdentifiers ? "搜索姓名或账号" : "搜索姓名"}
-                  type="text"
-                  value={teamSearch}
-                  onChange={(event) => setTeamSearch(event.target.value)}
-                />
-              </label>
               <label className="text-sm text-slate-500">
                 <span className="sr-only">按角色筛选</span>
                 <select

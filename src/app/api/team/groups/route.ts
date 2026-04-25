@@ -5,6 +5,8 @@ import { getSessionUser } from "@/lib/auth";
 import { hasGlobalAdminPrivileges } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
+const teamAccountRoles: Array<"teacher" | "leader" | "member"> = ["teacher", "leader", "member"];
+
 const serializeGroup = (group: {
   id: string;
   name: string;
@@ -42,7 +44,15 @@ export async function GET(request: NextRequest) {
     orderBy: { createdAt: "asc" },
     include: {
       _count: {
-        select: { members: true },
+        select: {
+          members: {
+            where: {
+              role: {
+                in: teamAccountRoles,
+              },
+            },
+          },
+        },
       },
     },
   });
@@ -82,7 +92,15 @@ export async function POST(request: NextRequest) {
       },
       include: {
         _count: {
-          select: { members: true },
+          select: {
+            members: {
+              where: {
+                role: {
+                  in: teamAccountRoles,
+                },
+              },
+            },
+          },
         },
       },
     });

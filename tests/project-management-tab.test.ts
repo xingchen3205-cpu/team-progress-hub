@@ -76,3 +76,14 @@ test("project management tab uses the polished stage and material dashboard layo
   assert.match(tabSource, /项目材料/);
   assert.match(tabSource, /全部项目组可提交/);
 });
+
+test("project stage editing opens a modal instead of reusing the create form", () => {
+  const tabSource = read("src/components/tabs/project-tab.tsx");
+
+  assert.match(tabSource, /stageEditorOpen/);
+  assert.match(tabSource, /setStageEditorOpen\(true\)/);
+  assert.match(tabSource, /编辑项目阶段/);
+  assert.match(tabSource, /fixed inset-0 z-50/);
+  assert.doesNotMatch(tabSource, /editingStageId \? "编辑评审阶段" : "创建评审阶段"/);
+  assert.doesNotMatch(tabSource, /editingStageId \? "保存阶段" : "创建阶段"/);
+});

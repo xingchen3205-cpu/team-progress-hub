@@ -584,8 +584,8 @@ export const allTabs: TabItem[] = [
   },
   {
     key: "documents",
-    label: "文档中心",
-    description: "分类管理计划书、PPT、答辩材料和证明附件。",
+    label: "资料归档",
+    description: "按项目组归档计划书、PPT、答辩材料和证明附件。",
     icon: FolderOpen,
   },
   {
@@ -3184,7 +3184,8 @@ function useWorkspaceController({
     [aiPermissionItems],
   );
 
-  const visibleCoreTeamMembers = visibleTeamMembers.filter((member) => member.systemRole !== "评审专家");
+  const teamAccountRoleLabels = new Set<TeamRoleLabel>(["指导教师", "项目负责人", "团队成员"]);
+  const visibleCoreTeamMembers = visibleTeamMembers.filter((member) => teamAccountRoleLabels.has(member.systemRole));
   const visibleExpertAccountMembers = visibleTeamMembers.filter((member) => member.systemRole === "评审专家");
   const activeTeamMembers =
     teamAccountView === "experts" ? visibleExpertAccountMembers : visibleCoreTeamMembers;
@@ -3362,7 +3363,7 @@ function useWorkspaceController({
         id: "leader-review",
         title: "文档待负责人审批",
         detail: `当前有 ${pendingLeaderReviewCount} 份文档在等待负责人审批。`,
-        actionLabel: "前往文档中心",
+        actionLabel: "前往资料归档",
         targetTab: "documents",
         priority: "warning",
       });
@@ -4729,8 +4730,7 @@ function useWorkspaceController({
 
   const sendDocumentReminder = (doc: DocumentItem) => {
     const statusKey = doc.statusKey ?? "pending";
-    const docTeamGroupId =
-      members.find((member) => member.id === doc.ownerId)?.teamGroupId ?? currentUser?.teamGroupId ?? null;
+    const docTeamGroupId = doc.teamGroupId ?? null;
     if (
       !canTriggerDocumentReminder({
         actorRole: currentRole,
@@ -4758,8 +4758,8 @@ function useWorkspaceController({
       title: `文档审批提醒：${doc.name}`,
       detail:
         statusKey === "pending"
-          ? `《${doc.name}》当前正等待负责人审批，请及时进入文档中心处理。`
-          : `《${doc.name}》已进入教师终审阶段，请及时进入文档中心处理。`,
+          ? `《${doc.name}》当前正等待负责人审批，请及时进入资料归档处理。`
+          : `《${doc.name}》已进入教师终审阶段，请及时进入资料归档处理。`,
       targetTab: "documents",
       successTitle: "文档审批提醒已发送",
       successDetail: `已提醒当前审批节点处理《${doc.name}》。`,
@@ -5081,7 +5081,7 @@ function useWorkspaceController({
       setDocumentModalOpen(false);
       setDocumentSavingLabel("上传中...");
       setDocumentUploadProgress(null);
-      showSuccessToast("文档已上传", "文档中心已经记录了新的材料版本。");
+      showSuccessToast("文档已上传", "资料归档已经记录了新的材料版本。");
       refreshWorkspace("documents");
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "文件上传失败");

@@ -55,8 +55,12 @@ const renderDocuments = () => (
     <div className="space-y-4">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <SectionHeader
-          description="点击分类卡片筛选文档，并可查看历史版本、上传新版本和执行审核。"
-          title="文档中心"
+          description={
+            currentRole === "admin" || currentRole === "school_admin"
+              ? "全校项目组资料统一归档，可按分类查看历史版本、下载和审批记录。"
+              : "仅展示本项目组资料，可查看历史版本、上传新版本和执行审核。"
+          }
+          title="资料归档"
         />
         <div className="flex flex-wrap items-center gap-3">
           <ActionButton

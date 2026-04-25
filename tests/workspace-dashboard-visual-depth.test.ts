@@ -57,7 +57,10 @@ test("workspace-shell brand area contains full system name and school", () => {
   );
   assert.match(source, /中国国际大学生创新大赛管理系统/);
   assert.match(source, /南京铁道职业技术学院/);
-  assert.match(source, /智在必行/);
+  assert.match(source, /getSidebarUserMeta/);
+  assert.match(source, /全校管理/);
+  assert.match(source, /currentUser\?\.teamGroupName \?\? "未绑定项目组"/);
+  assert.doesNotMatch(source, /<p className="text-xs text-white\/55">智在必行<\/p>/);
 });
 
 test("overview-tab supports admin-wide report group summary", () => {

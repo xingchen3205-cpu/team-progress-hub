@@ -1,0 +1,60 @@
+import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import path from "node:path";
+import test from "node:test";
+
+test("captcha helper signs and verifies challenges without storing plaintext code", async () => {
+  process.env.CAPTCHA_SECRET = "unit-test-captcha-secret";
+  const captcha = await import("../src/lib/captcha");
+
+  const challenge = captcha.createCaptchaChallenge("A7K2", {
+    now: 1_000,
+    nonce: "nonce-for-test",
+  });
+
+  assert.doesNotMatch(challenge, /A7K2/i);
+  assert.equal(captcha.verifyCaptchaChallenge(challenge, "a7k2", { now: 1_000 }), true);
+  assert.equal(captcha.verifyCaptchaChallenge(challenge, "0000", { now: 1_000 }), false);
+  assert.equal(captcha.verifyCaptchaChallenge(challenge, "A7K2", { now: 1_000 + captcha.CAPTCHA_TTL_SECONDS * 1000 + 1 }), false);
+});
+
+test("captcha api route returns svg and sets an HttpOnly challenge cookie", () => {
+  const source = readFileSync(
+    path.join(process.cwd(), "src/app/api/auth/captcha/route.ts"),
+    "utf8",
+  );
+  const helperSource = readFileSync(
+    path.join(process.cwd(), "src/lib/captcha.ts"),
+    "utf8",
+  );
+
+  assert.match(source, /image\/svg\+xml/);
+  assert.match(source, /setCaptchaCookie/);
+  assert.match(helperSource, /CAPTCHA_COOKIE_NAME/);
+  assert.match(helperSource, /httpOnly:\s*true/);
+  assert.match(source, /no-store/);
+});
+
+test("login requires captcha and clears challenge cookie after each attempt", () => {
+  const source = readFileSync(
+    path.join(process.cwd(), "src/app/api/auth/login/route.ts"),
+    "utf8",
+  );
+
+  assert.match(source, /captcha\?:\s*string/);
+  assert.match(source, /verifyCaptchaChallenge/);
+  assert.match(source, /clearCaptchaCookie/);
+  assert.match(source, /请输入验证码/);
+});
+
+test("login screen renders captcha input and refreshes the svg image", () => {
+  const source = readFileSync(
+    path.join(process.cwd(), "src/components/login-screen.tsx"),
+    "utf8",
+  );
+
+  assert.match(source, /captchaVersion/);
+  assert.match(source, /\/api\/auth\/captcha\?v=/);
+  assert.match(source, /请输入验证码/);
+  assert.match(source, /刷新验证码/);
+});

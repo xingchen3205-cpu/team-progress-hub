@@ -1,24 +1,41 @@
 import bcrypt from "bcryptjs";
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 
 import { signAuthToken, setAuthCookie } from "@/lib/auth";
+import { CAPTCHA_COOKIE_NAME, clearCaptchaCookie, verifyCaptchaChallenge } from "@/lib/captcha";
 import { prisma } from "@/lib/prisma";
 import { serializeUser } from "@/lib/api-serializers";
 
-export async function POST(request: Request) {
+const jsonWithClearedCaptcha = (body: unknown, init?: ResponseInit) => {
+  const response = NextResponse.json(body, init);
+  clearCaptchaCookie(response);
+  return response;
+};
+
+export async function POST(request: NextRequest) {
   const body = (await request.json().catch(() => null)) as
     | {
         email?: string;
         username?: string;
         password?: string;
+        captcha?: string;
       }
     | null;
 
   const account = body?.email?.trim() || body?.username?.trim();
   const password = body?.password?.trim();
+  const captcha = body?.captcha?.trim();
 
-  if (!account || !password) {
-    return NextResponse.json({ message: "请输入账号和密码" }, { status: 400 });
+  if (!account || !password || !captcha) {
+    return jsonWithClearedCaptcha(
+      { message: !captcha ? "请输入验证码" : "请输入账号和密码" },
+      { status: 400 },
+    );
+  }
+
+  const captchaChallenge = request.cookies.get(CAPTCHA_COOKIE_NAME)?.value;
+  if (!verifyCaptchaChallenge(captchaChallenge, captcha)) {
+    return jsonWithClearedCaptcha({ message: "验证码错误或已过期" }, { status: 400 });
   }
 
   const user =
@@ -33,16 +50,16 @@ export async function POST(request: Request) {
     }));
 
   if (!user) {
-    return NextResponse.json({ message: "账号或密码错误" }, { status: 401 });
+    return jsonWithClearedCaptcha({ message: "账号或密码错误" }, { status: 401 });
   }
 
   const isPasswordValid = await bcrypt.compare(password, user.password);
   if (!isPasswordValid) {
-    return NextResponse.json({ message: "账号或密码错误" }, { status: 401 });
+    return jsonWithClearedCaptcha({ message: "账号或密码错误" }, { status: 401 });
   }
 
   if (user.approvalStatus !== "approved") {
-    return NextResponse.json(
+    return jsonWithClearedCaptcha(
       { message: "账号待上一级审核通过后方可登录" },
       { status: 403 },
     );
@@ -61,6 +78,7 @@ export async function POST(request: Request) {
   });
 
   setAuthCookie(response, token);
+  clearCaptchaCookie(response);
 
   return response;
 }

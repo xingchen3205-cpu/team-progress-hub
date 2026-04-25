@@ -35,7 +35,7 @@ describe("team-scoped workspace visibility", () => {
 
     assert.deepEqual(
       buildDocumentVisibilityWhere({ id: "member-1", role: "member", teamGroupId: "group-a" }),
-      { OR: [{ ownerId: "member-1" }, { owner: { teamGroupId: "group-a" } }] },
+      { OR: [{ ownerId: "member-1" }, { teamGroupId: "group-a" }] },
     );
 
     assert.deepEqual(

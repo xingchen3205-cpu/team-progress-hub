@@ -66,7 +66,10 @@ export async function POST(
     where: { id },
     include: {
       owner: {
-        select: { teamGroupId: true },
+        select: { id: true, name: true },
+      },
+      teamGroup: {
+        select: { id: true, name: true },
       },
     },
   });
@@ -77,7 +80,7 @@ export async function POST(
   if (
     !canAccessTeamScopedResource(user, {
       ownerId: currentDocument.ownerId,
-      teamGroupId: currentDocument.owner.teamGroupId,
+      teamGroupId: currentDocument.teamGroupId,
     })
   ) {
     return NextResponse.json({ message: "无权限访问该文档" }, { status: 403 });
@@ -134,6 +137,9 @@ export async function POST(
         owner: {
           select: { id: true, name: true },
         },
+        teamGroup: {
+          select: { id: true, name: true },
+        },
         versions: {
           orderBy: { uploadedAt: "desc" },
           include: {
@@ -150,7 +156,7 @@ export async function POST(
         const recipientIds = await getUserIdsByRoles({
           roles: workflow.notificationTargetRoles,
           excludeUserIds: [user.id],
-          teamGroupId: currentDocument.owner.teamGroupId,
+          teamGroupId: currentDocument.teamGroupId,
         });
 
         await createNotifications({
@@ -163,7 +169,7 @@ export async function POST(
           targetTab: "documents",
           relatedId: document.id,
           email: { noticeType: "文档审批", actionLabel: "进入系统处理" },
-          emailTeamGroupId: currentDocument.owner.teamGroupId ?? null,
+          emailTeamGroupId: currentDocument.teamGroupId ?? null,
         });
       }
     } catch (error) {
@@ -214,7 +220,10 @@ export async function DELETE(
     where: { id },
     include: {
       owner: {
-        select: { id: true, name: true, teamGroupId: true },
+        select: { id: true, name: true },
+      },
+      teamGroup: {
+        select: { id: true, name: true },
       },
       versions: {
         orderBy: { uploadedAt: "desc" },
@@ -231,7 +240,7 @@ export async function DELETE(
     return NextResponse.json({ message: "文档不存在" }, { status: 404 });
   }
 
-  if (!canAccessTeamScopedResource(user, { ownerId: document.ownerId, teamGroupId: document.owner.teamGroupId })) {
+  if (!canAccessTeamScopedResource(user, { ownerId: document.ownerId, teamGroupId: document.teamGroupId })) {
     return NextResponse.json({ message: "无权限访问该文档" }, { status: 403 });
   }
 
@@ -296,6 +305,9 @@ export async function DELETE(
     where: { id: document.id },
     include: {
       owner: {
+        select: { id: true, name: true },
+      },
+      teamGroup: {
         select: { id: true, name: true },
       },
       versions: {

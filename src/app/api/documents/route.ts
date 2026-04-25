@@ -34,6 +34,9 @@ export async function GET(request: NextRequest) {
       owner: {
         select: { id: true, name: true },
       },
+      teamGroup: {
+        select: { id: true, name: true },
+      },
       versions: {
         orderBy: { uploadedAt: "desc" },
         include: {
@@ -126,6 +129,7 @@ export async function POST(request: NextRequest) {
         name,
         category,
         ownerId: user.id,
+        teamGroupId: user.teamGroupId ?? null,
         status: workflow.status,
         comment: workflow.comment,
         currentVersion: "v1.0",
@@ -143,6 +147,9 @@ export async function POST(request: NextRequest) {
       },
       include: {
         owner: {
+          select: { id: true, name: true },
+        },
+        teamGroup: {
           select: { id: true, name: true },
         },
         versions: {

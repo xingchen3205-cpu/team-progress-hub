@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { useEffect, useState, type ReactNode } from "react";
+import type { ReactNode } from "react";
 import type { TeamRoleLabel, TaskDraft, DocumentDraft } from "@/components/workspace-context";
 import * as Workspace from "@/components/workspace-context";
 
@@ -194,7 +194,6 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
     Loader2,
     LogOut,
     Menu,
-    Search,
     X,
     documentCategories,
     roleLabels,
@@ -245,34 +244,17 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
       (!reviewAssignmentDraft.stageId || material.stageId === reviewAssignmentDraft.stageId),
   );
 
-  const [globalSearchQuery, setGlobalSearchQuery] = useState("");
-  const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
-  const [globalSearchOpen, setGlobalSearchOpen] = useState(false);
-
-  useEffect(() => {
-    const timer = window.setTimeout(() => {
-      setDebouncedSearchQuery(globalSearchQuery.trim());
-    }, 300);
-
-    return () => window.clearTimeout(timer);
-  }, [globalSearchQuery]);
-
-  useEffect(() => {
-    if (!globalSearchOpen) {
-      return undefined;
+  const getSidebarUserMeta = () => {
+    if (currentRole === "admin" || currentRole === "school_admin") {
+      return "全校管理";
     }
 
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key !== "Escape") {
-        return;
-      }
+    if (currentRole === "expert") {
+      return "专家评审";
+    }
 
-      setGlobalSearchOpen(false);
-    };
-
-    window.addEventListener("keydown", handleEscape);
-    return () => window.removeEventListener("keydown", handleEscape);
-  }, [globalSearchOpen]);
+    return currentUser?.teamGroupName ?? "未绑定项目组";
+  };
 
   if (isBooting) {
     return (
@@ -497,7 +479,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                   <div className="min-w-0">
                     <p className="sidebar-user-name truncate">{currentUser.profile.name}</p>
                     <p className="sidebar-user-role mt-0.5">{roleLabels[currentRole]}</p>
-                    <p className="mt-0.5 text-[11px] text-white/45">智在必行</p>
+                    <p className="mt-0.5 text-[11px] text-white/45">{getSidebarUserMeta()}</p>
                   </div>
                 </div>
                 <button
@@ -572,7 +554,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                   <div className="min-w-0">
                     <p className="sidebar-user-name truncate">{currentUser.profile.name}</p>
                     <p className="sidebar-user-role mt-0.5">{roleLabels[currentRole]}</p>
-                    <p className="mt-0.5 text-[11px] text-white/45">智在必行</p>
+                    <p className="mt-0.5 text-[11px] text-white/45">{getSidebarUserMeta()}</p>
                   </div>
                 </div>
                 <button
@@ -601,38 +583,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                   <p className="topbar-page-title">{activeTabItem.label}</p>
                 </div>
 
-                <div className="relative w-full lg:w-[440px]">
-                  <div className="relative">
-                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                    <input
-                      className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-4 text-sm text-slate-700 outline-none transition-all duration-200 placeholder:text-slate-400 focus:border-[color:var(--color-primary)] focus:bg-white focus:shadow-[0_0_0_3px_rgba(var(--color-primary-rgb),0.12)]"
-                      onChange={(event) => {
-                        setGlobalSearchQuery(event.target.value);
-                        setGlobalSearchOpen(true);
-                      }}
-                      onFocus={() => setGlobalSearchOpen(true)}
-                      onKeyDown={(event) => {
-                        if (event.key !== "Escape") {
-                          return;
-                        }
-
-                        setGlobalSearchOpen(false);
-                        event.currentTarget.blur();
-                      }}
-                      placeholder="搜索任务、文档、成员..."
-                      value={globalSearchQuery}
-                    />
-                  </div>
-
-                  {globalSearchOpen && debouncedSearchQuery ? (
-                    <div className="absolute inset-x-0 top-[calc(100%+8px)] z-30 rounded-xl border border-gray-200 bg-white p-3 shadow-[0_16px_32px_rgba(15,23,42,0.12)]">
-                      <p className="text-xs font-medium text-slate-500">搜索结果</p>
-                      <div className="mt-2 rounded-lg bg-gray-50 px-3 py-3 text-sm text-slate-600">
-                        暂无匹配结果，请尝试更换关键词。
-                      </div>
-                    </div>
-                  ) : null}
-                </div>
+                <div className="hidden flex-1 lg:block" />
 
                 <div className="flex w-full flex-wrap items-center justify-between gap-2 sm:w-auto sm:justify-end sm:gap-3">
                   <span className="header-date hidden text-[13px] text-slate-500 md:inline-flex">

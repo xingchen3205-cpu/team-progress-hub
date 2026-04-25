@@ -50,7 +50,7 @@ export const buildDocumentVisibilityWhere = (actor: TeamScopedActor) => {
     return {
       OR: [
         { ownerId: actor.id },
-        { owner: { teamGroupId: actor.teamGroupId } },
+        { teamGroupId: actor.teamGroupId },
       ],
     };
   }

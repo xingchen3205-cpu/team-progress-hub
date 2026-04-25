@@ -2559,7 +2559,12 @@ a:hover {
   position: relative;
   overflow: hidden;
   border-radius: var(--card-radius);
-  background: linear-gradient(105deg, #082a5e 0%, #0b3a8a 45%, #1565c0 100%);
+  min-height: 138px;
+  background:
+    linear-gradient(100deg, rgba(8, 42, 94, 0.98) 0%, rgba(11, 58, 138, 0.94) 38%, rgba(21, 101, 192, 0.74) 68%, rgba(37, 99, 235, 0.42) 100%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0) 62%),
+    url("/login-campus.jpg") right 42% / cover no-repeat,
+    #0b3a8a;
   box-shadow: 0 16px 40px rgba(8, 42, 94, 0.22);
 }
 
@@ -2569,26 +2574,28 @@ a:hover {
   inset: 0;
   background:
     radial-gradient(ellipse at 90% 20%, rgba(255, 255, 255, 0.06) 0%, transparent 50%),
-    radial-gradient(ellipse at 70% 80%, rgba(255, 255, 255, 0.04) 0%, transparent 40%);
+    radial-gradient(ellipse at 70% 80%, rgba(255, 255, 255, 0.04) 0%, transparent 40%),
+    linear-gradient(180deg, transparent 0%, rgba(7, 24, 57, 0.18) 100%);
   pointer-events: none;
 }
 
 .campus-welcome-banner .campus-watermark-frame {
   position: absolute;
-  right: 0;
-  top: 0;
-  bottom: 0;
-  width: 55%;
-  opacity: 0.12;
+  right: -2%;
+  top: -22%;
+  bottom: -34%;
+  width: 56%;
+  opacity: 0.3;
   mix-blend-mode: luminosity;
-  mask-image: linear-gradient(to right, transparent 0%, black 60%);
-  -webkit-mask-image: linear-gradient(to right, transparent 0%, black 60%);
+  mask-image: linear-gradient(to right, transparent 0%, rgba(0, 0, 0, 0.42) 24%, black 78%);
+  -webkit-mask-image: linear-gradient(to right, transparent 0%, rgba(0, 0, 0, 0.42) 24%, black 78%);
   pointer-events: none;
 }
 
 .campus-welcome-banner .campus-watermark {
   object-fit: cover;
-  object-position: top right;
+  object-position: center 40%;
+  filter: saturate(0.92) contrast(1.08);
 }
 
 /* ─── Sidebar Government Pattern ─── */

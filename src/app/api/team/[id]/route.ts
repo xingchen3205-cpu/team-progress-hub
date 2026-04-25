@@ -12,6 +12,10 @@ import { prisma } from "@/lib/prisma";
 import { serializeUser } from "@/lib/api-serializers";
 import { deleteStoredFile } from "@/lib/uploads";
 
+type TeamMemberRole = "admin" | "school_admin" | "teacher" | "leader" | "member" | "expert";
+const teamAccountRoles: TeamMemberRole[] = ["teacher", "leader", "member"];
+const teamGroupAssignableRoles = new Set<TeamMemberRole>(teamAccountRoles);
+
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> },
@@ -120,14 +124,14 @@ export async function PATCH(
   }
 
   let nextTeamGroupId: string | null | undefined;
-  if (Object.prototype.hasOwnProperty.call(body ?? {}, "teamGroupId")) {
+  if (!teamGroupAssignableRoles.has(nextRole)) {
+    nextTeamGroupId = null;
+  } else if (Object.prototype.hasOwnProperty.call(body ?? {}, "teamGroupId")) {
     if (!hasGlobalAdminPrivileges(user.role)) {
       return NextResponse.json({ message: "无权限设置账号分组" }, { status: 403 });
     }
 
-    if (nextRole === "expert" || nextRole === "school_admin") {
-      nextTeamGroupId = null;
-    } else if (body?.teamGroupId) {
+    if (body?.teamGroupId) {
       const group = await prisma.teamGroup.findUnique({
         where: { id: body.teamGroupId },
         select: { id: true },
@@ -141,8 +145,6 @@ export async function PATCH(
     } else {
       nextTeamGroupId = null;
     }
-  } else if ((nextRole === "expert" && target.role !== "expert") || (nextRole === "school_admin" && target.role !== "school_admin")) {
-    nextTeamGroupId = null;
   }
 
   const nextUsername = body?.username?.trim();

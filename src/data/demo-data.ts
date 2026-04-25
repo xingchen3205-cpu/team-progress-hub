@@ -145,6 +145,8 @@ export type DocumentItem = {
   name: string;
   category: string;
   ownerId: string;
+  teamGroupId?: string | null;
+  teamGroupName?: string | null;
   ownerName?: string;
   status:
     | "待负责人审批"

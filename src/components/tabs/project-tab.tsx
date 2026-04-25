@@ -180,6 +180,7 @@ export default function ProjectTab() {
 
   const [stageDraft, setStageDraft] = useState<StageDraft>(defaultStageDraft);
   const [editingStageId, setEditingStageId] = useState<string | null>(null);
+  const [stageEditorOpen, setStageEditorOpen] = useState(false);
   const [materialDraft, setMaterialDraft] = useState<MaterialDraft>(defaultMaterialDraft);
   const [materialFile, setMaterialFile] = useState<File | null>(null);
   const [materialSavingLabel, setMaterialSavingLabel] = useState("上传材料");
@@ -262,6 +263,7 @@ export default function ProjectTab() {
 
   const resetStageForm = () => {
     setEditingStageId(null);
+    setStageEditorOpen(false);
     setStageDraft(defaultStageDraft);
   };
 
@@ -277,6 +279,7 @@ export default function ProjectTab() {
       deadline: stage.deadline ? toDateTimeInputValue(stage.deadline) : "",
       isOpen: stage.isOpen,
     });
+    setStageEditorOpen(true);
   };
 
   const saveStage = async () => {
@@ -484,17 +487,12 @@ export default function ProjectTab() {
             <div>
               <h3 className="inline-flex items-center gap-2 text-lg font-bold text-slate-950">
                 <Plus className="h-5 w-5 text-blue-600" />
-                {editingStageId ? "编辑评审阶段" : "创建评审阶段"}
+                创建评审阶段
               </h3>
               <p className="mt-1 text-sm text-slate-500">
                 管理员先开放网评或路演材料阶段，学生端才会出现对应上传入口。
               </p>
             </div>
-            {editingStageId ? (
-              <ActionButton onClick={resetStageForm} variant="secondary">
-                取消编辑
-              </ActionButton>
-            ) : null}
           </div>
 
           <div className="mt-4 grid gap-4 lg:grid-cols-2">
@@ -668,11 +666,201 @@ export default function ProjectTab() {
             <ActionButton disabled={isSaving} onClick={() => void saveStage()} variant="primary">
               <span className="inline-flex items-center gap-2">
                 {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
-                <span>{editingStageId ? "保存阶段" : "创建阶段"}</span>
+                <span>创建阶段</span>
               </span>
             </ActionButton>
           </div>
         </section>
+      ) : null}
+
+      {canManageStages && stageEditorOpen && editingStageId ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/45 px-4 py-8">
+          <div className="max-h-[88vh] w-full max-w-3xl overflow-y-auto rounded-2xl border border-slate-200 bg-white p-6 shadow-[0_24px_80px_rgba(15,23,42,0.22)]">
+            <div className="flex flex-col gap-3 border-b border-slate-100 pb-4 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <h3 className="inline-flex items-center gap-2 text-lg font-bold text-slate-950">
+                  <Pencil className="h-5 w-5 text-blue-600" />
+                  编辑项目阶段
+                </h3>
+                <p className="mt-1 text-sm text-slate-500">
+                  修改后会同步影响学生提交入口和专家评审可用材料范围。
+                </p>
+              </div>
+              <ActionButton disabled={isSaving} onClick={resetStageForm} variant="secondary">
+                关闭
+              </ActionButton>
+            </div>
+
+            <div className="mt-4 grid gap-4 lg:grid-cols-2">
+              <label className="block text-sm font-medium text-slate-700">
+                阶段名称
+                <input
+                  className={projectInputClassName}
+                  onChange={(event) => setStageDraft((current) => ({ ...current, name: event.target.value }))}
+                  placeholder="如：第一轮网络评审材料提交"
+                  value={stageDraft.name}
+                />
+              </label>
+              <label className="block text-sm font-medium text-slate-700">
+                阶段类型
+                <select
+                  className={projectInputClassName}
+                  onChange={(event) => {
+                    const nextType = event.target.value as Workspace.ProjectReviewStageTypeKey;
+                    setStageDraft((current) => ({
+                      ...current,
+                      type: nextType,
+                      requiredMaterials: defaultRequiredMaterialsByStageType[nextType],
+                    }));
+                  }}
+                  value={stageDraft.type}
+                >
+                  {stageTypeOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="block text-sm font-medium text-slate-700">
+                开放项目组
+                <div className="mt-2 overflow-hidden rounded-xl border border-slate-200 bg-white">
+                  <label className="flex items-center gap-2 rounded-lg bg-white px-3 py-2 text-sm text-slate-700 ring-1 ring-slate-200">
+                    <input
+                      checked={stageDraft.teamGroupIds.length === 0}
+                      className="h-4 w-4 rounded border-slate-300 text-blue-600"
+                      onChange={() => setStageDraft((current) => ({ ...current, teamGroupIds: [] }))}
+                      type="checkbox"
+                    />
+                    <span className="font-medium">全部项目组可提交</span>
+                  </label>
+                  <div className="grid max-h-36 gap-2 overflow-y-auto border-t border-slate-100 bg-slate-50 p-3 sm:grid-cols-2">
+                    {teamGroups.map((group) => {
+                      const checked = stageDraft.teamGroupIds.includes(group.id);
+                      return (
+                        <label
+                          className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm ring-1 transition ${
+                            checked
+                              ? "bg-blue-50 text-blue-700 ring-blue-200"
+                              : "bg-white text-slate-600 ring-slate-200 hover:bg-slate-50"
+                          }`}
+                          key={group.id}
+                        >
+                          <input
+                            checked={checked}
+                            className="h-4 w-4 rounded border-slate-300 text-blue-600"
+                            onChange={(event) =>
+                              setStageDraft((current) => ({
+                                ...current,
+                                teamGroupIds: event.target.checked
+                                  ? [...new Set([...current.teamGroupIds, group.id])]
+                                  : current.teamGroupIds.filter((teamGroupId) => teamGroupId !== group.id),
+                              }))
+                            }
+                            type="checkbox"
+                          />
+                          <span className="truncate">{group.name}</span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              </label>
+              <label className="flex min-h-40 flex-col items-center justify-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-5 text-sm font-medium text-slate-700">
+                <span className="text-xs text-slate-400">学生上传权限</span>
+                <span className="relative inline-flex h-7 w-14 items-center">
+                  <input
+                    checked={stageDraft.isOpen}
+                    className="peer sr-only"
+                    onChange={(event) => setStageDraft((current) => ({ ...current, isOpen: event.target.checked }))}
+                    type="checkbox"
+                  />
+                  <span className="absolute inset-0 rounded-full bg-slate-300 transition peer-checked:bg-blue-600" />
+                  <span className="absolute left-1 h-5 w-5 rounded-full bg-white shadow transition peer-checked:translate-x-7" />
+                </span>
+                <span>{stageDraft.isOpen ? "当前开放学生上传" : "当前已关闭学生上传"}</span>
+              </label>
+              <label className="block text-sm font-medium text-slate-700">
+                开始时间
+                <input
+                  className={projectInputClassName}
+                  onChange={(event) => setStageDraft((current) => ({ ...current, startAt: event.target.value }))}
+                  type="datetime-local"
+                  value={stageDraft.startAt}
+                />
+              </label>
+              <label className="block text-sm font-medium text-slate-700">
+                截止时间
+                <input
+                  className={projectInputClassName}
+                  onChange={(event) => setStageDraft((current) => ({ ...current, deadline: event.target.value }))}
+                  type="datetime-local"
+                  value={stageDraft.deadline}
+                />
+              </label>
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 lg:col-span-2">
+                <p className="text-sm font-medium text-slate-700">要求上传内容</p>
+                <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                  {projectMaterialRequirementOptions.map((option) => (
+                    <label
+                      className={`flex items-start gap-2 rounded-lg border px-3 py-3 text-sm transition ${
+                        stageDraft.requiredMaterials.includes(option.key)
+                          ? "border-blue-200 bg-blue-50 text-blue-800"
+                          : "border-white bg-white text-slate-600"
+                      }`}
+                      key={option.key}
+                    >
+                      <input
+                        checked={stageDraft.requiredMaterials.includes(option.key)}
+                        className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600"
+                        onChange={(event) =>
+                          setStageDraft((current) => {
+                            const requiredMaterials = event.target.checked
+                              ? [...new Set([...current.requiredMaterials, option.key])]
+                              : current.requiredMaterials.filter((item) => item !== option.key);
+                            return {
+                              ...current,
+                              requiredMaterials:
+                                requiredMaterials.length > 0
+                                  ? requiredMaterials
+                                  : defaultRequiredMaterialsByStageType[current.type],
+                            };
+                          })
+                        }
+                        type="checkbox"
+                      />
+                      <span>
+                        <span className="block font-semibold text-slate-800">{option.label}</span>
+                        <span className="mt-0.5 block text-xs text-slate-400">{option.description}</span>
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+              <label className="block text-sm font-medium text-slate-700 lg:col-span-2">
+                阶段说明
+                <textarea
+                  className={`${textareaClassName} rounded-xl border-slate-200 bg-slate-50 focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10`}
+                  onChange={(event) => setStageDraft((current) => ({ ...current, description: event.target.value }))}
+                  placeholder="说明提交内容、材料格式或本轮用途。"
+                  value={stageDraft.description}
+                />
+              </label>
+            </div>
+
+            <div className="mt-5 flex justify-end gap-3">
+              <ActionButton disabled={isSaving} onClick={resetStageForm} variant="secondary">
+                取消
+              </ActionButton>
+              <ActionButton disabled={isSaving} onClick={() => void saveStage()} variant="primary">
+                <span className="inline-flex items-center gap-2">
+                  {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Pencil className="h-4 w-4" />}
+                  <span>保存阶段</span>
+                </span>
+              </ActionButton>
+            </div>
+          </div>
+        </div>
       ) : null}
 
       {canUploadMaterials ? (

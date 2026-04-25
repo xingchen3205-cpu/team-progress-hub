@@ -60,3 +60,26 @@ test("expert account view is visually separate and omits group or AI controls", 
   assert.match(teamSource, /!isExpertAccountView && hasGlobalAdminRole/);
   assert.match(teamSource, /!isExpertAccountView && canUseTeamGroups/);
 });
+
+test("team management removes local text search and clears stale team filters", () => {
+  assert.doesNotMatch(teamSource, /搜索姓名或账号/);
+  assert.doesNotMatch(teamSource, /value=\{teamSearch\}/);
+  assert.match(teamSource, /setTeamSearch\(""\)/);
+});
+
+test("team account list excludes system admins and experts from project groups", () => {
+  const contextSource = readFileSync(
+    path.join(process.cwd(), "src/components/workspace-context.tsx"),
+    "utf8",
+  );
+  const shellSource = readFileSync(
+    path.join(process.cwd(), "src/components/workspace-shell.tsx"),
+    "utf8",
+  );
+
+  assert.match(contextSource, /teamAccountRoleLabels/);
+  assert.match(contextSource, /visibleCoreTeamMembers = visibleTeamMembers\.filter/);
+  assert.match(contextSource, /teamAccountRoleLabels\.has\(member\.systemRole\)/);
+  assert.match(shellSource, /getSidebarUserMeta/);
+  assert.doesNotMatch(shellSource, />智在必行</);
+});
