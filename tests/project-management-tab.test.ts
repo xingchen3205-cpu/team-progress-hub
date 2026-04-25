@@ -8,6 +8,7 @@ const read = (filePath: string) => readFileSync(path.join(process.cwd(), filePat
 test("workspace registers project management as a first-class tab", () => {
   const contextSource = read("src/components/workspace-context.tsx");
   const dashboardSource = read("src/components/workspace-dashboard.tsx");
+  const workspacePageSource = read("src/app/workspace/page.tsx");
 
   assert.match(contextSource, /\|\s*"project"/);
   assert.match(contextSource, /key:\s*"project"[\s\S]*?label:\s*"项目管理"/);
@@ -16,6 +17,25 @@ test("workspace registers project management as a first-class tab", () => {
 
   assert.match(dashboardSource, /ProjectTab/);
   assert.match(dashboardSource, /safeActiveTab === "project"/);
+  assert.match(workspacePageSource, /validTabs\s*=\s*\[[\s\S]*?"project"/);
+});
+
+test("project management is visible to main workspace roles except experts", () => {
+  const contextSource = read("src/components/workspace-context.tsx");
+
+  for (const role of ["admin", "school_admin", "teacher", "leader", "member"]) {
+    assert.match(
+      contextSource,
+      new RegExp(`${role}:\\s*\\{[\\s\\S]*?visibleTabs:\\s*\\[[\\s\\S]*?"project"[\\s\\S]*?\\]\\s*as TabKey\\[\\]`),
+      `${role} should see project management`,
+    );
+  }
+
+  assert.doesNotMatch(
+    contextSource,
+    /expert:\s*\{[\s\S]*?visibleTabs:\s*\[[^\]]*"project"/,
+    "experts should not see project management",
+  );
 });
 
 test("project management tab exists and talks to project material APIs", () => {
@@ -29,6 +49,8 @@ test("project management tab exists and talks to project material APIs", () => {
   assert.match(tabSource, /upload-url/);
   assert.match(tabSource, /approve/);
   assert.match(tabSource, /reject/);
+  assert.match(tabSource, /currentRole === "leader"/);
+  assert.doesNotMatch(tabSource, /currentRole === "member"[\s\S]*?canUploadMaterials/);
 });
 
 test("project management data is loaded when project tab is active", () => {

@@ -125,8 +125,7 @@ export default function ProjectTab() {
   const [rejectReasons, setRejectReasons] = useState<Record<string, string>>({});
 
   const canManageStages = hasGlobalAdminRole;
-  const canUploadMaterials =
-    (currentRole === "leader" || currentRole === "member") && Boolean(currentUser?.teamGroupId);
+  const canUploadMaterials = currentRole === "leader" && Boolean(currentUser?.teamGroupId);
   const canReviewMaterials =
     hasGlobalAdminRole || (currentRole === "teacher" && Boolean(currentUser?.teamGroupId));
 
@@ -339,7 +338,7 @@ export default function ProjectTab() {
   return (
     <div className="space-y-4">
       <SectionHeader
-        description="按评审阶段沉淀项目组最终材料，学生提交后由本组任意指导教师审批生效。"
+        description="按评审阶段沉淀项目组最终材料，项目负责人提交后由本组任意指导教师审批生效。"
         title="项目管理"
       />
 
@@ -490,7 +489,7 @@ export default function ProjectTab() {
             <div>
               <h3 className="text-lg font-semibold text-slate-950">提交项目材料</h3>
               <p className="mt-1 text-sm text-slate-500">
-                只能提交本项目组材料，提交后需要本组任意指导教师审批通过后生效。
+                仅项目负责人可提交本项目组材料，提交后需要本组任意指导教师审批通过后生效。
               </p>
             </div>
             <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-medium text-blue-700">
@@ -715,7 +714,7 @@ export default function ProjectTab() {
               ))
             ) : (
               <EmptyState
-                description="学生或项目负责人提交材料后，这里会显示审批状态和最终归档结果。"
+                description="项目负责人提交材料后，这里会显示审批状态和最终归档结果。"
                 icon={FileText}
                 title="暂无项目材料"
               />

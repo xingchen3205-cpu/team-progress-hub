@@ -69,9 +69,10 @@ test("project material permissions follow role and team boundaries", () => {
   assert.equal(canManageProjectReviewStage("teacher"), false);
 
   assert.equal(canUploadProjectMaterial({ role: "leader", teamGroupId: "g1" }), true);
-  assert.equal(canUploadProjectMaterial({ role: "member", teamGroupId: "g1" }), true);
+  assert.equal(canUploadProjectMaterial({ role: "member", teamGroupId: "g1" }), false);
   assert.equal(canUploadProjectMaterial({ role: "member", teamGroupId: null }), false);
   assert.equal(canUploadProjectMaterial({ role: "teacher", teamGroupId: "g1" }), false);
+  assert.equal(canUploadProjectMaterial({ role: "admin", teamGroupId: null }), false);
 
   assert.equal(
     canReviewProjectMaterial({

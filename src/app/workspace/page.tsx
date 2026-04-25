@@ -14,6 +14,7 @@ const validTabs = [
   "experts",
   "review",
   "documents",
+  "project",
   "team",
   "assistant",
   "profile",

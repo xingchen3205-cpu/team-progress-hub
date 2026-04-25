@@ -29,7 +29,7 @@ export const canUploadProjectMaterial = ({
 }: {
   role: Role;
   teamGroupId: string | null;
-}) => (role === "leader" || role === "member") && Boolean(teamGroupId);
+}) => role === "leader" && Boolean(teamGroupId);
 
 export const canReviewProjectMaterial = ({
   role,
