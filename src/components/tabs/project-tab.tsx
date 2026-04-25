@@ -9,7 +9,7 @@ type StageDraft = {
   type: Workspace.ProjectReviewStageTypeKey;
   description: string;
   requiredMaterials: MaterialRequirementKey[];
-  teamGroupId: string;
+  teamGroupIds: string[];
   startAt: string;
   deadline: string;
   isOpen: boolean;
@@ -47,7 +47,7 @@ const defaultStageDraft: StageDraft = {
   type: "online_review",
   description: "",
   requiredMaterials: defaultRequiredMaterialsByStageType.online_review,
-  teamGroupId: "",
+  teamGroupIds: [],
   startAt: "",
   deadline: "",
   isOpen: true,
@@ -98,8 +98,38 @@ const isStageWithinActiveWindow = (stage: Workspace.ProjectReviewStageItem) => {
   return true;
 };
 
-const getStageScopeLabel = (stage: Workspace.ProjectReviewStageItem) =>
-  stage.teamGroup?.name ? `限定项目组：${stage.teamGroup.name}` : "全部项目组可提交";
+const getStageAllowedTeamGroupIds = (stage: Workspace.ProjectReviewStageItem) =>
+  stage.allowedTeamGroupIds ?? (stage.teamGroup?.id ? [stage.teamGroup.id] : []);
+
+const canCurrentTeamUseStage = (
+  stage: Workspace.ProjectReviewStageItem,
+  currentTeamGroupId?: string | null,
+) => {
+  if (!currentTeamGroupId) {
+    return false;
+  }
+
+  const allowedTeamGroupIds = getStageAllowedTeamGroupIds(stage);
+  return allowedTeamGroupIds.length === 0 || allowedTeamGroupIds.includes(currentTeamGroupId);
+};
+
+const getStageScopeLabel = (
+  stage: Workspace.ProjectReviewStageItem,
+  teamGroups: Workspace.TeamGroupItem[],
+) => {
+  const allowedTeamGroupIds = getStageAllowedTeamGroupIds(stage);
+  if (allowedTeamGroupIds.length === 0) {
+    return "全部项目组可提交";
+  }
+
+  const groupNames = allowedTeamGroupIds.map(
+    (groupId) =>
+      teamGroups.find((group) => group.id === groupId)?.name ??
+      (stage.teamGroup?.id === groupId ? stage.teamGroup.name : groupId),
+  );
+
+  return `开放项目组：${groupNames.join("、")}`;
+};
 
 const toApiDate = (value: string) => (value ? new Date(value).toISOString() : null);
 
@@ -162,7 +192,7 @@ export default function ProjectTab() {
         (stage) =>
           stage.isOpen &&
           isStageWithinActiveWindow(stage) &&
-          (!stage.teamGroup?.id || stage.teamGroup.id === currentUser?.teamGroupId),
+          canCurrentTeamUseStage(stage, currentUser?.teamGroupId),
       ),
     [currentUser?.teamGroupId, projectStages],
   );
@@ -199,7 +229,7 @@ export default function ProjectTab() {
       type: stage.type,
       description: stage.description ?? "",
       requiredMaterials: stage.requiredMaterials ?? defaultRequiredMaterialsByStageType[stage.type],
-      teamGroupId: stage.teamGroup?.id ?? "",
+      teamGroupIds: getStageAllowedTeamGroupIds(stage),
       startAt: stage.startAt ? toDateTimeInputValue(stage.startAt) : "",
       deadline: stage.deadline ? toDateTimeInputValue(stage.deadline) : "",
       isOpen: stage.isOpen,
@@ -214,6 +244,7 @@ export default function ProjectTab() {
 
     setIsSaving(true);
     try {
+      const teamGroupIds = [...new Set(stageDraft.teamGroupIds.filter(Boolean))];
       await requestJson<{ stage: Workspace.ProjectReviewStageItem }>(
         editingStageId ? `/api/project-stages/${editingStageId}` : "/api/project-stages",
         {
@@ -223,7 +254,8 @@ export default function ProjectTab() {
             type: stageDraft.type,
             description: stageDraft.description.trim() || null,
             requiredMaterials: stageDraft.requiredMaterials,
-            teamGroupId: stageDraft.teamGroupId || null,
+            teamGroupIds,
+            teamGroupId: teamGroupIds.length === 1 ? teamGroupIds[0] : null,
             startAt: toApiDate(stageDraft.startAt),
             deadline: toApiDate(stageDraft.deadline),
             isOpen: stageDraft.isOpen,
@@ -461,19 +493,53 @@ export default function ProjectTab() {
               </span>
             </label>
             <label className="block text-sm font-medium text-slate-700">
-              限定项目组
-              <select
-                className={fieldClassName}
-                onChange={(event) => setStageDraft((current) => ({ ...current, teamGroupId: event.target.value }))}
-                value={stageDraft.teamGroupId}
-              >
-                <option value="">全部项目组</option>
-                {teamGroups.map((group) => (
-                  <option key={group.id} value={group.id}>
-                    {group.name}
-                  </option>
-                ))}
-              </select>
+              开放项目组
+              <div className="mt-2 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <label className="flex items-center gap-2 rounded-lg bg-white px-3 py-2 text-sm text-slate-700 ring-1 ring-slate-200">
+                  <input
+                    checked={stageDraft.teamGroupIds.length === 0}
+                    className="h-4 w-4 rounded border-slate-300 text-blue-600"
+                    onChange={() => setStageDraft((current) => ({ ...current, teamGroupIds: [] }))}
+                    type="checkbox"
+                  />
+                  <span className="font-medium">全部项目组可提交</span>
+                </label>
+                <div className="mt-3 grid max-h-36 gap-2 overflow-y-auto sm:grid-cols-2">
+                  {teamGroups.map((group) => {
+                    const checked = stageDraft.teamGroupIds.includes(group.id);
+                    return (
+                      <label
+                        className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm ring-1 transition ${
+                          checked
+                            ? "bg-blue-50 text-blue-700 ring-blue-200"
+                            : "bg-white text-slate-600 ring-slate-200 hover:bg-slate-50"
+                        }`}
+                        key={group.id}
+                      >
+                        <input
+                          checked={checked}
+                          className="h-4 w-4 rounded border-slate-300 text-blue-600"
+                          onChange={(event) =>
+                            setStageDraft((current) => ({
+                              ...current,
+                              teamGroupIds: event.target.checked
+                                ? [...new Set([...current.teamGroupIds, group.id])]
+                                : current.teamGroupIds.filter((teamGroupId) => teamGroupId !== group.id),
+                            }))
+                          }
+                          type="checkbox"
+                        />
+                        <span className="truncate">{group.name}</span>
+                      </label>
+                    );
+                  })}
+                </div>
+                <p className="mt-2 text-xs text-slate-400">
+                  {stageDraft.teamGroupIds.length === 0
+                    ? "当前面向全部项目组开放。"
+                    : `已选择 ${stageDraft.teamGroupIds.length} 个项目组。`}
+                </p>
+              </div>
             </label>
             <label className="flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm font-medium text-slate-700">
               <input
@@ -698,7 +764,9 @@ export default function ProjectTab() {
                           {stage.isOpen ? "开放中" : "已关闭"}
                         </span>
                       </div>
-                      <p className="mt-2 text-sm text-slate-500">{stage.description || getStageScopeLabel(stage)}</p>
+                      <p className="mt-2 text-sm text-slate-500">
+                        {stage.description || getStageScopeLabel(stage, teamGroups)}
+                      </p>
                       <div className="mt-3 flex flex-wrap gap-2">
                         {(stage.requiredMaterials ?? defaultRequiredMaterialsByStageType[stage.type]).map((requirement) => (
                           <span

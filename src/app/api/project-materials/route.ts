@@ -8,6 +8,7 @@ import { assertMainWorkspaceRole } from "@/lib/permissions";
 import { verifyProjectMaterialUploadToken } from "@/lib/project-material-upload-token";
 import {
   buildProjectMaterialVisibilityWhere,
+  canTeamGroupAccessProjectStage,
   canUploadProjectMaterial,
   parseProjectStageDescription,
   type ProjectMaterialRequirementKey,
@@ -200,7 +201,14 @@ const validateStageForProjectMaterialSubmission = (
     return NextResponse.json({ message: "项目评审阶段未开放" }, { status: 409 });
   }
 
-  if (stage.teamGroupId && stage.teamGroupId !== user.teamGroupId) {
+  const stageMeta = parseProjectStageDescription(stage.description, stage.type);
+  if (
+    !canTeamGroupAccessProjectStage({
+      allowedTeamGroupIds: stageMeta.allowedTeamGroupIds,
+      legacyTeamGroupId: stage.teamGroupId,
+      actorTeamGroupId: user.teamGroupId,
+    })
+  ) {
     return NextResponse.json({ message: "无权限上传该阶段项目材料" }, { status: 403 });
   }
 
@@ -209,7 +217,6 @@ const validateStageForProjectMaterialSubmission = (
     return NextResponse.json({ message: "当前不在项目材料提交时间范围内" }, { status: 409 });
   }
 
-  const stageMeta = parseProjectStageDescription(stage.description, stage.type);
   if (!stageMeta.requiredMaterials.includes(materialKind)) {
     return NextResponse.json({ message: "该阶段未要求上传此类材料" }, { status: 400 });
   }

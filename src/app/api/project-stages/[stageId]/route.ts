@@ -6,7 +6,9 @@ import { serializeProjectReviewStage } from "@/lib/api-serializers";
 import { assertMainWorkspaceRole, hasGlobalAdminPrivileges } from "@/lib/permissions";
 import {
   canManageProjectReviewStage,
+  canTeamGroupAccessProjectStage,
   encodeProjectStageDescription,
+  parseProjectStageDescription,
   type ProjectMaterialRequirementKey,
 } from "@/lib/project-materials";
 import { prisma } from "@/lib/prisma";
@@ -72,6 +74,36 @@ const parseOptionalDate = (value: unknown) => {
   return { date };
 };
 
+const normalizeBodyTeamGroupIds = (body: Record<string, unknown>) => {
+  if (Array.isArray(body.teamGroupIds)) {
+    return [
+      ...new Set(
+        body.teamGroupIds
+          .filter((item): item is string => typeof item === "string")
+          .map((item) => item.trim())
+          .filter(Boolean),
+      ),
+    ];
+  }
+
+  const legacyTeamGroupId = typeof body.teamGroupId === "string" ? body.teamGroupId.trim() : "";
+  return legacyTeamGroupId ? [legacyTeamGroupId] : [];
+};
+
+const validateTeamGroupsExist = async (teamGroupIds: string[]) => {
+  if (teamGroupIds.length === 0) {
+    return null;
+  }
+
+  const existingCount = await prisma.teamGroup.count({
+    where: { id: { in: teamGroupIds } },
+  });
+
+  return existingCount === teamGroupIds.length
+    ? null
+    : NextResponse.json({ message: "项目组不存在" }, { status: 400 });
+};
+
 const parseProjectStageBody = async (request: NextRequest) => {
   const body = (await request.json().catch(() => null)) as Record<string, unknown> | null;
 
@@ -85,6 +117,9 @@ const parseProjectStageBody = async (request: NextRequest) => {
     (body.teamGroupId !== null &&
       body.teamGroupId !== undefined &&
       typeof body.teamGroupId !== "string") ||
+    (body.teamGroupIds !== undefined &&
+      (!Array.isArray(body.teamGroupIds) ||
+        body.teamGroupIds.some((item) => typeof item !== "string"))) ||
     (body.isOpen !== undefined && typeof body.isOpen !== "boolean")
   ) {
     return { error: NextResponse.json({ message: "项目评审阶段信息无效" }, { status: 400 }) };
@@ -93,7 +128,8 @@ const parseProjectStageBody = async (request: NextRequest) => {
   const name = body?.name?.trim();
   const stageType = body?.type?.trim() as ProjectReviewStageType | undefined;
   const description = typeof body.description === "string" ? body.description.trim() || null : null;
-  const teamGroupId = typeof body.teamGroupId === "string" ? body.teamGroupId.trim() || null : null;
+  const teamGroupIds = normalizeBodyTeamGroupIds(body);
+  const teamGroupId = teamGroupIds.length === 1 ? teamGroupIds[0] : null;
   const isOpen = body.isOpen === true;
   const requiredMaterials = Array.isArray(body.requiredMaterials)
     ? (body.requiredMaterials.filter((item): item is ProjectMaterialRequirementKey => typeof item === "string") as ProjectMaterialRequirementKey[])
@@ -120,6 +156,7 @@ const parseProjectStageBody = async (request: NextRequest) => {
       startAt: parsedStartAt.date,
       deadline: parsedDeadline.date,
       teamGroupId,
+      teamGroupIds,
     },
   };
 };
@@ -149,17 +186,25 @@ export async function GET(
   const { stageId } = await params;
 
   const stage = await prisma.projectReviewStage.findFirst({
-    where: {
-      id: stageId,
-      ...(hasGlobalAdminPrivileges(user.role)
-        ? {}
-        : { OR: [{ teamGroupId: null }, { teamGroupId: user.teamGroupId }] }),
-    },
+    where: { id: stageId },
     include: projectReviewStageInclude,
   });
 
   if (!stage) {
     return NextResponse.json({ message: "项目评审阶段不存在" }, { status: 404 });
+  }
+
+  if (!hasGlobalAdminPrivileges(user.role)) {
+    const stageMeta = parseProjectStageDescription(stage.description, stage.type);
+    const canAccessStage = canTeamGroupAccessProjectStage({
+      allowedTeamGroupIds: stageMeta.allowedTeamGroupIds,
+      legacyTeamGroupId: stage.teamGroupId,
+      actorTeamGroupId: user.teamGroupId,
+    });
+
+    if (!canAccessStage) {
+      return NextResponse.json({ message: "项目评审阶段不存在" }, { status: 404 });
+    }
   }
 
   return NextResponse.json({ stage: serializeProjectReviewStage(stage) });
@@ -180,8 +225,13 @@ export async function PUT(
     return parsedBody.error;
   }
 
-  const { name, stageType, description, requiredMaterials, isOpen, startAt, deadline, teamGroupId } =
+  const { name, stageType, description, requiredMaterials, isOpen, startAt, deadline, teamGroupId, teamGroupIds } =
     parsedBody.data;
+
+  const teamGroupError = await validateTeamGroupsExist(teamGroupIds);
+  if (teamGroupError) {
+    return teamGroupError;
+  }
 
   try {
     const stage = await prisma.projectReviewStage.update({
@@ -189,7 +239,11 @@ export async function PUT(
       data: {
         name,
         type: stageType,
-        description: encodeProjectStageDescription({ description, requiredMaterials }),
+        description: encodeProjectStageDescription({
+          description,
+          requiredMaterials,
+          allowedTeamGroupIds: teamGroupIds,
+        }),
         isOpen,
         startAt,
         deadline,

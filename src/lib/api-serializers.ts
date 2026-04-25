@@ -541,7 +541,12 @@ export const serializeProjectReviewStage = (stage: ProjectReviewStageWithRelatio
     type: stage.type,
     typeLabel: stage.type === "online_review" ? "网络评审" : "路演材料",
     description: stageMeta.description,
-    ...(hasStageMeta ? { requiredMaterials: stageMeta.requiredMaterials } : {}),
+    ...(hasStageMeta
+      ? {
+          requiredMaterials: stageMeta.requiredMaterials,
+          allowedTeamGroupIds: stageMeta.allowedTeamGroupIds,
+        }
+      : {}),
     isOpen: stage.isOpen,
     startAt: stage.startAt?.toISOString() ?? null,
     deadline: stage.deadline?.toISOString() ?? null,

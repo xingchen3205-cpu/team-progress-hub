@@ -374,6 +374,7 @@ export type ProjectReviewStageItem = {
   typeLabel: string;
   description: string | null;
   requiredMaterials?: Array<"plan_pdf" | "ppt_pdf" | "video_20mb">;
+  allowedTeamGroupIds?: string[];
   isOpen: boolean;
   startAt: string | null;
   deadline: string | null;

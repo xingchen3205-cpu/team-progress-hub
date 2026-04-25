@@ -80,16 +80,34 @@ const normalizeProjectMaterialRequirements = (
   return normalized.length > 0 ? [...new Set(normalized)] : defaultProjectMaterialRequirementsByStageType[stageType];
 };
 
+const normalizeProjectStageTeamGroupIds = (value: unknown) => {
+  if (!Array.isArray(value)) {
+    return [];
+  }
+
+  return [
+    ...new Set(
+      value
+        .filter((item): item is string => typeof item === "string")
+        .map((item) => item.trim())
+        .filter(Boolean),
+    ),
+  ];
+};
+
 export const encodeProjectStageDescription = ({
   description,
   requiredMaterials,
+  allowedTeamGroupIds,
 }: {
   description?: string | null;
   requiredMaterials?: ProjectMaterialRequirementKey[];
+  allowedTeamGroupIds?: string[];
 }) =>
   `${PROJECT_STAGE_DESCRIPTION_META_PREFIX}${JSON.stringify({
     description: description?.trim() || "",
     requiredMaterials: normalizeProjectMaterialRequirements(requiredMaterials),
+    allowedTeamGroupIds: normalizeProjectStageTeamGroupIds(allowedTeamGroupIds),
   })}`;
 
 export const parseProjectStageDescription = (
@@ -99,6 +117,7 @@ export const parseProjectStageDescription = (
   const fallback = {
     description: value ?? "",
     requiredMaterials: defaultProjectMaterialRequirementsByStageType[stageType],
+    allowedTeamGroupIds: [] as string[],
   };
 
   if (!value?.startsWith(PROJECT_STAGE_DESCRIPTION_META_PREFIX)) {
@@ -110,10 +129,32 @@ export const parseProjectStageDescription = (
     return {
       description: typeof parsed.description === "string" ? parsed.description : "",
       requiredMaterials: normalizeProjectMaterialRequirements(parsed.requiredMaterials, stageType),
+      allowedTeamGroupIds: normalizeProjectStageTeamGroupIds(parsed.allowedTeamGroupIds),
     };
   } catch {
     return fallback;
   }
+};
+
+export const canTeamGroupAccessProjectStage = ({
+  allowedTeamGroupIds,
+  legacyTeamGroupId,
+  actorTeamGroupId,
+}: {
+  allowedTeamGroupIds?: string[];
+  legacyTeamGroupId?: string | null;
+  actorTeamGroupId: string | null;
+}) => {
+  if (!actorTeamGroupId) {
+    return false;
+  }
+
+  const normalizedAllowedIds = normalizeProjectStageTeamGroupIds(allowedTeamGroupIds);
+  if (normalizedAllowedIds.length > 0) {
+    return normalizedAllowedIds.includes(actorTeamGroupId);
+  }
+
+  return !legacyTeamGroupId || legacyTeamGroupId === actorTeamGroupId;
 };
 
 export const canManageProjectReviewStage = (role: Role) => hasGlobalAdminPrivileges(role);

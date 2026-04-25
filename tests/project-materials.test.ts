@@ -13,6 +13,9 @@ import {
 } from "@/lib/project-material-upload-token";
 import {
   buildProjectMaterialVisibilityWhere,
+  canTeamGroupAccessProjectStage,
+  encodeProjectStageDescription,
+  parseProjectStageDescription,
   canManageProjectReviewStage,
   canReviewProjectMaterial,
   canUploadProjectMaterial,
@@ -469,7 +472,7 @@ test("project material listing and submission route enforces visibility upload a
     /canUploadProjectMaterial\(\{ role: user\.role, teamGroupId: user\.teamGroupId \}\)/,
   );
   assert.match(materialRoute, /stage\.isOpen/);
-  assert.match(materialRoute, /stage\.teamGroupId && stage\.teamGroupId !== user\.teamGroupId/);
+  assert.match(materialRoute, /canTeamGroupAccessProjectStage/);
   assert.match(materialRoute, /isScopedProjectMaterialFilePath/);
   assert.match(materialRoute, /cleanupScopedProjectMaterialFile/);
   assert.match(materialRoute, /projectMaterialSubmission\s*\.\s*count/);
@@ -489,7 +492,7 @@ test("project material upload-url route validates stage and builds project mater
 
   assert.match(uploadRoute, /stageId/);
   assert.match(uploadRoute, /stage\.isOpen/);
-  assert.match(uploadRoute, /stage\.teamGroupId && stage\.teamGroupId !== user\.teamGroupId/);
+  assert.match(uploadRoute, /canTeamGroupAccessProjectStage/);
   assert.match(uploadRoute, /validateProjectMaterialUploadMeta/);
   assert.match(uploadRoute, /buildStoredObjectKey/);
   assert.match(uploadRoute, /project-materials\/\$\{teamGroupId\}\/\$\{stageId\}/);
@@ -521,6 +524,54 @@ test("project stages store configurable material requirements without schema mig
   assert.match(projectTab, /计划书 PDF/);
   assert.match(projectTab, /PPT PDF/);
   assert.match(projectTab, /视频/);
+});
+
+test("project stage metadata supports editable multi group scope without schema migration", () => {
+  const encoded = encodeProjectStageDescription({
+    description: "第一轮开放",
+    requiredMaterials: ["ppt_pdf", "plan_pdf"],
+    allowedTeamGroupIds: ["g1", "g2", "g1", ""],
+  });
+  const parsed = parseProjectStageDescription(encoded, "online_review");
+
+  assert.deepEqual(parsed.allowedTeamGroupIds, ["g1", "g2"]);
+  assert.equal(canTeamGroupAccessProjectStage({ allowedTeamGroupIds: parsed.allowedTeamGroupIds, legacyTeamGroupId: null, actorTeamGroupId: "g1" }), true);
+  assert.equal(canTeamGroupAccessProjectStage({ allowedTeamGroupIds: parsed.allowedTeamGroupIds, legacyTeamGroupId: null, actorTeamGroupId: "g3" }), false);
+  assert.equal(canTeamGroupAccessProjectStage({ allowedTeamGroupIds: [], legacyTeamGroupId: null, actorTeamGroupId: "g9" }), true);
+  assert.equal(canTeamGroupAccessProjectStage({ allowedTeamGroupIds: [], legacyTeamGroupId: "legacy", actorTeamGroupId: "legacy" }), true);
+  assert.equal(canTeamGroupAccessProjectStage({ allowedTeamGroupIds: [], legacyTeamGroupId: "legacy", actorTeamGroupId: "other" }), false);
+});
+
+test("project stage edit form and routes expose multi group scope", () => {
+  const stageRoute = readFileSync(
+    path.join(process.cwd(), "src/app/api/project-stages/route.ts"),
+    "utf8",
+  );
+  const stageItemRoute = readFileSync(
+    path.join(process.cwd(), "src/app/api/project-stages/[stageId]/route.ts"),
+    "utf8",
+  );
+  const materialRoute = readFileSync(
+    path.join(process.cwd(), "src/app/api/project-materials/route.ts"),
+    "utf8",
+  );
+  const uploadRoute = readFileSync(
+    path.join(process.cwd(), "src/app/api/project-materials/upload-url/route.ts"),
+    "utf8",
+  );
+  const projectTab = readFileSync(
+    path.join(process.cwd(), "src/components/tabs/project-tab.tsx"),
+    "utf8",
+  );
+
+  assert.match(stageRoute, /teamGroupIds/);
+  assert.match(stageItemRoute, /teamGroupIds/);
+  assert.match(materialRoute, /canTeamGroupAccessProjectStage/);
+  assert.match(uploadRoute, /canTeamGroupAccessProjectStage/);
+  assert.match(projectTab, /teamGroupIds/);
+  assert.match(projectTab, /开放项目组/);
+  assert.match(projectTab, /stageDraft\.teamGroupIds\.length/);
+  assert.match(projectTab, /全部项目组可提交/);
 });
 
 test("project material upload validates the selected required material kind", () => {
