@@ -72,8 +72,10 @@ import { WorkspaceAssistant } from "@/components/assistant/workspace-assistant";
 import type { AiPermissionState } from "@/components/assistant/assistant-types";
 import { PdfPreview } from "@/components/pdf-preview";
 import {
+  formatBeijingDateTimeInput,
   formatBeijingDateTimeShort,
   formatBeijingFriendlyDate,
+  getBeijingDateTimeInputAtHour,
   toIsoDateKey,
 } from "@/lib/date";
 import {
@@ -1470,8 +1472,10 @@ export const defaultExpertReviewAssignmentDraft = (
   materialSubmissionIds: [],
   roundLabel: "校内专家预审",
   overview: "",
-  deadline: "2026-04-10T18:00",
+  deadline: getDefaultReviewAssignmentDeadline(),
 });
+
+export const getDefaultReviewAssignmentDeadline = () => getBeijingDateTimeInputAtHour(new Date(), 18);
 
 export const defaultExpertReviewMaterialDraft = (): ExpertReviewMaterialDraft => ({
   kind: "plan",
@@ -1982,6 +1986,7 @@ function useWorkspaceController({
   const [reviewAssignmentDraft, setReviewAssignmentDraft] = useState<ExpertReviewAssignmentDraft>(
     defaultExpertReviewAssignmentDraft(),
   );
+  const [reviewAssignmentEditAssignmentId, setReviewAssignmentEditAssignmentId] = useState<string | null>(null);
   const [reviewMaterialModalOpen, setReviewMaterialModalOpen] = useState(false);
   const [reviewMaterialTargetId, setReviewMaterialTargetId] = useState<string | null>(null);
   const [reviewMaterialDraft, setReviewMaterialDraft] = useState<ExpertReviewMaterialDraft>(
@@ -5193,12 +5198,67 @@ function useWorkspaceController({
     }
   };
 
-  const openReviewAssignmentModal = () => {
+  const openReviewAssignmentModal = (assignmentsToEdit?: ExpertReviewAssignmentItem[]) => {
+    const editAssignments = assignmentsToEdit?.filter(Boolean) ?? [];
+
+    if (editAssignments.length > 0) {
+      const firstAssignment = editAssignments[0];
+      setReviewAssignmentEditAssignmentId(firstAssignment.id);
+      setReviewAssignmentDraft({
+        expertUserId: firstAssignment.expert.id,
+        expertUserIds: editAssignments.map((assignment) => assignment.expert.id),
+        targetName: firstAssignment.targetName,
+        stageId: "",
+        materialSubmissionIds: [],
+        roundLabel: firstAssignment.roundLabel,
+        overview: firstAssignment.overview,
+        deadline: firstAssignment.deadline
+          ? formatBeijingDateTimeInput(firstAssignment.deadline)
+          : getDefaultReviewAssignmentDeadline(),
+      });
+      setReviewAssignmentModalOpen(true);
+      return;
+    }
+
+    setReviewAssignmentEditAssignmentId(null);
     setReviewAssignmentDraft(defaultExpertReviewAssignmentDraft(expertMembers[0]?.id ?? ""));
     setReviewAssignmentModalOpen(true);
   };
 
   const saveReviewAssignment = async () => {
+    if (reviewAssignmentEditAssignmentId) {
+      if (reviewAssignmentDraft.expertUserIds.length === 0) {
+        setLoadError("请至少保留一位评审专家");
+        return;
+      }
+
+      setIsSaving(true);
+      try {
+        await requestJson(`/api/expert-reviews/assignments/${reviewAssignmentEditAssignmentId}`, {
+          method: "PATCH",
+          body: JSON.stringify({
+            expertUserIds: reviewAssignmentDraft.expertUserIds,
+            roundLabel: reviewAssignmentDraft.roundLabel.trim(),
+            overview: reviewAssignmentDraft.overview.trim(),
+            deadline: reviewAssignmentDraft.deadline
+              ? new Date(reviewAssignmentDraft.deadline).toISOString()
+              : null,
+          }),
+        });
+
+        setReviewAssignmentModalOpen(false);
+        setReviewAssignmentEditAssignmentId(null);
+        setReviewAssignmentDraft(defaultExpertReviewAssignmentDraft(expertMembers[0]?.id ?? ""));
+        showSuccessToast("评审包已更新", "截止时间、说明和专家名单已同步到专家端。");
+        refreshWorkspace();
+      } catch (error) {
+        setLoadError(error instanceof Error ? error.message : "评审任务更新失败");
+      } finally {
+        setIsSaving(false);
+      }
+      return;
+    }
+
     if (!reviewAssignmentDraft.stageId) {
       setLoadError("请先选择项目管理轮次");
       return;
@@ -5231,6 +5291,7 @@ function useWorkspaceController({
       });
 
       setReviewAssignmentModalOpen(false);
+      setReviewAssignmentEditAssignmentId(null);
       setReviewAssignmentDraft(defaultExpertReviewAssignmentDraft(expertMembers[0]?.id ?? ""));
       showSuccessToast("评审任务已生成", "已按项目管理轮次分配给专家。");
       refreshWorkspace();
@@ -6145,6 +6206,8 @@ function useWorkspaceController({
     setReviewAssignmentModalOpen,
     reviewAssignmentDraft,
     setReviewAssignmentDraft,
+    reviewAssignmentEditAssignmentId,
+    setReviewAssignmentEditAssignmentId,
     reviewMaterialModalOpen,
     setReviewMaterialModalOpen,
     reviewMaterialTargetId,

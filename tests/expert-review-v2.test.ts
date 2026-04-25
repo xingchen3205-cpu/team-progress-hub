@@ -157,4 +157,28 @@ describe("expert review v2 constraints", () => {
     assert.doesNotMatch(shellSource, /和主文档中心完全分离/);
     assert.match(tabSource, /项目管理已生效材料/);
   });
+
+  it("uses current Beijing date or selected project stage deadline instead of stale hardcoded review deadline", () => {
+    const contextSource = readSource("src/components/workspace-context.tsx");
+    const shellSource = readSource("src/components/workspace-shell.tsx");
+
+    assert.doesNotMatch(contextSource, /2026-04-10T18:00/);
+    assert.match(contextSource, /getDefaultReviewAssignmentDeadline/);
+    assert.match(contextSource, /formatBeijingDateTimeInput/);
+    assert.match(shellSource, /selectedStage\?\.deadline/);
+    assert.match(shellSource, /deadline:\s*selectedStage\?\.deadline\s*\?/);
+  });
+
+  it("allows administrators to edit review packages without deleting submitted expert scores", () => {
+    const routeSource = readSource("src/app/api/expert-reviews/assignments/[id]/route.ts");
+    const contextSource = readSource("src/components/workspace-context.tsx");
+    const tabSource = readSource("src/components/tabs/expert-review-tab.tsx");
+
+    assert.match(routeSource, /export async function PATCH/);
+    assert.match(routeSource, /已有评分的专家不能从本轮移除/);
+    assert.match(routeSource, /createMany/);
+    assert.match(contextSource, /reviewAssignmentEditAssignmentId/);
+    assert.match(contextSource, /method:\s*"PATCH"/);
+    assert.match(tabSource, /编辑当前评审包/);
+  });
 });

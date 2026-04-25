@@ -931,13 +931,22 @@ export default function ExpertReviewTab() {
               </div>
             </article>
             {canManageReviewMaterials && activeGroup ? (
-              <button
-                className="w-full rounded-2xl border border-rose-100 bg-white px-4 py-3 text-sm font-semibold text-rose-600 transition hover:bg-rose-50"
-                onClick={() => deleteReviewAssignment(activeGroup.items[0].id, activeGroup.targetName)}
-                type="button"
-              >
-                删除当前评审包
-              </button>
+              <div className="space-y-3">
+                <button
+                  className="w-full rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-700 transition hover:bg-blue-100"
+                  onClick={() => openReviewAssignmentModal(activeGroup.items)}
+                  type="button"
+                >
+                  编辑当前评审包
+                </button>
+                <button
+                  className="w-full rounded-2xl border border-rose-100 bg-white px-4 py-3 text-sm font-semibold text-rose-600 transition hover:bg-rose-50"
+                  onClick={() => deleteReviewAssignment(activeGroup.items[0].id, activeGroup.targetName)}
+                  type="button"
+                >
+                  删除当前评审包
+                </button>
+              </div>
             ) : null}
           </aside>
         </div>

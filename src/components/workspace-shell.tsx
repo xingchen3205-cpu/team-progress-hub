@@ -88,6 +88,8 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
     setReviewAssignmentModalOpen,
     reviewAssignmentDraft,
     setReviewAssignmentDraft,
+    reviewAssignmentEditAssignmentId,
+    setReviewAssignmentEditAssignmentId,
     reviewMaterialModalOpen,
     setReviewMaterialModalOpen,
     reviewMaterialDraft,
@@ -232,6 +234,11 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
   } = Workspace;
 
   const selectedReviewStage = projectStages.find((stage) => stage.id === reviewAssignmentDraft.stageId) ?? null;
+  const isEditingReviewAssignment = Boolean(reviewAssignmentEditAssignmentId);
+  const closeReviewAssignmentModal = () => {
+    setReviewAssignmentModalOpen(false);
+    setReviewAssignmentEditAssignmentId(null);
+  };
   const approvedProjectMaterialsForReview = projectMaterials.filter(
     (material) =>
       material.status === "approved" &&
@@ -305,32 +312,38 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
   if (currentRole === "expert") {
     return (
       <>
-        <main className="min-h-screen bg-[#f6f8fc] px-5 py-6">
-          <div className="mx-auto flex min-h-[calc(100vh-3rem)] max-w-[1240px] flex-col rounded-[28px] border border-slate-200 bg-white/75 shadow-[0_24px_80px_rgba(15,23,42,0.08)]">
-            <header className="flex flex-col gap-4 border-b border-slate-200/80 px-6 py-5 md:flex-row md:items-center md:justify-between lg:px-8">
-              <div className="flex items-center gap-4">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-blue-100 bg-blue-50">
-                  <Image alt="南铁校徽" className="h-8 w-8 object-contain" height={77} src="/official-logo.png" width={430} />
+        <main className="min-h-screen bg-[#eef4fb] px-5 py-6">
+          <div className="mx-auto flex min-h-[calc(100vh-3rem)] max-w-[1240px] flex-col overflow-hidden rounded-[30px] border border-blue-100 bg-white shadow-[0_28px_90px_rgba(15,45,91,0.12)]">
+            <header className="relative overflow-hidden px-6 py-6 text-white md:px-8">
+              <div aria-hidden className="absolute inset-0 bg-[linear-gradient(115deg,#073b82_0%,#1765f3_58%,#4aa3ff_100%)]" />
+              <div aria-hidden className="absolute -right-20 -top-28 h-72 w-72 rounded-full border border-white/20" />
+              <div aria-hidden className="absolute right-16 top-8 h-32 w-32 rounded-full border border-white/15" />
+              <div aria-hidden className="absolute bottom-0 right-0 h-32 w-[420px] bg-[radial-gradient(circle_at_70%_80%,rgba(255,255,255,0.28),transparent_60%)]" />
+              <div className="relative z-[1] flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+                <div className="flex items-center gap-4">
+                  <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-white/25 bg-white/15 shadow-[0_16px_40px_rgba(0,0,0,0.12)] backdrop-blur">
+                    <Image alt="南铁校徽" className="h-9 w-9 object-contain brightness-0 invert" height={77} src="/official-logo.png" width={430} />
+                  </div>
+                  <div>
+                    <p className="text-xs font-semibold tracking-[0.2em] text-blue-100">EXPERT REVIEW PORTAL</p>
+                    <h1 className="mt-1 text-2xl font-bold tracking-tight">大学生创新大赛评审系统</h1>
+                    <p className="mt-1 text-sm text-blue-100">南京铁道职业技术学院 · 专家评审入口</p>
+                  </div>
                 </div>
-                <div>
-                  <p className="text-xs font-semibold tracking-[0.18em] text-blue-600">EXPERT REVIEW PORTAL</p>
-                  <h1 className="mt-1 text-xl font-bold tracking-tight text-slate-950">大学生创新大赛评审系统</h1>
-                  <p className="mt-1 text-sm text-slate-500">南京铁道职业技术学院</p>
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="rounded-2xl border border-white/20 bg-white/12 px-4 py-2.5 text-sm text-blue-50 backdrop-blur">
+                    <span className="text-blue-100">当前专家</span>
+                    <span className="ml-2 font-semibold text-white">{currentUser.profile.name}</span>
+                  </div>
+                  <button
+                    className="inline-flex items-center gap-2 rounded-2xl border border-white/20 bg-white/10 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-white/20"
+                    onClick={() => void handleLogout()}
+                    type="button"
+                  >
+                    <LogOut className="h-4 w-4" />
+                    <span>退出</span>
+                  </button>
                 </div>
-              </div>
-              <div className="flex flex-wrap items-center gap-3">
-                <div className="rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-600">
-                  <span className="text-slate-400">当前专家</span>
-                  <span className="ml-2 font-semibold text-slate-900">{currentUser.profile.name}</span>
-                </div>
-                <button
-                  className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
-                  onClick={() => void handleLogout()}
-                  type="button"
-                >
-                  <LogOut className="h-4 w-4" />
-                  <span>退出</span>
-                </button>
               </div>
             </header>
 
@@ -1443,31 +1456,43 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
       ) : null}
 
       {reviewAssignmentModalOpen ? (
-        <Modal title="从项目管理分配专家评审" onClose={() => setReviewAssignmentModalOpen(false)}>
+        <Modal
+          title={isEditingReviewAssignment ? "编辑专家评审设置" : "从项目管理分配专家评审"}
+          onClose={closeReviewAssignmentModal}
+        >
           <div className="space-y-4">
-            <label className="block text-sm text-slate-500">
-              选择项目管理轮次
-              <select
-                className={fieldClassName}
-                value={reviewAssignmentDraft.stageId}
-                onChange={(event) =>
-                  setReviewAssignmentDraft((current) => ({
-                    ...current,
-                    stageId: event.target.value,
-                    materialSubmissionIds: [],
-                    roundLabel:
-                      projectStages.find((stage) => stage.id === event.target.value)?.name || current.roundLabel,
-                  }))
-                }
-              >
-                <option value="">请选择已创建的项目管理轮次</option>
-                {projectStages.map((stage) => (
-                  <option key={stage.id} value={stage.id}>
-                    {stage.name} · {stage.typeLabel}
-                  </option>
-                ))}
-              </select>
-            </label>
+            {isEditingReviewAssignment ? (
+              <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-blue-800">
+                正在编辑已生成的评审包。可调整轮次名称、截止时间、说明和专家名单；已有评分的专家不会被移除，避免误删成绩。
+              </div>
+            ) : (
+              <label className="block text-sm text-slate-500">
+                选择项目管理轮次
+                <select
+                  className={fieldClassName}
+                  value={reviewAssignmentDraft.stageId}
+                  onChange={(event) => {
+                    const selectedStage = projectStages.find((stage) => stage.id === event.target.value) ?? null;
+                    setReviewAssignmentDraft((current) => ({
+                      ...current,
+                      stageId: event.target.value,
+                      materialSubmissionIds: [],
+                      roundLabel: selectedStage?.name || current.roundLabel,
+                      deadline: selectedStage?.deadline
+                        ? Workspace.formatBeijingDateTimeInput(selectedStage.deadline)
+                        : current.deadline,
+                    }));
+                  }}
+                >
+                  <option value="">请选择已创建的项目管理轮次</option>
+                  {projectStages.map((stage) => (
+                    <option key={stage.id} value={stage.id}>
+                      {stage.name} · {stage.typeLabel}
+                    </option>
+                  ))}
+                </select>
+              </label>
+            )}
 
             <div className="grid gap-4 md:grid-cols-2">
               <label className="block text-sm text-slate-500">
@@ -1493,6 +1518,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
               </label>
             </div>
 
+            {!isEditingReviewAssignment ? (
             <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
               <div className="flex items-center justify-between gap-3">
                 <div>
@@ -1544,6 +1570,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                 )}
               </div>
             </div>
+            ) : null}
 
             <div className="rounded-2xl border border-slate-200 bg-white p-4">
               <p className="text-sm font-semibold text-slate-700">批量选择专家</p>
@@ -1587,7 +1614,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
               专家评审轮次直接复用项目管理阶段；网络评审展示已生效材料，路演评审只开放打分权限。
             </p>
             <ModalActions>
-              <ActionButton disabled={isSaving} onClick={() => setReviewAssignmentModalOpen(false)}>
+              <ActionButton disabled={isSaving} onClick={closeReviewAssignmentModal}>
                 取消
               </ActionButton>
               <ActionButton
@@ -1596,7 +1623,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                 onClick={saveReviewAssignment}
                 variant="primary"
               >
-                保存评审任务
+                {isEditingReviewAssignment ? "保存修改" : "保存评审任务"}
               </ActionButton>
             </ModalActions>
           </div>

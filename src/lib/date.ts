@@ -35,6 +35,7 @@ const beijingDateTimeFormatter = new Intl.DateTimeFormat("zh-CN", {
   hour: "2-digit",
   minute: "2-digit",
   hour12: false,
+  hourCycle: "h23",
 });
 
 const beijingDateFormatter = new Intl.DateTimeFormat("zh-CN", {
@@ -82,6 +83,16 @@ export const formatBeijingDateTime = (value: Date | string) => {
 export const formatBeijingDateTimeShort = (value: Date | string) => {
   const { month, day, hour, minute } = getBeijingParts(value);
   return `${month}/${day} ${hour}:${minute}`;
+};
+
+export const formatBeijingDateTimeInput = (value: Date | string) => {
+  const { year, month, day, hour, minute } = getBeijingParts(value);
+  return `${year}-${month}-${day}T${hour}:${minute}`;
+};
+
+export const getBeijingDateTimeInputAtHour = (now = new Date(), hour = 18) => {
+  const { year, month, day } = getBeijingParts(now);
+  return `${year}-${month}-${day}T${String(hour).padStart(2, "0")}:00`;
 };
 
 export const formatBeijingFriendlyDate = (value: Date | string) => {
