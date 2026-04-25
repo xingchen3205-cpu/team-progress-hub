@@ -439,7 +439,10 @@ export const serializeDocumentVersion = (
 
 export const serializeDocument = (
   document: Document & {
-    owner: Pick<User, "id" | "name">;
+    owner: Pick<User, "id" | "name"> & {
+      teamGroupId?: string | null;
+      teamGroup?: Pick<TeamGroup, "id" | "name"> | null;
+    };
     teamGroup?: Pick<TeamGroup, "id" | "name"> | null;
     versions: Array<
       DocumentVersion & {
@@ -458,8 +461,8 @@ export const serializeDocument = (
     name: document.name,
     category: categoryLabels[document.category],
     ownerId: document.ownerId,
-    teamGroupId: document.teamGroupId ?? null,
-    teamGroupName: document.teamGroup?.name ?? null,
+    teamGroupId: document.teamGroupId ?? document.owner.teamGroupId ?? null,
+    teamGroupName: document.teamGroup?.name ?? document.owner.teamGroup?.name ?? null,
     ownerName: document.owner.name,
     statusKey: document.status,
     status: statusLabels[document.status],

@@ -35,7 +35,7 @@ describe("team-scoped workspace visibility", () => {
 
     assert.deepEqual(
       buildDocumentVisibilityWhere({ id: "member-1", role: "member", teamGroupId: "group-a" }),
-      { OR: [{ ownerId: "member-1" }, { teamGroupId: "group-a" }] },
+      { OR: [{ ownerId: "member-1" }, { teamGroupId: "group-a" }, { owner: { teamGroupId: "group-a" } }] },
     );
 
     assert.deepEqual(
@@ -95,6 +95,13 @@ describe("team-scoped workspace visibility", () => {
       canAccessTeamScopedResource(
         { id: "teacher-1", role: "teacher", teamGroupId: "group-a" },
         { ownerId: "other-user", teamGroupId: "group-a" },
+      ),
+      true,
+    );
+    assert.equal(
+      canAccessTeamScopedResource(
+        { id: "teacher-1", role: "teacher", teamGroupId: "group-a" },
+        { ownerId: "other-user", teamGroupId: null, owner: { teamGroupId: "group-a" } },
       ),
       true,
     );

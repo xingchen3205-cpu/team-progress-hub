@@ -32,7 +32,14 @@ export async function GET(request: NextRequest) {
     orderBy: { createdAt: "desc" },
     include: {
       owner: {
-        select: { id: true, name: true },
+        select: {
+          id: true,
+          name: true,
+          teamGroupId: true,
+          teamGroup: {
+            select: { id: true, name: true },
+          },
+        },
       },
       teamGroup: {
         select: { id: true, name: true },
@@ -147,7 +154,14 @@ export async function POST(request: NextRequest) {
       },
       include: {
         owner: {
-          select: { id: true, name: true },
+          select: {
+            id: true,
+            name: true,
+            teamGroupId: true,
+            teamGroup: {
+              select: { id: true, name: true },
+            },
+          },
         },
         teamGroup: {
           select: { id: true, name: true },

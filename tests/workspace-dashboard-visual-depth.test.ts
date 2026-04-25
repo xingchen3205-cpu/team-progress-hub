@@ -63,6 +63,22 @@ test("workspace-shell brand area contains full system name and school", () => {
   assert.doesNotMatch(source, /<p className="text-xs text-white\/55">智在必行<\/p>/);
 });
 
+test("workspace and login expose user and support organization footer", () => {
+  const shellSource = readFileSync(
+    path.join(process.cwd(), "src/components/workspace-shell.tsx"),
+    "utf8",
+  );
+  const loginSource = readFileSync(
+    path.join(process.cwd(), "src/components/login-screen.tsx"),
+    "utf8",
+  );
+
+  for (const source of [shellSource, loginSource]) {
+    assert.match(source, /用户单位：南京铁道职业技术学院/);
+    assert.match(source, /支持单位：南京君如玉科技有限公司/);
+  }
+});
+
 test("overview-tab supports admin-wide report group summary", () => {
   const source = readFileSync(
     path.join(process.cwd(), "src/components/tabs/overview-tab.tsx"),

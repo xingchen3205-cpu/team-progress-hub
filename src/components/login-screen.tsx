@@ -1013,7 +1013,12 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
           </div>
 
           <footer className="border-t border-[#e6ebf2] px-4 pt-6 text-center text-[13px] leading-6 text-[#8a96a8]">
-            © 2026 中国国际大学生创新大赛管理系统 · 南京铁道职业技术学院
+            <p>© 2026 中国国际大学生创新大赛管理系统</p>
+            <p>
+              用户单位：南京铁道职业技术学院
+              <span className="mx-3 text-[#c4ccd8]">|</span>
+              支持单位：南京君如玉科技有限公司
+            </p>
           </footer>
         </section>
       </div>

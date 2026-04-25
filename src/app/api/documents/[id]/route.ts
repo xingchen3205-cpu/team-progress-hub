@@ -30,7 +30,14 @@ export async function DELETE(
     where: { id },
     include: {
       owner: {
-        select: { id: true, name: true },
+        select: {
+          id: true,
+          name: true,
+          teamGroupId: true,
+          teamGroup: {
+            select: { id: true, name: true },
+          },
+        },
       },
       teamGroup: {
         select: { id: true, name: true },
@@ -50,7 +57,10 @@ export async function DELETE(
     return NextResponse.json({ message: "文档不存在" }, { status: 404 });
   }
 
-  if (!canAccessTeamScopedResource(user, { ownerId: document.ownerId, teamGroupId: document.teamGroupId })) {
+  if (!canAccessTeamScopedResource(user, {
+    ownerId: document.ownerId,
+    teamGroupId: document.teamGroupId ?? document.owner.teamGroupId,
+  })) {
     return NextResponse.json({ message: "无权限访问该文档" }, { status: 403 });
   }
 

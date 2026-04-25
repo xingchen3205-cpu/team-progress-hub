@@ -11,7 +11,13 @@ type TeamScopedActor = {
 type TeamScopedResource = {
   ownerId?: string | null;
   teamGroupId?: string | null;
+  owner?: {
+    teamGroupId?: string | null;
+  } | null;
 };
+
+export const getEffectiveResourceTeamGroupId = (resource: TeamScopedResource) =>
+  resource.teamGroupId ?? resource.owner?.teamGroupId ?? null;
 
 export const buildTeamScopedResourceWhere = ({
   actor,
@@ -51,6 +57,7 @@ export const buildDocumentVisibilityWhere = (actor: TeamScopedActor) => {
       OR: [
         { ownerId: actor.id },
         { teamGroupId: actor.teamGroupId },
+        { owner: { teamGroupId: actor.teamGroupId } },
       ],
     };
   }
@@ -100,9 +107,10 @@ export const canAccessTeamScopedResource = (
     return true;
   }
 
-  if (options?.allowUnassignedForGroupedUsers && actor.teamGroupId && resource.teamGroupId == null) {
+  const effectiveTeamGroupId = getEffectiveResourceTeamGroupId(resource);
+  if (options?.allowUnassignedForGroupedUsers && actor.teamGroupId && effectiveTeamGroupId == null) {
     return true;
   }
 
-  return Boolean(actor.teamGroupId && resource.teamGroupId === actor.teamGroupId);
+  return Boolean(actor.teamGroupId && effectiveTeamGroupId === actor.teamGroupId);
 };

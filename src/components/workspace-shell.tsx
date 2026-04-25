@@ -11,6 +11,16 @@ const PdfPreview = dynamic(() => import("@/components/pdf-preview").then((mod) =
   ssr: false,
 });
 
+function WorkspaceUnitFooter() {
+  return (
+    <footer className="pointer-events-none fixed inset-x-0 bottom-0 z-20 border-t border-white/70 bg-white/85 px-4 py-2 text-center text-[12px] leading-5 text-slate-500 shadow-[0_-8px_24px_rgba(15,23,42,0.06)] backdrop-blur">
+      <span>用户单位：南京铁道职业技术学院</span>
+      <span className="mx-3 text-slate-300">|</span>
+      <span>支持单位：南京君如玉科技有限公司</span>
+    </footer>
+  );
+}
+
 export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
   const {
     currentUser,
@@ -294,7 +304,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
   if (currentRole === "expert") {
     return (
       <>
-        <main className="min-h-screen bg-[#eef4fb] px-5 py-6">
+        <main className="min-h-screen bg-[#eef4fb] px-5 py-6 pb-14">
           <div className="mx-auto flex min-h-[calc(100vh-3rem)] max-w-[1240px] flex-col overflow-hidden rounded-[30px] border border-blue-100 bg-white shadow-[0_28px_90px_rgba(15,45,91,0.12)]">
             <header className="relative overflow-hidden px-6 py-6 text-white md:px-8">
               <div aria-hidden className="absolute inset-0 bg-[linear-gradient(115deg,#073b82_0%,#1765f3_58%,#4aa3ff_100%)]" />
@@ -339,6 +349,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
             </section>
           </div>
         </main>
+        <WorkspaceUnitFooter />
 
         <SuccessToast toast={successToast} />
 
@@ -423,7 +434,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
 
   return (
     <>
-      <main className="workspace-depth-bg workspace-shell-fade-in min-h-screen overflow-x-hidden p-4 md:p-6">
+      <main className="workspace-depth-bg workspace-shell-fade-in min-h-screen overflow-x-hidden p-4 pb-14 md:p-6 md:pb-14">
         <div aria-hidden className="workspace-orb-field" />
         <div className="relative z-[1] mx-auto flex max-w-[1500px] flex-col gap-4 overflow-x-hidden xl:flex-row">
           {mobileSidebarOpen ? (
@@ -674,6 +685,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
           </section>
         </div>
       </main>
+      <WorkspaceUnitFooter />
 
       <SuccessToast toast={successToast} />
 

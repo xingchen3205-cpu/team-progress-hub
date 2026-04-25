@@ -5,7 +5,7 @@ import test from "node:test";
 
 const read = (filePath: string) => readFileSync(path.join(process.cwd(), filePath), "utf8");
 
-test("documents are scoped by persisted teamGroupId instead of owner current group", () => {
+test("documents prefer persisted teamGroupId and fall back to uploader group for legacy records", () => {
   const schemaSource = read("prisma/schema.prisma");
   const documentsRoute = read("src/app/api/documents/route.ts");
   const documentRoute = read("src/app/api/documents/[id]/route.ts");
@@ -13,15 +13,20 @@ test("documents are scoped by persisted teamGroupId instead of owner current gro
   const previewRoute = read("src/app/api/documents/[id]/preview/route.ts");
   const reviewRoute = read("src/app/api/documents/[id]/review/route.ts");
   const versionRoute = read("src/app/api/documents/[id]/version/route.ts");
+  const serializerSource = read("src/lib/api-serializers.ts");
+  const scopeSource = read("src/lib/team-scope.ts");
 
   assert.match(schemaSource, /model Document \{[\s\S]*?teamGroupId\s+String\?/);
   assert.match(schemaSource, /model Document \{[\s\S]*?teamGroup\s+TeamGroup\?/);
   assert.match(schemaSource, /model Document \{[\s\S]*?@@index\(\[teamGroupId\]\)/);
   assert.match(documentsRoute, /teamGroupId:\s*user\.teamGroupId \?\? null/);
+  assert.match(documentsRoute, /owner:\s*\{[\s\S]*?teamGroupId:\s*true[\s\S]*?teamGroup:/);
+  assert.match(serializerSource, /document\.teamGroupId\s*\?\?\s*document\.owner\.teamGroupId\s*\?\?\s*null/);
+  assert.match(scopeSource, /owner:\s*\{\s*teamGroupId:\s*actor\.teamGroupId\s*\}/);
 
   for (const source of [documentRoute, downloadRoute, previewRoute, reviewRoute, versionRoute]) {
-    assert.match(source, /teamGroupId:\s*document\.teamGroupId/);
-    assert.doesNotMatch(source, /teamGroupId:\s*document\.owner\.teamGroupId/);
+    assert.match(source, /owner:\s*\{[\s\S]*?teamGroupId:\s*true/);
+    assert.match(source, /teamGroupId:\s*[^,\n]+\.teamGroupId\s*\?\?\s*[^,\n]+\.owner\.teamGroupId/);
   }
 });
 
