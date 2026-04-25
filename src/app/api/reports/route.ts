@@ -19,25 +19,20 @@ const getReportNotificationRecipientIds = async ({
   excludeUserId: string;
 }) => {
   const teamRoles: Role[] = role === "member" ? ["leader", "teacher"] : ["teacher"];
+  if (!teamGroupId) {
+    return [];
+  }
+
   const users = await prisma.user.findMany({
     where: {
       approvalStatus: "approved",
       id: {
         not: excludeUserId,
       },
-      OR: [
-        { role: { in: ["admin", "school_admin"] satisfies Role[] } },
-        ...(teamGroupId
-          ? [
-              {
-                teamGroupId,
-                role: {
-                  in: [...teamRoles],
-                },
-              },
-            ]
-          : []),
-      ],
+      teamGroupId,
+      role: {
+        in: teamRoles,
+      },
     },
     select: { id: true },
   });

@@ -54,20 +54,24 @@ describe("expert review v2 constraints", () => {
     assert.match(materialSource, /getExpertReviewLockState/);
   });
 
-  it("replaces the old four-category expert scoring UI with v2 expert and projection panels", () => {
+  it("replaces the old four-category expert scoring UI with v2 expert review panels", () => {
     const tabSource = readSource("src/components/tabs/expert-review-tab.tsx");
 
     assert.match(tabSource, /项目网络评审/);
     assert.match(tabSource, /项目路演评审/);
     assert.match(tabSource, /确认提交/);
-    assert.match(tabSource, /路演管理后台/);
-    assert.match(tabSource, /投屏模式/);
+    assert.match(tabSource, /评审管理/);
+    assert.match(tabSource, /导出评分明细/);
+    assert.match(tabSource, /downloadReviewScoreDetails/);
     assert.match(tabSource, /提交评分/);
     assert.match(tabSource, /toFixed\(2\)/);
     assert.match(tabSource, /reviewDeadlineText/);
     assert.match(tabSource, /提交后不可修改/);
 
     assert.doesNotMatch(tabSource, /评审规则设置/);
+    assert.doesNotMatch(tabSource, /专家评审与大屏投屏/);
+    assert.doesNotMatch(tabSource, /投屏模式/);
+    assert.doesNotMatch(tabSource, /实时分数段/);
     assert.doesNotMatch(tabSource, /路演投屏与评分规则/);
     assert.doesNotMatch(tabSource, /个人成长/);
     assert.doesNotMatch(tabSource, /项目创新/);

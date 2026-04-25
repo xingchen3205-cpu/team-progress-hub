@@ -37,6 +37,13 @@ export async function GET(request: NextRequest) {
     select: {
       id: true,
       name: true,
+      teamGroupId: true,
+      teamGroup: {
+        select: {
+          id: true,
+          name: true,
+        },
+      },
     },
   });
 
@@ -90,9 +97,68 @@ export async function GET(request: NextRequest) {
     });
   }
 
+  const groupStats = new Map<string, { name: string; expected: number; missing: number }>();
+  for (const user of reportUsers) {
+    if (!user.teamGroupId) {
+      continue;
+    }
+
+    const current = groupStats.get(user.teamGroupId) ?? {
+      name: user.teamGroup?.name ?? "未命名项目组",
+      expected: 0,
+      missing: 0,
+    };
+    current.expected += 1;
+    if (pendingUserIds.includes(user.id)) {
+      current.missing += 1;
+    }
+    groupStats.set(user.teamGroupId, current);
+  }
+
+  const abnormalGroups = [...groupStats.values()].filter((group) => group.missing > 0);
+  if (abnormalGroups.length > 0) {
+    const adminUsers = await prisma.user.findMany({
+      where: {
+        approvalStatus: "approved",
+        role: {
+          in: ["admin", "school_admin"],
+        },
+      },
+      select: {
+        id: true,
+      },
+    });
+    const existingAdminSummaries = await prisma.notification.findMany({
+      where: {
+        type: "report_daily_admin_summary",
+        relatedId: date,
+        userId: {
+          in: adminUsers.map((user) => user.id),
+        },
+      },
+      select: {
+        userId: true,
+      },
+    });
+    const alreadySummarizedAdminIds = new Set(existingAdminSummaries.map((notification) => notification.userId));
+    const pendingAdminSummaryUserIds = adminUsers
+      .map((user) => user.id)
+      .filter((userId) => !alreadySummarizedAdminIds.has(userId));
+
+    await createNotifications({
+      userIds: pendingAdminSummaryUserIds,
+      title: "全校汇报异常汇总",
+      detail: `今日有 ${abnormalGroups.length} 个项目组未全员提交，${pendingUserIds.length} 人未提交。`,
+      type: "report_daily_admin_summary",
+      targetTab: "reports",
+      relatedId: date,
+    });
+  }
+
   return NextResponse.json({
     success: true,
     date,
     remindedCount: pendingUserIds.length,
+    adminSummaryCount: abnormalGroups.length,
   });
 }

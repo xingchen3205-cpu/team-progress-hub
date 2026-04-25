@@ -1,10 +1,15 @@
 "use client";
 
+import { useMemo, useState } from "react";
+
 import * as Workspace from "@/components/workspace-context";
+
+const UNGROUPED_DOCUMENT_GROUP_ID = "__ungrouped_documents__";
 
 export default function DocumentsTab() {
   const {
     documents,
+    teamGroups,
     selectedCategory,
     setSelectedCategory,
     expandedDocs,
@@ -51,7 +56,83 @@ export default function DocumentsTab() {
     ActionButton,
   } = Workspace;
 
-const renderDocuments = () => (
+  const isGlobalDocumentAdmin = currentRole === "admin" || currentRole === "school_admin";
+  const [selectedDocumentTeamGroupId, setSelectedDocumentTeamGroupId] = useState<string | null>(null);
+  const documentGroupSummaries = useMemo(() => {
+    const groups = teamGroups.map((group) => {
+      const groupDocuments = documents.filter((doc) => doc.teamGroupId === group.id);
+      return {
+        id: group.id,
+        name: group.name,
+        documents: groupDocuments,
+      };
+    });
+    const ungroupedDocuments = documents.filter((doc) => !doc.teamGroupId);
+    const allGroups =
+      ungroupedDocuments.length > 0
+        ? [
+            ...groups,
+            {
+              id: UNGROUPED_DOCUMENT_GROUP_ID,
+              name: "未归属项目组",
+              documents: ungroupedDocuments,
+            },
+          ]
+        : groups;
+
+    return allGroups
+      .map((group) => {
+        const pendingCount = group.documents.filter(
+          (doc) => doc.statusKey === "pending" || doc.statusKey === "leader_approved",
+        ).length;
+        const approvedCount = group.documents.filter((doc) => doc.statusKey === "approved").length;
+        const revisionCount = group.documents.filter(
+          (doc) => doc.statusKey === "leader_revision" || doc.statusKey === "revision",
+        ).length;
+        const categoryCounts = documentCategories.map((category) => ({
+          category,
+          count: group.documents.filter((doc) => doc.category === category).length,
+        }));
+
+        return {
+          ...group,
+          totalCount: group.documents.length,
+          pendingCount,
+          approvedCount,
+          revisionCount,
+          categoryCounts,
+          latestDocumentTime: group.documents
+            .map((doc) => doc.createdAt)
+            .filter(Boolean)
+            .sort()
+            .at(-1),
+        };
+      })
+      .sort((a, b) => {
+        if (a.pendingCount !== b.pendingCount) {
+          return b.pendingCount - a.pendingCount;
+        }
+        if (a.totalCount !== b.totalCount) {
+          return b.totalCount - a.totalCount;
+        }
+        return a.name.localeCompare(b.name, "zh-Hans-CN");
+      });
+  }, [documentCategories, documents, teamGroups]);
+
+  const selectedDocumentGroup = documentGroupSummaries.find((group) => group.id === selectedDocumentTeamGroupId) ?? null;
+  const detailDocumentsBase = isGlobalDocumentAdmin
+    ? selectedDocumentTeamGroupId
+      ? documents.filter(
+          (doc) => (doc.teamGroupId ?? UNGROUPED_DOCUMENT_GROUP_ID) === selectedDocumentTeamGroupId,
+        )
+      : []
+    : filteredDocuments;
+  const visibleDocuments = selectedCategory
+    ? detailDocumentsBase.filter((doc) => doc.category === selectedCategory)
+    : detailDocumentsBase;
+  const categoryCountBase = isGlobalDocumentAdmin && selectedDocumentTeamGroupId ? detailDocumentsBase : filteredDocuments;
+
+  const renderDocuments = () => (
     <div className="space-y-4">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <SectionHeader
@@ -77,9 +158,123 @@ const renderDocuments = () => (
         </div>
       </div>
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      {isGlobalDocumentAdmin && !selectedDocumentTeamGroupId ? (
+        <section className="space-y-4" data-slot="document-admin-group-overview">
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+            {[
+              { label: "项目组", value: `${documentGroupSummaries.length} 个` },
+              { label: "资料总数", value: `${documents.length} 份` },
+              {
+                label: "待处理",
+                value: `${documents.filter((doc) => doc.statusKey === "pending" || doc.statusKey === "leader_approved").length} 份`,
+              },
+              {
+                label: "已生效",
+                value: `${documents.filter((doc) => doc.statusKey === "approved").length} 份`,
+              },
+            ].map((item) => (
+              <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm" key={item.label}>
+                <p className="text-sm text-slate-500">{item.label}</p>
+                <p className="mt-2 text-3xl font-bold text-slate-950">{item.value}</p>
+              </div>
+            ))}
+          </div>
+
+          <div className="rounded-[24px] border border-slate-200 bg-white p-5 shadow-[0_10px_30px_rgba(15,23,42,0.05)]">
+            <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+              <div>
+                <h3 className="text-lg font-bold text-slate-950">项目组资料总览</h3>
+                <p className="mt-1 text-sm text-slate-500">先按项目组查看资料数量和状态，再进入项目组下钻具体文件。</p>
+              </div>
+              <p className="text-sm text-slate-400">异常与待审核项目组自动置顶</p>
+            </div>
+            <div className="mt-5 grid gap-3">
+              {documentGroupSummaries.length > 0 ? (
+                documentGroupSummaries.map((group) => (
+                  <button
+                    className="group flex flex-col gap-4 rounded-2xl border border-slate-200 bg-slate-50/70 p-4 text-left transition hover:border-blue-200 hover:bg-blue-50/50 hover:shadow-[0_10px_26px_rgba(37,99,235,0.08)] lg:flex-row lg:items-center lg:justify-between"
+                    key={group.id}
+                    onClick={() => setSelectedDocumentTeamGroupId(group.id)}
+                    type="button"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span
+                          className={`h-2.5 w-2.5 rounded-full ${
+                            group.pendingCount > 0
+                              ? "bg-amber-500"
+                              : group.revisionCount > 0
+                                ? "bg-rose-500"
+                                : "bg-emerald-500"
+                          }`}
+                        />
+                        <h4 className="truncate text-base font-bold text-slate-950">{group.name}</h4>
+                        <span className="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-slate-500 ring-1 ring-slate-200">
+                          {group.totalCount} 份资料
+                        </span>
+                      </div>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {group.categoryCounts.map((item) => (
+                          <span
+                            className="rounded-full bg-white px-2.5 py-1 text-xs font-medium text-slate-500 ring-1 ring-slate-200"
+                            key={item.category}
+                          >
+                            {item.category} {item.count}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                    <div className="grid min-w-[320px] grid-cols-4 gap-2 text-center">
+                      <div className="rounded-xl bg-white px-3 py-2 ring-1 ring-slate-200">
+                        <p className="text-xs text-slate-400">待审</p>
+                        <p className="text-lg font-bold text-amber-600">{group.pendingCount}</p>
+                      </div>
+                      <div className="rounded-xl bg-white px-3 py-2 ring-1 ring-slate-200">
+                        <p className="text-xs text-slate-400">生效</p>
+                        <p className="text-lg font-bold text-emerald-600">{group.approvedCount}</p>
+                      </div>
+                      <div className="rounded-xl bg-white px-3 py-2 ring-1 ring-slate-200">
+                        <p className="text-xs text-slate-400">退回</p>
+                        <p className="text-lg font-bold text-rose-600">{group.revisionCount}</p>
+                      </div>
+                      <div className="flex items-center justify-center rounded-xl bg-blue-600 px-3 py-2 text-xs font-bold text-white">
+                        查看资料
+                      </div>
+                    </div>
+                  </button>
+                ))
+              ) : (
+                <EmptyState description="当前还没有项目组资料，项目组提交后会在这里形成总览。" icon={FolderOpen} title="暂无资料总览" />
+              )}
+            </div>
+          </div>
+        </section>
+      ) : null}
+
+      {isGlobalDocumentAdmin && selectedDocumentTeamGroupId ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-blue-100 bg-blue-50/70 px-4 py-3">
+          <div>
+            <p className="text-sm font-semibold text-blue-700">{selectedDocumentGroup?.name ?? "项目组资料"}</p>
+            <p className="mt-1 text-xs text-slate-500">正在查看该项目组的具体归档资料。</p>
+          </div>
+          <button
+            className="rounded-xl border border-blue-200 bg-white px-4 py-2 text-sm font-semibold text-blue-700 transition hover:bg-blue-50"
+            onClick={() => {
+              setSelectedDocumentTeamGroupId(null);
+              setSelectedCategory(null);
+            }}
+            type="button"
+          >
+            返回总览
+          </button>
+        </div>
+      ) : null}
+
+      {!isGlobalDocumentAdmin || selectedDocumentTeamGroupId ? (
+        <>
+          <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {documentCategories.map((category) => {
-          const count = documents.filter((item) => item.category === category).length;
+          const count = categoryCountBase.filter((item) => item.category === category).length;
           const isActive = selectedCategory === category;
 
           return (
@@ -101,11 +296,11 @@ const renderDocuments = () => (
             </button>
           );
         })}
-      </section>
+          </section>
 
-      <section className="space-y-4">
-        {filteredDocuments.length > 0 ? (
-          filteredDocuments.map((doc) => {
+          <section className="space-y-4">
+        {visibleDocuments.length > 0 ? (
+          visibleDocuments.map((doc) => {
             const statusMeta = docStatusMeta[doc.statusKey ?? "pending"];
             const workflowStates = getDocumentWorkflowState(doc.statusKey ?? "pending");
             const isExpanded = expandedDocs.includes(doc.id);
@@ -338,7 +533,9 @@ const renderDocuments = () => (
             title="暂无文档"
           />
         )}
-      </section>
+          </section>
+        </>
+      ) : null}
     </div>
   );
 

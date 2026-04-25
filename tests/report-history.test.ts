@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 import { describe, it } from "node:test";
 
 import {
@@ -123,5 +125,23 @@ describe("report history date options", () => {
       }).map((member) => member.id),
       [],
     );
+  });
+
+  it("keeps report submit notifications within the project team and uses admin summaries for exceptions", () => {
+    const reportsRouteSource = readFileSync(
+      path.join(process.cwd(), "src/app/api/reports/route.ts"),
+      "utf8",
+    );
+    const cronSource = readFileSync(
+      path.join(process.cwd(), "src/app/api/cron/daily-report-reminders/route.ts"),
+      "utf8",
+    );
+    const helperMatch = reportsRouteSource.match(/const getReportNotificationRecipientIds[\s\S]*?\n};/);
+
+    assert.ok(helperMatch, "missing report notification recipient helper");
+    assert.doesNotMatch(helperMatch[0], /"admin"/);
+    assert.doesNotMatch(helperMatch[0], /"school_admin"/);
+    assert.match(cronSource, /report_daily_admin_summary/);
+    assert.match(cronSource, /全校汇报异常汇总/);
   });
 });

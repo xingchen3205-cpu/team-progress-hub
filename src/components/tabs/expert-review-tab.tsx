@@ -251,7 +251,6 @@ export default function ExpertReviewTab() {
     ChevronRight,
     Plus,
     ShieldCheck,
-    Presentation,
     formatDateTime,
     expertReviewMaterialLabels,
     requestJson,
@@ -266,7 +265,6 @@ export default function ExpertReviewTab() {
   const [submittingAssignmentId, setSubmittingAssignmentId] = useState<string | null>(null);
   const [expertScoreSuccess, setExpertScoreSuccess] = useState<ExpertScoreSuccess>(null);
   const [activeGroupKey, setActiveGroupKey] = useState<string | null>(null);
-  const [projectionMode, setProjectionMode] = useState(false);
 
   const groupedAssignments = useMemo(() => groupReviewAssignments(reviewAssignments), [reviewAssignments]);
   const networkAssignments = reviewAssignments.filter((assignment) => !isRoadshowAssignment(assignment));
@@ -290,6 +288,8 @@ export default function ExpertReviewTab() {
   const pendingRoadshowCount = roadshowAssignments.filter((assignment) => assignment.statusKey === "pending").length;
   const finishedRoadshowCount = roadshowAssignments.filter((assignment) => assignment.statusKey !== "pending").length;
   const availableModeCount = (networkAssignments.length > 0 ? 1 : 0) + (roadshowAssignments.length > 0 ? 1 : 0);
+  const pendingReviewCount = reviewAssignments.filter((assignment) => assignment.statusKey === "pending").length;
+  const finishedReviewCount = reviewAssignments.filter((assignment) => assignment.statusKey !== "pending").length;
   const reviewDeadlineText = useMemo(() => {
     const deadlines = reviewAssignments
       .map((assignment) => assignment.deadline)
@@ -311,6 +311,39 @@ export default function ExpertReviewTab() {
       ? `评审截止：${firstText}`
       : `评审截止：${firstText} 至 ${lastText}`;
   }, [formatDateTime, reviewAssignments]);
+
+  const downloadReviewScoreDetails = () => {
+    if (reviewAssignments.length === 0) {
+      setLoadError("暂无可导出的评分明细");
+      return;
+    }
+
+    const escapeCsvCell = (value: string | number | null | undefined) => {
+      const text = String(value ?? "");
+      return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+    };
+    const header = ["项目名称", "评审轮次", "评审模式", "专家姓名", "状态", "分数", "提交时间", "评语"];
+    const rows = reviewAssignments.map((assignment) => [
+      assignment.targetName,
+      assignment.roundLabel,
+      isRoadshowAssignment(assignment) ? "路演评审" : "网络评审",
+      assignment.expert.name,
+      assignment.statusKey === "pending" ? "待评审" : "已提交",
+      assignment.score ? formatScoreForAssignment(assignment) : "",
+      assignment.score ? formatDateTime(assignment.score.updatedAt) : "",
+      assignment.score?.commentTotal ?? "",
+    ]);
+    const csv = [header, ...rows].map((row) => row.map(escapeCsvCell).join(",")).join("\n");
+    const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `expert-review-score-details-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+  };
 
   const openMaterial = (assignment: ExpertReviewAssignmentItem, kind: "plan" | "ppt" | "video") => {
     const material = assignment.materials[kind];
@@ -793,15 +826,22 @@ export default function ExpertReviewTab() {
   }
 
   return (
-    <div className={`space-y-5 ${projectionMode ? "rounded-[32px] bg-slate-950 p-6 text-white" : ""}`}>
+    <div className="space-y-5">
       <section className="rounded-[28px] border border-slate-200 bg-white p-5 shadow-[0_14px_40px_rgba(15,23,42,0.05)]">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
-            <p className="text-sm font-semibold text-blue-600">路演管理后台</p>
-            <h2 className="mt-1 text-2xl font-bold text-slate-950">专家评审与大屏投屏</h2>
-            <p className="mt-2 text-sm text-slate-500">管理员基于项目管理已生效材料分配专家和截止时间；专家提交后实时汇总分数。</p>
+            <p className="text-sm font-semibold text-blue-600">评审管理</p>
+            <h2 className="mt-1 text-2xl font-bold text-slate-950">专家评审</h2>
+            <p className="mt-2 text-sm text-slate-500">基于项目管理已生效材料分配专家、查看提交进度并导出评分明细。</p>
           </div>
           <div className="flex flex-wrap gap-3">
+            <button
+              className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
+              onClick={downloadReviewScoreDetails}
+              type="button"
+            >
+              导出评分明细
+            </button>
             {canCreateReviewPackage ? (
               <ActionButton onClick={openReviewAssignmentModal} variant="primary">
                 <span className="inline-flex items-center gap-2">
@@ -810,26 +850,16 @@ export default function ExpertReviewTab() {
                 </span>
               </ActionButton>
             ) : null}
-            <button
-              className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
-              onClick={() => setProjectionMode((current) => !current)}
-              type="button"
-            >
-              <span className="inline-flex items-center gap-2">
-                <Presentation className="h-4 w-4" />
-                投屏模式
-              </span>
-            </button>
           </div>
         </div>
       </section>
 
       {groupedAssignments.length === 0 ? (
         <section className="rounded-3xl border border-slate-200 bg-white p-8">
-          <EmptyState description="从项目管理选择已生效材料并分配专家后，专家评分和投屏数据会显示在这里。" icon={FileCheck} title="暂无评审任务" />
+          <EmptyState description="从项目管理选择已生效材料并分配专家后，专家评分数据会显示在这里。" icon={FileCheck} title="暂无评审任务" />
         </section>
       ) : (
-        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
           <section className="space-y-5">
             {activeGroup ? (
               <article className="rounded-[28px] border border-slate-200 bg-white p-6">
@@ -886,11 +916,11 @@ export default function ExpertReviewTab() {
                   const assignment = activeGroup.items[0];
                   const material = assignment.materials[kind];
                   return (
-                    <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4" key={kind}>
+                    <div className="min-w-0 rounded-2xl border border-slate-200 bg-slate-50 p-4" key={kind}>
                       <div className="flex items-start justify-between gap-3">
-                        <div>
+                        <div className="min-w-0">
                           <p className="text-sm font-bold text-slate-900">{expertReviewMaterialLabels[kind]}</p>
-                          <p className="mt-2 truncate text-xs text-slate-500">{material?.fileName ?? "暂未上传"}</p>
+                          <p className="mt-2 break-all text-xs leading-5 text-slate-500">{material?.fileName ?? "暂未上传"}</p>
                         </div>
                       </div>
                       <div className="mt-4 flex flex-wrap gap-2">
@@ -908,6 +938,27 @@ export default function ExpertReviewTab() {
           </section>
 
           <aside className="space-y-5">
+            <article className="rounded-[28px] border border-slate-200 bg-white p-5">
+              <h3 className="text-lg font-bold text-slate-950">评审概览</h3>
+              <div className="mt-4 grid grid-cols-2 gap-3">
+                <div className="rounded-2xl bg-blue-50 px-4 py-3">
+                  <p className="text-xs font-medium text-blue-600">项目</p>
+                  <p className="mt-1 text-2xl font-bold text-blue-700">{groupedAssignments.length}</p>
+                </div>
+                <div className="rounded-2xl bg-slate-50 px-4 py-3">
+                  <p className="text-xs font-medium text-slate-500">专家任务</p>
+                  <p className="mt-1 text-2xl font-bold text-slate-950">{reviewAssignments.length}</p>
+                </div>
+                <div className="rounded-2xl bg-amber-50 px-4 py-3">
+                  <p className="text-xs font-medium text-amber-700">待评审</p>
+                  <p className="mt-1 text-2xl font-bold text-amber-700">{pendingReviewCount}</p>
+                </div>
+                <div className="rounded-2xl bg-emerald-50 px-4 py-3">
+                  <p className="text-xs font-medium text-emerald-700">已提交</p>
+                  <p className="mt-1 text-2xl font-bold text-emerald-700">{finishedReviewCount}</p>
+                </div>
+              </div>
+            </article>
             <article className="rounded-[28px] border border-slate-200 bg-white p-5">
               <h3 className="text-lg font-bold text-slate-950">项目列表</h3>
               <div className="mt-4 space-y-3">
@@ -932,31 +983,6 @@ export default function ExpertReviewTab() {
                     </button>
                   );
                 })}
-              </div>
-            </article>
-            <article className="rounded-[28px] border border-slate-200 bg-white p-5">
-              <h3 className="text-lg font-bold text-slate-950">实时分数段</h3>
-              <div className="mt-4 space-y-3">
-                {([
-                  ["90-100", "优秀", activeGroup?.items.filter((item) => (getScoreValue(item) ?? 0) >= 90).length ?? 0],
-                  ["80-89", "良好", activeGroup?.items.filter((item) => {
-                    const score = getScoreValue(item) ?? 0;
-                    return score >= 80 && score < 90;
-                  }).length ?? 0],
-                  ["70-79", "合格", activeGroup?.items.filter((item) => {
-                    const score = getScoreValue(item) ?? 0;
-                    return score >= 70 && score < 80;
-                  }).length ?? 0],
-                  ["0-69", "预警", activeGroup?.items.filter((item) => {
-                    const score = getScoreValue(item) ?? 0;
-                    return score > 0 && score < 70;
-                  }).length ?? 0],
-                ] as const).map(([range, label, count]) => (
-                  <div className="flex items-center justify-between rounded-2xl bg-slate-50 px-4 py-3" key={range}>
-                    <span className="text-sm font-semibold text-slate-700">{range} · {label}</span>
-                    <span className="text-lg font-bold text-slate-950">{count}</span>
-                  </div>
-                ))}
               </div>
             </article>
             {canManageReviewMaterials && activeGroup ? (

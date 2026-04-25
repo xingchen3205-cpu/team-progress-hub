@@ -37,3 +37,13 @@ test("workspace labels document center as scoped archive and removes fake global
   assert.doesNotMatch(shellSource, /globalSearchQuery/);
   assert.doesNotMatch(shellSource, /暂无匹配结果，请尝试更换关键词/);
 });
+
+test("admin document archive starts from team group overview before drilling into files", () => {
+  const documentsTabSource = read("src/components/tabs/documents-tab.tsx");
+
+  assert.match(documentsTabSource, /data-slot="document-admin-group-overview"/);
+  assert.match(documentsTabSource, /项目组资料总览/);
+  assert.match(documentsTabSource, /查看资料/);
+  assert.match(documentsTabSource, /返回总览/);
+  assert.match(documentsTabSource, /selectedDocumentTeamGroupId/);
+});
