@@ -3198,6 +3198,7 @@ function useWorkspaceController({
     const aiPermission = aiPermissionMap.get(member.id);
     const matchesAi =
       !hasGlobalAdminRole ||
+      teamAccountView !== "team" ||
       teamAiFilter === "全部" ||
       (teamAiFilter === "已开启" ? aiPermission?.isEnabled : !aiPermission?.isEnabled);
     const matchesGroup =

@@ -24,6 +24,20 @@ describe("ai permissions", () => {
     assert.equal(resolveAiAccessState(snapshot), "disabled");
   });
 
+  it("keeps expert accounts disabled for AI assistant access", () => {
+    const snapshot = buildAiPermissionSnapshot("expert", {
+      isEnabled: true,
+      maxCount: null,
+      usedCount: 0,
+      resetAt: null,
+    });
+
+    assert.equal(snapshot.isEnabled, false);
+    assert.equal(snapshot.maxCount, 0);
+    assert.equal(snapshot.remainingCount, 0);
+    assert.equal(resolveAiAccessState(snapshot), "disabled");
+  });
+
   it("resets consumed counts after reset_at has passed", () => {
     const snapshot = buildAiPermissionSnapshot(
       "teacher",

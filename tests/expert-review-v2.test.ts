@@ -81,6 +81,19 @@ describe("expert review v2 constraints", () => {
     assert.doesNotMatch(tabSource, /roadshowCommentDraft/);
   });
 
+  it("keeps expert-facing review copy clean and uses a centered completion modal", () => {
+    const tabSource = readSource("src/components/tabs/expert-review-tab.tsx");
+    const shellSource = readSource("src/components/workspace-shell.tsx");
+
+    assert.match(tabSource, /ExpertScoreSuccessModal/);
+    assert.match(tabSource, /评分提交成功/);
+    assert.match(tabSource, /fixed inset-0 z-50 flex items-center justify-center/);
+    assert.doesNotMatch(tabSource, /专家端 · 独立评审/);
+    assert.doesNotMatch(tabSource, /系统会实时更新管理端和投屏数据/);
+    assert.doesNotMatch(tabSource, /管理端和投屏数据已同步刷新/);
+    assert.match(shellSource, /currentRole !== "expert" \? \(\s*<p className="mt-0\.5 text-\[11px\] text-white\/45">智在必行<\/p>\s*\) : null/);
+  });
+
   it("keeps expert review navigation limited to admins and expert accounts", () => {
     const workspaceSource = readSource("src/components/workspace-context.tsx");
     const roleBlock = (role: string) => {

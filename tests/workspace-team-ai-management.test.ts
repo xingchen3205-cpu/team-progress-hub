@@ -27,3 +27,19 @@ test("team tab keeps AI controls inside the team account section instead of a st
   assert.match(teamSource, /团队账号/);
   assert.doesNotMatch(teamSource, /<h3 className=\"text-base font-semibold text-slate-900\">AI 权限管理<\/h3>/);
 });
+
+test("team tab keeps expert accounts outside group and AI permission controls", () => {
+  assert.match(teamSource, /const isExpertAccountView = teamAccountView === "experts"/);
+  assert.match(teamSource, /专家账号不参与项目组分组，也不开放 AI 助手权限/);
+  assert.match(teamSource, /member\.systemRole === "评审专家"\s*\?\s*"专家账号"/);
+  assert.match(teamSource, /!isExpertAccountView && hasGlobalAdminRole/);
+  assert.match(teamSource, /!isExpertAccountView && canUseTeamGroups/);
+  assert.match(teamSource, /!isExpertAccountView \? "权限开关" : "账号状态"/);
+});
+
+test("team account action buttons use visible semantic button styles", () => {
+  assert.match(teamSource, /className="team-icon-button primary"/);
+  assert.match(teamSource, /className="team-icon-button warning"/);
+  assert.match(teamSource, /className="team-icon-button muted"/);
+  assert.match(teamSource, /className="team-icon-button danger"/);
+});

@@ -37,6 +37,17 @@ export function buildAiPermissionSnapshot(
   permission: AiPermissionLike | null,
   now = new Date(),
 ): AiPermissionSnapshot {
+  if (role === "expert") {
+    return {
+      isEnabled: false,
+      maxCount: 0,
+      usedCount: 0,
+      remainingCount: 0,
+      resetAt: null,
+      shouldReset: false,
+    };
+  }
+
   const normalizedPermission = resetExpiredUsage(permission, now);
   const shouldReset = Boolean(permission?.resetAt && permission.resetAt.getTime() <= now.getTime());
 

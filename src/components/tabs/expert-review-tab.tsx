@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { CheckCircle2 } from "lucide-react";
 
 import type { ExpertReviewAssignmentItem } from "@/components/workspace-context";
 import * as Workspace from "@/components/workspace-context";
@@ -28,6 +29,13 @@ type PendingSubmission = {
   score: number;
   displayScore: string;
   comment: string;
+} | null;
+
+type ExpertScoreSuccess = {
+  kind: "network" | "roadshow";
+  targetName: string;
+  roundLabel: string;
+  displayScore: string;
 } | null;
 
 const getInitial = (name?: string | null) => (name?.trim().slice(0, 1) || "评").toUpperCase();
@@ -156,7 +164,7 @@ function ConfirmModal({
           ) : null}
         </div>
         <p className="mt-4 text-sm leading-6 text-slate-500">
-          提交后不可修改，请确认分数无误。系统会实时更新管理端和投屏数据。
+          提交后不可修改，请确认分数无误。
         </p>
         <div className="mt-6 flex justify-end gap-3">
           <button
@@ -181,6 +189,43 @@ function ConfirmModal({
   );
 }
 
+function ExpertScoreSuccessModal({
+  success,
+  onClose,
+}: {
+  success: ExpertScoreSuccess;
+  onClose: () => void;
+}) {
+  if (!success) {
+    return null;
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/35 px-4">
+      <div className="w-full max-w-sm rounded-[28px] bg-white p-7 text-center shadow-[0_24px_70px_rgba(15,23,42,0.24)]">
+        <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-emerald-50 text-emerald-600 shadow-[0_16px_32px_rgba(16,185,129,0.16)]">
+          <CheckCircle2 className="h-9 w-9" />
+        </div>
+        <h3 className="mt-5 text-xl font-bold text-slate-950">评分提交成功</h3>
+        <p className="mt-2 text-sm leading-6 text-slate-500">
+          {success.targetName} 已完成{success.kind === "roadshow" ? "路演评分" : "网络评审"}提交。
+        </p>
+        <div className="mt-5 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3">
+          <p className="text-xs font-medium text-emerald-600">{success.roundLabel}</p>
+          <p className="mt-1 text-3xl font-bold text-emerald-700">{success.displayScore}</p>
+        </div>
+        <button
+          className="mt-6 w-full rounded-2xl bg-emerald-600 px-5 py-3 text-sm font-bold text-white shadow-[0_14px_34px_rgba(16,185,129,0.22)] transition hover:bg-emerald-700"
+          onClick={onClose}
+          type="button"
+        >
+          完成
+        </button>
+      </div>
+    </div>
+  );
+}
+
 export default function ExpertReviewTab() {
   const {
     currentUser,
@@ -193,7 +238,6 @@ export default function ExpertReviewTab() {
     deleteReviewAssignment,
     refreshWorkspace,
     setLoadError,
-    showSuccessToast,
   } = Workspace.useWorkspaceContext();
 
   const {
@@ -220,6 +264,7 @@ export default function ExpertReviewTab() {
   const [roadshowScoreDraft, setRoadshowScoreDraft] = useState("");
   const [pendingSubmission, setPendingSubmission] = useState<PendingSubmission>(null);
   const [submittingAssignmentId, setSubmittingAssignmentId] = useState<string | null>(null);
+  const [expertScoreSuccess, setExpertScoreSuccess] = useState<ExpertScoreSuccess>(null);
   const [activeGroupKey, setActiveGroupKey] = useState<string | null>(null);
   const [projectionMode, setProjectionMode] = useState(false);
 
@@ -388,10 +433,12 @@ export default function ExpertReviewTab() {
         ),
       });
 
-      showSuccessToast(
-        pendingSubmission.kind === "roadshow" ? "路演评分已提交" : "网评评分已提交",
-        "管理端和投屏数据已同步刷新。",
-      );
+      setExpertScoreSuccess({
+        kind: pendingSubmission.kind,
+        targetName: pendingSubmission.assignment.targetName,
+        roundLabel: pendingSubmission.assignment.roundLabel,
+        displayScore: pendingSubmission.displayScore,
+      });
       setPendingSubmission(null);
       if (pendingSubmission.kind === "roadshow") {
         setExpertMode("roadshow-done");
@@ -414,7 +461,7 @@ export default function ExpertReviewTab() {
             </div>
             <div>
               <h2 className="text-lg font-bold text-slate-950">大学生创新大赛评审系统</h2>
-              <p className="text-xs text-slate-400">专家端 · 独立评审</p>
+              <p className="text-xs text-slate-400">专家端</p>
             </div>
           </div>
           <div className="flex items-center gap-5 text-sm text-slate-500">
@@ -667,7 +714,7 @@ export default function ExpertReviewTab() {
               <ShieldCheck className="h-8 w-8" />
             </div>
             <h3 className="mt-6 text-2xl font-bold text-slate-950">路演评分已提交</h3>
-            <p className="mt-3 text-sm text-slate-500">当前路演评分已同步到管理后台投屏页面。</p>
+            <p className="mt-3 text-sm text-slate-500">当前路演评分已提交，感谢完成本轮评审。</p>
             <button className="mt-8 rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-600" onClick={() => setExpertMode("home")} type="button">
               返回入口
             </button>
@@ -679,6 +726,10 @@ export default function ExpertReviewTab() {
           onCancel={() => setPendingSubmission(null)}
           onConfirm={() => void submitConfirmedScore()}
           pendingSubmission={pendingSubmission}
+        />
+        <ExpertScoreSuccessModal
+          success={expertScoreSuccess}
+          onClose={() => setExpertScoreSuccess(null)}
         />
       </div>
     );

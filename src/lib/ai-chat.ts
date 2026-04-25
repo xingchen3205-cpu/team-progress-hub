@@ -363,6 +363,9 @@ export async function listAiPermissions() {
   const users = await prisma.user.findMany({
     where: {
       approvalStatus: "approved",
+      role: {
+        not: "expert",
+      },
     },
     orderBy: [{ createdAt: "asc" }],
     select: {
@@ -416,6 +419,10 @@ export async function updateAiPermissionForUser(
 
   if (!user) {
     throw new Error("用户不存在");
+  }
+
+  if (user.role === "expert") {
+    throw new Error("评审专家账号不参与 AI 助手权限");
   }
 
   const maxCount = parseAiMaxCountInput(input.maxCountInput);

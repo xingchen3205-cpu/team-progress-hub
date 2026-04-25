@@ -104,6 +104,8 @@ export default function TeamTab() {
     UserAvatar,
   } = Workspace;
 
+  const isExpertAccountView = teamAccountView === "experts";
+
 const renderTeam = () => (
     <div className="space-y-4">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -223,7 +225,7 @@ const renderTeam = () => (
             <div>
               <h3 className="text-base font-semibold text-slate-900">团队分组</h3>
               <p className="mt-1 text-sm text-slate-500">
-                全局管理员可见，可按学校、项目组等维度管理教师、负责人和成员；评审专家独立管理，不参与分组。
+                全局管理员可见，可按学校、项目组等维度管理教师、负责人和成员；评审专家账号不参与分组。
               </p>
             </div>
             <span className="w-fit rounded-full bg-slate-100 px-3 py-1 text-xs font-medium text-slate-500">
@@ -312,11 +314,11 @@ const renderTeam = () => (
           <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
             <div>
               <h3 className="text-base font-semibold text-slate-900">
-                {teamAccountView === "experts" ? "评审专家账号" : "团队账号"}
+                {isExpertAccountView ? "评审专家账号" : "团队账号"}
               </h3>
               <p className="mt-1 text-sm text-slate-500">
-                {teamAccountView === "experts"
-                  ? "评审专家账号单独管理，便于临时开通、批量创建和后续清理。"
+                {isExpertAccountView
+                  ? "专家账号不参与项目组分组，也不开放 AI 助手权限；仅用于专家评审登录与评分。"
                   : canViewTeamAccountIdentifiers
                     ? "普通团队账号与评审专家分开管理，避免权限和操作混在一起。"
                     : "仅显示你所在团队的人员姓名与角色，不展示账号名。"}
@@ -348,7 +350,7 @@ const renderTeam = () => (
                   ))}
                 </select>
               </label>
-              {hasGlobalAdminRole ? (
+              {!isExpertAccountView && hasGlobalAdminRole ? (
                 <label className="text-sm text-slate-500">
                   <span className="sr-only">按 AI 权限筛选</span>
                   <select
@@ -364,7 +366,7 @@ const renderTeam = () => (
                   </select>
                 </label>
               ) : null}
-              {canUseTeamGroups ? (
+              {!isExpertAccountView && canUseTeamGroups ? (
                 <label className="text-sm text-slate-500">
                   <span className="sr-only">按分组筛选</span>
                   <select
@@ -382,7 +384,7 @@ const renderTeam = () => (
                   </select>
                 </label>
               ) : null}
-              {hasGlobalAdminRole ? (
+              {!isExpertAccountView && hasGlobalAdminRole ? (
                 <ActionButton disabled={aiPermissionsLoading} onClick={() => void loadAiPermissions()}>
                   <span className="inline-flex items-center gap-2">
                     <RotateCcw className="h-4 w-4" />
@@ -430,7 +432,7 @@ const renderTeam = () => (
                 待审核 {pendingApprovalMembers.length} 个
               </span>
             ) : null}
-            {canUseTeamGroups && teamGroupFilter !== "全部" ? (
+            {!isExpertAccountView && canUseTeamGroups && teamGroupFilter !== "全部" ? (
               <span className="rounded-full bg-emerald-50 px-3 py-1 text-emerald-700">
                 分组：{teamGroupFilter === "未分组"
                   ? "未分组"
@@ -438,7 +440,7 @@ const renderTeam = () => (
               </span>
             ) : null}
           </div>
-          {hasGlobalAdminRole ? (
+          {!isExpertAccountView && hasGlobalAdminRole ? (
             <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
               <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
                 <p className="text-xs text-slate-400">总成员数</p>
@@ -459,10 +461,21 @@ const renderTeam = () => (
                 </p>
               </div>
             </div>
+          ) : isExpertAccountView ? (
+            <div className="mt-4 grid gap-3 md:grid-cols-2">
+              <div className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3">
+                <p className="text-xs text-blue-500">专家账号</p>
+                <p className="mt-1 text-lg font-semibold text-blue-700">{displayedTeamMembers.length} 人</p>
+              </div>
+              <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
+                <p className="text-xs text-slate-400">权限说明</p>
+                <p className="mt-1 text-sm font-medium text-slate-700">仅开放专家评审，不参与分组和 AI 助手。</p>
+              </div>
+            </div>
           ) : null}
         </div>
 
-        {aiPermissionsMessage ? (
+        {!isExpertAccountView && aiPermissionsMessage ? (
           <div className="border-b border-slate-200 bg-red-50 px-5 py-3 text-sm text-red-700">
             {aiPermissionsMessage}
           </div>
@@ -470,7 +483,7 @@ const renderTeam = () => (
 
         {hasGlobalAdminRole ? (
           <>
-            {teamAiSelectedIds.length > 0 ? (
+            {!isExpertAccountView && teamAiSelectedIds.length > 0 ? (
               <div className="sticky top-0 z-[1] flex flex-wrap items-center gap-2 border-b border-blue-200 bg-blue-50 px-5 py-3 text-sm text-blue-700">
                 <span>已选 {teamAiSelectedIds.length} 人</span>
                 <ActionButton
@@ -535,7 +548,7 @@ const renderTeam = () => (
               </div>
             ) : null}
 
-            {aiPermissionsLoading && aiPermissionItems.length === 0 ? (
+            {!isExpertAccountView && aiPermissionsLoading && aiPermissionItems.length === 0 ? (
               <div className="px-5 py-8 text-sm text-slate-500">正在加载 AI 权限数据...</div>
             ) : displayedTeamMembers.length > 0 ? (
               <>
@@ -543,30 +556,36 @@ const renderTeam = () => (
                   <table className="min-w-full table-fixed">
                     <thead className="bg-slate-50 text-xs font-medium tracking-[0.06em] text-slate-400">
                       <tr>
-                        <th className="w-12 px-3 py-3 text-left">
-                          <input
-                            checked={allVisibleAiSelected}
-                            onChange={(event) =>
-                              setTeamAiSelectedIds((current) =>
-                                event.target.checked
-                                  ? Array.from(new Set([...current, ...displayedTeamMembers.map((member) => member.id)]))
-                                  : current.filter((id) => !displayedTeamMembers.some((member) => member.id === id))
-                              )
-                            }
-                            type="checkbox"
-                          />
-                        </th>
+                        {!isExpertAccountView ? (
+                          <th className="w-12 px-3 py-3 text-left">
+                            <input
+                              checked={allVisibleAiSelected}
+                              onChange={(event) =>
+                                setTeamAiSelectedIds((current) =>
+                                  event.target.checked
+                                    ? Array.from(new Set([...current, ...displayedTeamMembers.map((member) => member.id)]))
+                                    : current.filter((id) => !displayedTeamMembers.some((member) => member.id === id))
+                                )
+                              }
+                              type="checkbox"
+                            />
+                          </th>
+                        ) : null}
                         <th className="px-3 py-3 text-left">成员</th>
-                        <th className="w-28 px-3 py-3 text-left">权限开关</th>
-                        <th className="w-28 px-3 py-3 text-left">
-                          <span className="inline-flex items-center gap-1">
-                            次数配额
-                            <span title="留空表示不限次数">
-                              <HelpCircle className="h-3.5 w-3.5" />
-                            </span>
-                          </span>
-                        </th>
-                        <th className="w-28 px-3 py-3 text-left">已用 / 配额</th>
+                        <th className="w-28 px-3 py-3 text-left">{!isExpertAccountView ? "权限开关" : "账号状态"}</th>
+                        {!isExpertAccountView ? (
+                          <>
+                            <th className="w-28 px-3 py-3 text-left">
+                              <span className="inline-flex items-center gap-1">
+                                次数配额
+                                <span title="留空表示不限次数">
+                                  <HelpCircle className="h-3.5 w-3.5" />
+                                </span>
+                              </span>
+                            </th>
+                            <th className="w-28 px-3 py-3 text-left">已用 / 配额</th>
+                          </>
+                        ) : null}
                         <th className="w-[200px] px-3 py-3 text-right">操作</th>
                       </tr>
                     </thead>
@@ -589,19 +608,21 @@ const renderTeam = () => (
                             className={`${index % 2 === 1 ? "bg-[#FAFAFA]" : "bg-white"} hover:bg-[#F0F7FF]`}
                             key={member.id}
                           >
-                            <td className="px-3 py-3 align-top">
-                              <input
-                                checked={teamAiSelectedIds.includes(member.id)}
-                                onChange={(event) =>
-                                  setTeamAiSelectedIds((current) =>
-                                    event.target.checked
-                                      ? [...current, member.id]
-                                      : current.filter((id) => id !== member.id)
-                                  )
-                                }
-                                type="checkbox"
-                              />
-                            </td>
+                            {!isExpertAccountView ? (
+                              <td className="px-3 py-3 align-top">
+                                <input
+                                  checked={teamAiSelectedIds.includes(member.id)}
+                                  onChange={(event) =>
+                                    setTeamAiSelectedIds((current) =>
+                                      event.target.checked
+                                        ? [...current, member.id]
+                                        : current.filter((id) => id !== member.id)
+                                    )
+                                  }
+                                  type="checkbox"
+                                />
+                              </td>
+                            ) : null}
                             <td className="px-3 py-3 align-top">
                               <div className="flex items-start gap-3">
                                 <UserAvatar
@@ -620,7 +641,11 @@ const renderTeam = () => (
                                   </div>
                                   <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-slate-500">
                                     {!member.accountHidden ? <span>账号：{member.account}</span> : null}
-                                    <span>分组：{member.teamGroupName ?? "未分组"}</span>
+                                    <span>
+                                      {member.systemRole === "评审专家"
+                                        ? "专家账号"
+                                        : `分组：${member.teamGroupName ?? "未分组"}`}
+                                    </span>
                                     <span>{isSystemAccount ? "系统保留账号" : isSchoolAdminAccount ? "全局管理员" : "已启用"}</span>
                                   </div>
 
@@ -638,70 +663,84 @@ const renderTeam = () => (
                                           </option>
                                         ))}
                                       </select>
-                                      <select
-                                        className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 disabled:bg-slate-100 disabled:text-slate-400"
-                                        disabled={!canUseTeamGroups || groupAssignmentLocked}
-                                        value={editingTeamRowGroupId}
-                                        onChange={(event) => setEditingTeamRowGroupId(event.target.value)}
-                                      >
-                                        <option value="">未分组</option>
-                                        {teamGroups.map((group) => (
-                                          <option key={group.id} value={group.id}>
-                                            {group.name}
-                                          </option>
-                                        ))}
-                                      </select>
+                                      {member.systemRole === "评审专家" ? (
+                                        <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-500">
+                                          专家账号不分配项目组
+                                        </div>
+                                      ) : (
+                                        <select
+                                          className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20 disabled:bg-slate-100 disabled:text-slate-400"
+                                          disabled={!canUseTeamGroups || groupAssignmentLocked}
+                                          value={editingTeamRowGroupId}
+                                          onChange={(event) => setEditingTeamRowGroupId(event.target.value)}
+                                        >
+                                          <option value="">未分组</option>
+                                          {teamGroups.map((group) => (
+                                            <option key={group.id} value={group.id}>
+                                              {group.name}
+                                            </option>
+                                          ))}
+                                        </select>
+                                      )}
                                     </div>
                                   ) : null}
                                 </div>
                               </div>
                             </td>
                             <td className="px-3 py-3 align-top">
-                              <button
-                                className={`relative inline-flex h-6 w-11 items-center rounded-full transition ${
-                                  draft.isEnabled ? "bg-[#2563EB]" : "bg-slate-300"
-                                }`}
-                                disabled={aiPermissionSavingId === member.id || aiPermissionBatchSaving}
-                                onClick={() =>
-                                  updateAiPermissionDraft(
-                                    member.id,
-                                    { isEnabled: !draft.isEnabled },
-                                    { autoSave: true },
-                                  )
-                                }
-                                type="button"
-                              >
-                                <span
-                                  className={`inline-block h-5 w-5 rounded-full bg-white shadow transition ${
-                                    draft.isEnabled ? "translate-x-5" : "translate-x-0.5"
+                              {!isExpertAccountView ? (
+                                <button
+                                  className={`relative inline-flex h-6 w-11 items-center rounded-full transition ${
+                                    draft.isEnabled ? "bg-[#2563EB]" : "bg-slate-300"
                                   }`}
-                                />
-                              </button>
+                                  disabled={aiPermissionSavingId === member.id || aiPermissionBatchSaving}
+                                  onClick={() =>
+                                    updateAiPermissionDraft(
+                                      member.id,
+                                      { isEnabled: !draft.isEnabled },
+                                      { autoSave: true },
+                                    )
+                                  }
+                                  type="button"
+                                >
+                                  <span
+                                    className={`inline-block h-5 w-5 rounded-full bg-white shadow transition ${
+                                      draft.isEnabled ? "translate-x-5" : "translate-x-0.5"
+                                    }`}
+                                  />
+                                </button>
+                              ) : (
+                                <span className="system-status-tag expert">已启用</span>
+                              )}
                             </td>
-                            <td className="px-3 py-3 align-top">
-                              <input
-                                className="w-20 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
-                                inputMode="numeric"
-                                onBlur={() => flushAiPermissionSave(member.id)}
-                                onChange={(event) => updateAiPermissionDraft(member.id, { maxCount: event.target.value })}
-                                placeholder="不限"
-                                type="text"
-                                value={draft.maxCount}
-                              />
-                            </td>
-                            <td className="px-3 py-3 align-top text-sm text-slate-600">
-                              <div className="font-medium">
-                                {permissionItem?.usedCount ?? 0} / {permissionItem?.maxCount == null ? "∞" : permissionItem.maxCount}
-                              </div>
-                              <div className="mt-1 text-xs text-slate-400">
-                                剩余 {permissionItem?.remainingCount == null ? "∞" : permissionItem.remainingCount}
-                              </div>
-                            </td>
+                            {!isExpertAccountView ? (
+                              <>
+                                <td className="px-3 py-3 align-top">
+                                  <input
+                                    className="w-20 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                                    inputMode="numeric"
+                                    onBlur={() => flushAiPermissionSave(member.id)}
+                                    onChange={(event) => updateAiPermissionDraft(member.id, { maxCount: event.target.value })}
+                                    placeholder="不限"
+                                    type="text"
+                                    value={draft.maxCount}
+                                  />
+                                </td>
+                                <td className="px-3 py-3 align-top text-sm text-slate-600">
+                                  <div className="font-medium">
+                                    {permissionItem?.usedCount ?? 0} / {permissionItem?.maxCount == null ? "∞" : permissionItem.maxCount}
+                                  </div>
+                                  <div className="mt-1 text-xs text-slate-400">
+                                    剩余 {permissionItem?.remainingCount == null ? "∞" : permissionItem.remainingCount}
+                                  </div>
+                                </td>
+                              </>
+                            ) : null}
                             <td className="px-3 py-3 align-top">
                               <div className="flex flex-wrap justify-end gap-2">
                                 {permissions.canManageTeam && editable && !protectedGlobalAccount && editingTeamRowId !== member.id ? (
                                   <button
-                                    className="team-icon-button"
+                                    className="team-icon-button primary"
                                     onClick={() => openTeamRowEditor(member)}
                                     title="编辑角色和分组"
                                     type="button"
@@ -720,7 +759,7 @@ const renderTeam = () => (
                                       <Check className="h-3.5 w-3.5" />
                                     </button>
                                     <button
-                                      className="team-icon-button"
+                                      className="team-icon-button muted"
                                       onClick={cancelTeamRowEditor}
                                       title="取消编辑"
                                       type="button"
@@ -729,18 +768,20 @@ const renderTeam = () => (
                                     </button>
                                   </>
                                 ) : null}
-                                <button
-                                  className="team-icon-button"
-                                  disabled={aiPermissionSavingId === member.id || aiPermissionBatchSaving}
-                                  onClick={() => void saveAiPermission(member.id, { resetUsage: true })}
-                                  title="重置次数"
-                                  type="button"
-                                >
-                                  <Shuffle className="h-3.5 w-3.5" />
-                                </button>
+                                {!isExpertAccountView ? (
+                                  <button
+                                    className="team-icon-button warning"
+                                    disabled={aiPermissionSavingId === member.id || aiPermissionBatchSaving}
+                                    onClick={() => void saveAiPermission(member.id, { resetUsage: true })}
+                                    title="重置次数"
+                                    type="button"
+                                  >
+                                    <Shuffle className="h-3.5 w-3.5" />
+                                  </button>
+                                ) : null}
                                 {canSendDirectiveToMember(member) ? (
                                   <button
-                                    className="team-icon-button"
+                                    className="team-icon-button primary"
                                     onClick={() => openReminderModal(member)}
                                     title="发送提醒"
                                     type="button"
@@ -750,7 +791,7 @@ const renderTeam = () => (
                                 ) : null}
                                 {permissions.canResetPassword ? (
                                   <button
-                                    className="team-icon-button"
+                                    className="team-icon-button muted"
                                     disabled={!canResetMemberPassword(member)}
                                     onClick={() => openPasswordModal(member)}
                                     title="重置密码"
@@ -820,7 +861,7 @@ const renderTeam = () => (
             <div className={`hidden ${teamListGridClassName} gap-4 border-b border-slate-200 bg-slate-50 px-5 py-3 text-xs font-medium tracking-[0.06em] text-slate-400 lg:grid`}>
               <span>账号信息</span>
               <span>角色</span>
-              {canUseTeamGroups ? <span>分组</span> : null}
+              {!isExpertAccountView && canUseTeamGroups ? <span>分组</span> : null}
               <span>状态</span>
               {showTeamActions ? <span className="text-right">操作</span> : null}
             </div>
@@ -867,7 +908,7 @@ const renderTeam = () => (
                           </div>
                           {!member.accountHidden ? (
                             <p className="mt-1 truncate text-sm text-slate-500">账号：{member.account}</p>
-                          ) : member.teamGroupName ? (
+                          ) : member.systemRole !== "评审专家" && member.teamGroupName ? (
                             <p className="mt-1 truncate text-sm text-slate-500">团队：{member.teamGroupName}</p>
                           ) : null}
                         </div>
@@ -894,7 +935,7 @@ const renderTeam = () => (
                         )}
                       </div>
 
-                      {canUseTeamGroups ? (
+                      {!isExpertAccountView && canUseTeamGroups ? (
                         <div>
                           <p className="mb-2 text-xs text-slate-400 lg:hidden">分组</p>
                           {editingTeamRowId === member.id && !groupAssignmentLocked ? (
@@ -929,7 +970,7 @@ const renderTeam = () => (
                         <div className="flex flex-wrap items-center gap-2 lg:justify-end">
                           {permissions.canManageTeam && editable && !protectedGlobalAccount && editingTeamRowId !== member.id ? (
                             <button
-                              className="team-icon-button"
+                              className="team-icon-button primary"
                               onClick={() => openTeamRowEditor(member)}
                               title="编辑角色和分组"
                               type="button"
@@ -948,7 +989,7 @@ const renderTeam = () => (
                                 <Check className="h-3.5 w-3.5" />
                               </button>
                               <button
-                                className="team-icon-button"
+                                className="team-icon-button muted"
                                 onClick={cancelTeamRowEditor}
                                 title="取消编辑"
                                 type="button"

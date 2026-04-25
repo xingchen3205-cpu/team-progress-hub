@@ -360,7 +360,9 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                   <div className="min-w-0">
                     <p className="sidebar-user-name truncate">{currentUser.profile.name}</p>
                     <p className="sidebar-user-role mt-0.5">{roleLabels[currentRole]}</p>
-                    <p className="mt-0.5 text-[11px] text-white/45">智在必行</p>
+                    {currentRole !== "expert" ? (
+                      <p className="mt-0.5 text-[11px] text-white/45">智在必行</p>
+                    ) : null}
                   </div>
                 </div>
                 <button
@@ -435,7 +437,9 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                   <div className="min-w-0">
                     <p className="sidebar-user-name truncate">{currentUser.profile.name}</p>
                     <p className="sidebar-user-role mt-0.5">{roleLabels[currentRole]}</p>
-                    <p className="mt-0.5 text-[11px] text-white/45">智在必行</p>
+                    {currentRole !== "expert" ? (
+                      <p className="mt-0.5 text-[11px] text-white/45">智在必行</p>
+                    ) : null}
                   </div>
                 </div>
                 <button

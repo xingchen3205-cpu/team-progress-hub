@@ -53,14 +53,15 @@ describe("team-scoped workspace visibility", () => {
   });
 
   it("keeps expert review packages isolated for experts and ungrouped users", () => {
-    assert.deepEqual(
-      buildExpertReviewAssignmentVisibilityWhere({
+    const expertWhere = buildExpertReviewAssignmentVisibilityWhere({
         id: "expert-1",
         role: "expert",
         teamGroupId: null,
-      }),
-      { expertUserId: "expert-1" },
-    );
+    });
+
+    assert.equal(expertWhere.expertUserId, "expert-1");
+    assert.deepEqual(expertWhere.reviewPackage?.OR?.[0], { deadline: null });
+    assert.ok(expertWhere.reviewPackage?.OR?.[1]?.deadline?.gt instanceof Date);
 
     assert.deepEqual(
       buildExpertReviewAssignmentVisibilityWhere({
