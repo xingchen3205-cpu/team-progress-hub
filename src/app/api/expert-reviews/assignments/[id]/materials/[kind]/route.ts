@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { getSessionUser } from "@/lib/auth";
 import { buildInlineDisposition } from "@/lib/downloads";
+import { getExpertReviewLockState } from "@/lib/expert-review";
 import { assertRole } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { canAccessTeamScopedResource } from "@/lib/team-scope";
@@ -51,6 +52,13 @@ export async function GET(
 
   if (user.role === "expert" && assignment.expertUserId !== user.id) {
     return NextResponse.json({ message: "无权限查看该材料" }, { status: 403 });
+  }
+
+  if (
+    user.role === "expert" &&
+    getExpertReviewLockState({ deadline: assignment.reviewPackage.deadline })
+  ) {
+    return NextResponse.json({ message: "评审已截止，材料查看权限已关闭" }, { status: 410 });
   }
 
   if (

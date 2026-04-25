@@ -50,6 +50,8 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json(result);
   } catch (error) {
+    console.error("[ai-chat] request failed", error);
+
     const status =
       typeof error === "object" &&
       error !== null &&
@@ -59,7 +61,7 @@ export async function POST(request: NextRequest) {
         : 500;
 
     return NextResponse.json(
-      { message: error instanceof Error ? error.message : "AI 助手暂时不可用，请稍后重试" },
+      { message: "AI 助手暂时不可用，请稍后重试" },
       { status },
     );
   }

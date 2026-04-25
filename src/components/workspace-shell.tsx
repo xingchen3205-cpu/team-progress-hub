@@ -482,7 +482,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                     <div className="absolute inset-x-0 top-[calc(100%+8px)] z-30 rounded-xl border border-gray-200 bg-white p-3 shadow-[0_16px_32px_rgba(15,23,42,0.12)]">
                       <p className="text-xs font-medium text-slate-500">搜索结果</p>
                       <div className="mt-2 rounded-lg bg-gray-50 px-3 py-3 text-sm text-slate-600">
-                        搜索功能开发中
+                        暂无匹配结果，请尝试更换关键词。
                       </div>
                     </div>
                   ) : null}
@@ -496,7 +496,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                     <span className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500">
                       <Cloud className="h-4 w-4" />
                     </span>
-                    <span className="header-sync-tooltip">数据自动同步至云端数据库</span>
+                    <span className="header-sync-tooltip">数据已同步</span>
                   </div>
                   <button
                     className="depth-button-secondary relative inline-flex h-10 items-center gap-2 rounded-xl px-3 text-[color:var(--color-neutral)]"

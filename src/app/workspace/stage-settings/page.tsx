@@ -63,7 +63,7 @@ export default function StageSettingsPage() {
             <div className="rounded-[22px] bg-[var(--color-panel)] p-5">
               <p className="text-sm font-medium text-[var(--color-ink)]">管理员说明</p>
               <p className="mt-2 text-sm leading-7 text-[var(--color-muted)]">
-                这里后续接入真实账号体系后，只有管理员账号才能保存修改，普通成员只能查看当前阶段时间。
+                阶段时间由管理员统一维护，普通成员仅查看当前阶段安排。
               </p>
             </div>
 

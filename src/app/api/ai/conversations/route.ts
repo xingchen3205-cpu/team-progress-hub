@@ -15,8 +15,9 @@ export async function GET(request: NextRequest) {
     const conversations = await listAiConversations(user.id);
     return NextResponse.json({ conversations });
   } catch (error) {
+    console.error("[ai-conversations] list failed", error);
     return NextResponse.json(
-      { message: error instanceof Error ? error.message : "获取历史对话失败" },
+      { message: "获取历史对话失败，请稍后重试" },
       { status: 500 },
     );
   }

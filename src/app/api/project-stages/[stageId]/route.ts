@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { getSessionUser } from "@/lib/auth";
 import { serializeProjectReviewStage } from "@/lib/api-serializers";
-import { assertMainWorkspaceRole } from "@/lib/permissions";
+import { assertMainWorkspaceRole, hasGlobalAdminPrivileges } from "@/lib/permissions";
 import { canManageProjectReviewStage } from "@/lib/project-materials";
 import { prisma } from "@/lib/prisma";
 
@@ -12,16 +12,16 @@ export const runtime = "nodejs";
 const authorizeProjectStageRequest = async (request: NextRequest) => {
   const user = await getSessionUser(request);
   if (!user) {
-    return NextResponse.json({ message: "未登录" }, { status: 401 });
+    return { error: NextResponse.json({ message: "未登录" }, { status: 401 }) };
   }
 
   try {
     assertMainWorkspaceRole(user.role);
   } catch {
-    return NextResponse.json({ message: "无权限" }, { status: 403 });
+    return { error: NextResponse.json({ message: "无权限" }, { status: 403 }) };
   }
 
-  return null;
+  return { user };
 };
 
 const authorizeProjectStageWriteRequest = async (request: NextRequest) => {
@@ -129,13 +129,32 @@ const mapProjectStageWriteError = (error: unknown) => {
   throw error;
 };
 
-export async function GET(request: NextRequest) {
-  const unauthorizedResponse = await authorizeProjectStageRequest(request);
-  if (unauthorizedResponse) {
-    return unauthorizedResponse;
+export async function GET(
+  request: NextRequest,
+  { params }: { params: Promise<{ stageId: string }> },
+) {
+  const { user, error } = await authorizeProjectStageRequest(request);
+  if (error) {
+    return error;
   }
 
-  return NextResponse.json({ message: "项目评审阶段详情接口待实现" }, { status: 501 });
+  const { stageId } = await params;
+
+  const stage = await prisma.projectReviewStage.findFirst({
+    where: {
+      id: stageId,
+      ...(hasGlobalAdminPrivileges(user.role)
+        ? {}
+        : { OR: [{ teamGroupId: null }, { teamGroupId: user.teamGroupId }] }),
+    },
+    include: projectReviewStageInclude,
+  });
+
+  if (!stage) {
+    return NextResponse.json({ message: "项目评审阶段不存在" }, { status: 404 });
+  }
+
+  return NextResponse.json({ stage: serializeProjectReviewStage(stage) });
 }
 
 export async function PUT(
@@ -177,11 +196,24 @@ export async function PUT(
   }
 }
 
-export async function DELETE(request: NextRequest) {
+export async function DELETE(
+  request: NextRequest,
+  { params }: { params: Promise<{ stageId: string }> },
+) {
   const { error } = await authorizeProjectStageWriteRequest(request);
   if (error) {
     return error;
   }
 
-  return NextResponse.json({ message: "项目评审阶段删除接口待实现" }, { status: 501 });
+  const { stageId } = await params;
+
+  try {
+    await prisma.projectReviewStage.delete({
+      where: { id: stageId },
+    });
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    return mapProjectStageWriteError(error);
+  }
 }

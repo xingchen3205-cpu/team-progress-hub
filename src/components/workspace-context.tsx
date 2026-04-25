@@ -522,7 +522,7 @@ export const allTabs: TabItem[] = [
   {
     key: "assistant",
     label: "AI 助手",
-    description: "通过已部署的 Dify 助手咨询系统使用、赛事流程和材料规范。",
+    description: "咨询系统使用、赛事流程和材料规范。",
     icon: Bot,
   },
   {
@@ -1533,7 +1533,7 @@ export function SectionHeader({ title, description }: { title: string; descripti
 }
 
 export function DemoResetNote() {
-  return <p className="text-xs leading-6 text-slate-500">当前数据已保存到云端数据库，可跨设备同步</p>;
+  return <p className="text-xs leading-6 text-slate-500">当前数据已保存，可跨设备查看</p>;
 }
 
 export function Modal({

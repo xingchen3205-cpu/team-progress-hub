@@ -238,6 +238,7 @@ export type ExpertReviewAssignmentItem = {
   targetName: string;
   roundLabel: string;
   overview: string;
+  reviewMode?: "network" | "roadshow";
   deadline: string | null;
   status: "待评审" | "已提交" | "已锁定";
   statusKey: "pending" | "completed" | "locked";

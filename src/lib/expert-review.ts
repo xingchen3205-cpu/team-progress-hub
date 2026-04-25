@@ -135,6 +135,15 @@ export const expertReviewAcceptAttributes: Record<ExpertReviewMaterialKind, stri
   video: ".mp4,.mov,.avi",
 };
 
+export type ExpertReviewMode = "network" | "roadshow";
+
+export const getExpertReviewMode = (
+  assignment: Pick<ExpertReviewPackage, "targetName" | "roundLabel" | "overview">,
+): ExpertReviewMode => {
+  const text = `${assignment.roundLabel ?? ""} ${assignment.targetName ?? ""} ${assignment.overview ?? ""}`;
+  return /路演|答辩|现场|视频/i.test(text) ? "roadshow" : "network";
+};
+
 export const getExpertReviewLockState = ({
   deadline,
   lockedAt,
@@ -162,17 +171,17 @@ export const getExpertReviewStatus = ({
   deadline?: Date | string | null;
   score?: Pick<ExpertReviewScore, "lockedAt"> | null;
 }) => {
-  if (status === "locked" || getExpertReviewLockState({ deadline, lockedAt: score?.lockedAt })) {
-    return {
-      key: "locked" as const,
-      label: "已锁定" as const,
-    };
-  }
-
   if (status === "completed" || score) {
     return {
       key: "completed" as const,
       label: "已提交" as const,
+    };
+  }
+
+  if (status === "locked" || getExpertReviewLockState({ deadline, lockedAt: null })) {
+    return {
+      key: "locked" as const,
+      label: "已锁定" as const,
     };
   }
 
@@ -245,10 +254,11 @@ export const serializeExpertReviewAssignment = (
     targetName: assignment.reviewPackage.targetName,
     roundLabel: assignment.reviewPackage.roundLabel ?? "当前轮次",
     overview: assignment.reviewPackage.overview ?? "",
+    reviewMode: getExpertReviewMode(assignment.reviewPackage),
     deadline: assignment.reviewPackage.deadline?.toISOString() ?? null,
     status: derivedStatus.label,
     statusKey: derivedStatus.key,
-    canEdit: derivedStatus.key !== "locked",
+    canEdit: derivedStatus.key === "pending" && !assignment.score,
     expert: {
       id: assignment.expertUser.id,
       name: assignment.expertUser.name,

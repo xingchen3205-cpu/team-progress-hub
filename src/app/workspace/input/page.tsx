@@ -26,7 +26,7 @@ export default async function MemberInputPage({
                 成员每日内容录入
               </h1>
               <p className="mt-4 max-w-3xl text-sm leading-7 text-[var(--color-muted)]">
-                每个人登录后可以进入自己的填写页，录入今天做了什么、遇到什么问题、明天准备做什么。
+                这里用于查看成员当日填报样例；正式汇报请在“日程汇报”中提交。
               </p>
             </div>
             <div className="flex gap-3">
@@ -108,7 +108,7 @@ export default async function MemberInputPage({
               <div className="rounded-[22px] border border-dashed border-[var(--color-line)] bg-[var(--color-panel)] p-5">
                 <p className="text-sm font-medium text-[var(--color-ink)]">附件上传</p>
                 <p className="mt-2 text-sm leading-7 text-[var(--color-muted)]">
-                  这里后续可以接入文件上传，用来提交截图、文档、视频或当天修改过的材料版本。
+                  附件材料请在对应项目阶段或日程汇报中按要求上传。
                 </p>
               </div>
 

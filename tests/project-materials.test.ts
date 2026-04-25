@@ -8,6 +8,10 @@ import {
   serializeProjectReviewStage,
 } from "@/lib/api-serializers";
 import {
+  createProjectMaterialUploadToken,
+  verifyProjectMaterialUploadToken,
+} from "@/lib/project-material-upload-token";
+import {
   buildProjectMaterialVisibilityWhere,
   canManageProjectReviewStage,
   canReviewProjectMaterial,
@@ -126,6 +130,47 @@ test("project material validation rejects unsafe uploads", () => {
       fileSize: 101 * 1024 * 1024,
     }),
     "项目材料文件大小不能超过 100MB",
+  );
+});
+
+test("project material upload tokens bind file paths to user team stage and metadata", () => {
+  const payload = {
+    userId: "u1",
+    teamGroupId: "g1",
+    stageId: "s1",
+    filePath: "project-materials/g1/s1/random.pdf",
+    fileName: "random.pdf",
+    fileSize: 1024,
+    mimeType: "application/pdf",
+  };
+
+  const token = createProjectMaterialUploadToken(payload, {
+    now: 1_000,
+    expiresInSeconds: 60,
+    secret: "test-secret",
+  });
+
+  assert.deepEqual(
+    verifyProjectMaterialUploadToken(token, { now: 30_000, secret: "test-secret" }),
+    {
+      ...payload,
+      expiresAt: 61_000,
+    },
+  );
+  assert.equal(
+    verifyProjectMaterialUploadToken(token, { now: 30_000, secret: "wrong-secret" }),
+    null,
+  );
+  assert.equal(
+    verifyProjectMaterialUploadToken(`${token.slice(0, -1)}x`, {
+      now: 30_000,
+      secret: "test-secret",
+    }),
+    null,
+  );
+  assert.equal(
+    verifyProjectMaterialUploadToken(token, { now: 62_000, secret: "test-secret" }),
+    null,
   );
 });
 
@@ -280,7 +325,7 @@ test("project material serializers emit stable api payloads", () => {
       creator: { id: "admin-1", name: "系统管理员", avatar: "系", role: "admin" },
       teamGroup: { id: "group-1", name: "智在必行" },
       _count: { submissions: 2 },
-    } as any),
+    } as Parameters<typeof serializeProjectReviewStage>[0]),
     {
       id: "stage-1",
       name: "第一轮网评",
@@ -333,7 +378,7 @@ test("project material serializers emit stable api payloads", () => {
       submitter: { id: "member-1", name: "学生甲", avatar: "甲", role: "member" },
       approver: { id: "teacher-1", name: "贾老师", avatar: "贾", role: "teacher" },
       rejecter: null,
-    } as any),
+    } as Parameters<typeof serializeProjectMaterialSubmission>[0]),
     {
       id: "submission-1",
       stageId: "stage-1",
@@ -375,7 +420,7 @@ test("project material api route placeholders exist", () => {
   }
 });
 
-test("project material api placeholders preserve action-specific auth boundaries", () => {
+test("project material approval routes preserve action-specific auth boundaries", () => {
   const stageItemRoute = readFileSync(
     path.join(process.cwd(), "src/app/api/project-stages/[stageId]/route.ts"),
     "utf8",
@@ -397,6 +442,57 @@ test("project material api placeholders preserve action-specific auth boundaries
   assert.match(uploadRoute, /canUploadProjectMaterial\(\{ role: user\.role, teamGroupId: user\.teamGroupId \}\)/);
   assert.match(approveRoute, /canReviewProjectMaterial\(/);
   assert.match(rejectRoute, /canReviewProjectMaterial\(/);
+  assert.doesNotMatch(approveRoute, /接口待实现/);
+  assert.doesNotMatch(rejectRoute, /接口待实现/);
+  assert.doesNotMatch(approveRoute, /status:\s*501/);
+  assert.doesNotMatch(rejectRoute, /status:\s*501/);
+  assert.match(approveRoute, /status:\s*"approved"/);
+  assert.match(rejectRoute, /status:\s*"rejected"/);
+  assert.match(approveRoute, /approvedById:\s*user\.id/);
+  assert.match(rejectRoute, /rejectedById:\s*user\.id/);
+  assert.match(approveRoute, /createNotifications\(/);
+  assert.match(rejectRoute, /createNotifications\(/);
+  assert.match(approveRoute, /targetTab:\s*"project"/);
+  assert.match(rejectRoute, /targetTab:\s*"project"/);
+});
+
+test("project material listing and submission route enforces visibility upload and notification rules", () => {
+  const materialRoute = readFileSync(
+    path.join(process.cwd(), "src/app/api/project-materials/route.ts"),
+    "utf8",
+  );
+
+  assert.match(materialRoute, /buildProjectMaterialVisibilityWhere\(user\)/);
+  assert.match(
+    materialRoute,
+    /canUploadProjectMaterial\(\{ role: user\.role, teamGroupId: user\.teamGroupId \}\)/,
+  );
+  assert.match(materialRoute, /stage\.isOpen/);
+  assert.match(materialRoute, /stage\.teamGroupId && stage\.teamGroupId !== user\.teamGroupId/);
+  assert.match(materialRoute, /isScopedProjectMaterialFilePath/);
+  assert.match(materialRoute, /cleanupScopedProjectMaterialFile/);
+  assert.match(materialRoute, /projectMaterialSubmission\s*\.\s*count/);
+  assert.match(materialRoute, /referencedSubmissionCount === 0/);
+  assert.match(materialRoute, /mapProjectMaterialSubmissionError\(error, cleanupUploadedFile\)/);
+  assert.match(materialRoute, /createNotifications\(/);
+  assert.match(materialRoute, /await createNotifications\(/);
+  assert.match(materialRoute, /roles:\s*\["teacher"\]/);
+  assert.match(materialRoute, /targetTab:\s*"project"/);
+});
+
+test("project material upload-url route validates stage and builds project material object keys", () => {
+  const uploadRoute = readFileSync(
+    path.join(process.cwd(), "src/app/api/project-materials/upload-url/route.ts"),
+    "utf8",
+  );
+
+  assert.match(uploadRoute, /stageId/);
+  assert.match(uploadRoute, /stage\.isOpen/);
+  assert.match(uploadRoute, /stage\.teamGroupId && stage\.teamGroupId !== user\.teamGroupId/);
+  assert.match(uploadRoute, /validateProjectMaterialUploadMeta/);
+  assert.match(uploadRoute, /buildStoredObjectKey/);
+  assert.match(uploadRoute, /project-materials\/\$\{teamGroupId\}\/\$\{stageId\}/);
+  assert.match(uploadRoute, /folder:\s*buildProjectMaterialUploadFolder/);
 });
 
 test("project stage api routes expose management actions", () => {
@@ -424,8 +520,14 @@ test("project stage api routes expose management actions", () => {
   assert.match(stageRoute, /error\.code === "P2003"/);
   assert.match(stageRoute, /message: "项目组不存在" \}, \{ status: 400 \}/);
   assert.match(stageItemRoute, /export async function PUT/);
+  assert.match(stageItemRoute, /export async function GET/);
+  assert.match(stageItemRoute, /export async function DELETE/);
   assert.match(stageItemRoute, /canManageProjectReviewStage\(user\.role\)/);
   assert.match(stageItemRoute, /prisma\.projectReviewStage\s*\.\s*update/);
+  assert.match(stageItemRoute, /prisma\.projectReviewStage\s*\.\s*findFirst/);
+  assert.match(stageItemRoute, /prisma\.projectReviewStage\s*\.\s*delete/);
+  assert.doesNotMatch(stageItemRoute, /接口待实现/);
+  assert.doesNotMatch(stageItemRoute, /status:\s*501/);
   assert.match(stageItemRoute, /typeof body\?\.name !== "string"/);
   assert.match(stageItemRoute, /typeof body\?\.type !== "string"/);
   assert.match(stageItemRoute, /typeof body\.teamGroupId !== "string"/);

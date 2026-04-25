@@ -33,8 +33,9 @@ export async function GET(request: NextRequest, context: RouteContext) {
       messages,
     });
   } catch (error) {
+    console.error("[ai-conversations] messages failed", error);
     return NextResponse.json(
-      { message: error instanceof Error ? error.message : "获取历史消息失败" },
+      { message: "获取历史消息失败，请稍后重试" },
       { status: 500 },
     );
   }
@@ -59,8 +60,9 @@ export async function DELETE(request: NextRequest, context: RouteContext) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    console.error("[ai-conversations] delete failed", error);
     return NextResponse.json(
-      { message: error instanceof Error ? error.message : "删除历史对话失败" },
+      { message: "删除历史对话失败，请稍后重试" },
       { status: 500 },
     );
   }

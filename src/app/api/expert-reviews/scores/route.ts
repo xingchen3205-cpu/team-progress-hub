@@ -4,7 +4,6 @@ import { getSessionUser } from "@/lib/auth";
 import {
   getExpertReviewLockState,
   serializeExpertReviewAssignment,
-  validateExpertReviewScores,
 } from "@/lib/expert-review";
 import { assertRole } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
@@ -99,10 +98,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: "无权限提交该评审任务" }, { status: 403 });
   }
 
+  if (assignment.score) {
+    return NextResponse.json({ message: "评分已提交，不能修改" }, { status: 409 });
+  }
+
   if (
     getExpertReviewLockState({
       deadline: assignment.reviewPackage.deadline,
-      lockedAt: assignment.score?.lockedAt,
+      lockedAt: null,
     })
   ) {
     await prisma.expertReviewAssignment.update({
@@ -113,7 +116,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: "评审已截止，当前记录已锁定" }, { status: 409 });
   }
 
-  const commentTotal = body?.commentTotal?.trim() || "无";
+  const commentTotal = body?.commentTotal?.trim() || "";
   const hasRoadshowScore = typeof body?.roadshowScore === "number";
   const hasTotalScore = typeof body?.totalScore === "number";
   const hasLegacyScore =
@@ -129,6 +132,10 @@ export async function POST(request: NextRequest) {
     scoreTeamwork: number;
   };
   let totalScore: number;
+
+  if (hasLegacyScore) {
+    return NextResponse.json({ message: "请提交 0.00-100.00 的总分" }, { status: 400 });
+  }
 
   if (hasRoadshowScore) {
     const roadshowScore = Number(body.roadshowScore);
@@ -154,8 +161,17 @@ export async function POST(request: NextRequest) {
     totalScore = scaledRoadshowScore;
   } else if (hasTotalScore) {
     const simpleTotalScore = Number(body.totalScore);
-    if (!Number.isInteger(simpleTotalScore) || simpleTotalScore < 0 || simpleTotalScore > 100) {
-      return NextResponse.json({ message: "网评分数需为 0-100 分的整数" }, { status: 400 });
+    const scaledTotalScore = Math.round(simpleTotalScore * 100);
+    const hasValidTotalPrecision =
+      Number.isInteger(simpleTotalScore * 100) ||
+      Math.abs(simpleTotalScore * 100 - scaledTotalScore) < 1e-6;
+    if (
+      !Number.isFinite(simpleTotalScore) ||
+      simpleTotalScore < 0 ||
+      simpleTotalScore > 100 ||
+      !hasValidTotalPrecision
+    ) {
+      return NextResponse.json({ message: "网评分数需为 0.00-100.00，最多保留两位小数" }, { status: 400 });
     }
 
     scorePayload = {
@@ -164,48 +180,23 @@ export async function POST(request: NextRequest) {
       scoreIndustry: 0,
       scoreTeamwork: 0,
     };
-    totalScore = simpleTotalScore;
-  } else if (hasLegacyScore) {
-    scorePayload = {
-      scorePersonalGrowth: Number(body?.scorePersonalGrowth),
-      scoreInnovation: Number(body?.scoreInnovation),
-      scoreIndustry: Number(body?.scoreIndustry),
-      scoreTeamwork: Number(body?.scoreTeamwork),
-    };
-
-    if (!body?.commentTotal?.trim()) {
-      return NextResponse.json({ message: "请填写综合评语" }, { status: 400 });
-    }
-
-    const validationError = validateExpertReviewScores(scorePayload);
-    if (validationError) {
-      return NextResponse.json({ message: validationError }, { status: 400 });
-    }
-
-    totalScore =
-      scorePayload.scorePersonalGrowth +
-      scorePayload.scoreInnovation +
-      scorePayload.scoreIndustry +
-      scorePayload.scoreTeamwork;
+    totalScore = scaledTotalScore;
   } else {
     return NextResponse.json({ message: "评分信息不完整" }, { status: 400 });
   }
 
   const updatedAssignment = await prisma.$transaction(async (tx) => {
-    await tx.expertReviewScore.upsert({
-      where: { assignmentId: assignment.id },
-      update: {
-        reviewerId: user.id,
-        ...scorePayload,
-        totalScore,
-        commentTotal,
-      },
-      create: {
+    const submittedAt = new Date();
+
+    await tx.expertReviewScore.create({
+      data: {
         assignmentId: assignment.id,
         reviewerId: user.id,
         ...scorePayload,
         totalScore,
-        commentTotal,
+        commentTotal: hasRoadshowScore ? "" : commentTotal,
+        submittedAt,
+        lockedAt: submittedAt,
       },
     });
 

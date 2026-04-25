@@ -30,23 +30,29 @@ type PendingSubmission = {
   comment: string;
 } | null;
 
-const systemDateRange = "2026-04-22 ~ 04-27";
-
 const getInitial = (name?: string | null) => (name?.trim().slice(0, 1) || "评").toUpperCase();
 
-const isRoadshowAssignment = (assignment: Pick<ExpertReviewAssignmentItem, "roundLabel" | "targetName" | "overview">) =>
-  /路演|答辩|现场|视频/i.test(`${assignment.roundLabel} ${assignment.targetName} ${assignment.overview}`);
+const getReviewMode = (
+  assignment: Pick<ExpertReviewAssignmentItem, "roundLabel" | "targetName" | "overview" | "reviewMode">,
+) =>
+  assignment.reviewMode ??
+  (/路演|答辩|现场|视频/i.test(`${assignment.roundLabel} ${assignment.targetName} ${assignment.overview}`)
+    ? "roadshow"
+    : "network");
+
+const isRoadshowAssignment = (
+  assignment: Pick<ExpertReviewAssignmentItem, "roundLabel" | "targetName" | "overview" | "reviewMode">,
+) => getReviewMode(assignment) === "roadshow";
+
+const usesCentScoreScale = (assignment: ExpertReviewAssignmentItem) =>
+  Boolean(assignment.score?.lockedAt) || isRoadshowAssignment(assignment) || (assignment.score?.totalScore ?? 0) > 100;
 
 const formatScoreForAssignment = (assignment: ExpertReviewAssignmentItem) => {
   if (!assignment.score) {
     return "--";
   }
 
-  if (isRoadshowAssignment(assignment)) {
-    return (assignment.score.totalScore / 100).toFixed(2);
-  }
-
-  return `${assignment.score.totalScore}`;
+  return (assignment.score.totalScore / (usesCentScoreScale(assignment) ? 100 : 1)).toFixed(2);
 };
 
 const getScoreValue = (assignment: ExpertReviewAssignmentItem) => {
@@ -54,9 +60,7 @@ const getScoreValue = (assignment: ExpertReviewAssignmentItem) => {
     return null;
   }
 
-  return isRoadshowAssignment(assignment)
-    ? assignment.score.totalScore / 100
-    : assignment.score.totalScore;
+  return assignment.score.totalScore / (usesCentScoreScale(assignment) ? 100 : 1);
 };
 
 const groupReviewAssignments = (assignments: ExpertReviewAssignmentItem[]) =>
@@ -152,7 +156,7 @@ function ConfirmModal({
           ) : null}
         </div>
         <p className="mt-4 text-sm leading-6 text-slate-500">
-          提交后系统会实时更新管理端大屏数据；截止前如需调整，可重新提交覆盖。
+          提交后不可修改，请确认分数无误。系统会实时更新管理端和投屏数据。
         </p>
         <div className="mt-6 flex justify-end gap-3">
           <button
@@ -218,7 +222,6 @@ export default function ExpertReviewTab() {
   const [networkScoreDrafts, setNetworkScoreDrafts] = useState<Record<string, string>>({});
   const [networkCommentDrafts, setNetworkCommentDrafts] = useState<Record<string, string>>({});
   const [roadshowScoreDraft, setRoadshowScoreDraft] = useState("");
-  const [roadshowCommentDraft, setRoadshowCommentDraft] = useState("");
   const [pendingSubmission, setPendingSubmission] = useState<PendingSubmission>(null);
   const [submittingAssignmentId, setSubmittingAssignmentId] = useState<string | null>(null);
   const [activeGroupKey, setActiveGroupKey] = useState<string | null>(null);
@@ -245,6 +248,27 @@ export default function ExpertReviewTab() {
   const finishedNetworkCount = networkAssignments.filter((assignment) => assignment.statusKey !== "pending").length;
   const pendingRoadshowCount = roadshowAssignments.filter((assignment) => assignment.statusKey === "pending").length;
   const finishedRoadshowCount = roadshowAssignments.filter((assignment) => assignment.statusKey !== "pending").length;
+  const reviewDeadlineText = useMemo(() => {
+    const deadlines = reviewAssignments
+      .map((assignment) => assignment.deadline)
+      .filter((deadline): deadline is string => Boolean(deadline))
+      .map((deadline) => new Date(deadline))
+      .filter((deadline) => !Number.isNaN(deadline.getTime()))
+      .sort((a, b) => a.getTime() - b.getTime());
+
+    if (deadlines.length === 0) {
+      return "评审截止：待管理员设置";
+    }
+
+    const first = deadlines[0];
+    const last = deadlines[deadlines.length - 1];
+    const firstText = formatDateTime(first.toISOString());
+    const lastText = formatDateTime(last.toISOString());
+
+    return first.getTime() === last.getTime()
+      ? `评审截止：${firstText}`
+      : `评审截止：${firstText} 至 ${lastText}`;
+  }, [formatDateTime, reviewAssignments]);
 
   const openMaterial = (assignment: ExpertReviewAssignmentItem, kind: "plan" | "ppt" | "video") => {
     const material = assignment.materials[kind];
@@ -266,7 +290,7 @@ export default function ExpertReviewTab() {
     setExpertMode("network-detail");
     setNetworkScoreDrafts((current) => ({
       ...current,
-      [assignment.id]: current[assignment.id] ?? (assignment.score ? `${assignment.score.totalScore}` : ""),
+      [assignment.id]: current[assignment.id] ?? (assignment.score ? formatScoreForAssignment(assignment) : ""),
     }));
     setNetworkCommentDrafts((current) => ({
       ...current,
@@ -282,17 +306,26 @@ export default function ExpertReviewTab() {
 
     setRoadshowScoreDraft(
       activeRoadshowAssignment.score
-        ? (activeRoadshowAssignment.score.totalScore / 100).toFixed(2)
+        ? formatScoreForAssignment(activeRoadshowAssignment)
         : "",
     );
-    setRoadshowCommentDraft(activeRoadshowAssignment.score?.commentTotal ?? "");
     setExpertMode(activeRoadshowAssignment.statusKey === "pending" ? "roadshow-score" : "roadshow-done");
   };
 
   const prepareNetworkSubmission = (assignment: ExpertReviewAssignmentItem) => {
+    if (assignment.score || assignment.statusKey !== "pending" || !assignment.canEdit) {
+      setLoadError("该评审已提交，不能修改");
+      return;
+    }
+
     const score = Number(networkScoreDrafts[assignment.id]);
-    if (!Number.isInteger(score) || score < 0 || score > 100) {
-      setLoadError("网评分数需为 0-100 的整数");
+    if (
+      !Number.isFinite(score) ||
+      score < 0 ||
+      score > 100 ||
+      !Number.isInteger(score * 100)
+    ) {
+      setLoadError("网评分数需为 0.00-100.00，最多保留两位小数");
       return;
     }
 
@@ -300,7 +333,7 @@ export default function ExpertReviewTab() {
       assignment,
       kind: "network",
       score,
-      displayScore: `${score}`,
+      displayScore: score.toFixed(2),
       comment: networkCommentDrafts[assignment.id]?.trim() ?? "",
     });
   };
@@ -308,6 +341,11 @@ export default function ExpertReviewTab() {
   const prepareRoadshowSubmission = () => {
     if (!activeRoadshowAssignment) {
       setLoadError("当前没有可提交的路演评审任务");
+      return;
+    }
+
+    if (activeRoadshowAssignment.score || activeRoadshowAssignment.statusKey !== "pending" || !activeRoadshowAssignment.canEdit) {
+      setLoadError("该路演评分已提交，不能修改");
       return;
     }
 
@@ -327,7 +365,7 @@ export default function ExpertReviewTab() {
       kind: "roadshow",
       score,
       displayScore: score.toFixed(2),
-      comment: roadshowCommentDraft.trim(),
+      comment: "",
     });
   };
 
@@ -345,11 +383,10 @@ export default function ExpertReviewTab() {
             ? {
                 assignmentId: pendingSubmission.assignment.id,
                 roadshowScore: Number(pendingSubmission.score.toFixed(2)),
-                commentTotal: pendingSubmission.comment || undefined,
               }
             : {
                 assignmentId: pendingSubmission.assignment.id,
-                totalScore: Math.round(pendingSubmission.score),
+                totalScore: Number(pendingSubmission.score.toFixed(2)),
                 commentTotal: pendingSubmission.comment || undefined,
               },
         ),
@@ -385,7 +422,7 @@ export default function ExpertReviewTab() {
             </div>
           </div>
           <div className="flex items-center gap-5 text-sm text-slate-500">
-            <span>评审日期：{systemDateRange}</span>
+            <span>{reviewDeadlineText}</span>
             <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-50 text-sm font-bold text-blue-600">
               {getInitial(currentUser?.name)}
             </div>
@@ -396,7 +433,7 @@ export default function ExpertReviewTab() {
           <section className="mx-auto flex max-w-4xl flex-col items-center py-12 text-center">
             <h1 className="text-2xl font-bold text-slate-900">您好，{currentUser?.name || "评审专家"}</h1>
             <p className="mt-3 text-sm text-slate-500">
-              您有 {pendingNetworkCount + pendingRoadshowCount} 个项目待评审，评审截止日期为 2026-04-27 11:00
+              您有 {pendingNetworkCount + pendingRoadshowCount} 个项目待评审，{reviewDeadlineText}
             </p>
             <div className="mt-10 grid w-full gap-6 md:grid-cols-2">
               <button
@@ -438,7 +475,7 @@ export default function ExpertReviewTab() {
             <div className="mb-5 flex items-center justify-between">
               <div>
                 <h3 className="text-xl font-bold text-slate-950">项目网络评审</h3>
-                <p className="mt-1 text-sm text-slate-500">请逐项查看材料并提交 0-100 分整数评分。</p>
+                <p className="mt-1 text-sm text-slate-500">请逐项查看材料并提交 0.00-100.00 分评分。</p>
               </div>
               <button className="text-sm font-semibold text-slate-500 hover:text-blue-600" onClick={() => setExpertMode("home")} type="button">
                 返回入口
@@ -508,18 +545,28 @@ export default function ExpertReviewTab() {
               </div>
               <aside className="rounded-3xl border border-blue-100 bg-blue-50/40 p-6">
                 <h4 className="text-lg font-bold text-slate-950">提交评分</h4>
+                {selectedAssignment.score ? (
+                  <div className="mt-5 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
+                    已提交 {formatScoreForAssignment(selectedAssignment)} 分，评分已锁定不能修改。
+                  </div>
+                ) : null}
                 <label className="mt-5 block text-sm font-semibold text-slate-700">
-                  评分（0-100）
+                  评分（0.00-100.00）
                   <input
                     className="mt-2 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-3xl font-bold text-slate-950 outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-100"
-                    disabled={!selectedAssignment.canEdit || submittingAssignmentId === selectedAssignment.id}
-                    inputMode="numeric"
+                    disabled={
+                      Boolean(selectedAssignment.score) ||
+                      !selectedAssignment.canEdit ||
+                      submittingAssignmentId === selectedAssignment.id
+                    }
+                    inputMode="decimal"
                     max={100}
                     min={0}
                     onChange={(event) =>
                       setNetworkScoreDrafts((current) => ({ ...current, [selectedAssignment.id]: event.target.value }))
                     }
                     placeholder="0"
+                    step="0.01"
                     type="number"
                     value={networkScoreDrafts[selectedAssignment.id] ?? ""}
                   />
@@ -528,7 +575,11 @@ export default function ExpertReviewTab() {
                   评语（可选）
                   <textarea
                     className="mt-2 min-h-32 w-full rounded-2xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-blue-400 focus:ring-4 focus:ring-blue-100"
-                    disabled={!selectedAssignment.canEdit || submittingAssignmentId === selectedAssignment.id}
+                    disabled={
+                      Boolean(selectedAssignment.score) ||
+                      !selectedAssignment.canEdit ||
+                      submittingAssignmentId === selectedAssignment.id
+                    }
                     onChange={(event) =>
                       setNetworkCommentDrafts((current) => ({ ...current, [selectedAssignment.id]: event.target.value }))
                     }
@@ -541,11 +592,15 @@ export default function ExpertReviewTab() {
                 ) : null}
                 <button
                   className="mt-6 w-full rounded-2xl bg-blue-600 px-4 py-3 text-sm font-bold text-white shadow-[0_14px_36px_rgba(37,99,235,0.24)] transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
-                  disabled={!selectedAssignment.canEdit || submittingAssignmentId === selectedAssignment.id}
+                  disabled={
+                    Boolean(selectedAssignment.score) ||
+                    !selectedAssignment.canEdit ||
+                    submittingAssignmentId === selectedAssignment.id
+                  }
                   onClick={() => prepareNetworkSubmission(selectedAssignment)}
                   type="button"
                 >
-                  {selectedAssignment.score ? "确认更新评分" : "确认提交评分"}
+                  {selectedAssignment.score ? "已提交，不能修改" : "确认提交评分"}
                 </button>
               </aside>
             </div>
@@ -583,6 +638,7 @@ export default function ExpertReviewTab() {
                   路演评分（精确到两位小数）
                   <input
                     className="mt-3 w-full rounded-3xl border border-slate-200 px-5 py-4 text-center text-5xl font-bold tracking-tight text-slate-950 outline-none transition focus:border-indigo-400 focus:ring-4 focus:ring-indigo-100"
+                    disabled={Boolean(activeRoadshowAssignment.score) || !activeRoadshowAssignment.canEdit}
                     inputMode="decimal"
                     max={100}
                     min={0}
@@ -593,21 +649,16 @@ export default function ExpertReviewTab() {
                     value={roadshowScoreDraft}
                   />
                 </label>
-                <label className="mt-5 block text-sm font-semibold text-slate-700">
-                  现场记录（可选）
-                  <textarea
-                    className="mt-2 min-h-24 w-full rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none transition focus:border-indigo-400 focus:ring-4 focus:ring-indigo-100"
-                    onChange={(event) => setRoadshowCommentDraft(event.target.value)}
-                    placeholder="记录答辩亮点、扣分原因或后续建议"
-                    value={roadshowCommentDraft}
-                  />
-                </label>
+                <p className="mt-4 text-sm text-slate-500">
+                  若输入整数，如 85，系统会按 85.00 分提交；提交前请确认是否需要保留两位小数。
+                </p>
                 <button
                   className="mt-6 w-full rounded-2xl bg-indigo-600 px-5 py-3 text-sm font-bold text-white shadow-[0_14px_36px_rgba(79,70,229,0.24)] transition hover:bg-indigo-700"
+                  disabled={Boolean(activeRoadshowAssignment.score) || !activeRoadshowAssignment.canEdit}
                   onClick={prepareRoadshowSubmission}
                   type="button"
                 >
-                  确认提交路演分数
+                  {activeRoadshowAssignment.score ? "已提交，不能修改" : "确认提交路演分数"}
                 </button>
               </div>
             </div>

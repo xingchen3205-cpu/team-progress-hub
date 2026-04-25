@@ -318,7 +318,7 @@ function normalizeConversationMessages(records: NonNullable<DifyMessageListRespo
       const createdAt = toIsoStringFromUnix(record.created_at);
       const feedback = record.feedback?.rating ?? null;
       const query = record.query?.trim();
-      const answer = record.answer?.trim();
+      const answer = record.answer ? removeThinkTags(record.answer) : "";
 
       if (query) {
         items.push({
@@ -686,7 +686,7 @@ export async function streamAiChatMessage(input: {
             }
 
             if (payload.event === "error") {
-              throw new Error(payload.message || "AI 助手暂时不可用，请稍后重试");
+              throw new Error("AI 助手暂时不可用，请稍后重试");
             }
           }
         }
@@ -713,7 +713,8 @@ export async function streamAiChatMessage(input: {
           fail("AI 助手返回内容异常，请稍后重试");
         }
       } catch (error) {
-        fail(error instanceof Error ? error.message : "AI 助手暂时不可用，请稍后重试");
+        console.error("[ai-chat] stream failed", error);
+        fail("AI 助手暂时不可用，请稍后重试");
       }
     },
   });

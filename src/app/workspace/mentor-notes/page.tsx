@@ -72,7 +72,7 @@ export default function MentorNotesPage() {
             <div className="rounded-[22px] border border-dashed border-[var(--color-line)] bg-[var(--color-panel)] p-5">
               <p className="text-sm font-medium text-[var(--color-ink)]">附件上传</p>
               <p className="mt-2 text-sm leading-7 text-[var(--color-muted)]">
-                这里后续可以上传会议录音、会议截图、专家批注版 PPT 或 Word 纪要。
+                请按会议要求整理录音、截图、批注材料或纪要文件。
               </p>
             </div>
 

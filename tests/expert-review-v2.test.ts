@@ -33,6 +33,27 @@ describe("expert review v2 constraints", () => {
     assert.match(routeSource, /Number\.isInteger\(roadshowScore \* 100\)/);
   });
 
+  it("locks expert scores after first submission and stores all scores as cents", () => {
+    const routeSource = readSource("src/app/api/expert-reviews/scores/route.ts");
+
+    assert.match(routeSource, /assignment\.score/);
+    assert.match(routeSource, /评分已提交，不能修改/);
+    assert.doesNotMatch(routeSource, /expertReviewScore\.upsert/);
+    assert.match(routeSource, /Math\.round\(simpleTotalScore \* 100\)/);
+    assert.match(routeSource, /Number\.isInteger\(simpleTotalScore \* 100\)/);
+    assert.match(routeSource, /lockedAt:\s*submittedAt/);
+  });
+
+  it("filters expired expert assignments and material previews for expert accounts", () => {
+    const scopeSource = readSource("src/lib/team-scope.ts");
+    const materialSource = readSource("src/app/api/expert-reviews/assignments/[id]/materials/[kind]/route.ts");
+
+    assert.match(scopeSource, /reviewPackage:\s*\{\s*OR:\s*\[/);
+    assert.match(scopeSource, /deadline:\s*\{\s*gt:\s*now\s*\}/);
+    assert.match(materialSource, /评审已截止/);
+    assert.match(materialSource, /getExpertReviewLockState/);
+  });
+
   it("replaces the old four-category expert scoring UI with v2 expert and projection panels", () => {
     const tabSource = readSource("src/components/tabs/expert-review-tab.tsx");
 
@@ -43,6 +64,8 @@ describe("expert review v2 constraints", () => {
     assert.match(tabSource, /投屏模式/);
     assert.match(tabSource, /提交评分/);
     assert.match(tabSource, /toFixed\(2\)/);
+    assert.match(tabSource, /reviewDeadlineText/);
+    assert.match(tabSource, /提交后不可修改/);
 
     assert.doesNotMatch(tabSource, /评审规则设置/);
     assert.doesNotMatch(tabSource, /路演投屏与评分规则/);
@@ -50,6 +73,12 @@ describe("expert review v2 constraints", () => {
     assert.doesNotMatch(tabSource, /项目创新/);
     assert.doesNotMatch(tabSource, /产业价值/);
     assert.doesNotMatch(tabSource, /团队协作/);
+    assert.doesNotMatch(tabSource, /systemDateRange/);
+    assert.doesNotMatch(tabSource, /2026-04-27 11:00/);
+    assert.doesNotMatch(tabSource, /确认更新评分/);
+    assert.doesNotMatch(tabSource, /重新提交覆盖/);
+    assert.doesNotMatch(tabSource, /现场记录/);
+    assert.doesNotMatch(tabSource, /roadshowCommentDraft/);
   });
 
   it("keeps expert review navigation limited to admins and expert accounts", () => {
