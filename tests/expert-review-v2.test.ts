@@ -91,7 +91,24 @@ describe("expert review v2 constraints", () => {
     assert.doesNotMatch(tabSource, /专家端 · 独立评审/);
     assert.doesNotMatch(tabSource, /系统会实时更新管理端和投屏数据/);
     assert.doesNotMatch(tabSource, /管理端和投屏数据已同步刷新/);
-    assert.match(shellSource, /currentRole !== "expert" \? \(\s*<p className="mt-0\.5 text-\[11px\] text-white\/45">智在必行<\/p>\s*\) : null/);
+    assert.match(shellSource, /currentRole === "expert"/);
+    assert.match(shellSource, /EXPERT REVIEW PORTAL/);
+  });
+
+  it("renders expert accounts in a standalone review portal shell", () => {
+    const shellSource = readSource("src/components/workspace-shell.tsx");
+    const tabSource = readSource("src/components/tabs/expert-review-tab.tsx");
+
+    assert.match(shellSource, /currentRole === "expert"/);
+    assert.match(shellSource, /EXPERT REVIEW PORTAL/);
+    assert.match(shellSource, /大学生创新大赛评审系统/);
+    assert.doesNotMatch(
+      shellSource.match(/if \(currentRole === "expert"\)[\s\S]*?return \(/)?.[0] ?? "",
+      /sidebar-nav-item|发布公告|搜索任务、文档、成员/,
+    );
+    assert.match(tabSource, /请选择本轮评审任务/);
+    assert.match(tabSource, /系统仅展示管理员已分配给您的评审任务/);
+    assert.match(tabSource, /bg-gradient-to-br from-white to-blue-50\/55/);
   });
 
   it("keeps expert review navigation limited to admins and expert accounts", () => {

@@ -453,65 +453,93 @@ export default function ExpertReviewTab() {
 
   if (currentRole === "expert") {
     return (
-      <div className="min-h-[calc(100vh-140px)] rounded-[28px] bg-white px-6 py-6 shadow-[0_18px_60px_rgba(15,23,42,0.07)]">
-        <div className="flex items-center justify-between border-b border-slate-100 pb-5">
-          <div className="flex items-center gap-3">
-            <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-indigo-100 text-indigo-600">
-              <BookOpen className="h-5 w-5" />
-            </div>
-            <div>
-              <h2 className="text-lg font-bold text-slate-950">大学生创新大赛评审系统</h2>
-              <p className="text-xs text-slate-400">专家端</p>
+      <div className="space-y-6">
+        <div className="overflow-hidden rounded-[30px] border border-slate-200 bg-white shadow-[0_22px_70px_rgba(15,23,42,0.07)]">
+          <div className="relative border-b border-slate-100 px-6 py-6 md:px-8">
+            <div aria-hidden className="pointer-events-none absolute inset-y-0 right-0 w-1/2 bg-[radial-gradient(circle_at_70%_20%,rgba(37,99,235,0.10),transparent_38%),linear-gradient(90deg,transparent,rgba(37,99,235,0.05))]" />
+            <div className="relative flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+              <div className="flex items-center gap-4">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-blue-600 ring-1 ring-blue-100">
+                  <BookOpen className="h-6 w-6" />
+                </div>
+                <div>
+                  <p className="text-xs font-semibold tracking-[0.16em] text-blue-600">REVIEW ENTRANCE</p>
+                  <h2 className="mt-1 text-xl font-bold tracking-tight text-slate-950">评审任务入口</h2>
+                  <p className="mt-1 text-sm text-slate-500">{reviewDeadlineText}</p>
+                </div>
+              </div>
+              <div className="grid grid-cols-3 gap-3 rounded-3xl border border-slate-200 bg-white/85 p-3 shadow-[0_12px_34px_rgba(15,23,42,0.05)]">
+                <div className="min-w-24 rounded-2xl bg-slate-50 px-4 py-3 text-center">
+                  <p className="text-xs text-slate-400">待评</p>
+                  <p className="mt-1 text-2xl font-bold text-slate-950">{pendingNetworkCount + pendingRoadshowCount}</p>
+                </div>
+                <div className="min-w-24 rounded-2xl bg-slate-50 px-4 py-3 text-center">
+                  <p className="text-xs text-slate-400">已评</p>
+                  <p className="mt-1 text-2xl font-bold text-emerald-600">{finishedNetworkCount + finishedRoadshowCount}</p>
+                </div>
+                <div className="min-w-24 rounded-2xl bg-slate-50 px-4 py-3 text-center">
+                  <p className="text-xs text-slate-400">模式</p>
+                  <p className="mt-1 text-2xl font-bold text-blue-600">{(networkAssignments.length > 0 ? 1 : 0) + (roadshowAssignments.length > 0 ? 1 : 0)}</p>
+                </div>
+              </div>
             </div>
           </div>
-          <div className="flex items-center gap-5 text-sm text-slate-500">
-            <span>{reviewDeadlineText}</span>
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-blue-50 text-sm font-bold text-blue-600">
-              {getInitial(currentUser?.name)}
-            </div>
-          </div>
-        </div>
 
-        {expertMode === "home" ? (
-          <section className="mx-auto flex max-w-4xl flex-col items-center py-12 text-center">
-            <h1 className="text-2xl font-bold text-slate-900">您好，{currentUser?.name || "评审专家"}</h1>
-            <p className="mt-3 text-sm text-slate-500">
-              您有 {pendingNetworkCount + pendingRoadshowCount} 个项目待评审，{reviewDeadlineText}
-            </p>
-            <div className="mt-10 grid w-full gap-6 md:grid-cols-2">
-              <button
-                className="rounded-2xl border border-slate-200 bg-white px-8 py-10 text-center transition hover:-translate-y-1 hover:border-blue-200 hover:shadow-[0_18px_50px_rgba(37,99,235,0.12)]"
-                onClick={() => setExpertMode("network-list")}
-                type="button"
-              >
-                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-blue-50 text-blue-600">
-                  <Monitor className="h-8 w-8" />
+          {expertMode === "home" ? (
+            <section className="px-6 py-10 md:px-8 md:py-12">
+              <div className="mx-auto max-w-5xl">
+                <div className="text-center">
+                  <p className="text-sm font-semibold text-blue-600">您好，{currentUser?.name || "评审专家"}</p>
+                  <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-950">请选择本轮评审任务</h1>
+                  <p className="mt-3 text-sm text-slate-500">
+                    系统仅展示管理员已分配给您的评审任务，提交后评分将锁定。
+                  </p>
                 </div>
-                <h3 className="mt-6 text-xl font-bold text-slate-900">项目网络评审</h3>
-                <p className="mt-3 text-sm text-slate-500">审阅项目材料，在线评分</p>
-                <div className="mt-6 flex justify-center gap-8 text-sm text-slate-500">
-                  <span>待评审 <b className="text-slate-900">{pendingNetworkCount}</b></span>
-                  <span>已完成 <b className="text-slate-900">{finishedNetworkCount}</b></span>
+                <div className="mt-10 grid gap-5 md:grid-cols-2">
+                  <button
+                    className="group relative overflow-hidden rounded-[28px] border border-blue-100 bg-gradient-to-br from-white to-blue-50/55 px-8 py-9 text-left transition hover:-translate-y-1 hover:border-blue-200 hover:shadow-[0_22px_60px_rgba(37,99,235,0.14)]"
+                    onClick={() => setExpertMode("network-list")}
+                    type="button"
+                  >
+                    <div aria-hidden className="absolute -right-12 -top-12 h-40 w-40 rounded-full bg-blue-100/60 transition group-hover:scale-110" />
+                    <div className="relative">
+                      <div className="flex h-16 w-16 items-center justify-center rounded-3xl bg-blue-600 text-white shadow-[0_18px_34px_rgba(37,99,235,0.22)]">
+                        <Monitor className="h-8 w-8" />
+                      </div>
+                      <h3 className="mt-7 text-2xl font-bold tracking-tight text-slate-950">项目网络评审</h3>
+                      <p className="mt-3 text-sm leading-6 text-slate-500">审阅计划书、PPT PDF 和视频材料，完成在线评分。</p>
+                      <div className="mt-7 flex items-center gap-3">
+                        <span className="rounded-full bg-blue-600 px-4 py-2 text-sm font-semibold text-white">待评 {pendingNetworkCount}</span>
+                        <span className="rounded-full border border-blue-100 bg-white px-4 py-2 text-sm font-semibold text-blue-700">已评 {finishedNetworkCount}</span>
+                      </div>
+                    </div>
+                  </button>
+                  <button
+                    className="group relative overflow-hidden rounded-[28px] border border-emerald-100 bg-gradient-to-br from-white to-emerald-50/55 px-8 py-9 text-left transition hover:-translate-y-1 hover:border-emerald-200 hover:shadow-[0_22px_60px_rgba(16,185,129,0.13)]"
+                    onClick={startRoadshowReview}
+                    type="button"
+                  >
+                    <div aria-hidden className="absolute -right-12 -top-12 h-40 w-40 rounded-full bg-emerald-100/60 transition group-hover:scale-110" />
+                    <div className="relative">
+                      <div className="flex h-16 w-16 items-center justify-center rounded-3xl bg-emerald-600 text-white shadow-[0_18px_34px_rgba(16,185,129,0.20)]">
+                        <Users className="h-8 w-8" />
+                      </div>
+                      <h3 className="mt-7 text-2xl font-bold tracking-tight text-slate-950">项目路演评审</h3>
+                      <p className="mt-3 text-sm leading-6 text-slate-500">根据现场展示和答辩表现，提交最终路演分数。</p>
+                      <div className="mt-7 flex items-center gap-3">
+                        <span className="rounded-full bg-emerald-600 px-4 py-2 text-sm font-semibold text-white">待评 {pendingRoadshowCount}</span>
+                        <span className="rounded-full border border-emerald-100 bg-white px-4 py-2 text-sm font-semibold text-emerald-700">已评 {finishedRoadshowCount}</span>
+                      </div>
+                    </div>
+                  </button>
                 </div>
-              </button>
-              <button
-                className="rounded-2xl border border-slate-200 bg-white px-8 py-10 text-center transition hover:-translate-y-1 hover:border-indigo-200 hover:shadow-[0_18px_50px_rgba(99,102,241,0.12)]"
-                onClick={startRoadshowReview}
-                type="button"
-              >
-                <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-2xl bg-indigo-50 text-indigo-600">
-                  <Users className="h-8 w-8" />
+                <div className="mt-8 rounded-2xl border border-slate-200 bg-slate-50 px-5 py-4 text-sm leading-6 text-slate-500">
+                  评分范围为 0.00-100.00。提交前请确认分数，两位小数将按最终提交值锁定。
                 </div>
-                <h3 className="mt-6 text-xl font-bold text-slate-900">项目路演评审</h3>
-                <p className="mt-3 text-sm text-slate-500">现场/视频答辩评分</p>
-                <div className="mt-6 flex justify-center gap-8 text-sm text-slate-500">
-                  <span>待评审 <b className="text-slate-900">{pendingRoadshowCount}</b></span>
-                  <span>已完成 <b className="text-slate-900">{finishedRoadshowCount}</b></span>
-                </div>
-              </button>
-            </div>
-          </section>
-        ) : null}
+              </div>
+            </section>
+          ) : null}
+        </div>
 
         {expertMode === "network-list" ? (
           <section className="py-6">

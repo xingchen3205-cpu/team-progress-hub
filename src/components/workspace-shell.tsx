@@ -302,6 +302,130 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
     );
   }
 
+  if (currentRole === "expert") {
+    return (
+      <>
+        <main className="min-h-screen bg-[#f6f8fc] px-5 py-6">
+          <div className="mx-auto flex min-h-[calc(100vh-3rem)] max-w-[1240px] flex-col rounded-[28px] border border-slate-200 bg-white/75 shadow-[0_24px_80px_rgba(15,23,42,0.08)]">
+            <header className="flex flex-col gap-4 border-b border-slate-200/80 px-6 py-5 md:flex-row md:items-center md:justify-between lg:px-8">
+              <div className="flex items-center gap-4">
+                <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-blue-100 bg-blue-50">
+                  <Image alt="南铁校徽" className="h-8 w-8 object-contain" height={77} src="/official-logo.png" width={430} />
+                </div>
+                <div>
+                  <p className="text-xs font-semibold tracking-[0.18em] text-blue-600">EXPERT REVIEW PORTAL</p>
+                  <h1 className="mt-1 text-xl font-bold tracking-tight text-slate-950">大学生创新大赛评审系统</h1>
+                  <p className="mt-1 text-sm text-slate-500">南京铁道职业技术学院</p>
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-3">
+                <div className="rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-600">
+                  <span className="text-slate-400">当前专家</span>
+                  <span className="ml-2 font-semibold text-slate-900">{currentUser.profile.name}</span>
+                </div>
+                <button
+                  className="inline-flex items-center gap-2 rounded-2xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
+                  onClick={() => void handleLogout()}
+                  type="button"
+                >
+                  <LogOut className="h-4 w-4" />
+                  <span>退出</span>
+                </button>
+              </div>
+            </header>
+
+            <section className="min-h-0 flex-1 px-5 py-5 md:px-8 md:py-7">
+              {loadError ? (
+                <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700">
+                  {loadError}
+                </div>
+              ) : null}
+              {tabContent}
+            </section>
+          </div>
+        </main>
+
+        <SuccessToast toast={successToast} />
+
+        {previewAsset ? (
+          <Modal
+            bodyClassName="px-5 py-4 md:px-6 md:py-5"
+            onClose={() => setPreviewAsset(null)}
+            size="preview"
+            title={previewAsset.title}
+          >
+            <div className="space-y-4">
+              {previewAsset.mode === "download-fallback" ? (
+                <div className="rounded-xl border border-slate-200 bg-slate-50 p-6">
+                  <div className="space-y-3">
+                    <p className="text-base font-medium text-slate-900">
+                      {previewAsset.fileName || "当前文件"}
+                    </p>
+                    <p className="text-sm leading-7 text-slate-500">
+                      {previewAsset.fallbackMessage || "该文件类型暂不支持站内预览，请下载后使用本地软件查看。"}
+                    </p>
+                  </div>
+                </div>
+              ) : previewAsset.mimeType?.startsWith("video/") ? (
+                <video
+                  className="max-h-[78vh] w-full rounded-lg border border-slate-200 bg-black"
+                  controls
+                  playsInline
+                  src={previewAsset.url}
+                />
+              ) : isPdfAsset(previewAsset) ? (
+                <PdfPreview url={previewAsset.url} />
+              ) : isImageAsset(previewAsset) ? (
+                <div className="overflow-auto rounded-lg border border-slate-200 bg-slate-100 p-3">
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img
+                    alt={previewAsset.fileName || previewAsset.title}
+                    className="block h-auto max-w-none rounded-md border border-slate-200 bg-white shadow-sm"
+                    loading="eager"
+                    src={previewAsset.url}
+                  />
+                </div>
+              ) : (
+                <iframe
+                  className="h-[78vh] w-full rounded-lg border border-slate-200 bg-white"
+                  src={previewAsset.url}
+                  title={previewAsset.title}
+                />
+              )}
+              <p className={`${subtleCardClassName} text-sm leading-7 text-slate-500`}>
+                {previewAsset.mode === "download-fallback"
+                  ? "已为当前文件切换到下载查看模式。"
+                  : previewAsset.mimeType?.startsWith("video/")
+                  ? "视频材料支持在当前页面直接播放。"
+                  : isPdfAsset(previewAsset)
+                    ? "PDF 使用站内渲染模式，避免浏览器原生预览层在后台页面残留。"
+                    : isImageAsset(previewAsset)
+                      ? "图片按原始清晰度显示，可在窗口内滚动查看细节。"
+                      : isWordAsset(previewAsset)
+                        ? "Word 文档已切换为站内只读预览；在线标注和协同修改需要后续接入文档协作服务。"
+                        : "已切换为站内在线预览模式。"}
+              </p>
+              <ModalActions>
+                {previewAsset.mode === "download-fallback" ? (
+                  <ActionButton
+                    onClick={() => handleDownload(previewAsset.downloadUrl)}
+                    variant="primary"
+                  >
+                    <span className="inline-flex items-center gap-2">
+                      <Download className="h-4 w-4" />
+                      <span>下载查看</span>
+                    </span>
+                  </ActionButton>
+                ) : null}
+                <ActionButton onClick={() => setPreviewAsset(null)}>关闭</ActionButton>
+              </ModalActions>
+            </div>
+          </Modal>
+        ) : null}
+      </>
+    );
+  }
+
   return (
     <>
       <main className="workspace-depth-bg workspace-shell-fade-in min-h-screen overflow-x-hidden p-4 md:p-6">
@@ -360,9 +484,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                   <div className="min-w-0">
                     <p className="sidebar-user-name truncate">{currentUser.profile.name}</p>
                     <p className="sidebar-user-role mt-0.5">{roleLabels[currentRole]}</p>
-                    {currentRole !== "expert" ? (
-                      <p className="mt-0.5 text-[11px] text-white/45">智在必行</p>
-                    ) : null}
+                    <p className="mt-0.5 text-[11px] text-white/45">智在必行</p>
                   </div>
                 </div>
                 <button
@@ -437,9 +559,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                   <div className="min-w-0">
                     <p className="sidebar-user-name truncate">{currentUser.profile.name}</p>
                     <p className="sidebar-user-role mt-0.5">{roleLabels[currentRole]}</p>
-                    {currentRole !== "expert" ? (
-                      <p className="mt-0.5 text-[11px] text-white/45">智在必行</p>
-                    ) : null}
+                    <p className="mt-0.5 text-[11px] text-white/45">智在必行</p>
                   </div>
                 </div>
                 <button
