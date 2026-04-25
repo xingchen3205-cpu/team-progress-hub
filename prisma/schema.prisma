@@ -85,6 +85,19 @@ enum ProjectMaterialStatus {
   rejected
 }
 
+enum ReviewDisplaySessionStatus {
+  waiting
+  scoring
+  revealed
+  closed
+}
+
+enum ReviewDisplaySeatStatus {
+  pending
+  submitted
+  voided
+}
+
 model User {
   id                        String                      @id @default(cuid())
   name                      String
@@ -122,6 +135,9 @@ model User {
   expertReviewPackages      ExpertReviewPackage[]       @relation("ExpertReviewPackageCreator")
   expertAssignments         ExpertReviewAssignment[]    @relation("ExpertAssignmentUser")
   expertScores              ExpertReviewScore[]         @relation("ExpertScoreReviewer")
+  reviewDisplaySessions     ReviewDisplaySession[]      @relation("ReviewDisplaySessionCreator")
+  reviewDisplaySeats        ReviewDisplaySeat[]         @relation("ReviewDisplaySeatExpert")
+  voidedReviewDisplaySeats  ReviewDisplaySeat[]         @relation("ReviewDisplaySeatVoider")
   trainingQuestions         TrainingQuestion[]          @relation("TrainingQuestionCreator")
   trainingSessions          TrainingSession[]           @relation("TrainingSessionCreator")
   passwordResetTokens       PasswordResetToken[]
@@ -433,6 +449,7 @@ model ProjectReviewStage {
   creator     User                        @relation("ProjectReviewStageCreator", fields: [createdById], references: [id])
   teamGroup   TeamGroup?                  @relation(fields: [teamGroupId], references: [id], onDelete: SetNull)
   submissions ProjectMaterialSubmission[]
+  packages    ExpertReviewPackage[]
 
   @@index([isOpen, deadline])
   @@index([teamGroupId, createdAt])
@@ -468,20 +485,25 @@ model ProjectMaterialSubmission {
 }
 
 model ExpertReviewPackage {
-  id          String                   @id @default(cuid())
-  targetName  String
-  roundLabel  String?
-  overview    String?
-  deadline    DateTime?
-  createdById String
-  teamGroupId String?
-  createdAt   DateTime                 @default(now())
-  creator     User                     @relation("ExpertReviewPackageCreator", fields: [createdById], references: [id])
-  teamGroup   TeamGroup?               @relation(fields: [teamGroupId], references: [id], onDelete: SetNull)
-  materials   ExpertReviewMaterial[]
-  assignments ExpertReviewAssignment[]
+  id                   String                  @id @default(cuid())
+  targetName           String
+  roundLabel           String?
+  overview             String?
+  startAt              DateTime?
+  deadline             DateTime?
+  createdById          String
+  teamGroupId          String?
+  projectReviewStageId String?
+  createdAt            DateTime                @default(now())
+  creator              User                    @relation("ExpertReviewPackageCreator", fields: [createdById], references: [id])
+  teamGroup            TeamGroup?              @relation(fields: [teamGroupId], references: [id], onDelete: SetNull)
+  projectReviewStage   ProjectReviewStage?     @relation(fields: [projectReviewStageId], references: [id], onDelete: SetNull)
+  materials            ExpertReviewMaterial[]
+  assignments          ExpertReviewAssignment[]
+  displaySessions      ReviewDisplaySession[]
 
   @@index([teamGroupId, createdAt])
+  @@index([projectReviewStageId, createdAt])
 }
 
 model ExpertReviewAssignment {
@@ -493,6 +515,7 @@ model ExpertReviewAssignment {
   reviewPackage ExpertReviewPackage          @relation(fields: [packageId], references: [id], onDelete: Cascade)
   expertUser    User                         @relation("ExpertAssignmentUser", fields: [expertUserId], references: [id])
   score         ExpertReviewScore?
+  displaySeats  ReviewDisplaySeat[]
 
   @@unique([packageId, expertUserId])
   @@index([expertUserId, status, createdAt])
@@ -529,6 +552,52 @@ model ExpertReviewScore {
   lockedAt            DateTime?
   assignment          ExpertReviewAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
   reviewer            User                   @relation("ExpertScoreReviewer", fields: [reviewerId], references: [id])
+}
+
+model ReviewDisplaySession {
+  id               String                     @id @default(cuid())
+  packageId        String
+  tokenHash        String                     @unique
+  startsAt         DateTime?
+  tokenExpiresAt   DateTime
+  countdownSeconds Int                        @default(60)
+  dropHighestCount Int                        @default(1)
+  dropLowestCount  Int                        @default(1)
+  status           ReviewDisplaySessionStatus @default(waiting)
+  startedAt        DateTime?
+  endedAt          DateTime?
+  createdById      String
+  createdAt        DateTime                   @default(now())
+  updatedAt        DateTime                   @updatedAt
+  reviewPackage    ExpertReviewPackage        @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  creator          User                       @relation("ReviewDisplaySessionCreator", fields: [createdById], references: [id])
+  seats            ReviewDisplaySeat[]
+
+  @@index([packageId, status])
+  @@index([tokenExpiresAt])
+}
+
+model ReviewDisplaySeat {
+  id           String                  @id @default(cuid())
+  sessionId    String
+  assignmentId String
+  expertUserId String
+  seatNo       Int
+  displayName  String
+  status       ReviewDisplaySeatStatus @default(pending)
+  voidedAt     DateTime?
+  voidedById   String?
+  voidReason   String?
+  createdAt    DateTime                @default(now())
+  updatedAt    DateTime                @updatedAt
+  session      ReviewDisplaySession    @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  assignment   ExpertReviewAssignment  @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  expertUser   User                    @relation("ReviewDisplaySeatExpert", fields: [expertUserId], references: [id])
+  voidedBy     User?                   @relation("ReviewDisplaySeatVoider", fields: [voidedById], references: [id], onDelete: SetNull)
+
+  @@unique([sessionId, assignmentId])
+  @@unique([sessionId, seatNo])
+  @@index([expertUserId, status])
 }
 
 model TrainingQuestion {

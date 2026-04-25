@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { CheckCircle2 } from "lucide-react";
+import { Ban, CheckCircle2, Copy, ExternalLink, PlayCircle } from "lucide-react";
 
 import type { ExpertReviewAssignmentItem } from "@/components/workspace-context";
 import * as Workspace from "@/components/workspace-context";
@@ -37,6 +37,20 @@ type ExpertScoreSuccess = {
   roundLabel: string;
   displayScore: string;
 } | null;
+
+type ReviewScreenSessionState = {
+  sessionId: string;
+  screenUrl: string;
+  message: string;
+  startedAt: string | null;
+  seats: Array<{
+    id: string;
+    seatNo: number;
+    displayName: string;
+    status: "pending" | "submitted" | "voided";
+    voidedAt: string | null;
+  }>;
+};
 
 const getInitial = (name?: string | null) => (name?.trim().slice(0, 1) || "评").toUpperCase();
 
@@ -265,6 +279,8 @@ export default function ExpertReviewTab() {
   const [submittingAssignmentId, setSubmittingAssignmentId] = useState<string | null>(null);
   const [expertScoreSuccess, setExpertScoreSuccess] = useState<ExpertScoreSuccess>(null);
   const [activeGroupKey, setActiveGroupKey] = useState<string | null>(null);
+  const [reviewScreenSessions, setReviewScreenSessions] = useState<Record<string, ReviewScreenSessionState>>({});
+  const [reviewScreenActionKey, setReviewScreenActionKey] = useState<string | null>(null);
 
   const groupedAssignments = useMemo(() => groupReviewAssignments(reviewAssignments), [reviewAssignments]);
   const networkAssignments = reviewAssignments.filter((assignment) => !isRoadshowAssignment(assignment));
@@ -343,6 +359,106 @@ export default function ExpertReviewTab() {
     anchor.click();
     anchor.remove();
     URL.revokeObjectURL(url);
+  };
+
+  const createReviewScreenSession = async (group: ReviewGroup) => {
+    if (!group.items.some((assignment) => isRoadshowAssignment(assignment))) {
+      setLoadError("只有项目路演评审可以生成现场大屏链接");
+      return;
+    }
+
+    setReviewScreenActionKey(group.key);
+    try {
+      const payload = await requestJson<{
+        session: { id: string; startedAt?: string | null };
+        seats: ReviewScreenSessionState["seats"];
+        screenUrl: string;
+      }>("/api/review-screen/sessions", {
+        method: "POST",
+        body: JSON.stringify({
+          packageId: group.key,
+          countdownSeconds: 60,
+          dropHighestCount: 1,
+          dropLowestCount: 1,
+        }),
+      });
+
+      await navigator.clipboard?.writeText(payload.screenUrl).catch(() => undefined);
+      setReviewScreenSessions((current) => ({
+        ...current,
+        [group.key]: {
+          sessionId: payload.session.id,
+          screenUrl: payload.screenUrl,
+          message: "现场大屏链接已生成，可复制或打开。",
+          startedAt: payload.session.startedAt ?? null,
+          seats: payload.seats,
+        },
+      }));
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "现场大屏链接生成失败");
+    } finally {
+      setReviewScreenActionKey(null);
+    }
+  };
+
+  const startReviewScreenSession = async (group: ReviewGroup) => {
+    const screenSession = reviewScreenSessions[group.key];
+    if (!screenSession) {
+      setLoadError("请先生成现场大屏链接");
+      return;
+    }
+
+    setReviewScreenActionKey(group.key);
+    try {
+      const payload = await requestJson<{
+        session: { id: string; startedAt: string | null };
+      }>(`/api/review-screen/sessions/${screenSession.sessionId}/start`, {
+        method: "POST",
+        body: JSON.stringify({ countdownSeconds: 60 }),
+      });
+      setReviewScreenSessions((current) => ({
+        ...current,
+        [group.key]: {
+          ...screenSession,
+          message: "现场评分已开始，倒计时 60 秒。",
+          startedAt: payload.session.startedAt,
+        },
+      }));
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "现场评分启动失败");
+    } finally {
+      setReviewScreenActionKey(null);
+    }
+  };
+
+  const voidReviewScreenSeat = async (group: ReviewGroup, seatId: string) => {
+    const screenSession = reviewScreenSessions[group.key];
+    if (!screenSession) {
+      setLoadError("请先生成现场大屏链接");
+      return;
+    }
+
+    setReviewScreenActionKey(`${group.key}:${seatId}`);
+    try {
+      const payload = await requestJson<{
+        seat: ReviewScreenSessionState["seats"][number];
+      }>(`/api/review-screen/sessions/${screenSession.sessionId}/void-seat`, {
+        method: "POST",
+        body: JSON.stringify({ seatId }),
+      });
+      setReviewScreenSessions((current) => ({
+        ...current,
+        [group.key]: {
+          ...screenSession,
+          message: `${payload.seat.displayName} 已作废，最终计分将自动排除此席位。`,
+          seats: screenSession.seats.map((seat) => (seat.id === payload.seat.id ? payload.seat : seat)),
+        },
+      }));
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "席位作废失败");
+    } finally {
+      setReviewScreenActionKey(null);
+    }
   };
 
   const openMaterial = (assignment: ExpertReviewAssignmentItem, kind: "plan" | "ppt" | "video") => {
@@ -987,6 +1103,95 @@ export default function ExpertReviewTab() {
             </article>
             {canManageReviewMaterials && activeGroup ? (
               <div className="space-y-3">
+                {isRoadshowAssignment(activeGroup.items[0]) ? (
+                  <div className="rounded-2xl border border-blue-100 bg-blue-50 p-4">
+                    <p className="text-sm font-bold text-blue-900">现场大屏链接</p>
+                    <p className="mt-1 text-xs leading-5 text-blue-700/75">
+                      仅用于路演现场展示匿名专家席位和实时分数，链接有效期跟随本轮评审截止时间。
+                    </p>
+                    {reviewScreenSessions[activeGroup.key] ? (
+                      <p className="mt-3 rounded-xl bg-white px-3 py-2 text-xs text-blue-700">
+                        {reviewScreenSessions[activeGroup.key].message}
+                      </p>
+                    ) : null}
+                    <div className="mt-3 grid gap-2">
+                      <button
+                        className="inline-flex w-full items-center justify-center gap-2 rounded-2xl bg-blue-600 px-4 py-3 text-sm font-bold text-white shadow-[0_12px_26px_rgba(37,99,235,0.20)] transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+                        disabled={reviewScreenActionKey === activeGroup.key}
+                        onClick={() => void createReviewScreenSession(activeGroup)}
+                        type="button"
+                      >
+                        <Copy className="h-4 w-4" />
+                        {reviewScreenSessions[activeGroup.key] ? "重新生成并复制链接" : "生成并复制链接"}
+                      </button>
+	                      {reviewScreenSessions[activeGroup.key] ? (
+	                        <>
+	                          <div className="grid grid-cols-2 gap-2">
+                          <button
+                            className="inline-flex items-center justify-center gap-2 rounded-2xl border border-blue-200 bg-white px-3 py-2.5 text-xs font-bold text-blue-700 transition hover:bg-blue-50"
+                            onClick={() => window.open(reviewScreenSessions[activeGroup.key].screenUrl, "_blank", "noopener,noreferrer")}
+                            type="button"
+                          >
+                            <ExternalLink className="h-4 w-4" />
+                            打开大屏
+                          </button>
+                          <button
+                            className="inline-flex items-center justify-center gap-2 rounded-2xl border border-emerald-200 bg-white px-3 py-2.5 text-xs font-bold text-emerald-700 transition hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-60"
+                            disabled={reviewScreenActionKey === activeGroup.key}
+                            onClick={() => void startReviewScreenSession(activeGroup)}
+                            type="button"
+                          >
+                            <PlayCircle className="h-4 w-4" />
+                            开始评分
+	                          </button>
+		                        </div>
+	                        {reviewScreenSessions[activeGroup.key]?.seats.length ? (
+	                          <div className="mt-3 rounded-2xl border border-blue-100 bg-white p-3">
+	                            <div className="flex items-center justify-between gap-2">
+	                              <p className="text-xs font-bold text-slate-800">作废席位</p>
+	                              <span className="text-[11px] text-slate-400">仅限未提交席位</span>
+	                            </div>
+	                            <div className="mt-2 space-y-2">
+	                              {reviewScreenSessions[activeGroup.key].seats.map((seat) => {
+	                                const statusLabel =
+	                                  seat.status === "submitted" ? "已提交" : seat.status === "voided" ? "已作废" : "待提交";
+	                                const statusClassName =
+	                                  seat.status === "submitted"
+	                                    ? "bg-emerald-50 text-emerald-700"
+	                                    : seat.status === "voided"
+	                                      ? "bg-slate-100 text-slate-500"
+	                                      : "bg-amber-50 text-amber-700";
+	                                return (
+	                                  <div
+	                                    className="flex items-center justify-between gap-2 rounded-xl border border-slate-100 px-3 py-2"
+	                                    key={seat.id}
+	                                  >
+	                                    <div className="min-w-0">
+	                                      <p className="truncate text-xs font-bold text-slate-800">{seat.displayName}</p>
+	                                      <span className={`mt-1 inline-flex rounded-full px-2 py-0.5 text-[11px] font-semibold ${statusClassName}`}>
+	                                        {statusLabel}
+	                                      </span>
+	                                    </div>
+	                                    <button
+	                                      className="inline-flex shrink-0 items-center gap-1 rounded-lg border border-rose-100 bg-white px-2 py-1.5 text-[11px] font-bold text-rose-600 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:border-slate-100 disabled:text-slate-300"
+	                                      disabled={seat.status !== "pending" || reviewScreenActionKey === `${activeGroup.key}:${seat.id}`}
+	                                      onClick={() => void voidReviewScreenSeat(activeGroup, seat.id)}
+	                                      type="button"
+	                                    >
+	                                      <Ban className="h-3.5 w-3.5" />
+	                                      作废
+	                                    </button>
+	                                  </div>
+	                                );
+	                              })}
+	                            </div>
+	                          </div>
+		                        ) : null}
+		                        </>
+	                      ) : null}
+	                    </div>
+	                  </div>
+                ) : null}
                 <button
                   className="w-full rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-700 transition hover:bg-blue-100"
                   onClick={() => openReviewAssignmentModal(activeGroup.items)}

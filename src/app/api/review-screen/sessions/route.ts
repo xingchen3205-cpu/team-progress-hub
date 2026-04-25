@@ -1,0 +1,233 @@
+import { NextRequest, NextResponse } from "next/server";
+
+import { getSessionUser } from "@/lib/auth";
+import { assertRole } from "@/lib/permissions";
+import { prisma } from "@/lib/prisma";
+import { createReviewScreenToken } from "@/lib/review-screen-session";
+
+const clampInteger = (value: unknown, fallback: number, min: number, max: number) => {
+  const numericValue = typeof value === "number" ? value : Number(value);
+  if (!Number.isFinite(numericValue)) {
+    return fallback;
+  }
+
+  return Math.min(max, Math.max(min, Math.trunc(numericValue)));
+};
+
+export async function GET(request: NextRequest) {
+  const user = await getSessionUser(request);
+  if (!user) {
+    return NextResponse.json({ message: "未登录" }, { status: 401 });
+  }
+
+  try {
+    assertRole(user.role, ["admin", "school_admin"]);
+  } catch {
+    return NextResponse.json({ message: "无权限" }, { status: 403 });
+  }
+
+  const packageId = request.nextUrl.searchParams.get("packageId")?.trim();
+  const sessions = await prisma.reviewDisplaySession.findMany({
+    where: packageId ? { packageId } : undefined,
+    orderBy: { createdAt: "desc" },
+    take: 20,
+    select: {
+      id: true,
+      packageId: true,
+      startsAt: true,
+      tokenExpiresAt: true,
+      countdownSeconds: true,
+      dropHighestCount: true,
+      dropLowestCount: true,
+      status: true,
+      startedAt: true,
+      createdAt: true,
+      seats: {
+        orderBy: { seatNo: "asc" },
+        select: {
+          id: true,
+          seatNo: true,
+          displayName: true,
+          status: true,
+          voidedAt: true,
+        },
+      },
+      reviewPackage: {
+        select: {
+          targetName: true,
+          roundLabel: true,
+          deadline: true,
+        },
+      },
+    },
+  });
+
+  return NextResponse.json({
+    sessions: sessions.map((session) => ({
+      ...session,
+      startsAt: session.startsAt?.toISOString() ?? null,
+      tokenExpiresAt: session.tokenExpiresAt.toISOString(),
+      startedAt: session.startedAt?.toISOString() ?? null,
+      createdAt: session.createdAt.toISOString(),
+      reviewPackage: {
+        ...session.reviewPackage,
+        deadline: session.reviewPackage.deadline?.toISOString() ?? null,
+      },
+    })),
+  });
+}
+
+export async function POST(request: NextRequest) {
+  const user = await getSessionUser(request);
+  if (!user) {
+    return NextResponse.json({ message: "未登录" }, { status: 401 });
+  }
+
+  try {
+    assertRole(user.role, ["admin", "school_admin"]);
+  } catch {
+    return NextResponse.json({ message: "无权限" }, { status: 403 });
+  }
+
+  const body = (await request.json().catch(() => null)) as
+    | {
+        packageId?: string;
+        countdownSeconds?: number;
+        dropHighestCount?: number;
+        dropLowestCount?: number;
+      }
+    | null;
+  const packageId = body?.packageId?.trim();
+
+  if (!packageId) {
+    return NextResponse.json({ message: "请选择路演评审项目" }, { status: 400 });
+  }
+
+  const reviewPackage = await prisma.expertReviewPackage.findUnique({
+    where: { id: packageId },
+    include: {
+      projectReviewStage: {
+        select: {
+          type: true,
+          startAt: true,
+          deadline: true,
+        },
+      },
+      materials: { select: { id: true } },
+      assignments: {
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+        select: {
+          id: true,
+          expertUserId: true,
+          score: {
+            select: {
+              totalScore: true,
+            },
+          },
+        },
+      },
+    },
+  });
+
+  if (!reviewPackage) {
+    return NextResponse.json({ message: "评审项目不存在" }, { status: 404 });
+  }
+
+  const projectReviewStageType = reviewPackage.projectReviewStage?.type ??
+    (reviewPackage.materials.length === 0 ? "roadshow" : "online_review");
+
+  if (projectReviewStageType !== "roadshow") {
+    return NextResponse.json({ message: "只有项目路演评审可以生成现场大屏链接" }, { status: 400 });
+  }
+
+  if (reviewPackage.assignments.length === 0) {
+    return NextResponse.json({ message: "请先为本轮路演分配评审专家" }, { status: 400 });
+  }
+
+  const now = new Date();
+  const startsAt = reviewPackage.projectReviewStage?.startAt ?? reviewPackage.startAt ?? now;
+  const tokenExpiresAt =
+    reviewPackage.projectReviewStage?.deadline ??
+    reviewPackage.deadline ??
+    new Date(now.getTime() + 4 * 60 * 60 * 1000);
+
+  if (tokenExpiresAt.getTime() <= now.getTime()) {
+    return NextResponse.json({ message: "评审已截止，不能生成大屏链接" }, { status: 400 });
+  }
+
+  const countdownSeconds = clampInteger(body?.countdownSeconds, 60, 10, 600);
+  const dropHighestCount = clampInteger(body?.dropHighestCount, 1, 0, 5);
+  const dropLowestCount = clampInteger(body?.dropLowestCount, 1, 0, 5);
+  const { token, tokenHash } = createReviewScreenToken();
+
+  const { session, seats } = await prisma.$transaction(async (tx) => {
+    const createdSession = await tx.reviewDisplaySession.create({
+      data: {
+        packageId: reviewPackage.id,
+        tokenHash,
+        startsAt,
+        tokenExpiresAt,
+        countdownSeconds,
+        dropHighestCount,
+        dropLowestCount,
+        createdById: user.id,
+      },
+      select: {
+        id: true,
+        packageId: true,
+        startsAt: true,
+        tokenExpiresAt: true,
+        countdownSeconds: true,
+        dropHighestCount: true,
+        dropLowestCount: true,
+        status: true,
+      },
+    });
+
+    await tx.reviewDisplaySeat.createMany({
+      data: reviewPackage.assignments.map((assignment, index) => ({
+        sessionId: createdSession.id,
+        assignmentId: assignment.id,
+        expertUserId: assignment.expertUserId,
+        seatNo: index + 1,
+        displayName: `专家 ${index + 1}`,
+        status: assignment.score ? "submitted" : "pending",
+      })),
+    });
+
+    const createdSeats = await tx.reviewDisplaySeat.findMany({
+      where: { sessionId: createdSession.id },
+      orderBy: { seatNo: "asc" },
+      select: {
+        id: true,
+        seatNo: true,
+        displayName: true,
+        status: true,
+        voidedAt: true,
+      },
+    });
+
+    return { session: createdSession, seats: createdSeats };
+  });
+
+  const screenUrl = new URL(`/review-screen/session/${session.id}`, request.nextUrl.origin);
+  screenUrl.searchParams.set("token", token);
+
+  return NextResponse.json(
+    {
+      session: {
+        ...session,
+        startsAt: session.startsAt?.toISOString() ?? null,
+        tokenExpiresAt: session.tokenExpiresAt.toISOString(),
+        projectReviewStageType: "roadshow",
+      },
+      seats: seats.map((seat) => ({
+        ...seat,
+        voidedAt: seat.voidedAt?.toISOString() ?? null,
+      })),
+      screenUrl: screenUrl.toString(),
+      projectReviewStageType: "roadshow",
+    },
+    { status: 201 },
+  );
+}

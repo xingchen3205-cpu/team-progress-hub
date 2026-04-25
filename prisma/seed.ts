@@ -72,6 +72,8 @@ const uploadFolderByCategory = {
 } as const;
 
 async function main() {
+  await prisma.reviewDisplaySeat.deleteMany();
+  await prisma.reviewDisplaySession.deleteMany();
   await prisma.expertReviewScore.deleteMany();
   await prisma.expertReviewMaterial.deleteMany();
   await prisma.expertReviewAssignment.deleteMany();
@@ -267,6 +269,8 @@ async function main() {
     });
   }
 
+  const seededReviewDeadline = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
   await prisma.expertReviewPackage.create({
     data: {
       id: "review-package-1",
@@ -274,7 +278,7 @@ async function main() {
       roundLabel: "校内专家预审",
       overview:
         "请结合计划书、路演材料与演示视频，对项目成长性、创新性与产业价值进行独立评分。",
-      deadline: new Date("2026-04-10T18:00:00+08:00"),
+      deadline: seededReviewDeadline,
       createdById: "admin-1",
       assignments: {
         create: [

@@ -152,6 +152,7 @@ export async function POST(request: NextRequest) {
         name: true,
         type: true,
         description: true,
+        startAt: true,
         deadline: true,
       },
     });
@@ -223,9 +224,11 @@ export async function POST(request: NextRequest) {
             targetName: materials[0]?.teamGroup.name ?? "项目组",
             roundLabel: effectiveRoundLabel,
             overview: effectiveOverview,
+            startAt: projectReviewStage.startAt ?? null,
             deadline: effectiveDeadline,
             createdById: user.id,
             teamGroupId,
+            projectReviewStageId: projectReviewStage.id,
           },
           select: { id: true },
         });
