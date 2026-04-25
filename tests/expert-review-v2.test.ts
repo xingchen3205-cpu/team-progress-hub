@@ -111,6 +111,20 @@ describe("expert review v2 constraints", () => {
     assert.match(tabSource, /bg-gradient-to-br from-white to-blue-50\/55/);
   });
 
+  it("uses the polished expert review flow layout for task entry, list, and scoring", () => {
+    const tabSource = readSource("src/components/tabs/expert-review-tab.tsx");
+
+    assert.match(tabSource, /expert-status-bar/);
+    assert.match(tabSource, /expert-task-card/);
+    assert.match(tabSource, /返回任务选择/);
+    assert.match(tabSource, /返回网络评审列表/);
+    assert.match(tabSource, /detail-layout/);
+    assert.match(tabSource, /material-item/);
+    assert.match(tabSource, /score-range/);
+    assert.match(tabSource, /审阅计划书、PPT、PDF 和视频材料/);
+    assert.match(tabSource, /评分范围为 0\.00-100\.00/);
+  });
+
   it("keeps expert review navigation limited to admins and expert accounts", () => {
     const workspaceSource = readSource("src/components/workspace-context.tsx");
     const roleBlock = (role: string) => {

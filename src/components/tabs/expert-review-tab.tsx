@@ -289,6 +289,7 @@ export default function ExpertReviewTab() {
   const finishedNetworkCount = networkAssignments.filter((assignment) => assignment.statusKey !== "pending").length;
   const pendingRoadshowCount = roadshowAssignments.filter((assignment) => assignment.statusKey === "pending").length;
   const finishedRoadshowCount = roadshowAssignments.filter((assignment) => assignment.statusKey !== "pending").length;
+  const availableModeCount = (networkAssignments.length > 0 ? 1 : 0) + (roadshowAssignments.length > 0 ? 1 : 0);
   const reviewDeadlineText = useMemo(() => {
     const deadlines = reviewAssignments
       .map((assignment) => assignment.deadline)
@@ -453,40 +454,39 @@ export default function ExpertReviewTab() {
 
   if (currentRole === "expert") {
     return (
-      <div className="space-y-6">
-        <div className="overflow-hidden rounded-[30px] border border-slate-200 bg-white shadow-[0_22px_70px_rgba(15,23,42,0.07)]">
-          <div className="relative border-b border-slate-100 px-6 py-6 md:px-8">
+      <div className="mx-auto max-w-[1120px] space-y-6">
+        <div className="expert-status-bar overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-[0_4px_16px_rgba(15,23,42,0.06)]">
+          <div className="relative px-6 py-5 md:px-7">
             <div aria-hidden className="pointer-events-none absolute inset-y-0 right-0 w-1/2 bg-[radial-gradient(circle_at_70%_20%,rgba(37,99,235,0.10),transparent_38%),linear-gradient(90deg,transparent,rgba(37,99,235,0.05))]" />
             <div className="relative flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
               <div className="flex items-center gap-4">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-50 text-blue-600 ring-1 ring-blue-100">
+                <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-blue-50 text-blue-600 ring-1 ring-blue-100">
                   <BookOpen className="h-6 w-6" />
                 </div>
                 <div>
-                  <p className="text-xs font-semibold tracking-[0.16em] text-blue-600">REVIEW ENTRANCE</p>
-                  <h2 className="mt-1 text-xl font-bold tracking-tight text-slate-950">评审任务入口</h2>
+                  <h2 className="text-base font-bold tracking-tight text-slate-950">评审任务入口</h2>
                   <p className="mt-1 text-sm text-slate-500">{reviewDeadlineText}</p>
                 </div>
               </div>
-              <div className="grid grid-cols-3 gap-3 rounded-3xl border border-slate-200 bg-white/85 p-3 shadow-[0_12px_34px_rgba(15,23,42,0.05)]">
-                <div className="min-w-24 rounded-2xl bg-slate-50 px-4 py-3 text-center">
+              <div className="grid grid-cols-3 divide-x divide-slate-100 rounded-2xl border border-slate-200 bg-white/85 shadow-[0_8px_24px_rgba(15,23,42,0.04)]">
+                <div className="min-w-24 px-5 py-3 text-center">
                   <p className="text-xs text-slate-400">待评</p>
                   <p className="mt-1 text-2xl font-bold text-slate-950">{pendingNetworkCount + pendingRoadshowCount}</p>
                 </div>
-                <div className="min-w-24 rounded-2xl bg-slate-50 px-4 py-3 text-center">
+                <div className="min-w-24 px-5 py-3 text-center">
                   <p className="text-xs text-slate-400">已评</p>
                   <p className="mt-1 text-2xl font-bold text-emerald-600">{finishedNetworkCount + finishedRoadshowCount}</p>
                 </div>
-                <div className="min-w-24 rounded-2xl bg-slate-50 px-4 py-3 text-center">
+                <div className="min-w-24 px-5 py-3 text-center">
                   <p className="text-xs text-slate-400">模式</p>
-                  <p className="mt-1 text-2xl font-bold text-blue-600">{(networkAssignments.length > 0 ? 1 : 0) + (roadshowAssignments.length > 0 ? 1 : 0)}</p>
+                  <p className="mt-1 text-2xl font-bold text-blue-600">{availableModeCount}</p>
                 </div>
               </div>
             </div>
           </div>
 
           {expertMode === "home" ? (
-            <section className="px-6 py-10 md:px-8 md:py-12">
+            <section className="border-t border-slate-100 px-6 py-9 md:px-8 md:py-11">
               <div className="mx-auto max-w-5xl">
                 <div className="text-center">
                   <p className="text-sm font-semibold text-blue-600">您好，{currentUser?.name || "评审专家"}</p>
@@ -497,7 +497,7 @@ export default function ExpertReviewTab() {
                 </div>
                 <div className="mt-10 grid gap-5 md:grid-cols-2">
                   <button
-                    className="group relative overflow-hidden rounded-[28px] border border-blue-100 bg-gradient-to-br from-white to-blue-50/55 px-8 py-9 text-left transition hover:-translate-y-1 hover:border-blue-200 hover:shadow-[0_22px_60px_rgba(37,99,235,0.14)]"
+                    className="expert-task-card group relative overflow-hidden rounded-[22px] border border-blue-100 bg-gradient-to-br from-white to-blue-50/55 px-8 py-8 text-left transition hover:-translate-y-1 hover:border-blue-200 hover:shadow-[0_18px_42px_rgba(37,99,235,0.13)]"
                     onClick={() => setExpertMode("network-list")}
                     type="button"
                   >
@@ -507,7 +507,7 @@ export default function ExpertReviewTab() {
                         <Monitor className="h-8 w-8" />
                       </div>
                       <h3 className="mt-7 text-2xl font-bold tracking-tight text-slate-950">项目网络评审</h3>
-                      <p className="mt-3 text-sm leading-6 text-slate-500">审阅计划书、PPT PDF 和视频材料，完成在线评分。</p>
+                      <p className="mt-3 text-sm leading-6 text-slate-500">审阅计划书、PPT、PDF 和视频材料，完成在线评分。</p>
                       <div className="mt-7 flex items-center gap-3">
                         <span className="rounded-full bg-blue-600 px-4 py-2 text-sm font-semibold text-white">待评 {pendingNetworkCount}</span>
                         <span className="rounded-full border border-blue-100 bg-white px-4 py-2 text-sm font-semibold text-blue-700">已评 {finishedNetworkCount}</span>
@@ -515,7 +515,7 @@ export default function ExpertReviewTab() {
                     </div>
                   </button>
                   <button
-                    className="group relative overflow-hidden rounded-[28px] border border-emerald-100 bg-gradient-to-br from-white to-emerald-50/55 px-8 py-9 text-left transition hover:-translate-y-1 hover:border-emerald-200 hover:shadow-[0_22px_60px_rgba(16,185,129,0.13)]"
+                    className="expert-task-card group relative overflow-hidden rounded-[22px] border border-emerald-100 bg-gradient-to-br from-white to-emerald-50/55 px-8 py-8 text-left transition hover:-translate-y-1 hover:border-emerald-200 hover:shadow-[0_18px_42px_rgba(16,185,129,0.12)]"
                     onClick={startRoadshowReview}
                     type="button"
                   >
@@ -533,7 +533,7 @@ export default function ExpertReviewTab() {
                     </div>
                   </button>
                 </div>
-                <div className="mt-8 rounded-2xl border border-slate-200 bg-slate-50 px-5 py-4 text-sm leading-6 text-slate-500">
+                <div className="mt-8 rounded-2xl bg-amber-50 px-5 py-4 text-sm leading-6 text-amber-800 ring-1 ring-amber-100">
                   评分范围为 0.00-100.00。提交前请确认分数，两位小数将按最终提交值锁定。
                 </div>
               </div>
@@ -548,14 +548,14 @@ export default function ExpertReviewTab() {
                 <h3 className="text-xl font-bold text-slate-950">项目网络评审</h3>
                 <p className="mt-1 text-sm text-slate-500">请逐项查看材料并提交 0.00-100.00 分评分。</p>
               </div>
-              <button className="text-sm font-semibold text-slate-500 hover:text-blue-600" onClick={() => setExpertMode("home")} type="button">
-                返回入口
+              <button className="text-sm font-semibold text-blue-600 hover:text-blue-700" onClick={() => setExpertMode("home")} type="button">
+                返回任务选择
               </button>
             </div>
             <div className="grid gap-4">
               {networkAssignments.map((assignment) => (
                 <button
-                  className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-5 text-left transition hover:border-blue-200 hover:bg-blue-50/35"
+                  className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition hover:-translate-y-0.5 hover:border-blue-200 hover:bg-blue-50/35 hover:shadow-[0_8px_24px_rgba(15,23,42,0.06)]"
                   key={assignment.id}
                   onClick={() => startNetworkReview(assignment)}
                   type="button"
@@ -582,7 +582,7 @@ export default function ExpertReviewTab() {
             <button className="mb-5 text-sm font-semibold text-blue-600" onClick={() => setExpertMode("network-list")} type="button">
               ← 返回网络评审列表
             </button>
-            <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
+            <div className="detail-layout grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
               <div className="space-y-5">
                 <article className="rounded-3xl border border-slate-200 bg-white p-6">
                   <div className="flex flex-wrap items-center gap-3">
@@ -599,7 +599,7 @@ export default function ExpertReviewTab() {
                   <div className="mt-4 grid gap-3 md:grid-cols-3">
                     {materialEntries(selectedAssignment).map(([kind, label, material]) => (
                       <button
-                        className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-left transition hover:border-blue-200 hover:bg-blue-50"
+                        className="material-item rounded-2xl border border-slate-200 bg-slate-50 p-4 text-left transition hover:border-blue-200 hover:bg-blue-50"
                         key={kind}
                         onClick={() => openMaterial(selectedAssignment, kind)}
                         type="button"
@@ -640,6 +640,25 @@ export default function ExpertReviewTab() {
                     step="0.01"
                     type="number"
                     value={networkScoreDrafts[selectedAssignment.id] ?? ""}
+                  />
+                  <input
+                    className="score-range mt-3 h-1.5 w-full cursor-pointer appearance-none rounded-full bg-gradient-to-r from-rose-400 via-amber-400 to-emerald-500 accent-blue-600"
+                    disabled={
+                      Boolean(selectedAssignment.score) ||
+                      !selectedAssignment.canEdit ||
+                      submittingAssignmentId === selectedAssignment.id
+                    }
+                    max={100}
+                    min={0}
+                    onChange={(event) =>
+                      setNetworkScoreDrafts((current) => ({
+                        ...current,
+                        [selectedAssignment.id]: Number(event.target.value).toFixed(2),
+                      }))
+                    }
+                    step="0.01"
+                    type="range"
+                    value={Number(networkScoreDrafts[selectedAssignment.id] || 0)}
                   />
                 </label>
                 <label className="mt-5 block text-sm font-semibold text-slate-700">
@@ -718,6 +737,16 @@ export default function ExpertReviewTab() {
                     step="0.01"
                     type="number"
                     value={roadshowScoreDraft}
+                  />
+                  <input
+                    className="score-range mt-4 h-1.5 w-full cursor-pointer appearance-none rounded-full bg-gradient-to-r from-rose-400 via-amber-400 to-emerald-500 accent-indigo-600"
+                    disabled={Boolean(activeRoadshowAssignment.score) || !activeRoadshowAssignment.canEdit}
+                    max={100}
+                    min={0}
+                    onChange={(event) => setRoadshowScoreDraft(Number(event.target.value).toFixed(2))}
+                    step="0.01"
+                    type="range"
+                    value={Number(roadshowScoreDraft || 0)}
                   />
                 </label>
                 <p className="mt-4 text-sm text-slate-500">
