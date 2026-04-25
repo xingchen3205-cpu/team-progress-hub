@@ -9,6 +9,8 @@ import { verifyProjectMaterialUploadToken } from "@/lib/project-material-upload-
 import {
   buildProjectMaterialVisibilityWhere,
   canUploadProjectMaterial,
+  parseProjectStageDescription,
+  type ProjectMaterialRequirementKey,
   validateProjectMaterialUploadMeta,
 } from "@/lib/project-materials";
 import { prisma } from "@/lib/prisma";
@@ -90,6 +92,7 @@ const parseProjectMaterialSubmissionBody = async (request: NextRequest) => {
   if (
     !body ||
     typeof body.stageId !== "string" ||
+    typeof body.materialKind !== "string" ||
     typeof body.title !== "string" ||
     typeof body.fileName !== "string" ||
     typeof body.filePath !== "string" ||
@@ -101,6 +104,7 @@ const parseProjectMaterialSubmissionBody = async (request: NextRequest) => {
   }
 
   const stageId = body.stageId.trim();
+  const materialKind = body.materialKind.trim() as ProjectMaterialRequirementKey;
   const title = body.title.trim();
   const fileName = body.fileName.trim();
   const filePath = body.filePath.trim();
@@ -110,6 +114,7 @@ const parseProjectMaterialSubmissionBody = async (request: NextRequest) => {
 
   if (
     !stageId ||
+    !materialKind ||
     !title ||
     !fileName ||
     !filePath ||
@@ -123,6 +128,7 @@ const parseProjectMaterialSubmissionBody = async (request: NextRequest) => {
   return {
     data: {
       stageId,
+      materialKind,
       title,
       fileName,
       filePath,
@@ -166,11 +172,13 @@ const doesUploadTokenMatchSubmission = (
     fileName: string;
     fileSize: number;
     mimeType: string;
+    materialKind: ProjectMaterialRequirementKey;
   },
 ) =>
   payload.userId === submission.userId &&
   payload.teamGroupId === submission.teamGroupId &&
   payload.stageId === submission.stageId &&
+  payload.materialKind === submission.materialKind &&
   payload.filePath === submission.filePath &&
   payload.fileName === submission.fileName &&
   payload.fileSize === submission.fileSize &&
@@ -182,8 +190,11 @@ const validateStageForProjectMaterialSubmission = (
     startAt: Date | null;
     deadline: Date | null;
     teamGroupId: string | null;
+    type: "online_review" | "roadshow";
+    description: string | null;
   } | null,
   user: { teamGroupId: string | null },
+  materialKind: ProjectMaterialRequirementKey,
 ) => {
   if (!stage || !stage.isOpen) {
     return NextResponse.json({ message: "项目评审阶段未开放" }, { status: 409 });
@@ -196,6 +207,11 @@ const validateStageForProjectMaterialSubmission = (
   const now = new Date();
   if ((stage.startAt && stage.startAt > now) || (stage.deadline && stage.deadline < now)) {
     return NextResponse.json({ message: "当前不在项目材料提交时间范围内" }, { status: 409 });
+  }
+
+  const stageMeta = parseProjectStageDescription(stage.description, stage.type);
+  if (!stageMeta.requiredMaterials.includes(materialKind)) {
+    return NextResponse.json({ message: "该阶段未要求上传此类材料" }, { status: 400 });
   }
 
   return null;
@@ -249,7 +265,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: "无权限上传项目材料" }, { status: 403 });
   }
 
-  const { stageId, title, fileName, filePath, fileSize, mimeType, uploadToken } = parsedBody.data;
+  const { stageId, materialKind, title, fileName, filePath, fileSize, mimeType, uploadToken } = parsedBody.data;
 
   if (!isScopedProjectMaterialFilePath({ filePath, teamGroupId: userTeamGroupId, stageId })) {
     return NextResponse.json({ message: "项目材料文件路径无效" }, { status: 400 });
@@ -266,6 +282,7 @@ export async function POST(request: NextRequest) {
       fileName,
       fileSize,
       mimeType,
+      materialKind,
     })
   ) {
     return NextResponse.json({ message: "项目材料上传凭证无效或已过期" }, { status: 400 });
@@ -274,7 +291,7 @@ export async function POST(request: NextRequest) {
   const cleanupUploadedFile = () =>
     cleanupScopedProjectMaterialFile({ filePath, teamGroupId: userTeamGroupId, stageId });
 
-  const validationError = validateProjectMaterialUploadMeta({ fileName, fileSize });
+  const validationError = validateProjectMaterialUploadMeta({ fileName, fileSize, materialKind });
   if (validationError) {
     await cleanupUploadedFile();
     return NextResponse.json({ message: validationError }, { status: 400 });
@@ -288,6 +305,8 @@ export async function POST(request: NextRequest) {
         startAt: true,
         deadline: true,
         teamGroupId: true,
+        type: true,
+        description: true,
       },
     })
     .catch(async (error) => {
@@ -295,7 +314,7 @@ export async function POST(request: NextRequest) {
       throw error;
     });
 
-  const stageError = validateStageForProjectMaterialSubmission(stage, user);
+  const stageError = validateStageForProjectMaterialSubmission(stage, user, materialKind);
   if (stageError) {
     await cleanupUploadedFile();
     return stageError;

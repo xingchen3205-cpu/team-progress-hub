@@ -4,7 +4,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { serializeProjectReviewStage } from "@/lib/api-serializers";
 import { assertMainWorkspaceRole, hasGlobalAdminPrivileges } from "@/lib/permissions";
-import { canManageProjectReviewStage } from "@/lib/project-materials";
+import {
+  canManageProjectReviewStage,
+  encodeProjectStageDescription,
+  type ProjectMaterialRequirementKey,
+} from "@/lib/project-materials";
 import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
@@ -91,6 +95,9 @@ const parseProjectStageBody = async (request: NextRequest) => {
   const description = typeof body.description === "string" ? body.description.trim() || null : null;
   const teamGroupId = typeof body.teamGroupId === "string" ? body.teamGroupId.trim() || null : null;
   const isOpen = body.isOpen === true;
+  const requiredMaterials = Array.isArray(body.requiredMaterials)
+    ? (body.requiredMaterials.filter((item): item is ProjectMaterialRequirementKey => typeof item === "string") as ProjectMaterialRequirementKey[])
+    : undefined;
 
   if (!name || (stageType !== "online_review" && stageType !== "roadshow")) {
     return { error: NextResponse.json({ message: "项目评审阶段信息无效" }, { status: 400 }) };
@@ -108,6 +115,7 @@ const parseProjectStageBody = async (request: NextRequest) => {
       name,
       stageType,
       description,
+      requiredMaterials,
       isOpen,
       startAt: parsedStartAt.date,
       deadline: parsedDeadline.date,
@@ -156,7 +164,7 @@ export async function POST(request: NextRequest) {
     return parsedBody.error;
   }
 
-  const { name, stageType, description, isOpen, startAt, deadline, teamGroupId } =
+  const { name, stageType, description, requiredMaterials, isOpen, startAt, deadline, teamGroupId } =
     parsedBody.data;
 
   try {
@@ -164,7 +172,7 @@ export async function POST(request: NextRequest) {
       data: {
         name: name,
         type: stageType,
-        description,
+        description: encodeProjectStageDescription({ description, requiredMaterials }),
         isOpen,
         startAt,
         deadline,

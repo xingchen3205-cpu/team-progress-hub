@@ -190,8 +190,6 @@ export default function ExpertReviewTab() {
     canManageReviewMaterials,
     openPreviewAsset,
     openReviewAssignmentModal,
-    openReviewMaterialModal,
-    deleteReviewMaterial,
     deleteReviewAssignment,
     refreshWorkspace,
     setLoadError,
@@ -208,8 +206,6 @@ export default function ExpertReviewTab() {
     Clock3,
     ChevronRight,
     Plus,
-    Upload,
-    Trash2,
     ShieldCheck,
     Presentation,
     formatDateTime,
@@ -524,7 +520,7 @@ export default function ExpertReviewTab() {
                   </p>
                 </article>
                 <article className="rounded-3xl border border-slate-200 bg-white p-6">
-                  <h4 className="text-base font-bold text-slate-950">评审材料</h4>
+                  <h4 className="text-base font-bold text-slate-950">项目管理已生效材料</h4>
                   <div className="mt-4 grid gap-3 md:grid-cols-3">
                     {materialEntries(selectedAssignment).map(([kind, label, material]) => (
                       <button
@@ -538,7 +534,7 @@ export default function ExpertReviewTab() {
                       </button>
                     ))}
                     {materialEntries(selectedAssignment).length === 0 ? (
-                      <p className="text-sm text-slate-400">管理员尚未上传评审材料。</p>
+                      <p className="text-sm text-slate-400">项目管理已生效材料暂未同步。</p>
                     ) : null}
                   </div>
                 </article>
@@ -695,14 +691,14 @@ export default function ExpertReviewTab() {
           <div>
             <p className="text-sm font-semibold text-blue-600">路演管理后台</p>
             <h2 className="mt-1 text-2xl font-bold text-slate-950">专家评审与大屏投屏</h2>
-            <p className="mt-2 text-sm text-slate-500">管理员创建专家账号、分配评审权限和截止时间；专家提交后实时汇总分数。</p>
+            <p className="mt-2 text-sm text-slate-500">管理员基于项目管理已生效材料分配专家和截止时间；专家提交后实时汇总分数。</p>
           </div>
           <div className="flex flex-wrap gap-3">
             {canCreateReviewPackage ? (
               <ActionButton onClick={openReviewAssignmentModal} variant="primary">
                 <span className="inline-flex items-center gap-2">
                   <Plus className="h-4 w-4" />
-                  创建评审任务
+                  分配专家评审
                 </span>
               </ActionButton>
             ) : null}
@@ -722,7 +718,7 @@ export default function ExpertReviewTab() {
 
       {groupedAssignments.length === 0 ? (
         <section className="rounded-3xl border border-slate-200 bg-white p-8">
-          <EmptyState description="创建评审任务并上传材料后，专家评分和投屏数据会显示在这里。" icon={FileCheck} title="暂无评审任务" />
+          <EmptyState description="从项目管理选择已生效材料并分配专家后，专家评分和投屏数据会显示在这里。" icon={FileCheck} title="暂无评审任务" />
         </section>
       ) : (
         <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
@@ -776,7 +772,7 @@ export default function ExpertReviewTab() {
             ) : null}
 
             <article className="rounded-[28px] border border-slate-200 bg-white p-6">
-              <h3 className="text-lg font-bold text-slate-950">材料与权限</h3>
+              <h3 className="text-lg font-bold text-slate-950">项目管理已生效材料</h3>
               <div className="mt-4 grid gap-4 md:grid-cols-3">
                 {activeGroup && (["plan", "ppt", "video"] as const).map((kind) => {
                   const assignment = activeGroup.items[0];
@@ -788,24 +784,11 @@ export default function ExpertReviewTab() {
                           <p className="text-sm font-bold text-slate-900">{expertReviewMaterialLabels[kind]}</p>
                           <p className="mt-2 truncate text-xs text-slate-500">{material?.fileName ?? "暂未上传"}</p>
                         </div>
-                        {material && canManageReviewMaterials ? (
-                          <button className="text-rose-500" onClick={() => deleteReviewMaterial(assignment.id, kind)} type="button">
-                            <Trash2 className="h-4 w-4" />
-                          </button>
-                        ) : null}
                       </div>
                       <div className="mt-4 flex flex-wrap gap-2">
                         {material ? (
                           <button className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700" onClick={() => openMaterial(assignment, kind)} type="button">
                             查看
-                          </button>
-                        ) : null}
-                        {canManageReviewMaterials ? (
-                          <button className="rounded-xl bg-blue-600 px-3 py-2 text-xs font-semibold text-white" onClick={() => openReviewMaterialModal(assignment.id, kind)} type="button">
-                            <span className="inline-flex items-center gap-1">
-                              <Upload className="h-3.5 w-3.5" />
-                              {material ? "替换" : "上传"}
-                            </span>
                           </button>
                         ) : null}
                       </div>

@@ -140,6 +140,8 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
     activeTabItem,
     taskAssignableMembers,
     expertMembers,
+    projectStages,
+    projectMaterials,
     availableRoleOptions,
     todoNotifications,
     visibleRoleTodoItems,
@@ -228,6 +230,13 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
     ActionButton,
     UserAvatar,
   } = Workspace;
+
+  const selectedReviewStage = projectStages.find((stage) => stage.id === reviewAssignmentDraft.stageId) ?? null;
+  const approvedProjectMaterialsForReview = projectMaterials.filter(
+    (material) =>
+      material.status === "approved" &&
+      (!reviewAssignmentDraft.stageId || material.stageId === reviewAssignmentDraft.stageId),
+  );
 
   const [globalSearchQuery, setGlobalSearchQuery] = useState("");
   const [debouncedSearchQuery, setDebouncedSearchQuery] = useState("");
@@ -1310,85 +1319,148 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
       ) : null}
 
       {reviewAssignmentModalOpen ? (
-        <Modal title="新建专家评审包" onClose={() => setReviewAssignmentModalOpen(false)}>
+        <Modal title="从项目管理分配专家评审" onClose={() => setReviewAssignmentModalOpen(false)}>
           <div className="space-y-4">
+            <label className="block text-sm text-slate-500">
+              选择项目管理轮次
+              <select
+                className={fieldClassName}
+                value={reviewAssignmentDraft.stageId}
+                onChange={(event) =>
+                  setReviewAssignmentDraft((current) => ({
+                    ...current,
+                    stageId: event.target.value,
+                    materialSubmissionIds: [],
+                    roundLabel:
+                      projectStages.find((stage) => stage.id === event.target.value)?.name || current.roundLabel,
+                  }))
+                }
+              >
+                <option value="">请选择已创建的项目管理轮次</option>
+                {projectStages.map((stage) => (
+                  <option key={stage.id} value={stage.id}>
+                    {stage.name} · {stage.typeLabel}
+                  </option>
+                ))}
+              </select>
+            </label>
+
             <div className="grid gap-4 md:grid-cols-2">
-              <label className="block text-sm text-slate-500">
-                评审专家
-                <select
-                  className={fieldClassName}
-                  value={reviewAssignmentDraft.expertUserId}
-                  onChange={(event) =>
-                    setReviewAssignmentDraft((current) => ({
-                      ...current,
-                      expertUserId: event.target.value,
-                    }))
-                  }
-                >
-                  <option value="">请选择专家</option>
-                  {expertMembers.map((member) => (
-                    <option key={member.id} value={member.id}>
-                      {member.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
               <label className="block text-sm text-slate-500">
                 评审轮次
                 <input
                   className={fieldClassName}
                   value={reviewAssignmentDraft.roundLabel}
                   onChange={(event) =>
-                    setReviewAssignmentDraft((current) => ({
-                      ...current,
-                      roundLabel: event.target.value,
-                    }))
+                    setReviewAssignmentDraft((current) => ({ ...current, roundLabel: event.target.value }))
+                  }
+                />
+              </label>
+              <label className="block text-sm text-slate-500">
+                截止时间
+                <input
+                  className={fieldClassName}
+                  type="datetime-local"
+                  value={reviewAssignmentDraft.deadline}
+                  onChange={(event) =>
+                    setReviewAssignmentDraft((current) => ({ ...current, deadline: event.target.value }))
                   }
                 />
               </label>
             </div>
-            <label className="block text-sm text-slate-500">
-              评审对象 / 项目名称
-              <input
-                className={fieldClassName}
-                value={reviewAssignmentDraft.targetName}
-                onChange={(event) =>
-                  setReviewAssignmentDraft((current) => ({
-                    ...current,
-                    targetName: event.target.value,
-                  }))
-                }
-              />
-            </label>
+
+            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-semibold text-slate-700">选择已生效项目材料</p>
+                  <p className="mt-1 text-xs text-slate-400">
+                    {selectedReviewStage?.type === "roadshow"
+                      ? "路演只用项目组名单生成打分任务，不向专家展示材料。"
+                      : "网络评审会把已生效材料同步给专家查看。"}
+                  </p>
+                </div>
+                <span className="text-xs text-slate-400">
+                  已选 {reviewAssignmentDraft.materialSubmissionIds.length} 项
+                </span>
+              </div>
+              <div className="mt-3 max-h-56 space-y-2 overflow-y-auto pr-1">
+                {approvedProjectMaterialsForReview.length > 0 ? (
+                  approvedProjectMaterialsForReview.map((material) => (
+                    <label
+                      className="flex items-start gap-3 rounded-xl border border-white bg-white px-3 py-2 text-sm"
+                      key={material.id}
+                    >
+                      <input
+                        checked={reviewAssignmentDraft.materialSubmissionIds.includes(material.id)}
+                        className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600"
+                        onChange={(event) =>
+                          setReviewAssignmentDraft((current) => ({
+                            ...current,
+                            materialSubmissionIds: event.target.checked
+                              ? [...new Set([...current.materialSubmissionIds, material.id])]
+                              : current.materialSubmissionIds.filter((id) => id !== material.id),
+                          }))
+                        }
+                        type="checkbox"
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate font-semibold text-slate-800">
+                          {material.teamGroupName} · {material.title}
+                        </span>
+                        <span className="mt-0.5 block truncate text-xs text-slate-400">
+                          {material.stageName} · {material.fileName}
+                        </span>
+                      </span>
+                    </label>
+                  ))
+                ) : (
+                  <p className="rounded-xl border border-dashed border-slate-200 bg-white px-3 py-4 text-sm text-slate-400">
+                    当前轮次暂无已生效项目材料，请先在项目管理中完成提交与审批。
+                  </p>
+                )}
+              </div>
+            </div>
+
+            <div className="rounded-2xl border border-slate-200 bg-white p-4">
+              <p className="text-sm font-semibold text-slate-700">批量选择专家</p>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                {expertMembers.map((member) => (
+                  <label
+                    className="flex items-center gap-3 rounded-xl border border-slate-200 px-3 py-2 text-sm text-slate-600"
+                    key={member.id}
+                  >
+                    <input
+                      checked={reviewAssignmentDraft.expertUserIds.includes(member.id)}
+                      className="h-4 w-4 rounded border-slate-300 text-blue-600"
+                      onChange={(event) =>
+                        setReviewAssignmentDraft((current) => ({
+                          ...current,
+                          expertUserId: event.target.checked ? member.id : current.expertUserId,
+                          expertUserIds: event.target.checked
+                            ? [...new Set([...current.expertUserIds, member.id])]
+                            : current.expertUserIds.filter((id) => id !== member.id),
+                        }))
+                      }
+                      type="checkbox"
+                    />
+                    <span>{member.name}</span>
+                  </label>
+                ))}
+              </div>
+            </div>
+
             <label className="block text-sm text-slate-500">
               任务说明
               <textarea
                 className={`${textareaClassName} min-h-28`}
                 value={reviewAssignmentDraft.overview}
                 onChange={(event) =>
-                  setReviewAssignmentDraft((current) => ({
-                    ...current,
-                    overview: event.target.value,
-                  }))
-                }
-              />
-            </label>
-            <label className="block text-sm text-slate-500">
-              截止时间
-              <input
-                className={fieldClassName}
-                type="datetime-local"
-                value={reviewAssignmentDraft.deadline}
-                onChange={(event) =>
-                  setReviewAssignmentDraft((current) => ({
-                    ...current,
-                    deadline: event.target.value,
-                  }))
+                  setReviewAssignmentDraft((current) => ({ ...current, overview: event.target.value }))
                 }
               />
             </label>
             <p className={`${subtleCardClassName} text-sm leading-7 text-slate-500`}>
-              评审包创建后，可在卡片里分别上传计划书、路演材料和视频，和主文档中心完全分离。
+              专家评审轮次直接复用项目管理阶段；网络评审展示已生效材料，路演评审只开放打分权限。
             </p>
             <ModalActions>
               <ActionButton disabled={isSaving} onClick={() => setReviewAssignmentModalOpen(false)}>
@@ -1400,7 +1472,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                 onClick={saveReviewAssignment}
                 variant="primary"
               >
-                保存评审包
+                保存评审任务
               </ActionButton>
             </ModalActions>
           </div>

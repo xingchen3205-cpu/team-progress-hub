@@ -105,4 +105,26 @@ describe("expert review v2 constraints", () => {
     assert.match(getBlockMatch[0], /assertRole\(user\.role,\s*\["admin",\s*"school_admin",\s*"teacher",\s*"leader",\s*"member",\s*"expert"\]\)/);
     assert.doesNotMatch(getBlockMatch[0], /assertMainWorkspaceRole\(user\.role\)/);
   });
+
+  it("keeps project management next to expert review and uses project stages as review rounds", () => {
+    const workspaceSource = readSource("src/components/workspace-context.tsx");
+    const shellSource = readSource("src/components/workspace-shell.tsx");
+    const routeSource = readSource("src/app/api/expert-reviews/assignments/route.ts");
+    const tabSource = readSource("src/components/tabs/expert-review-tab.tsx");
+
+    assert.match(workspaceSource, /key:\s*"project"[\s\S]*?key:\s*"review"/);
+    assert.match(routeSource, /stageId/);
+    assert.match(routeSource, /projectReviewStage/);
+    assert.match(routeSource, /projectMaterialSubmission/);
+    assert.match(routeSource, /status:\s*"approved"/);
+    assert.match(routeSource, /expertUserIds/);
+    assert.match(routeSource, /createMany/);
+    assert.match(routeSource, /expertReviewMaterial/);
+    assert.match(shellSource, /选择项目管理轮次/);
+    assert.match(shellSource, /选择已生效项目材料/);
+    assert.match(shellSource, /批量选择专家/);
+    assert.doesNotMatch(shellSource, /评审对象 \/ 项目名称/);
+    assert.doesNotMatch(shellSource, /和主文档中心完全分离/);
+    assert.match(tabSource, /项目管理已生效材料/);
+  });
 });

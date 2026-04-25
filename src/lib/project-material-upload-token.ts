@@ -1,9 +1,12 @@
 import { createHmac, timingSafeEqual } from "node:crypto";
 
+import type { ProjectMaterialRequirementKey } from "@/lib/project-materials";
+
 export type ProjectMaterialUploadTokenPayload = {
   userId: string;
   teamGroupId: string;
   stageId: string;
+  materialKind?: ProjectMaterialRequirementKey;
   filePath: string;
   fileName: string;
   fileSize: number;
@@ -46,6 +49,7 @@ const isValidPayload = (payload: unknown): payload is ProjectMaterialUploadToken
     typeof candidate.userId === "string" &&
     typeof candidate.teamGroupId === "string" &&
     typeof candidate.stageId === "string" &&
+    (candidate.materialKind === undefined || typeof candidate.materialKind === "string") &&
     typeof candidate.filePath === "string" &&
     typeof candidate.fileName === "string" &&
     typeof candidate.fileSize === "number" &&

@@ -496,6 +496,81 @@ test("project material upload-url route validates stage and builds project mater
   assert.match(uploadRoute, /folder:\s*buildProjectMaterialUploadFolder/);
 });
 
+test("project stages store configurable material requirements without schema migration", () => {
+  const materialLib = readFileSync(
+    path.join(process.cwd(), "src/lib/project-materials.ts"),
+    "utf8",
+  );
+  const serializer = readFileSync(
+    path.join(process.cwd(), "src/lib/api-serializers.ts"),
+    "utf8",
+  );
+  const projectTab = readFileSync(
+    path.join(process.cwd(), "src/components/tabs/project-tab.tsx"),
+    "utf8",
+  );
+
+  assert.match(materialLib, /projectMaterialRequirementOptions/);
+  assert.match(materialLib, /plan_pdf/);
+  assert.match(materialLib, /ppt_pdf/);
+  assert.match(materialLib, /video_20mb/);
+  assert.match(materialLib, /encodeProjectStageDescription/);
+  assert.match(materialLib, /parseProjectStageDescription/);
+  assert.match(serializer, /requiredMaterials:\s*stageMeta\.requiredMaterials/);
+  assert.match(projectTab, /requiredMaterials/);
+  assert.match(projectTab, /计划书 PDF/);
+  assert.match(projectTab, /PPT PDF/);
+  assert.match(projectTab, /视频/);
+});
+
+test("project material upload validates the selected required material kind", () => {
+  const uploadRoute = readFileSync(
+    path.join(process.cwd(), "src/app/api/project-materials/upload-url/route.ts"),
+    "utf8",
+  );
+  const materialRoute = readFileSync(
+    path.join(process.cwd(), "src/app/api/project-materials/route.ts"),
+    "utf8",
+  );
+  const tokenLib = readFileSync(
+    path.join(process.cwd(), "src/lib/project-material-upload-token.ts"),
+    "utf8",
+  );
+  const materialLib = readFileSync(
+    path.join(process.cwd(), "src/lib/project-materials.ts"),
+    "utf8",
+  );
+
+  assert.match(uploadRoute, /materialKind/);
+  assert.match(uploadRoute, /validateProjectMaterialUploadMeta\(\{ fileName, fileSize, materialKind \}\)/);
+  assert.match(uploadRoute, /requiredMaterials/);
+  assert.match(materialRoute, /materialKind/);
+  assert.match(materialRoute, /payload\.materialKind === submission\.materialKind/);
+  assert.match(tokenLib, /materialKind/);
+  assert.match(materialLib, /20 \* 1024 \* 1024/);
+  assert.match(materialLib, /计划书 PDF 仅支持 PDF 文件/);
+  assert.match(materialLib, /PPT PDF 仅支持 PDF 文件/);
+  assert.match(materialLib, /视频文件大小不能超过 20MB/);
+});
+
+test("project materials expose admin-only preview and download routes", () => {
+  const downloadRoutePath = "src/app/api/project-materials/[submissionId]/download/route.ts";
+  const downloadRoute = readFileSync(path.join(process.cwd(), downloadRoutePath), "utf8");
+  const projectTab = readFileSync(
+    path.join(process.cwd(), "src/components/tabs/project-tab.tsx"),
+    "utf8",
+  );
+
+  assert.match(downloadRoute, /hasGlobalAdminPrivileges\(user\.role\)/);
+  assert.match(downloadRoute, /readStoredFile\(material\.filePath\)/);
+  assert.match(downloadRoute, /inline/);
+  assert.match(downloadRoute, /buildInlineDisposition/);
+  assert.match(downloadRoute, /buildAttachmentDisposition/);
+  assert.match(projectTab, /canPreviewAllMaterials/);
+  assert.match(projectTab, /inline=1/);
+  assert.match(projectTab, /下载/);
+});
+
 test("project stage api routes expose management actions", () => {
   const stageRoute = readFileSync(
     path.join(process.cwd(), "src/app/api/project-stages/route.ts"),

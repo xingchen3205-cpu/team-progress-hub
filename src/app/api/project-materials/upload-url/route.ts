@@ -6,6 +6,8 @@ import { getSessionUser } from "@/lib/auth";
 import { createProjectMaterialUploadToken } from "@/lib/project-material-upload-token";
 import {
   canUploadProjectMaterial,
+  parseProjectStageDescription,
+  type ProjectMaterialRequirementKey,
   validateProjectMaterialUploadMeta,
 } from "@/lib/project-materials";
 import { prisma } from "@/lib/prisma";
@@ -41,6 +43,7 @@ const parseProjectMaterialUploadUrlBody = async (request: NextRequest) => {
   if (
     !body ||
     typeof body.stageId !== "string" ||
+    typeof body.materialKind !== "string" ||
     typeof body.fileName !== "string" ||
     typeof body.fileSize !== "number" ||
     typeof body.mimeType !== "string"
@@ -49,17 +52,19 @@ const parseProjectMaterialUploadUrlBody = async (request: NextRequest) => {
   }
 
   const stageId = body.stageId.trim();
+  const materialKind = body.materialKind.trim() as ProjectMaterialRequirementKey;
   const fileName = body.fileName.trim();
   const fileSize = body.fileSize;
   const mimeType = body.mimeType.trim() || "application/octet-stream";
 
-  if (!stageId || !fileName || !Number.isFinite(fileSize) || fileSize <= 0) {
+  if (!stageId || !materialKind || !fileName || !Number.isFinite(fileSize) || fileSize <= 0) {
     return { error: NextResponse.json({ message: "项目材料上传信息无效" }, { status: 400 }) };
   }
 
   return {
     data: {
       stageId,
+      materialKind,
       fileName,
       fileSize,
       mimeType,
@@ -73,8 +78,11 @@ const validateStageForProjectMaterialUpload = (
     startAt: Date | null;
     deadline: Date | null;
     teamGroupId: string | null;
+    type: "online_review" | "roadshow";
+    description: string | null;
   } | null,
   user: { teamGroupId: string | null },
+  materialKind: ProjectMaterialRequirementKey,
 ) => {
   if (!stage || !stage.isOpen) {
     return NextResponse.json({ message: "项目评审阶段未开放" }, { status: 409 });
@@ -87,6 +95,11 @@ const validateStageForProjectMaterialUpload = (
   const now = new Date();
   if ((stage.startAt && stage.startAt > now) || (stage.deadline && stage.deadline < now)) {
     return NextResponse.json({ message: "当前不在项目材料提交时间范围内" }, { status: 409 });
+  }
+
+  const stageMeta = parseProjectStageDescription(stage.description, stage.type);
+  if (!stageMeta.requiredMaterials.includes(materialKind)) {
+    return NextResponse.json({ message: "该阶段未要求上传此类材料" }, { status: 400 });
   }
 
   return null;
@@ -103,13 +116,13 @@ export async function POST(request: NextRequest) {
     return parsedBody.error;
   }
 
-  const { stageId, fileName, fileSize, mimeType } = parsedBody.data;
+  const { stageId, materialKind, fileName, fileSize, mimeType } = parsedBody.data;
   const userTeamGroupId = user.teamGroupId;
   if (!userTeamGroupId) {
     return NextResponse.json({ message: "无权限上传项目材料" }, { status: 403 });
   }
 
-  const validationError = validateProjectMaterialUploadMeta({ fileName, fileSize });
+  const validationError = validateProjectMaterialUploadMeta({ fileName, fileSize, materialKind });
   if (validationError) {
     return NextResponse.json({ message: validationError }, { status: 400 });
   }
@@ -121,10 +134,12 @@ export async function POST(request: NextRequest) {
       startAt: true,
       deadline: true,
       teamGroupId: true,
+      type: true,
+      description: true,
     },
   });
 
-  const stageError = validateStageForProjectMaterialUpload(stage, user);
+  const stageError = validateStageForProjectMaterialUpload(stage, user, materialKind);
   if (stageError) {
     return stageError;
   }
@@ -137,6 +152,7 @@ export async function POST(request: NextRequest) {
     userId: user.id,
     teamGroupId: userTeamGroupId,
     stageId,
+    materialKind,
     filePath: objectKey,
     fileName,
     fileSize,

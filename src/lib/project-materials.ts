@@ -20,6 +20,101 @@ export const projectMaterialAllowedExtensions = [
 ] as const;
 
 export const PROJECT_MATERIAL_MAX_SIZE = 100 * 1024 * 1024;
+export const PROJECT_MATERIAL_VIDEO_MAX_SIZE = 20 * 1024 * 1024;
+
+export const projectMaterialRequirementOptions = [
+  {
+    key: "plan_pdf",
+    label: "计划书 PDF",
+    description: "计划书导出的 PDF 版本。",
+    accept: ".pdf",
+  },
+  {
+    key: "ppt_pdf",
+    label: "PPT PDF",
+    description: "PPT 导出的 PDF 版本。",
+    accept: ".pdf",
+  },
+  {
+    key: "video_20mb",
+    label: "视频",
+    description: "不超过 20MB 的项目展示视频。",
+    accept: ".mp4,.mov,.avi",
+  },
+] as const;
+
+export type ProjectMaterialRequirementKey = (typeof projectMaterialRequirementOptions)[number]["key"];
+
+export const defaultProjectMaterialRequirementsByStageType: Record<
+  "online_review" | "roadshow",
+  ProjectMaterialRequirementKey[]
+> = {
+  online_review: ["ppt_pdf", "plan_pdf", "video_20mb"],
+  roadshow: ["ppt_pdf"],
+};
+
+const projectMaterialRequirementSet = new Set<ProjectMaterialRequirementKey>(
+  projectMaterialRequirementOptions.map((option) => option.key),
+);
+
+const PROJECT_STAGE_DESCRIPTION_META_PREFIX = "__PROJECT_STAGE_META__:";
+
+export const getProjectMaterialRequirementOption = (key: ProjectMaterialRequirementKey) =>
+  projectMaterialRequirementOptions.find((option) => option.key === key) ?? projectMaterialRequirementOptions[0];
+
+export const getProjectMaterialRequirementLabel = (key: ProjectMaterialRequirementKey) =>
+  getProjectMaterialRequirementOption(key).label;
+
+const normalizeProjectMaterialRequirements = (
+  value: unknown,
+  stageType: keyof typeof defaultProjectMaterialRequirementsByStageType = "online_review",
+) => {
+  if (!Array.isArray(value)) {
+    return defaultProjectMaterialRequirementsByStageType[stageType];
+  }
+
+  const normalized = value.filter((item): item is ProjectMaterialRequirementKey =>
+    typeof item === "string" && projectMaterialRequirementSet.has(item as ProjectMaterialRequirementKey),
+  );
+
+  return normalized.length > 0 ? [...new Set(normalized)] : defaultProjectMaterialRequirementsByStageType[stageType];
+};
+
+export const encodeProjectStageDescription = ({
+  description,
+  requiredMaterials,
+}: {
+  description?: string | null;
+  requiredMaterials?: ProjectMaterialRequirementKey[];
+}) =>
+  `${PROJECT_STAGE_DESCRIPTION_META_PREFIX}${JSON.stringify({
+    description: description?.trim() || "",
+    requiredMaterials: normalizeProjectMaterialRequirements(requiredMaterials),
+  })}`;
+
+export const parseProjectStageDescription = (
+  value?: string | null,
+  stageType: keyof typeof defaultProjectMaterialRequirementsByStageType = "online_review",
+) => {
+  const fallback = {
+    description: value ?? "",
+    requiredMaterials: defaultProjectMaterialRequirementsByStageType[stageType],
+  };
+
+  if (!value?.startsWith(PROJECT_STAGE_DESCRIPTION_META_PREFIX)) {
+    return fallback;
+  }
+
+  try {
+    const parsed = JSON.parse(value.slice(PROJECT_STAGE_DESCRIPTION_META_PREFIX.length)) as Record<string, unknown>;
+    return {
+      description: typeof parsed.description === "string" ? parsed.description : "",
+      requiredMaterials: normalizeProjectMaterialRequirements(parsed.requiredMaterials, stageType),
+    };
+  } catch {
+    return fallback;
+  }
+};
 
 export const canManageProjectReviewStage = (role: Role) => hasGlobalAdminPrivileges(role);
 
@@ -60,9 +155,11 @@ export const buildProjectMaterialVisibilityWhere = (actor: {
 export const validateProjectMaterialUploadMeta = ({
   fileName,
   fileSize,
+  materialKind,
 }: {
   fileName: string;
   fileSize: number;
+  materialKind?: ProjectMaterialRequirementKey;
 }) => {
   const extension = path.extname(fileName).toLowerCase();
   if (!projectMaterialAllowedExtensions.includes(extension as ProjectMaterialAllowedExtension)) {
@@ -73,11 +170,43 @@ export const validateProjectMaterialUploadMeta = ({
     return "项目材料文件大小无效";
   }
 
+  if (materialKind === "plan_pdf" && extension !== ".pdf") {
+    return "计划书 PDF 仅支持 PDF 文件";
+  }
+
+  if (materialKind === "ppt_pdf" && extension !== ".pdf") {
+    return "PPT PDF 仅支持 PDF 文件";
+  }
+
+  if (materialKind === "video_20mb") {
+    if (![".mp4", ".mov", ".avi"].includes(extension)) {
+      return "视频文件不支持该文件格式";
+    }
+
+    if (fileSize > PROJECT_MATERIAL_VIDEO_MAX_SIZE) {
+      return "视频文件大小不能超过 20MB";
+    }
+  }
+
   if (fileSize > PROJECT_MATERIAL_MAX_SIZE) {
     return "项目材料文件大小不能超过 100MB";
   }
 
   return null;
+};
+
+export const inferExpertReviewMaterialKindFromRequirement = (
+  materialKind?: ProjectMaterialRequirementKey | null,
+) => {
+  if (materialKind === "ppt_pdf") {
+    return "ppt" as const;
+  }
+
+  if (materialKind === "video_20mb") {
+    return "video" as const;
+  }
+
+  return "plan" as const;
 };
 
 export const projectMaterialStatusLabels: Record<ProjectMaterialStatus, string> = {

@@ -27,7 +27,7 @@ import type {
 
 import { formatBeijingDateTime, formatBeijingTimeOnly } from "@/lib/date";
 import { approvalStatusLabels, roleLabels } from "@/lib/permissions";
-import { getProjectMaterialStatusLabel } from "@/lib/project-materials";
+import { getProjectMaterialStatusLabel, parseProjectStageDescription } from "@/lib/project-materials";
 
 export const categoryLabels: Record<DocumentCategory, "计划书" | "PPT" | "答辩材料" | "证明附件"> = {
   plan: "计划书",
@@ -531,26 +531,32 @@ const serializeProjectMaterialUser = (
       }
     : null;
 
-export const serializeProjectReviewStage = (stage: ProjectReviewStageWithRelations) => ({
-  id: stage.id,
-  name: stage.name,
-  type: stage.type,
-  typeLabel: stage.type === "online_review" ? "网络评审" : "路演材料",
-  description: stage.description ?? "",
-  isOpen: stage.isOpen,
-  startAt: stage.startAt?.toISOString() ?? null,
-  deadline: stage.deadline?.toISOString() ?? null,
-  createdAt: stage.createdAt.toISOString(),
-  updatedAt: stage.updatedAt.toISOString(),
-  creator: serializeProjectMaterialUser(stage.creator),
-  teamGroup: stage.teamGroup
-    ? {
-        id: stage.teamGroup.id,
-        name: stage.teamGroup.name,
-      }
-    : null,
-  submissionCount: stage._count?.submissions ?? 0,
-});
+export const serializeProjectReviewStage = (stage: ProjectReviewStageWithRelations) => {
+  const stageMeta = parseProjectStageDescription(stage.description, stage.type);
+  const hasStageMeta = stage.description?.startsWith("__PROJECT_STAGE_META__:");
+
+  return {
+    id: stage.id,
+    name: stage.name,
+    type: stage.type,
+    typeLabel: stage.type === "online_review" ? "网络评审" : "路演材料",
+    description: stageMeta.description,
+    ...(hasStageMeta ? { requiredMaterials: stageMeta.requiredMaterials } : {}),
+    isOpen: stage.isOpen,
+    startAt: stage.startAt?.toISOString() ?? null,
+    deadline: stage.deadline?.toISOString() ?? null,
+    createdAt: stage.createdAt.toISOString(),
+    updatedAt: stage.updatedAt.toISOString(),
+    creator: serializeProjectMaterialUser(stage.creator),
+    teamGroup: stage.teamGroup
+      ? {
+          id: stage.teamGroup.id,
+          name: stage.teamGroup.name,
+        }
+      : null,
+    submissionCount: stage._count?.submissions ?? 0,
+  };
+};
 
 export const serializeProjectMaterialSubmission = (
   submission: ProjectMaterialSubmissionWithRelations,

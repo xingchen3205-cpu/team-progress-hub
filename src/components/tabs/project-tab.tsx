@@ -8,21 +8,45 @@ type StageDraft = {
   name: string;
   type: Workspace.ProjectReviewStageTypeKey;
   description: string;
+  requiredMaterials: MaterialRequirementKey[];
   teamGroupId: string;
   startAt: string;
   deadline: string;
   isOpen: boolean;
 };
 
+type MaterialRequirementKey = "plan_pdf" | "ppt_pdf" | "video_20mb";
+
 type MaterialDraft = {
   stageId: string;
+  materialKind: MaterialRequirementKey | "";
   title: string;
 };
+
+const projectMaterialRequirementOptions: Array<{
+  key: MaterialRequirementKey;
+  label: string;
+  description: string;
+  accept: string;
+}> = [
+  { key: "ppt_pdf", label: "PPT PDF", description: "PPT 导出的 PDF 版本。", accept: ".pdf" },
+  { key: "plan_pdf", label: "计划书 PDF", description: "计划书导出的 PDF 版本。", accept: ".pdf" },
+  { key: "video_20mb", label: "视频", description: "不超过 20MB 的项目展示视频。", accept: ".mp4,.mov,.avi" },
+];
+
+const defaultRequiredMaterialsByStageType: Record<Workspace.ProjectReviewStageTypeKey, MaterialRequirementKey[]> = {
+  online_review: ["ppt_pdf", "plan_pdf", "video_20mb"],
+  roadshow: ["ppt_pdf"],
+};
+
+const getRequirementOption = (key?: MaterialRequirementKey | "") =>
+  projectMaterialRequirementOptions.find((option) => option.key === key) ?? projectMaterialRequirementOptions[0];
 
 const defaultStageDraft: StageDraft = {
   name: "",
   type: "online_review",
   description: "",
+  requiredMaterials: defaultRequiredMaterialsByStageType.online_review,
   teamGroupId: "",
   startAt: "",
   deadline: "",
@@ -31,6 +55,7 @@ const defaultStageDraft: StageDraft = {
 
 const defaultMaterialDraft: MaterialDraft = {
   stageId: "",
+  materialKind: "",
   title: "",
 };
 
@@ -92,6 +117,7 @@ export default function ProjectTab() {
     setConfirmDialog,
     showSuccessToast,
     refreshWorkspace,
+    openPreviewAsset,
   } = Workspace.useWorkspaceContext();
 
   const {
@@ -128,6 +154,7 @@ export default function ProjectTab() {
   const canUploadMaterials = currentRole === "leader" && Boolean(currentUser?.teamGroupId);
   const canReviewMaterials =
     hasGlobalAdminRole || (currentRole === "teacher" && Boolean(currentUser?.teamGroupId));
+  const canPreviewAllMaterials = hasGlobalAdminRole;
 
   const openStagesForUpload = useMemo(
     () =>
@@ -139,6 +166,9 @@ export default function ProjectTab() {
       ),
     [currentUser?.teamGroupId, projectStages],
   );
+
+  const selectedUploadStage = openStagesForUpload.find((stage) => stage.id === materialDraft.stageId) ?? null;
+  const selectedRequirement = getRequirementOption(materialDraft.materialKind);
 
   const sortedMaterials = useMemo(
     () =>
@@ -168,6 +198,7 @@ export default function ProjectTab() {
       name: stage.name,
       type: stage.type,
       description: stage.description ?? "",
+      requiredMaterials: stage.requiredMaterials ?? defaultRequiredMaterialsByStageType[stage.type],
       teamGroupId: stage.teamGroup?.id ?? "",
       startAt: stage.startAt ? toDateTimeInputValue(stage.startAt) : "",
       deadline: stage.deadline ? toDateTimeInputValue(stage.deadline) : "",
@@ -191,6 +222,7 @@ export default function ProjectTab() {
             name: stageDraft.name.trim(),
             type: stageDraft.type,
             description: stageDraft.description.trim() || null,
+            requiredMaterials: stageDraft.requiredMaterials,
             teamGroupId: stageDraft.teamGroupId || null,
             startAt: toApiDate(stageDraft.startAt),
             deadline: toApiDate(stageDraft.deadline),
@@ -229,12 +261,17 @@ export default function ProjectTab() {
       return;
     }
 
+    if (!materialDraft.materialKind) {
+      setLoadError("请选择材料类型");
+      return;
+    }
+
     if (!materialFile) {
       setLoadError("请选择需要上传的项目材料");
       return;
     }
 
-    const title = materialDraft.title.trim() || materialFile.name;
+    const title = materialDraft.title.trim() || getRequirementOption(materialDraft.materialKind).label;
     setIsSaving(true);
     setMaterialUploadProgress(null);
     setMaterialSavingLabel("准备上传...");
@@ -249,6 +286,7 @@ export default function ProjectTab() {
         method: "POST",
         body: JSON.stringify({
           stageId: materialDraft.stageId,
+          materialKind: materialDraft.materialKind,
           fileName: materialFile.name,
           fileSize: materialFile.size,
           mimeType: materialFile.type || "application/octet-stream",
@@ -271,6 +309,7 @@ export default function ProjectTab() {
         method: "POST",
         body: JSON.stringify({
           stageId: materialDraft.stageId,
+          materialKind: materialDraft.materialKind,
           title,
           fileName: materialFile.name,
           filePath: uploadTicket.objectKey,
@@ -400,10 +439,14 @@ export default function ProjectTab() {
               <select
                 className={fieldClassName}
                 onChange={(event) =>
+                {
+                  const nextType = event.target.value as Workspace.ProjectReviewStageTypeKey;
                   setStageDraft((current) => ({
                     ...current,
-                    type: event.target.value as Workspace.ProjectReviewStageTypeKey,
-                  }))
+                    type: nextType,
+                    requiredMaterials: defaultRequiredMaterialsByStageType[nextType],
+                  }));
+                }
                 }
                 value={stageDraft.type}
               >
@@ -461,6 +504,41 @@ export default function ProjectTab() {
                 value={stageDraft.deadline}
               />
             </label>
+            <div className="lg:col-span-2 rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <p className="text-sm font-medium text-slate-700">要求上传内容</p>
+              <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                {projectMaterialRequirementOptions.map((option) => (
+                  <label
+                    className="flex items-start gap-2 rounded-lg border border-white bg-white px-3 py-2 text-sm text-slate-600"
+                    key={option.key}
+                  >
+                    <input
+                      checked={stageDraft.requiredMaterials.includes(option.key)}
+                      className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600"
+                      onChange={(event) =>
+                        setStageDraft((current) => {
+                          const requiredMaterials = event.target.checked
+                            ? [...new Set([...current.requiredMaterials, option.key])]
+                            : current.requiredMaterials.filter((item) => item !== option.key);
+                          return {
+                            ...current,
+                            requiredMaterials:
+                              requiredMaterials.length > 0
+                                ? requiredMaterials
+                                : defaultRequiredMaterialsByStageType[current.type],
+                          };
+                        })
+                      }
+                      type="checkbox"
+                    />
+                    <span>
+                      <span className="block font-semibold text-slate-800">{option.label}</span>
+                      <span className="mt-0.5 block text-xs text-slate-400">{option.description}</span>
+                    </span>
+                  </label>
+                ))}
+              </div>
+            </div>
             <label className="block text-sm font-medium text-slate-700 lg:col-span-2">
               阶段说明
               <textarea
@@ -504,7 +582,15 @@ export default function ProjectTab() {
                 <select
                   className={fieldClassName}
                   onChange={(event) =>
-                    setMaterialDraft((current) => ({ ...current, stageId: event.target.value }))
+                    setMaterialDraft((current) => {
+                      const nextStage = openStagesForUpload.find((stage) => stage.id === event.target.value);
+                      return {
+                        ...current,
+                        stageId: event.target.value,
+                        materialKind:
+                          (nextStage?.requiredMaterials ?? defaultRequiredMaterialsByStageType[nextStage?.type ?? "online_review"])[0] ?? "",
+                      };
+                    })
                   }
                   value={materialDraft.stageId}
                 >
@@ -512,6 +598,31 @@ export default function ProjectTab() {
                   {openStagesForUpload.map((stage) => (
                     <option key={stage.id} value={stage.id}>
                       {stage.name} · {stage.typeLabel}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <label className="block text-sm font-medium text-slate-700">
+                材料类型
+                <select
+                  className={fieldClassName}
+                  disabled={!selectedUploadStage}
+                  onChange={(event) =>
+                    setMaterialDraft((current) => ({
+                      ...current,
+                      materialKind: event.target.value as MaterialRequirementKey,
+                      title: getRequirementOption(event.target.value as MaterialRequirementKey).label,
+                    }))
+                  }
+                  value={materialDraft.materialKind}
+                >
+                  <option value="">请选择材料类型</option>
+                  {(selectedUploadStage
+                    ? selectedUploadStage.requiredMaterials ?? defaultRequiredMaterialsByStageType[selectedUploadStage.type]
+                    : []
+                  ).map((requirement) => (
+                    <option key={requirement} value={requirement}>
+                      {getRequirementOption(requirement).label}
                     </option>
                   ))}
                 </select>
@@ -532,12 +643,15 @@ export default function ProjectTab() {
                 <input
                   className={`${fieldClassName} file:mr-3 file:rounded-lg file:border-0 file:bg-blue-50 file:px-3 file:py-1.5 file:text-sm file:font-medium file:text-blue-700`}
                   onChange={(event) => setMaterialFile(event.target.files?.[0] ?? null)}
+                  accept={selectedRequirement.accept}
                   type="file"
                 />
               </label>
               <div className="lg:col-span-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-xs text-slate-400">
-                  支持 PDF、PPT、Word、Excel、图片和视频，单个文件不超过 100MB。
+                  {materialDraft.materialKind
+                    ? `${selectedRequirement.label}：${selectedRequirement.description}`
+                    : "请选择阶段和材料类型后上传。"}
                   {materialUploadProgress !== null ? ` 当前进度 ${materialUploadProgress}%` : ""}
                 </p>
                 <ActionButton disabled={isSaving} onClick={() => void submitMaterial()} variant="primary">
@@ -585,6 +699,16 @@ export default function ProjectTab() {
                         </span>
                       </div>
                       <p className="mt-2 text-sm text-slate-500">{stage.description || getStageScopeLabel(stage)}</p>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        {(stage.requiredMaterials ?? defaultRequiredMaterialsByStageType[stage.type]).map((requirement) => (
+                          <span
+                            className="rounded-full bg-white px-2.5 py-1 text-xs font-medium text-slate-500 ring-1 ring-slate-200"
+                            key={requirement}
+                          >
+                            {getRequirementOption(requirement).label}
+                          </span>
+                        ))}
+                      </div>
                       <p className="mt-2 text-xs text-slate-400">
                         {stage.startAt ? `开始 ${formatDateTime(stage.startAt)}` : "未设置开始时间"} ·{" "}
                         {stage.deadline ? `截止 ${formatDateTime(stage.deadline)}` : "未设置截止时间"} ·{" "}
@@ -678,6 +802,32 @@ export default function ProjectTab() {
                       </div>
                     </div>
                   </div>
+
+                  {canPreviewAllMaterials ? (
+                    <div className="mt-4 flex flex-wrap gap-2">
+                      <button
+                        className="rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700 transition hover:bg-blue-100"
+                        onClick={() =>
+                          openPreviewAsset({
+                            title: material.title,
+                            url: `/api/project-materials/${material.id}/download?inline=1`,
+                            downloadUrl: `/api/project-materials/${material.id}/download`,
+                            mimeType: material.mimeType,
+                            fileName: material.fileName,
+                          })
+                        }
+                        type="button"
+                      >
+                        预览
+                      </button>
+                      <a
+                        className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 transition hover:bg-slate-50"
+                        href={`/api/project-materials/${material.id}/download`}
+                      >
+                        下载
+                      </a>
+                    </div>
+                  ) : null}
 
                   {canReviewMaterials && material.status === "pending" ? (
                     <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3">

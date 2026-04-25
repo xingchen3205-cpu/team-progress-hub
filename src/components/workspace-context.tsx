@@ -294,7 +294,10 @@ export type ReportDraft = {
 
 export type ExpertReviewAssignmentDraft = {
   expertUserId: string;
+  expertUserIds: string[];
   targetName: string;
+  stageId: string;
+  materialSubmissionIds: string[];
   roundLabel: string;
   overview: string;
   deadline: string;
@@ -368,6 +371,7 @@ export type ProjectReviewStageItem = {
   type: ProjectReviewStageTypeKey;
   typeLabel: string;
   description: string | null;
+  requiredMaterials?: Array<"plan_pdf" | "ppt_pdf" | "video_20mb">;
   isOpen: boolean;
   startAt: string | null;
   deadline: string | null;
@@ -564,6 +568,12 @@ export const allTabs: TabItem[] = [
     icon: MessageSquareText,
   },
   {
+    key: "project",
+    label: "项目管理",
+    description: "管理网评、路演等项目材料提交、审批与最终版本归档。",
+    icon: FileText,
+  },
+  {
     key: "review",
     label: "专家评审",
     description: "按职教赛道创业组量表查看评审任务、打分和专家汇总。",
@@ -574,12 +584,6 @@ export const allTabs: TabItem[] = [
     label: "文档中心",
     description: "分类管理计划书、PPT、答辩材料和证明附件。",
     icon: FolderOpen,
-  },
-  {
-    key: "project",
-    label: "项目管理",
-    description: "管理网评、路演等项目材料提交、审批与最终版本归档。",
-    icon: FileText,
   },
   {
     key: "team",
@@ -1460,7 +1464,10 @@ export const defaultExpertReviewAssignmentDraft = (
   expertUserId = "",
 ): ExpertReviewAssignmentDraft => ({
   expertUserId,
+  expertUserIds: expertUserId ? [expertUserId] : [],
   targetName: "",
+  stageId: "",
+  materialSubmissionIds: [],
   roundLabel: "校内专家预审",
   overview: "",
   deadline: "2026-04-10T18:00",
@@ -2443,7 +2450,7 @@ function useWorkspaceController({
         case "experts":
           return ["experts"];
         case "review":
-          return ["team", "reviewAssignments"];
+          return ["team", "projectStages", "projectMaterials", "reviewAssignments"];
         case "documents":
           return ["documents", "team"];
         case "project":
@@ -5191,8 +5198,18 @@ function useWorkspaceController({
   };
 
   const saveReviewAssignment = async () => {
-    if (!reviewAssignmentDraft.expertUserId || !reviewAssignmentDraft.targetName.trim()) {
-      setLoadError("请先选择专家并填写评审对象");
+    if (!reviewAssignmentDraft.stageId) {
+      setLoadError("请先选择项目管理轮次");
+      return;
+    }
+
+    if (reviewAssignmentDraft.materialSubmissionIds.length === 0) {
+      setLoadError("请先选择已生效项目材料");
+      return;
+    }
+
+    if (reviewAssignmentDraft.expertUserIds.length === 0) {
+      setLoadError("请先批量选择专家");
       return;
     }
 
@@ -5201,8 +5218,9 @@ function useWorkspaceController({
       await requestJson("/api/expert-reviews/assignments", {
         method: "POST",
         body: JSON.stringify({
-          expertUserId: reviewAssignmentDraft.expertUserId,
-          targetName: reviewAssignmentDraft.targetName.trim(),
+          stageId: reviewAssignmentDraft.stageId,
+          materialSubmissionIds: reviewAssignmentDraft.materialSubmissionIds,
+          expertUserIds: reviewAssignmentDraft.expertUserIds,
           roundLabel: reviewAssignmentDraft.roundLabel.trim(),
           overview: reviewAssignmentDraft.overview.trim(),
           deadline: reviewAssignmentDraft.deadline
@@ -5213,7 +5231,7 @@ function useWorkspaceController({
 
       setReviewAssignmentModalOpen(false);
       setReviewAssignmentDraft(defaultExpertReviewAssignmentDraft(expertMembers[0]?.id ?? ""));
-      showSuccessToast("评审包已创建", "可以继续上传计划书、路演材料和视频。");
+      showSuccessToast("评审任务已生成", "已按项目管理轮次分配给专家。");
       refreshWorkspace();
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "评审任务创建失败");
