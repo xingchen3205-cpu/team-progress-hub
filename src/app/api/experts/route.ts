@@ -37,10 +37,12 @@ export async function GET(request: NextRequest) {
     where: buildTeamScopedResourceWhere({
       actor: user,
       ownerField: "createdById",
-      includeUnassignedForGroupedUsers: true,
     }),
     orderBy: [{ date: "desc" }, { createdAt: "desc" }],
     include: {
+      teamGroup: {
+        select: { id: true, name: true },
+      },
       attachmentFiles: {
         orderBy: { uploadedAt: "asc" },
       },
@@ -63,7 +65,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    assertRole(user.role, ["admin", "school_admin", "teacher", "leader"]);
+    assertRole(user.role, ["admin", "school_admin", "teacher", "leader", "member"]);
   } catch {
     return NextResponse.json({ message: "无权限" }, { status: 403 });
   }
@@ -73,12 +75,23 @@ export async function POST(request: NextRequest) {
   const expert = `${formData?.get("expert") ?? ""}`.trim();
   const topic = `${formData?.get("topic") ?? ""}`.trim();
   const format = `${formData?.get("format") ?? ""}`.trim() || "线上点评";
+  const requestedTeamGroupId = `${formData?.get("teamGroupId") ?? ""}`.trim() || null;
   const summary = `${formData?.get("summary") ?? ""}`.trim();
   const nextAction = `${formData?.get("nextAction") ?? ""}`.trim();
   const files = formData?.getAll("files").filter((entry): entry is File => entry instanceof File) ?? [];
 
   if (!expert || !topic || !summary || !nextAction) {
     return NextResponse.json({ message: "专家意见信息不完整" }, { status: 400 });
+  }
+
+  if (hasGlobalAdminPrivileges(user.role) && requestedTeamGroupId) {
+    const targetGroup = await prisma.teamGroup.findUnique({
+      where: { id: requestedTeamGroupId },
+      select: { id: true },
+    });
+    if (!targetGroup) {
+      return NextResponse.json({ message: "适用项目组不存在" }, { status: 400 });
+    }
   }
 
   let storedFiles: Awaited<ReturnType<typeof saveUploadedFile>>[] = [];
@@ -103,7 +116,7 @@ export async function POST(request: NextRequest) {
         nextAction,
         attachments: JSON.stringify(storedFiles.map((item) => item.fileName)),
         createdById: user.id,
-        teamGroupId: hasGlobalAdminPrivileges(user.role) ? null : user.teamGroupId,
+        teamGroupId: hasGlobalAdminPrivileges(user.role) ? requestedTeamGroupId : user.teamGroupId,
         attachmentFiles: {
           create: storedFiles.map((item) => ({
             fileName: item.fileName,
@@ -114,6 +127,9 @@ export async function POST(request: NextRequest) {
         },
       },
       include: {
+        teamGroup: {
+          select: { id: true, name: true },
+        },
         attachmentFiles: {
           orderBy: { uploadedAt: "asc" },
         },

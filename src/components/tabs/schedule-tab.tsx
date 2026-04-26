@@ -797,15 +797,9 @@ const AdminReadonlyReportCard = ({
       <div className="p-4">
         {report ? (
           <>
-            <div className="grid gap-3 lg:grid-cols-2">
-              <div className="rounded-xl border border-slate-200 bg-white p-3">
-                <p className="text-xs font-semibold text-slate-400">今日完成</p>
-                <p className="mt-2 text-sm leading-7 text-slate-700">{report.summary}</p>
-              </div>
-              <div className="rounded-xl border border-slate-200 bg-white p-3">
-                <p className="text-xs font-semibold text-slate-400">明日计划</p>
-                <p className="mt-2 text-sm leading-7 text-slate-700">{report.nextPlan}</p>
-              </div>
+            <div className="rounded-xl border border-slate-200 bg-white p-3">
+              <p className="text-xs font-semibold text-slate-400">今日完成</p>
+              <p className="mt-2 text-sm leading-7 text-slate-700">{report.summary}</p>
             </div>
             {attachmentNote ? (
               <p className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-500">附件备注：{attachmentNote}</p>
@@ -1115,15 +1109,9 @@ const StudentReportsView = (props: ReportsViewProps) => {
                 </button>
               )}
             </div>
-            <div className="grid gap-3 lg:grid-cols-2">
-              <div className="rounded-xl border border-slate-200 bg-white p-4">
-                <p className="text-xs font-semibold text-slate-400">今日完成</p>
-                <p className="mt-2 text-sm leading-7 text-slate-700">{myReport.summary}</p>
-              </div>
-              <div className="rounded-xl border border-slate-200 bg-white p-4">
-                <p className="text-xs font-semibold text-slate-400">明日计划</p>
-                <p className="mt-2 text-sm leading-7 text-slate-700">{myReport.nextPlan}</p>
-              </div>
+            <div className="rounded-xl border border-slate-200 bg-white p-4">
+              <p className="text-xs font-semibold text-slate-400">今日完成</p>
+              <p className="mt-2 text-sm leading-7 text-slate-700">{myReport.summary}</p>
             </div>
           </div>
         ) : (
@@ -1288,15 +1276,9 @@ const StudentReportsView = (props: ReportsViewProps) => {
                   {isExpanded && (
                     <div className="mt-2 px-2 pb-2">
                       {report ? (
-                        <div className="space-y-2 rounded-xl border border-slate-200 bg-slate-50/50 p-3">
-                          <div>
-                            <p className="text-xs font-semibold text-slate-400">今日完成</p>
-                            <p className="mt-1 text-sm text-slate-700">{report.summary}</p>
-                          </div>
-                          <div>
-                            <p className="text-xs font-semibold text-slate-400">明日计划</p>
-                            <p className="mt-1 text-sm text-slate-700">{report.nextPlan}</p>
-                          </div>
+                        <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-3">
+                          <p className="text-xs font-semibold text-slate-400">今日完成</p>
+                          <p className="mt-1 text-sm text-slate-700">{report.summary}</p>
                         </div>
                       ) : (
                         <p className="text-sm text-slate-400">该成员今日尚未提交汇报。</p>
@@ -1479,12 +1461,6 @@ const TeacherMemberReportCard = ({
               <span className="text-slate-400">今日完成：</span>
               <span className={cardMode === "expanded" || cardMode === "warning" ? "" : "line-clamp-1"}>{report.summary}</span>
             </div>
-            {report.nextPlan ? (
-              <div className={cardMode === "expanded" || cardMode === "warning" ? "" : "line-clamp-1"}>
-                <span className="text-slate-400">明日计划：</span>
-                {report.nextPlan}
-              </div>
-            ) : null}
           </div>
 
           <div className="mt-2.5 flex flex-wrap items-center gap-1.5">

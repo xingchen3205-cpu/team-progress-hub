@@ -117,11 +117,11 @@ export async function POST(request: NextRequest) {
 
   const date = body?.date?.trim() || toIsoDateKey(new Date());
   const summary = body?.summary?.trim();
-  const nextPlan = body?.nextPlan?.trim();
+  const nextPlan = body?.nextPlan?.trim() ?? "";
   const attachment = body?.attachment?.trim() || "";
 
-  if (!summary || !nextPlan) {
-    return NextResponse.json({ message: "请填写今日完成和明日计划" }, { status: 400 });
+  if (!summary) {
+    return NextResponse.json({ message: "请填写今日完成" }, { status: 400 });
   }
 
   const existingReport = await prisma.report.findUnique({

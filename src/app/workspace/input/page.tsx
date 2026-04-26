@@ -96,15 +96,6 @@ export default async function MemberInputPage({
                 />
               </label>
 
-              <label className="block">
-                <span className="text-sm font-medium text-[var(--color-muted)]">明日计划</span>
-                <textarea
-                  className="mt-2 min-h-24 w-full rounded-[18px] border border-[var(--color-line)] bg-white px-4 py-4 outline-none"
-                  defaultValue="继续推进当前负责模块，并同步最新修改结果到团队工作台。"
-                  readOnly
-                />
-              </label>
-
               <div className="rounded-[22px] border border-dashed border-[var(--color-line)] bg-[var(--color-panel)] p-5">
                 <p className="text-sm font-medium text-[var(--color-ink)]">附件上传</p>
                 <p className="mt-2 text-sm leading-7 text-[var(--color-muted)]">

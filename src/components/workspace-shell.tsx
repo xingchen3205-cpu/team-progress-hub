@@ -1048,16 +1048,6 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
               />
             </label>
             <label className="block text-sm text-slate-500">
-              明日计划
-              <textarea
-                className={textareaClassName}
-                value={reportDraft.nextPlan}
-                onChange={(event) =>
-                  setReportDraft((current) => ({ ...current, nextPlan: event.target.value }))
-                }
-              />
-            </label>
-            <label className="block text-sm text-slate-500">
               附件
               <input
                 className={fieldClassName}
@@ -1238,7 +1228,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
 
       {expertModalOpen ? (
         <Modal
-          title="上传专家意见"
+          title="录入专家意见"
           onClose={() => {
             setExpertModalOpen(false);
             setExpertDraft(defaultExpertDraft);
@@ -1325,6 +1315,36 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                 {expertDraftErrors.topic ? <p className="mt-1 text-sm text-red-600">{expertDraftErrors.topic}</p> : null}
               </label>
             </div>
+            {currentRole === "admin" || currentRole === "school_admin" ? (
+              <label className="block text-sm text-slate-500">
+                适用项目组
+                <select
+                  className={fieldClassName}
+                  value={expertDraft.teamGroupId}
+                  onChange={(event) => {
+                    setExpertDraft((current) => ({ ...current, teamGroupId: event.target.value }));
+                    setExpertDraftErrors((current) => ({
+                      ...current,
+                      submit: undefined,
+                    }));
+                  }}
+                >
+                  <option value="">全校台账</option>
+                  {teamGroups.map((group) => (
+                    <option key={group.id} value={group.id}>
+                      {group.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="mt-1 text-xs leading-5 text-slate-400">
+                  选择项目组后，该组教师、负责人和成员可见；不选择则仅作为全校管理台账。
+                </p>
+              </label>
+            ) : (
+              <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-500">
+                适用项目组：{currentUser.teamGroupName || "当前账号所在项目组"}
+              </div>
+            )}
             <label className="block text-sm text-slate-500">
               反馈摘要 <span className="text-red-500">*</span>
               <textarea

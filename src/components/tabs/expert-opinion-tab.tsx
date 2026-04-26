@@ -37,8 +37,8 @@ const renderExperts = () => (
     <div className="space-y-4">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <SectionHeader
-          description="按时间倒序沉淀每次专家辅导意见与后续落地动作。"
-          title="专家意见"
+          description="按项目组沉淀专家辅导、评审反馈与后续落地动作。"
+          title="专家意见台账"
         />
         <div className="flex flex-wrap items-center gap-3">
           <ActionButton
@@ -54,7 +54,7 @@ const renderExperts = () => (
           >
             <span className="inline-flex items-center gap-2">
               <Upload className="h-4 w-4" />
-              <span>上传专家意见</span>
+              <span>录入专家意见</span>
             </span>
           </ActionButton>
         </div>
@@ -70,7 +70,7 @@ const renderExperts = () => (
               <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
                 <div>
                   <p className="text-sm font-medium text-blue-600">
-                    {session.date} · {session.format}
+                    {session.date} · {session.format} · {session.teamGroupName ?? "全校台账"}
                   </p>
                   <h3 className="mt-1 text-base font-semibold text-slate-900">
                     {session.expert} · {session.topic}
@@ -162,7 +162,7 @@ const renderExperts = () => (
           ))
         ) : (
           <EmptyState
-            description="专家意见上传后会按时间倒序展示，便于团队持续跟进。"
+            description="专家意见录入后会按权限范围展示，便于团队持续跟进。"
             icon={MessageSquareText}
             title="暂无专家意见"
           />
@@ -180,7 +180,7 @@ const renderExperts = () => (
           >
             <Upload className="h-5 w-5 text-[#1a6fd4]" />
             <div>
-              <p className="text-sm font-medium text-slate-700">上传更多专家意见</p>
+              <p className="text-sm font-medium text-slate-700">录入更多专家意见</p>
               <p className="mt-1 text-xs text-slate-400">继续补充新的专家反馈、附件与落实动作。</p>
             </div>
           </button>

@@ -368,6 +368,7 @@ export const serializeEvent = (event: Event) => ({
 
 export const serializeExpertFeedback = (
   feedback: ExpertFeedback & {
+    teamGroup?: Pick<TeamGroup, "id" | "name"> | null;
     attachmentFiles?: ExpertAttachment[];
   },
 ) => ({
@@ -378,6 +379,8 @@ export const serializeExpertFeedback = (
   format: feedback.format,
   summary: feedback.summary,
   nextAction: feedback.nextAction,
+  teamGroupId: feedback.teamGroupId,
+  teamGroupName: feedback.teamGroup?.name ?? null,
   attachments:
     feedback.attachmentFiles && feedback.attachmentFiles.length > 0
       ? feedback.attachmentFiles.map((attachment) => ({

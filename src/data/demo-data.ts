@@ -225,6 +225,8 @@ export type ExpertItem = {
   format: string;
   summary: string;
   nextAction: string;
+  teamGroupId?: string | null;
+  teamGroupName?: string | null;
   attachments: Array<{
     id: string;
     fileName: string;

@@ -217,6 +217,7 @@ export type ExpertDraft = {
   expert: string;
   topic: string;
   format: string;
+  teamGroupId: string;
   summary: string;
   nextAction: string;
 };
@@ -895,7 +896,6 @@ export const rolePermissions = {
       "overview",
       "timeline",
       "board",
-      "training",
       "reports",
       "experts",
       "review",
@@ -929,7 +929,6 @@ export const rolePermissions = {
       "overview",
       "timeline",
       "board",
-      "training",
       "reports",
       "experts",
       "review",
@@ -1010,7 +1009,7 @@ export const rolePermissions = {
     canMoveAnyTask: false,
     canSubmitReport: true,
     canViewAllReports: false,
-    canUploadExpert: false,
+    canUploadExpert: true,
     canDeleteExpert: false,
     canUploadDocument: true,
     canLeaderReviewDocument: false,
@@ -1440,6 +1439,7 @@ export const defaultExpertDraft: ExpertDraft = {
   expert: "",
   topic: "",
   format: "线上点评",
+  teamGroupId: "",
   summary: "",
   nextAction: "",
 };
@@ -3394,7 +3394,7 @@ function useWorkspaceController({
       items.push({
         id: `report-${currentMemberId}-${todayDateKey}`,
         title: "今日汇报待提交",
-        detail: `今天还没有提交 ${todayDateKey} 的日程汇报，建议先补齐今日完成和明日计划。`,
+        detail: `今天还没有提交 ${todayDateKey} 的日程汇报，建议先补齐今日完成。`,
         actionLabel: "填写日程汇报",
         targetTab: "reports",
         priority: "warning",
@@ -4860,7 +4860,7 @@ function useWorkspaceController({
   };
 
   const saveReport = async () => {
-    if (!reportDraft.summary.trim() || !reportDraft.nextPlan.trim()) {
+    if (!reportDraft.summary.trim()) {
       return;
     }
 
@@ -5017,6 +5017,7 @@ function useWorkspaceController({
     formData.set("format", expertDraft.format);
     formData.set("expert", expertDraft.expert.trim());
     formData.set("topic", expertDraft.topic.trim());
+    formData.set("teamGroupId", expertDraft.teamGroupId);
     formData.set("summary", expertDraft.summary.trim());
     formData.set("nextAction", expertDraft.nextAction.trim());
     expertFiles.forEach((file) => {

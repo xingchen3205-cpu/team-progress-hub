@@ -101,13 +101,18 @@ const renderBoard = () => {
 
     const activeTaskCount = tasks.filter((task) => task.status !== "archived").length;
     const reviewTaskCount = taskStatusCounts.review ?? 0;
+    const isGlobalTaskView = currentRole === "admin" || currentRole === "school_admin";
 
     return (
       <div className="space-y-4">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
           <SectionHeader
-            description="以工单台账方式管理提报、分配、接取、验收和归档，状态清楚，责任到人。"
-            title="任务工单"
+            description={
+              isGlobalTaskView
+                ? "以全校任务台账方式查看各项目组提报、分配、接取、验收和归档情况。"
+                : "以工单台账方式管理提报、分配、接取、验收和归档，状态清楚，责任到人。"
+            }
+            title={isGlobalTaskView ? "全校任务台账" : "任务工单"}
           />
           <div className="flex flex-wrap items-center gap-3">
             <DemoResetNote />

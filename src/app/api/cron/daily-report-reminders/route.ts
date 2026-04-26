@@ -89,7 +89,7 @@ export async function GET(request: NextRequest) {
     await createNotifications({
       userIds: pendingUserIds,
       title: "日程汇报填写提醒",
-      detail: `今天的日程汇报还没有提交，请在当日结束前补充今日完成和明日计划。`,
+      detail: `今天的日程汇报还没有提交，请在当日结束前补充今日完成。`,
       type: "report_daily_missing",
       targetTab: "reports",
       relatedId: date,

@@ -80,7 +80,7 @@ const buildTeamMemberPayload = (
     systemRole: serializeUser(member).roleLabel,
     progress,
     canBeManagedByLeader: member.role === "member",
-    todayFocus: latestReport?.nextPlan || "待补充",
+    todayFocus: latestReport?.summary || "待补充",
     completed: latestReport?.summary || "待补充",
     blockers: "暂无",
     pendingApproverLabel: approverRoles ? approverRoles.map((item) => roleLabels[item]).join(" / ") : null,
