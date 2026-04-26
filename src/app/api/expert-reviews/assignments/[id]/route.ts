@@ -266,6 +266,7 @@ export async function DELETE(
   }
 
   const { id } = await params;
+  const confirm = request.nextUrl.searchParams.get("confirm");
   const assignment = await prisma.expertReviewAssignment.findUnique({
     where: { id },
     include: {
@@ -298,7 +299,29 @@ export async function DELETE(
 
   const hasLockedScore = assignment.reviewPackage.assignments.some((item) => item.score?.lockedAt);
   if (hasLockedScore) {
-    return NextResponse.json({ message: "已有正式评分，不能取消本阶段评审配置" }, { status: 403 });
+    if (confirm !== "permanent") {
+      return NextResponse.json(
+        { message: "已有正式评分，请先完成二次确认后永久删除" },
+        { status: 403 },
+      );
+    }
+
+    await prisma.$transaction(async (tx) => {
+      await tx.reviewDisplaySession.deleteMany({
+        where: { packageId: assignment.packageId },
+      });
+      await tx.expertReviewMaterial.deleteMany({
+        where: { packageId: assignment.packageId },
+      });
+      await tx.expertReviewAssignment.deleteMany({
+        where: { packageId: assignment.packageId },
+      });
+      await tx.expertReviewPackage.delete({
+        where: { id: assignment.packageId },
+      });
+    });
+
+    return NextResponse.json({ success: true, message: "永久删除已归档评审包" });
   }
 
   await prisma.$transaction(async (tx) => {

@@ -729,6 +729,13 @@ export type ConfirmDialogState = {
   onConfirm: () => Promise<void> | void;
 } | null;
 
+export const openSecondConfirmDialog = (
+  setConfirmDialog: (dialog: ConfirmDialogState) => void,
+  dialog: NonNullable<ConfirmDialogState>,
+) => {
+  window.setTimeout(() => setConfirmDialog(dialog), 0);
+};
+
 export type SuccessToastState = {
   title: string;
   detail?: string;
@@ -5561,14 +5568,45 @@ function useWorkspaceController({
     });
   };
 
-  const deleteReviewAssignmentRequest = async (assignmentId: string) => {
-    await requestJson(`/api/expert-reviews/assignments/${assignmentId}`, {
+  const deleteReviewAssignmentRequest = async (
+    assignmentId: string,
+    options?: { permanent?: boolean },
+  ) => {
+    const confirmQuery = options?.permanent ? "?confirm=permanent" : "";
+    await requestJson(`/api/expert-reviews/assignments/${assignmentId}${confirmQuery}`, {
       method: "DELETE",
     });
     refreshWorkspace("reviewAssignments");
   };
 
-  const deleteReviewAssignment = (assignmentId: string, targetName: string) => {
+  const deleteReviewAssignment = (
+    assignmentId: string,
+    targetName: string,
+    options?: { permanent?: boolean },
+  ) => {
+    if (options?.permanent) {
+      setConfirmDialog({
+        open: true,
+        title: "永久删除已归档评审包",
+        message: `「${targetName}」已经产生正式评分。删除会移除该评审包的专家任务、评分记录、投屏链接和投屏记录；项目管理阶段和学生已生效材料仍保留。是否继续？`,
+        confirmLabel: "继续删除",
+        confirmVariant: "danger",
+        onConfirm: () => {
+          openSecondConfirmDialog(setConfirmDialog, {
+            open: true,
+            title: "二次确认删除",
+            message: `请再次确认永久删除「${targetName}」的已归档评审包。此操作不可恢复，删除后如需重新测试，需要重新分配专家并重新产生评分。`,
+            confirmLabel: "确认永久删除",
+            confirmVariant: "danger",
+            successTitle: "评审包已永久删除",
+            successDetail: "项目管理阶段仍保留，可按需要重新配置评审。",
+            onConfirm: () => deleteReviewAssignmentRequest(assignmentId, { permanent: true }),
+          });
+        },
+      });
+      return;
+    }
+
     setConfirmDialog({
       open: true,
       title: "取消本阶段评审配置",

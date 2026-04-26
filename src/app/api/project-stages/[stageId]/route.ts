@@ -287,6 +287,7 @@ export async function DELETE(
   }
 
   const { stageId } = await params;
+  const confirm = request.nextUrl.searchParams.get("confirm");
 
   try {
     const result = await prisma.$transaction(async (tx) => {
@@ -302,7 +303,7 @@ export async function DELETE(
         select: { id: true },
       });
 
-      if (lockedScore) {
+      if (lockedScore && confirm !== "permanent") {
         return { locked: true };
       }
 
@@ -317,7 +318,10 @@ export async function DELETE(
     });
 
     if (result.locked) {
-      return NextResponse.json({ message: "已有正式评分，只能归档后保留数据" }, { status: 403 });
+      return NextResponse.json(
+        { message: "已有正式评分，请先完成二次确认后永久删除" },
+        { status: 403 },
+      );
     }
 
     return NextResponse.json({ success: true });

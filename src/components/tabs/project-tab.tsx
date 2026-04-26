@@ -319,17 +319,48 @@ export default function ProjectTab() {
     }
   };
 
-  const deleteStage = (stage: Workspace.ProjectReviewStageItem) => {
+  const deleteStageRequest = async (
+    stageId: string,
+    options?: { permanent?: boolean },
+  ) => {
+    const confirmQuery = options?.permanent ? "?confirm=permanent" : "";
+    await requestJson(`/api/project-stages/${stageId}${confirmQuery}`, { method: "DELETE" });
+    refreshWorkspace(["projectStages", "projectMaterials", "reviewAssignments"]);
+  };
+
+  const deleteStage = (
+    stage: Workspace.ProjectReviewStageItem,
+    options?: { permanent?: boolean },
+  ) => {
+    if (options?.permanent) {
+      setConfirmDialog({
+        open: true,
+        title: "永久删除已归档阶段",
+        message: `「${stage.name}」已产生正式评分。删除会同步移除该项目阶段、学生提交材料、专家评审配置、评分记录和投屏链接。是否继续？`,
+        confirmLabel: "继续删除",
+        confirmVariant: "danger",
+        onConfirm: () => {
+          Workspace.openSecondConfirmDialog(setConfirmDialog, {
+            open: true,
+            title: "二次确认删除",
+            message: `请再次确认永久删除「${stage.name}」。此操作不可恢复，会清空项目管理中该阶段及其关联评审数据。`,
+            confirmLabel: "确认永久删除",
+            confirmVariant: "danger",
+            successTitle: "项目阶段已永久删除",
+            onConfirm: () => deleteStageRequest(stage.id, { permanent: true }),
+          });
+        },
+      });
+      return;
+    }
+
     setConfirmDialog({
       open: true,
       title: "删除项目阶段",
-      message: `确认删除「${stage.name}」？删除该阶段会同步删除对应专家评审配置、专家任务、投屏链接和未锁定评分记录；如已有正式评分，系统会拒绝删除并要求归档保留数据。`,
+      message: `确认删除「${stage.name}」？删除该阶段会同步删除对应专家评审配置、专家任务、投屏链接和未锁定评分记录；如已有正式评分，系统会要求二次确认后永久删除。`,
       confirmLabel: "确认删除",
       successTitle: "项目阶段已删除",
-      onConfirm: async () => {
-        await requestJson(`/api/project-stages/${stage.id}`, { method: "DELETE" });
-        refreshWorkspace(["projectStages", "projectMaterials"]);
-      },
+      onConfirm: () => deleteStageRequest(stage.id),
     });
   };
 
@@ -1080,7 +1111,7 @@ export default function ProjectTab() {
                       </button>
                       <button
                         className="rounded-xl border border-slate-200 bg-white p-2.5 text-slate-400 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700"
-                        onClick={() => deleteStage(stage)}
+                        onClick={() => deleteStage(stage, { permanent: stage.reviewConfig?.status === "archived" })}
                         title="删除阶段"
                         type="button"
                       >

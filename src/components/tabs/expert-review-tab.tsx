@@ -359,6 +359,9 @@ export default function ExpertReviewTab() {
     groupedAssignments.find((group) => group.key === activeGroupKey) ??
     groupedAssignments[0] ??
     null;
+  const activeGroupHasLockedScore = Boolean(
+    activeGroup?.items.some((assignment) => Boolean(assignment.score?.lockedAt)),
+  );
 
   const pendingNetworkCount = networkAssignments.filter((assignment) => assignment.statusKey === "pending").length;
   const finishedNetworkCount = networkAssignments.filter((assignment) => assignment.statusKey !== "pending").length;
@@ -1393,10 +1396,14 @@ export default function ExpertReviewTab() {
                 </button>
                 <button
                   className="w-full rounded-2xl border border-rose-100 bg-white px-4 py-3 text-sm font-semibold text-rose-600 transition hover:bg-rose-50"
-                  onClick={() => deleteReviewAssignment(activeGroup.items[0].id, activeGroup.targetName)}
+                  onClick={() =>
+                    deleteReviewAssignment(activeGroup.items[0].id, activeGroup.targetName, {
+                      permanent: activeGroupHasLockedScore,
+                    })
+                  }
                   type="button"
                 >
-                  取消本阶段评审配置
+                  {activeGroupHasLockedScore ? "永久删除已归档评审包" : "取消本阶段评审配置"}
                 </button>
               </div>
             ) : null}
