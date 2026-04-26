@@ -80,14 +80,12 @@ export const calculateReviewScreenFinalScore = (
     }))
     .sort((left, right) => left.scoreCents - right.scoreCents);
 
-  const lowDropCount = Math.min(
-    Math.max(0, options.dropLowestCount),
-    Math.max(0, scoreRows.length - 1),
-  );
-  const highDropCount = Math.min(
-    Math.max(0, options.dropHighestCount),
-    Math.max(0, scoreRows.length - lowDropCount - 1),
-  );
+  const requestedLowDropCount = Math.max(0, options.dropLowestCount);
+  const requestedHighDropCount = Math.max(0, options.dropHighestCount);
+  const requestedDropCount = requestedLowDropCount + requestedHighDropCount;
+  const canApplyDropRule = requestedDropCount > 0 && scoreRows.length > requestedDropCount;
+  const lowDropCount = canApplyDropRule ? requestedLowDropCount : 0;
+  const highDropCount = canApplyDropRule ? requestedHighDropCount : 0;
   const lowDropped = scoreRows.slice(0, lowDropCount);
   const highDropped = highDropCount > 0 ? scoreRows.slice(-highDropCount) : [];
   const keptRows = scoreRows.slice(lowDropCount, scoreRows.length - highDropCount);

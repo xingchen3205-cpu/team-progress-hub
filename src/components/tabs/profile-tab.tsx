@@ -35,6 +35,7 @@ const renderProfile = () => {
     if (!currentUser) {
       return null;
     }
+    const isExpertAccount = currentRole === "expert";
 
     return (
       <div className="space-y-4">
@@ -140,10 +141,10 @@ const renderProfile = () => {
               />
             </label>
             <label className="block text-sm text-slate-500">
-              联系邮箱 <span className="text-red-500">*</span>
+              联系邮箱 {isExpertAccount ? null : <span className="text-red-500">*</span>}
               <input
                 className={fieldClassName}
-                placeholder="必填，用于接收任务和日程提醒"
+                placeholder={isExpertAccount ? "可选填写" : "必填，用于接收任务和日程提醒"}
                 type="email"
                 value={profileDraft.email}
                 onChange={(event) => {
@@ -151,7 +152,9 @@ const renderProfile = () => {
                   setProfileMessage(null);
                 }}
               />
-              <span className="mt-1.5 block text-xs leading-5 text-slate-400">{EMAIL_RULE_HINT}</span>
+              <span className="mt-1.5 block text-xs leading-5 text-slate-400">
+                {isExpertAccount ? "专家账号由管理员创建，可直接进入专家评审。" : EMAIL_RULE_HINT}
+              </span>
             </label>
           </div>
 

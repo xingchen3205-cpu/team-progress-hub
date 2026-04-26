@@ -243,6 +243,7 @@ export type ExpertReviewAssignmentItem = {
   roundLabel: string;
   overview: string;
   reviewMode?: "network" | "roadshow";
+  roadshowScreenStarted?: boolean | null;
   startAt: string | null;
   deadline: string | null;
   reviewWindowState?: "not_started" | "open" | "ended";

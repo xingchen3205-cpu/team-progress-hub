@@ -6,6 +6,8 @@ import type {
   ProjectReviewStage,
   ExpertReviewAssignmentStatus,
   ExpertReviewScore,
+  ReviewDisplaySeat,
+  ReviewDisplaySession,
   User,
   Role,
 } from "@prisma/client";
@@ -287,6 +289,11 @@ export const serializeExpertReviewAssignment = (
       | "updatedAt"
       | "lockedAt"
     > | null;
+    displaySeats?: Array<
+      Pick<ReviewDisplaySeat, "status"> & {
+        session: Pick<ReviewDisplaySession, "status" | "startedAt" | "tokenExpiresAt">;
+      }
+    >;
   },
 ) => {
   const derivedStatus = getExpertReviewStatus({
@@ -303,6 +310,24 @@ export const serializeExpertReviewAssignment = (
   const planMaterial = assignment.reviewPackage.materials.find((item) => item.kind === "plan") ?? null;
   const pptMaterial = assignment.reviewPackage.materials.find((item) => item.kind === "ppt") ?? null;
   const videoMaterial = assignment.reviewPackage.materials.find((item) => item.kind === "video") ?? null;
+  const reviewMode = getExpertReviewMode(assignment.reviewPackage);
+  const roadshowScreenStarted =
+    reviewMode === "roadshow"
+      ? Boolean(
+          assignment.displaySeats?.some(
+            (seat) =>
+              seat.status !== "voided" &&
+              seat.session.status === "scoring" &&
+              Boolean(seat.session.startedAt) &&
+              seat.session.tokenExpiresAt.getTime() > Date.now(),
+          ),
+        )
+      : null;
+  const canEdit =
+    derivedStatus.key === "pending" &&
+    reviewWindowState.key === "open" &&
+    !assignment.score &&
+    (reviewMode !== "roadshow" || roadshowScreenStarted === true);
 
   return {
     id: assignment.id,
@@ -312,14 +337,15 @@ export const serializeExpertReviewAssignment = (
     targetName: assignment.reviewPackage.targetName,
     roundLabel: assignment.reviewPackage.roundLabel ?? "当前轮次",
     overview: assignment.reviewPackage.overview ?? "",
-    reviewMode: getExpertReviewMode(assignment.reviewPackage),
+    reviewMode,
+    roadshowScreenStarted,
     startAt: assignment.reviewPackage.startAt?.toISOString() ?? null,
     deadline: assignment.reviewPackage.deadline?.toISOString() ?? null,
     reviewWindowState: reviewWindowState.key,
     reviewWindowLabel: reviewWindowState.label,
     status: derivedStatus.label,
     statusKey: derivedStatus.key,
-    canEdit: derivedStatus.key === "pending" && reviewWindowState.key === "open" && !assignment.score,
+    canEdit,
     expert: {
       id: assignment.expertUser.id,
       name: assignment.expertUser.name,

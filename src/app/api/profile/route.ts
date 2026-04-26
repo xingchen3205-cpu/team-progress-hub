@@ -40,23 +40,27 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ message: "姓名不能为空" }, { status: 400 });
   }
 
-  const emailError = validateRequiredEmail(email);
-  if (emailError) {
-    return NextResponse.json({ message: emailError }, { status: 400 });
+  if (user.role !== "expert") {
+    const emailError = validateRequiredEmail(email);
+    if (emailError) {
+      return NextResponse.json({ message: emailError }, { status: 400 });
+    }
   }
 
-  const emailConflict = await prisma.user.findFirst({
-    where: {
-      id: {
-        not: user.id,
+  if (email) {
+    const emailConflict = await prisma.user.findFirst({
+      where: {
+        id: {
+          not: user.id,
+        },
+        OR: [{ email }, { username: email }],
       },
-      OR: [{ email }, { username: email }],
-    },
-    select: { id: true },
-  });
+      select: { id: true },
+    });
 
-  if (emailConflict) {
-    return NextResponse.json({ message: "邮箱已被占用，请更换后再试" }, { status: 409 });
+    if (emailConflict) {
+      return NextResponse.json({ message: "邮箱已被占用，请更换后再试" }, { status: 409 });
+    }
   }
 
   let passwordHash: string | undefined;
@@ -73,7 +77,7 @@ export async function PATCH(request: NextRequest) {
     where: { id: user.id },
     data: {
       name,
-      email,
+      email: email ? email : null,
       responsibility: responsibility || "",
       avatar: name.slice(0, 1),
       password: passwordHash,

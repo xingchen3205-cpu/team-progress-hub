@@ -109,6 +109,7 @@ export async function POST(request: NextRequest) {
     include: {
       projectReviewStage: {
         select: {
+          id: true,
           type: true,
           startAt: true,
           deadline: true,
@@ -145,13 +146,62 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: "只有项目路演评审可以生成现场大屏链接" }, { status: 400 });
   }
 
-  if (reviewPackage.assignments.length === 0) {
+  const stageReviewPackages = reviewPackage.projectReviewStageId
+    ? await prisma.expertReviewPackage.findMany({
+        where: {
+          projectReviewStageId: reviewPackage.projectReviewStageId,
+          status: "configured",
+        },
+        orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+        include: {
+          projectReviewStage: {
+            select: {
+              id: true,
+              type: true,
+              startAt: true,
+              deadline: true,
+            },
+          },
+          materials: { select: { id: true } },
+          assignments: {
+            orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+            select: {
+              id: true,
+              expertUserId: true,
+              score: {
+                select: {
+                  totalScore: true,
+                },
+              },
+            },
+          },
+        },
+      })
+    : [reviewPackage];
+  const stageAssignments = stageReviewPackages.flatMap((stagePackage) =>
+    stagePackage.assignments.map((assignment) => ({
+      ...assignment,
+      packageId: stagePackage.id,
+    })),
+  );
+
+  if (stageAssignments.length === 0) {
     return NextResponse.json({ message: "请先为本轮路演分配评审专家" }, { status: 400 });
   }
 
   const now = new Date();
-  const startsAt = reviewPackage.startAt ?? now;
+  const startsAt =
+    stageReviewPackages
+      .map((stagePackage) => stagePackage.startAt)
+      .filter((value): value is Date => value instanceof Date)
+      .sort((left, right) => left.getTime() - right.getTime())[0] ??
+    reviewPackage.startAt ??
+    now;
   const tokenExpiresAt =
+    stageReviewPackages
+      .map((stagePackage) => stagePackage.deadline)
+      .filter((value): value is Date => value instanceof Date)
+      .sort((left, right) => right.getTime() - left.getTime())[0] ??
     reviewPackage.deadline ??
     new Date(now.getTime() + 4 * 60 * 60 * 1000);
 
@@ -189,7 +239,7 @@ export async function POST(request: NextRequest) {
     });
 
     await tx.reviewDisplaySeat.createMany({
-      data: reviewPackage.assignments.map((assignment, index) => ({
+      data: stageAssignments.map((assignment, index) => ({
         sessionId: createdSession.id,
         assignmentId: assignment.id,
         expertUserId: assignment.expertUserId,
@@ -230,6 +280,8 @@ export async function POST(request: NextRequest) {
         voidedAt: seat.voidedAt?.toISOString() ?? null,
       })),
       screenUrl: screenUrl.toString(),
+      packageIds: stageReviewPackages.map((stagePackage) => stagePackage.id),
+      projectReviewStageId: reviewPackage.projectReviewStageId,
       projectReviewStageType: "roadshow",
     },
     { status: 201 },

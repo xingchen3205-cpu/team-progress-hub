@@ -46,6 +46,15 @@ export async function GET(
           voidedAt: true,
           assignment: {
             select: {
+              reviewPackage: {
+                select: {
+                  id: true,
+                  targetName: true,
+                  roundLabel: true,
+                  overview: true,
+                  deadline: true,
+                },
+              },
               score: {
                 select: {
                   totalScore: true,
@@ -84,6 +93,7 @@ export async function GET(
       id: seat.id,
       assignmentId: seat.assignmentId,
       expertUserId: seat.expertUserId,
+      reviewPackage: seat.assignment.reviewPackage,
       seatNo: seat.seatNo,
       displayName: seat.displayName,
       status: derivedStatus,
@@ -92,17 +102,75 @@ export async function GET(
       voidedAt: seat.voidedAt?.toISOString() ?? null,
     };
   });
-  const finalScore = calculateReviewScreenFinalScore(
-    seats.map((seat) => ({
-      seatNo: seat.seatNo,
-      status: seat.status,
-      totalScoreCents: seat.totalScoreCents,
-    })),
-    {
-      dropHighestCount: session.dropHighestCount,
-      dropLowestCount: session.dropLowestCount,
-    },
-  );
+  const projectResults = Array.from(
+    seats.reduce<
+      Map<
+        string,
+        {
+          reviewPackage: typeof seats[number]["reviewPackage"];
+          seats: typeof seats;
+        }
+      >
+    >((groups, seat) => {
+      const existing = groups.get(seat.reviewPackage.id);
+      if (existing) {
+        existing.seats.push(seat);
+        return groups;
+      }
+
+      groups.set(seat.reviewPackage.id, {
+        reviewPackage: seat.reviewPackage,
+        seats: [seat],
+      });
+      return groups;
+    }, new Map()).values(),
+  ).map((project) => {
+    const finalScore = calculateReviewScreenFinalScore(
+      project.seats.map((seat, index) => ({
+        seatNo: index + 1,
+        status: seat.status,
+        totalScoreCents: seat.totalScoreCents,
+      })),
+      {
+        dropHighestCount: session.dropHighestCount,
+        dropLowestCount: session.dropLowestCount,
+      },
+    );
+
+    return {
+      reviewPackage: {
+        id: project.reviewPackage.id,
+        targetName: project.reviewPackage.targetName,
+        roundLabel: project.reviewPackage.roundLabel ?? "项目路演评审",
+        overview: project.reviewPackage.overview ?? "",
+        deadline: project.reviewPackage.deadline?.toISOString() ?? null,
+      },
+      seats: buildAnonymousReviewScreenSeats(
+        project.seats.map((seat) => ({
+          assignmentId: seat.assignmentId,
+          expertUserId: "hidden",
+          expertName: null,
+          status: seat.status,
+          totalScoreCents: seat.totalScoreCents,
+        })),
+      ),
+      finalScore,
+    };
+  });
+  const activeProjectResult =
+    projectResults.find((project) => !project.finalScore.ready) ??
+    projectResults.find((project) => project.reviewPackage.id === session.reviewPackage.id) ??
+    projectResults[0] ??
+    null;
+  const finalScore =
+    activeProjectResult?.finalScore ??
+    calculateReviewScreenFinalScore(
+      [],
+      {
+        dropHighestCount: session.dropHighestCount,
+        dropLowestCount: session.dropLowestCount,
+      },
+    );
   const timeline = getReviewScreenTimelineState({
     status: session.status,
     startedAt: session.startedAt,
@@ -124,22 +192,15 @@ export async function GET(
       timeline,
     },
     reviewPackage: {
-      id: session.reviewPackage.id,
-      targetName: session.reviewPackage.targetName,
-      roundLabel: session.reviewPackage.roundLabel ?? "项目路演评审",
-      overview: session.reviewPackage.overview ?? "",
-      deadline: session.reviewPackage.deadline?.toISOString() ?? null,
+      id: activeProjectResult?.reviewPackage.id ?? session.reviewPackage.id,
+      targetName: activeProjectResult?.reviewPackage.targetName ?? session.reviewPackage.targetName,
+      roundLabel: activeProjectResult?.reviewPackage.roundLabel ?? session.reviewPackage.roundLabel ?? "项目路演评审",
+      overview: activeProjectResult?.reviewPackage.overview ?? session.reviewPackage.overview ?? "",
+      deadline: activeProjectResult?.reviewPackage.deadline ?? session.reviewPackage.deadline?.toISOString() ?? null,
     },
-    seats: buildAnonymousReviewScreenSeats(
-      seats.map((seat) => ({
-        assignmentId: seat.assignmentId,
-        expertUserId: "hidden",
-        expertName: null,
-        status: seat.status,
-        totalScoreCents: seat.totalScoreCents,
-      })),
-    ),
+    seats: activeProjectResult?.seats ?? [],
     finalScore,
+    projectResults,
     serverTime: now.toISOString(),
   });
 }

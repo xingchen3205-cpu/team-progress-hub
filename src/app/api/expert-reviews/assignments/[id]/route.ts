@@ -61,6 +61,19 @@ const assignmentInclude = {
       lockedAt: true,
     },
   },
+  displaySeats: {
+    orderBy: { createdAt: "desc" },
+    select: {
+      status: true,
+      session: {
+        select: {
+          status: true,
+          startedAt: true,
+          tokenExpiresAt: true,
+        },
+      },
+    },
+  },
 } as const;
 
 export async function PATCH(

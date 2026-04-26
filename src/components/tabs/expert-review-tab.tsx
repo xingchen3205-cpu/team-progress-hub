@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Ban, CheckCircle2, Copy, ExternalLink, PlayCircle } from "lucide-react";
 
 import type { ExpertReviewAssignmentItem } from "@/components/workspace-context";
@@ -16,6 +16,7 @@ type ExpertPanelMode =
 
 type ReviewGroup = {
   key: string;
+  projectReviewStageId: string | null;
   targetName: string;
   roundLabel: string;
   startAt: string | null;
@@ -98,6 +99,7 @@ const groupReviewAssignments = (assignments: ExpertReviewAssignmentItem[]) =>
       ...groups,
       {
         key: assignment.packageId,
+        projectReviewStageId: assignment.projectReviewStageId ?? null,
         targetName: assignment.targetName,
         roundLabel: assignment.roundLabel,
         startAt: assignment.startAt,
@@ -142,6 +144,10 @@ const getReviewWindowBlockMessage = (assignment: ExpertReviewAssignmentItem) => 
 
   if (assignment.reviewWindowState === "ended" || assignment.statusKey === "locked") {
     return "当前不在评审时间段内，评审已结束。";
+  }
+
+  if (isRoadshowAssignment(assignment) && assignment.roadshowScreenStarted === false) {
+    return "现场评分尚未开始，请等待管理员在大屏控制端点击开始评分。";
   }
 
   if (assignment.statusKey !== "pending" || assignment.canEdit) {
@@ -316,8 +322,30 @@ export default function ExpertReviewTab() {
     }
     return map;
   }, [reviewAssignments]);
-  const networkAssignments = reviewAssignments.filter((assignment) => !isRoadshowAssignment(assignment));
-  const roadshowAssignments = reviewAssignments.filter((assignment) => isRoadshowAssignment(assignment));
+  const networkAssignments = useMemo(
+    () => reviewAssignments.filter((assignment) => !isRoadshowAssignment(assignment)),
+    [reviewAssignments],
+  );
+  const roadshowAssignments = useMemo(
+    () => reviewAssignments.filter((assignment) => isRoadshowAssignment(assignment)),
+    [reviewAssignments],
+  );
+  useEffect(() => {
+    if (
+      currentRole !== "expert" ||
+      !roadshowAssignments.some(
+        (assignment) => assignment.statusKey === "pending" && assignment.roadshowScreenStarted === false,
+      )
+    ) {
+      return;
+    }
+
+    const timer = window.setInterval(() => {
+      refreshWorkspace("reviewAssignments");
+    }, 3000);
+
+    return () => window.clearInterval(timer);
+  }, [currentRole, refreshWorkspace, roadshowAssignments]);
   const selectedAssignment =
     reviewAssignments.find((assignment) => assignment.id === selectedAssignmentId) ??
     networkAssignments[0] ??
@@ -406,6 +434,7 @@ export default function ExpertReviewTab() {
         session: { id: string; startedAt?: string | null };
         seats: ReviewScreenSessionState["seats"];
         screenUrl: string;
+        packageIds?: string[];
       }>("/api/review-screen/sessions", {
         method: "POST",
         body: JSON.stringify({
@@ -417,16 +446,31 @@ export default function ExpertReviewTab() {
       });
 
       await navigator.clipboard?.writeText(payload.screenUrl).catch(() => undefined);
-      setReviewScreenSessions((current) => ({
-        ...current,
-        [group.key]: {
+      const stageGroupKeys = payload.packageIds?.length
+        ? groupedAssignments
+            .filter((candidate) => payload.packageIds?.includes(candidate.key))
+            .map((candidate) => candidate.key)
+        : groupedAssignments
+            .filter((candidate) =>
+              group.projectReviewStageId
+                ? candidate.projectReviewStageId === group.projectReviewStageId
+                : candidate.key === group.key,
+            )
+            .map((candidate) => candidate.key);
+      const nextSessionState: ReviewScreenSessionState = {
           sessionId: payload.session.id,
           screenUrl: payload.screenUrl,
-          message: "现场大屏链接已生成，可复制或打开。",
+        message: "本轮路演大屏链接已生成，可复制或打开。",
           startedAt: payload.session.startedAt ?? null,
           seats: payload.seats,
-        },
-      }));
+      };
+      setReviewScreenSessions((current) => {
+        const next = { ...current };
+        for (const key of stageGroupKeys.length ? stageGroupKeys : [group.key]) {
+          next[key] = nextSessionState;
+        }
+        return next;
+      });
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "现场大屏链接生成失败");
     } finally {
@@ -449,14 +493,19 @@ export default function ExpertReviewTab() {
         method: "POST",
         body: JSON.stringify({ countdownSeconds: 60 }),
       });
-      setReviewScreenSessions((current) => ({
-        ...current,
-        [group.key]: {
-          ...screenSession,
-          message: "现场评分已开始，倒计时 60 秒。",
-          startedAt: payload.session.startedAt,
-        },
-      }));
+      setReviewScreenSessions((current) => {
+        const next = { ...current };
+        for (const [key, value] of Object.entries(next)) {
+          if (value.sessionId === screenSession.sessionId) {
+            next[key] = {
+              ...value,
+              message: "现场评分已开始，倒计时 60 秒。",
+              startedAt: payload.session.startedAt,
+            };
+          }
+        }
+        return next;
+      });
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "现场评分启动失败");
     } finally {
@@ -479,14 +528,19 @@ export default function ExpertReviewTab() {
         method: "POST",
         body: JSON.stringify({ seatId }),
       });
-      setReviewScreenSessions((current) => ({
-        ...current,
-        [group.key]: {
-          ...screenSession,
-          message: `${payload.seat.displayName} 已作废，最终计分将自动排除此席位。`,
-          seats: screenSession.seats.map((seat) => (seat.id === payload.seat.id ? payload.seat : seat)),
-        },
-      }));
+      setReviewScreenSessions((current) => {
+        const next = { ...current };
+        for (const [key, value] of Object.entries(next)) {
+          if (value.sessionId === screenSession.sessionId) {
+            next[key] = {
+              ...value,
+              message: `${payload.seat.displayName} 已作废，最终计分将自动排除此席位。`,
+              seats: value.seats.map((seat) => (seat.id === payload.seat.id ? payload.seat : seat)),
+            };
+          }
+        }
+        return next;
+      });
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "席位作废失败");
     } finally {

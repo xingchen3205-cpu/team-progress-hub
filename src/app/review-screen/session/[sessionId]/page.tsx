@@ -13,6 +13,15 @@ type ScreenSeat = {
   scoreText: string | null;
 };
 
+type ScreenFinalScore = {
+  ready: boolean;
+  finalScoreText: string | null;
+  effectiveSeatCount: number;
+  submittedSeatCount: number;
+  waitingSeatNos: number[];
+  droppedSeatNos: number[];
+};
+
 type ScreenPayload = {
   session: {
     id: string;
@@ -33,14 +42,18 @@ type ScreenPayload = {
     deadline: string | null;
   };
   seats: ScreenSeat[];
-  finalScore: {
-    ready: boolean;
-    finalScoreText: string | null;
-    effectiveSeatCount: number;
-    submittedSeatCount: number;
-    waitingSeatNos: number[];
-    droppedSeatNos: number[];
-  };
+  finalScore: ScreenFinalScore;
+  projectResults?: Array<{
+    reviewPackage: {
+      id: string;
+      targetName: string;
+      roundLabel: string;
+      overview: string;
+      deadline: string | null;
+    };
+    seats: ScreenSeat[];
+    finalScore: ScreenFinalScore;
+  }>;
   serverTime: string;
 };
 
@@ -103,13 +116,23 @@ export default function ReviewScreenSessionPage() {
     };
   }, [params.sessionId, token]);
 
-  const seats = payload?.seats.length ? payload.seats : fallbackSeats;
-  const submittedCount = payload?.finalScore.submittedSeatCount ?? seats.filter((seat) => seat.status === "submitted").length;
-  const effectiveCount = payload?.finalScore.effectiveSeatCount ?? seats.length;
+  const projectResults = payload?.projectResults?.length ? payload.projectResults : [];
+  const activeProjectResult =
+    projectResults.find((project) => !project.finalScore.ready) ??
+    projectResults[0] ??
+    null;
+  const seats = activeProjectResult?.seats.length
+    ? activeProjectResult.seats
+    : payload?.seats.length
+      ? payload.seats
+      : fallbackSeats;
+  const activeFinalScore = activeProjectResult?.finalScore ?? payload?.finalScore;
+  const submittedCount = activeFinalScore?.submittedSeatCount ?? seats.filter((seat) => seat.status === "submitted").length;
+  const effectiveCount = activeFinalScore?.effectiveSeatCount ?? seats.length;
   const timeline = payload?.session.timeline;
-  const title = payload?.reviewPackage.roundLabel ?? "项目路演评审";
-  const targetName = payload?.reviewPackage.targetName ?? "等待项目同步";
-  const finalScoreText = payload?.finalScore.finalScoreText ?? "--";
+  const title = activeProjectResult?.reviewPackage.roundLabel ?? payload?.reviewPackage.roundLabel ?? "项目路演评审";
+  const targetName = activeProjectResult?.reviewPackage.targetName ?? payload?.reviewPackage.targetName ?? "等待项目同步";
+  const finalScoreText = activeFinalScore?.finalScoreText ?? "--";
   const progressText = `${submittedCount}/${effectiveCount}`;
   const phaseMeta = useMemo(() => {
     if (!timeline) {
@@ -239,6 +262,30 @@ export default function ReviewScreenSessionPage() {
                   </div>
                 </div>
               </section>
+
+              {projectResults.length > 1 ? (
+                <section className="rounded-[36px] border border-white/10 bg-white/10 p-7 backdrop-blur-xl">
+                  <h3 className="text-lg font-bold">本轮项目</h3>
+                  <div className="mt-4 space-y-3">
+                    {projectResults.map((project) => (
+                      <div
+                        className="rounded-2xl bg-white/10 px-4 py-3"
+                        key={project.reviewPackage.id}
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="truncate text-sm font-bold text-white">{project.reviewPackage.targetName}</p>
+                          <span className="text-sm font-black text-blue-100">
+                            {project.finalScore.finalScoreText ?? "--"}
+                          </span>
+                        </div>
+                        <p className="mt-2 text-xs text-white/50">
+                          {project.finalScore.submittedSeatCount}/{project.finalScore.effectiveSeatCount} 位专家已提交
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+                </section>
+              ) : null}
 
               <section className="rounded-[36px] border border-white/10 bg-white/10 p-7 backdrop-blur-xl">
                 <div className="flex items-center gap-3">

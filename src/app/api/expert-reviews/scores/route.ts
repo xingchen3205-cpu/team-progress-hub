@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { getSessionUser } from "@/lib/auth";
 import {
+  getExpertReviewMode,
   getExpertReviewLockState,
   getExpertReviewWindowState,
   serializeExpertReviewAssignment,
@@ -61,6 +62,19 @@ const assignmentInclude = {
       lockedAt: true,
     },
   },
+  displaySeats: {
+    orderBy: { createdAt: "desc" },
+    select: {
+      status: true,
+      session: {
+        select: {
+          status: true,
+          startedAt: true,
+          tokenExpiresAt: true,
+        },
+      },
+    },
+  },
 } as const;
 
 export async function POST(request: NextRequest) {
@@ -113,6 +127,35 @@ export async function POST(request: NextRequest) {
 
   if (assignment.score) {
     return NextResponse.json({ message: "评分已提交，不能修改" }, { status: 409 });
+  }
+
+  const isRoadshowAssignment = getExpertReviewMode(assignment.reviewPackage) === "roadshow";
+  if (isRoadshowAssignment) {
+    const startedScreenSeat = await prisma.reviewDisplaySeat.findFirst({
+      where: {
+        assignmentId: assignment.id,
+        status: {
+          not: "voided",
+        },
+        session: {
+          status: "scoring",
+          startedAt: {
+            not: null,
+          },
+          tokenExpiresAt: {
+            gt: new Date(),
+          },
+        },
+      },
+      select: { id: true },
+    });
+
+    if (!startedScreenSeat) {
+      return NextResponse.json(
+        { message: "现场评分尚未开始，请等待管理员在大屏控制端点击开始评分" },
+        { status: 409 },
+      );
+    }
   }
 
   const reviewWindowState = getExpertReviewWindowState({
@@ -226,6 +269,17 @@ export async function POST(request: NextRequest) {
     await tx.expertReviewAssignment.update({
       where: { id: assignment.id },
       data: { status: "completed" },
+    });
+
+    await tx.reviewDisplaySeat.updateMany({
+      where: {
+        assignmentId: assignment.id,
+        status: "pending",
+        session: {
+          status: "scoring",
+        },
+      },
+      data: { status: "submitted" },
     });
 
     return tx.expertReviewAssignment.findUniqueOrThrow({

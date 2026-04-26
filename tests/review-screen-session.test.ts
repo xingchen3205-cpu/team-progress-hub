@@ -60,6 +60,23 @@ describe("roadshow review screen session", () => {
     assert.equal(result.finalScoreText, "89.05");
   });
 
+  it("averages all scores when there are too few seats for high-low trimming", async () => {
+    const { calculateReviewScreenFinalScore } = await import("../src/lib/review-screen-session");
+
+    const result = calculateReviewScreenFinalScore(
+      [
+        { seatNo: 1, status: "submitted", totalScoreCents: 7972 },
+        { seatNo: 2, status: "submitted", totalScoreCents: 8868 },
+      ],
+      { dropHighestCount: 1, dropLowestCount: 1 },
+    );
+
+    assert.equal(result.ready, true);
+    assert.equal(result.effectiveSeatCount, 2);
+    assert.deepEqual(result.droppedSeatNos, []);
+    assert.equal(result.finalScoreText, "84.20");
+  });
+
   it("keeps the countdown in waiting mode after time expires until all valid seats submit", async () => {
     const { getReviewScreenTimelineState } = await import("../src/lib/review-screen-session");
 
@@ -105,5 +122,22 @@ describe("roadshow review screen session", () => {
     assert.match(screenPageSource, /专家 1/);
     assert.match(screenPageSource, /等待全部专家提交/);
     assert.match(screenPageSource, /最终得分/);
+  });
+
+  it("uses one roadshow screen session for all packages under the same project stage", () => {
+    const sessionRouteSource = readSource("src/app/api/review-screen/sessions/route.ts");
+    const publicRouteSource = readSource("src/app/api/review-screen/sessions/[sessionId]/route.ts");
+    const adminTabSource = readSource("src/components/tabs/expert-review-tab.tsx");
+    const screenPageSource = readSource("src/app/review-screen/session/[sessionId]/page.tsx");
+
+    assert.match(sessionRouteSource, /stageReviewPackages/);
+    assert.match(sessionRouteSource, /projectReviewStageId/);
+    assert.match(sessionRouteSource, /packageIds/);
+    assert.match(sessionRouteSource, /reviewPackage\.projectReviewStageId/);
+    assert.match(publicRouteSource, /projectResults/);
+    assert.match(publicRouteSource, /assignment:\s*\{\s*select:\s*\{\s*reviewPackage/);
+    assert.match(adminTabSource, /packageIds/);
+    assert.match(adminTabSource, /stageGroupKeys/);
+    assert.match(screenPageSource, /projectResults/);
   });
 });

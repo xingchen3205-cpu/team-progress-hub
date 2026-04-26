@@ -35,6 +35,33 @@ describe("expert review v2 constraints", () => {
     assert.match(routeSource, /Number\.isInteger\(roadshowScore \* 100\)/);
   });
 
+  it("blocks roadshow score submission until the administrator starts the screen session", () => {
+    const routeSource = readSource("src/app/api/expert-reviews/scores/route.ts");
+    const tabSource = readSource("src/components/tabs/expert-review-tab.tsx");
+    const serializerSource = readSource("src/lib/expert-review.ts");
+
+    assert.match(routeSource, /reviewDisplaySeat\.findFirst/);
+    assert.match(routeSource, /status:\s*"scoring"/);
+    assert.match(routeSource, /现场评分尚未开始/);
+    assert.match(serializerSource, /roadshowScreenStarted/);
+    assert.match(serializerSource, /ReviewDisplaySeat/);
+    assert.match(tabSource, /roadshowScreenStarted/);
+    assert.match(tabSource, /请等待管理员在大屏控制端点击开始评分/);
+  });
+
+  it("does not force administrator-created expert accounts to complete email before review", () => {
+    const contextSource = readSource("src/components/workspace-context.tsx");
+    const profileRouteSource = readSource("src/app/api/profile/route.ts");
+    const profileTabSource = readSource("src/components/tabs/profile-tab.tsx");
+
+    assert.match(contextSource, /currentRole !== "expert"[\s\S]*validateRequiredEmail\(currentUser\.email\)/);
+    assert.match(contextSource, /currentRole !== "expert"[\s\S]*validateRequiredEmail\(profileDraft\.email\)/);
+    assert.match(profileRouteSource, /user\.role !== "expert"[\s\S]*validateRequiredEmail\(email\)/);
+    assert.match(profileRouteSource, /email \? email : null/);
+    assert.match(profileTabSource, /const isExpertAccount = currentRole === "expert"/);
+    assert.doesNotMatch(profileTabSource, /专家账号[\s\S]*必填，用于接收任务和日程提醒/);
+  });
+
   it("derives review mode from linked project stage type instead of label text", () => {
     const assignment = {
       targetName: "智在必行",

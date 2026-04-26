@@ -2100,7 +2100,9 @@ function useWorkspaceController({
   const hasGlobalAdminRole = isSystemAdmin || isSchoolAdmin;
   const currentMemberId = currentUser?.id ?? "";
   const permissions = rolePermissions[currentRole];
-  const requiresEmailCompletion = Boolean(currentUser && validateRequiredEmail(currentUser.email));
+  const requiresEmailCompletion = Boolean(
+    currentUser && currentRole !== "expert" && validateRequiredEmail(currentUser.email),
+  );
   const visibleTabs = allTabs.filter(
     (item) => permissions.visibleTabs.includes(item.key) && (!requiresEmailCompletion || item.key === "profile"),
   );
@@ -5912,10 +5914,12 @@ function useWorkspaceController({
       return;
     }
 
-    const emailError = validateRequiredEmail(profileDraft.email);
-    if (emailError) {
-      setLoadError(emailError);
-      return;
+    if (currentRole !== "expert") {
+      const emailError = validateRequiredEmail(profileDraft.email);
+      if (emailError) {
+        setLoadError(emailError);
+        return;
+      }
     }
 
     setIsSaving(true);
