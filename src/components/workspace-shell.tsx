@@ -88,6 +88,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
     setEventDraft,
     expertModalOpen,
     setExpertModalOpen,
+    setEditingExpertId,
     expertDraft,
     setExpertDraft,
     expertFiles,
@@ -592,8 +593,8 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
             </div>
           </aside>
 
-          <section className="min-w-0 flex-1 overflow-x-hidden">
-            <header className="topbar-enhanced mx-auto max-w-[1200px]">
+          <section className="min-w-0 flex-1 overflow-visible">
+            <header className="topbar-enhanced relative z-50 mx-auto max-w-[1200px]">
               <div className="mx-auto flex max-w-[1200px] flex-col gap-3 lg:flex-row lg:items-center lg:justify-between lg:gap-4">
                 <div className="flex min-h-10 items-center gap-3">
                   <button
@@ -654,7 +655,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                       <ChevronDown className={`h-4 w-4 text-slate-400 transition ${profileMenuOpen ? "rotate-180" : ""}`} />
                     </button>
                     {profileMenuOpen ? (
-                      <div className="header-profile-menu-panel absolute right-0 top-full z-30 mt-2 min-w-[180px] rounded-xl p-1">
+                      <div className="header-profile-menu-panel absolute right-0 top-full z-[80] mt-2 min-w-[180px] rounded-xl p-1">
                         <button
                           className="header-profile-menu-item"
                           onClick={openProfilePage}
@@ -1239,6 +1240,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
           title="录入专家意见"
           onClose={() => {
             setExpertModalOpen(false);
+            setEditingExpertId(null);
             setExpertDraft(defaultExpertDraft);
             setExpertFiles([]);
             setExpertDraftErrors(defaultExpertDraftErrors());
@@ -1435,6 +1437,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                 disabled={isSaving}
                 onClick={() => {
                   setExpertModalOpen(false);
+                  setEditingExpertId(null);
                   setExpertDraft(defaultExpertDraft);
                   setExpertFiles([]);
                 }}

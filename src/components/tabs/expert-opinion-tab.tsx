@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+
 import * as Workspace from "@/components/workspace-context";
 
 export default function ExpertOpinionTab() {
@@ -16,6 +18,7 @@ export default function ExpertOpinionTab() {
     permissions,
     handleDownload,
     handlePreviewDocument,
+    openEditExpert,
     removeExpert,
   } = Workspace.useWorkspaceContext();
 
@@ -27,6 +30,7 @@ export default function ExpertOpinionTab() {
     Paperclip,
     Trash2,
     Upload,
+    Pencil,
     surfaceCardClassName,
     defaultExpertDraft,
     defaultExpertDraftErrors,
@@ -36,12 +40,13 @@ export default function ExpertOpinionTab() {
   } = Workspace;
 
   const isGlobalExpertOpinionView = currentRole === "admin" || currentRole === "school_admin";
+  const [selectedExpertOpinionGroupId, setSelectedExpertOpinionGroupId] = useState("all");
   const expertOpinionGroups = isGlobalExpertOpinionView
     ? [
         {
           id: "global",
-          title: "全校台账",
-          description: "校级统一整理、暂不指定项目组的专家意见。",
+          title: "待分配意见",
+          description: "校级统一整理、暂不指定项目组的专家意见，仅作为全校台账留存。",
           items: experts.filter((session) => !session.teamGroupId),
         },
         ...teamGroups.map((group) => ({
@@ -59,6 +64,10 @@ export default function ExpertOpinionTab() {
           items: experts,
         },
       ];
+  const visibleExpertOpinionGroups =
+    isGlobalExpertOpinionView && selectedExpertOpinionGroupId !== "all"
+      ? expertOpinionGroups.filter((group) => group.id === selectedExpertOpinionGroupId)
+      : expertOpinionGroups;
 
   const renderExpertCard = (session: (typeof experts)[number]) => (
     <article
@@ -147,14 +156,27 @@ export default function ExpertOpinionTab() {
         </div>
       </div>
       {permissions.canDeleteExpert ? (
-        <button
-          className="expert-delete-button"
-          onClick={() => removeExpert(session.id, session.topic)}
-          title="删除意见"
-          type="button"
-        >
-          <Trash2 className="h-4 w-4" />
-        </button>
+        <div className="absolute top-4 right-4 flex items-center gap-2">
+          {isGlobalExpertOpinionView ? (
+            <button
+              className="team-icon-button opacity-100"
+              onClick={() => openEditExpert(session)}
+              title="编辑专家意见"
+              type="button"
+            >
+              <Pencil className="h-4 w-4" />
+              <span className="sr-only">编辑</span>
+            </button>
+          ) : null}
+          <button
+            className="team-icon-button opacity-100 text-red-500 hover:border-red-200 hover:bg-red-50"
+            onClick={() => removeExpert(session.id, session.topic)}
+            title="删除意见"
+            type="button"
+          >
+            <Trash2 className="h-4 w-4" />
+          </button>
+        </div>
       ) : null}
     </article>
   );
@@ -191,11 +213,30 @@ export default function ExpertOpinionTab() {
           <div className="space-y-5">
             {isGlobalExpertOpinionView ? (
               <div className="rounded-xl border border-blue-100 bg-blue-50/70 px-4 py-3 text-sm leading-6 text-slate-600">
-                <p className="font-semibold text-slate-800">分组设置</p>
-                <p className="mt-1">录入时可设为全校台账，或指定到某个项目组；指定后该组教师和学生可见。</p>
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                  <div>
+                    <p className="font-semibold text-slate-800">分组设置</p>
+                    <p className="mt-1">录入时可设为待分配意见，或指定到某个项目组；指定后该组教师和学生可见。</p>
+                  </div>
+                  <label className="block text-xs font-medium text-slate-500">
+                    查看范围
+                    <select
+                      className="mt-1 h-10 rounded-lg border border-blue-100 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-500/20"
+                      value={selectedExpertOpinionGroupId}
+                      onChange={(event) => setSelectedExpertOpinionGroupId(event.target.value)}
+                    >
+                      <option value="all">全部意见</option>
+                      {expertOpinionGroups.map((group) => (
+                        <option key={group.id} value={group.id}>
+                          {group.title}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
               </div>
             ) : null}
-            {expertOpinionGroups.map((group) => (
+            {visibleExpertOpinionGroups.map((group) => (
               <div className="space-y-3" key={group.id}>
                 <div>
                   <h3 className="text-base font-semibold text-slate-900">{group.title}</h3>

@@ -32,6 +32,7 @@ test("expert opinion ledger supports admin assignment and group submissions", ()
   const contextSource = readSource("src/components/workspace-context.tsx");
   const shellSource = readSource("src/components/workspace-shell.tsx");
   const expertsRouteSource = readSource("src/app/api/experts/route.ts");
+  const expertItemRouteSource = readSource("src/app/api/experts/[id]/route.ts");
   const serializerSource = readSource("src/lib/api-serializers.ts");
   const opinionTabSource = readSource("src/components/tabs/expert-opinion-tab.tsx");
 
@@ -52,7 +53,15 @@ test("expert opinion ledger supports admin assignment and group submissions", ()
   assert.match(opinionTabSource, /录入专家意见/);
   assert.match(opinionTabSource, /expertOpinionGroups/);
   assert.match(opinionTabSource, /分组设置/);
-  assert.match(opinionTabSource, /全校台账/);
+  assert.match(opinionTabSource, /待分配意见/);
+  assert.match(opinionTabSource, /selectedExpertOpinionGroupId/);
+  assert.match(opinionTabSource, /openEditExpert/);
+  assert.match(opinionTabSource, /编辑/);
+  assert.match(contextSource, /editingExpertId/);
+  assert.match(contextSource, /method:\s*editingExpertId \? "PATCH" : "POST"/);
+  assert.match(expertItemRouteSource, /export async function PATCH/);
+  assert.match(expertItemRouteSource, /assertRole\(user\.role,\s*\["admin",\s*"school_admin"\]\)/);
+  assert.match(expertItemRouteSource, /teamGroupId:\s*requestedTeamGroupId/);
 });
 
 test("administrator navigation removes training and task center copy uses global scope", () => {
@@ -67,6 +76,10 @@ test("administrator navigation removes training and task center copy uses global
 
   assert.match(tasksTabSource, /全校任务台账/);
   assert.match(tasksTabSource, /currentRole === "admin" \|\| currentRole === "school_admin"/);
+  assert.match(tasksTabSource, /taskTeamGroupSummaries/);
+  assert.match(tasksTabSource, /selectedTaskTeamGroupId/);
+  assert.match(tasksTabSource, /项目组任务总览/);
+  assert.match(tasksTabSource, /未分组任务/);
   assert.match(shellSource, /getSidebarTabLabel/);
   assert.match(shellSource, /item\.key === "board"[\s\S]*currentRole === "admin"/);
   assert.match(shellSource, /全校任务台账/);

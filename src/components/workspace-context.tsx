@@ -2034,6 +2034,7 @@ function useWorkspaceController({
   const [eventDraft, setEventDraft] = useState<EventDraft>(defaultEventDraft);
 
   const [expertModalOpen, setExpertModalOpen] = useState(false);
+  const [editingExpertId, setEditingExpertId] = useState<string | null>(null);
   const [expertDraft, setExpertDraft] = useState<ExpertDraft>(defaultExpertDraft);
   const [expertFiles, setExpertFiles] = useState<File[]>([]);
   const [expertDraftErrors, setExpertDraftErrors] = useState<ExpertDraftErrors>(defaultExpertDraftErrors);
@@ -5026,8 +5027,8 @@ function useWorkspaceController({
 
     setIsSaving(true);
     try {
-      const response = await fetch("/api/experts", {
-        method: "POST",
+      const response = await fetch(editingExpertId ? `/api/experts/${editingExpertId}` : "/api/experts", {
+        method: editingExpertId ? "PATCH" : "POST",
         body: formData,
         credentials: "same-origin",
       });
@@ -5038,10 +5039,11 @@ function useWorkspaceController({
       }
 
       setExpertDraft(defaultExpertDraft);
+      setEditingExpertId(null);
       setExpertFiles([]);
       setExpertDraftErrors(defaultExpertDraftErrors());
       setExpertModalOpen(false);
-      showSuccessToast("专家意见已保存", "新的专家反馈已经写入专家意见板块。");
+      showSuccessToast("专家意见已保存", "专家反馈已经写入专家意见板块。");
       refreshWorkspace("experts");
     } catch (error) {
       setExpertDraftErrors((current) => ({
@@ -5051,6 +5053,22 @@ function useWorkspaceController({
     } finally {
       setIsSaving(false);
     }
+  };
+
+  const openEditExpert = (expert: ExpertItem) => {
+    setEditingExpertId(expert.id);
+    setExpertDraft({
+      date: expert.date,
+      expert: expert.expert,
+      topic: expert.topic,
+      format: expert.format,
+      teamGroupId: expert.teamGroupId ?? "",
+      summary: expert.summary,
+      nextAction: expert.nextAction,
+    });
+    setExpertFiles([]);
+    setExpertDraftErrors(defaultExpertDraftErrors());
+    setExpertModalOpen(true);
   };
 
   const removeExpertRequest = async (expertId: string) => {
@@ -6380,6 +6398,8 @@ function useWorkspaceController({
     setEventDraft,
     expertModalOpen,
     setExpertModalOpen,
+    editingExpertId,
+    setEditingExpertId,
     expertDraft,
     setExpertDraft,
     expertFiles,
@@ -6681,6 +6701,7 @@ function useWorkspaceController({
     saveEvent,
     openEventModal,
     saveExpert,
+    openEditExpert,
     removeExpertRequest,
     removeExpert,
     toggleDocExpand,

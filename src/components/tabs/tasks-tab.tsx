@@ -1,11 +1,14 @@
 "use client";
 
+import { useState } from "react";
+
 import type { BoardStatus, BoardStatusFilter, TaskDraft, PreviewAsset } from "@/components/workspace-context";
 import * as Workspace from "@/components/workspace-context";
 
 export default function TasksTab() {
   const {
     tasks,
+    teamGroups,
     expandedBoardTaskIds,
     boardStatusFilter,
     setBoardStatusFilter,
@@ -63,16 +66,48 @@ export default function TasksTab() {
     ActionButton,
   } = Workspace;
 
+  const [selectedTaskTeamGroupId, setSelectedTaskTeamGroupId] = useState("all");
+
 const renderBoard = () => {
     const normalizedBoardSearch = boardSearch.trim().toLowerCase();
+    const isGlobalTaskView = currentRole === "admin" || currentRole === "school_admin";
+    const scopedTasks =
+      isGlobalTaskView && selectedTaskTeamGroupId !== "all"
+        ? tasks.filter((task) =>
+            selectedTaskTeamGroupId === "unassigned" ? !task.teamGroupId : task.teamGroupId === selectedTaskTeamGroupId,
+          )
+        : tasks;
+    const taskTeamGroupSummaries = [
+      {
+        id: "all",
+        name: "全部项目组",
+        count: tasks.length,
+        active: tasks.filter((task) => task.status !== "archived").length,
+      },
+      {
+        id: "unassigned",
+        name: "未分组任务",
+        count: tasks.filter((task) => !task.teamGroupId).length,
+        active: tasks.filter((task) => !task.teamGroupId && task.status !== "archived").length,
+      },
+      ...teamGroups.map((group) => {
+        const groupTasks = tasks.filter((task) => task.teamGroupId === group.id);
+        return {
+          id: group.id,
+          name: group.name,
+          count: groupTasks.length,
+          active: groupTasks.filter((task) => task.status !== "archived").length,
+        };
+      }),
+    ].filter((item) => item.id === "all" || item.count > 0);
     const taskStatusCounts = boardColumns.reduce(
       (result, column) => ({
         ...result,
-        [column.id]: tasks.filter((task) => task.status === column.id).length,
+        [column.id]: scopedTasks.filter((task) => task.status === column.id).length,
       }),
       {} as Record<BoardStatus, number>,
     );
-    const filteredTasks = tasks
+    const filteredTasks = scopedTasks
       .filter((task) => boardStatusFilter === "all" || task.status === boardStatusFilter)
       .filter((task) => {
         if (!normalizedBoardSearch) {
@@ -99,9 +134,8 @@ const renderBoard = () => {
         return new Date(first.dueDate).getTime() - new Date(second.dueDate).getTime();
       });
 
-    const activeTaskCount = tasks.filter((task) => task.status !== "archived").length;
+    const activeTaskCount = scopedTasks.filter((task) => task.status !== "archived").length;
     const reviewTaskCount = taskStatusCounts.review ?? 0;
-    const isGlobalTaskView = currentRole === "admin" || currentRole === "school_admin";
 
     return (
       <div className="space-y-4">
@@ -129,6 +163,39 @@ const renderBoard = () => {
             </ActionButton>
           </div>
         </div>
+
+        {isGlobalTaskView ? (
+          <section className="rounded-xl border border-blue-100 bg-white p-4 shadow-sm">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+              <div>
+                <h3 className="text-base font-semibold text-slate-900">项目组任务总览</h3>
+                <p className="mt-1 text-sm text-slate-500">系统管理员按项目组查看全校任务状态，必要时再进入单组细看。</p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                {taskTeamGroupSummaries.map((group) => {
+                  const active = selectedTaskTeamGroupId === group.id;
+                  return (
+                    <button
+                      className={`rounded-lg border px-3 py-2 text-left text-sm transition ${
+                        active
+                          ? "border-blue-200 bg-blue-50 text-blue-700"
+                          : "border-slate-200 bg-white text-slate-500 hover:border-blue-200 hover:bg-blue-50/60"
+                      }`}
+                      key={group.id}
+                      onClick={() => setSelectedTaskTeamGroupId(group.id)}
+                      type="button"
+                    >
+                      <span className="font-semibold">{group.name}</span>
+                      <span className="ml-2 text-xs text-slate-400">
+                        {group.count} 项 / 进行中 {group.active}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </section>
+        ) : null}
 
         <section className="overflow-hidden rounded-xl border border-slate-100 bg-white shadow-sm">
           <div className="border-b border-slate-100 bg-[#F7FAFE] p-4">
@@ -159,8 +226,8 @@ const renderBoard = () => {
             </div>
 
             <div className="mt-4 flex gap-2 overflow-x-auto pb-1">
-              {[
-                { id: "all" as BoardStatusFilter, label: "全部", count: tasks.length, description: "全部工单" },
+                {[
+                { id: "all" as BoardStatusFilter, label: "全部", count: scopedTasks.length, description: "全部工单" },
                 ...boardColumns.map((column) => ({
                   id: column.id as BoardStatusFilter,
                   label: boardStatusMeta[column.id].label,

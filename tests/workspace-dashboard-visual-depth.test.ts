@@ -156,7 +156,7 @@ test("workspace topbar is a global action bar without duplicating the active pag
     "utf8",
   );
 
-  const topbarStart = source.indexOf('<header className="topbar-enhanced mx-auto max-w-[1200px]');
+  const topbarStart = source.indexOf('<header className="topbar-enhanced relative z-50 mx-auto max-w-[1200px]');
   const contentStart = source.indexOf('<div className="mx-auto mt-4 flex max-w-[1200px] flex-col gap-4">', topbarStart);
   const topbarBlock = source.slice(topbarStart, contentStart);
 
