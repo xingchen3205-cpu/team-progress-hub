@@ -50,7 +50,7 @@ export const defaultProjectMaterialRequirementsByStageType: Record<
   ProjectMaterialRequirementKey[]
 > = {
   online_review: ["ppt_pdf", "plan_pdf", "video_20mb"],
-  roadshow: ["ppt_pdf"],
+  roadshow: [],
 };
 
 const projectMaterialRequirementSet = new Set<ProjectMaterialRequirementKey>(
@@ -69,6 +69,10 @@ const normalizeProjectMaterialRequirements = (
   value: unknown,
   stageType: keyof typeof defaultProjectMaterialRequirementsByStageType = "online_review",
 ) => {
+  if (stageType === "roadshow") {
+    return [];
+  }
+
   if (!Array.isArray(value)) {
     return defaultProjectMaterialRequirementsByStageType[stageType];
   }
@@ -77,7 +81,9 @@ const normalizeProjectMaterialRequirements = (
     typeof item === "string" && projectMaterialRequirementSet.has(item as ProjectMaterialRequirementKey),
   );
 
-  return normalized.length > 0 ? [...new Set(normalized)] : defaultProjectMaterialRequirementsByStageType[stageType];
+  return normalized.length > 0
+    ? [...new Set(normalized)]
+    : defaultProjectMaterialRequirementsByStageType[stageType];
 };
 
 const normalizeProjectStageTeamGroupIds = (value: unknown) => {
@@ -99,14 +105,16 @@ export const encodeProjectStageDescription = ({
   description,
   requiredMaterials,
   allowedTeamGroupIds,
+  stageType = "online_review",
 }: {
   description?: string | null;
   requiredMaterials?: ProjectMaterialRequirementKey[];
   allowedTeamGroupIds?: string[];
+  stageType?: keyof typeof defaultProjectMaterialRequirementsByStageType;
 }) =>
   `${PROJECT_STAGE_DESCRIPTION_META_PREFIX}${JSON.stringify({
     description: description?.trim() || "",
-    requiredMaterials: normalizeProjectMaterialRequirements(requiredMaterials),
+    requiredMaterials: normalizeProjectMaterialRequirements(requiredMaterials, stageType),
     allowedTeamGroupIds: normalizeProjectStageTeamGroupIds(allowedTeamGroupIds),
   })}`;
 

@@ -19,6 +19,7 @@ import {
   canManageProjectReviewStage,
   canReviewProjectMaterial,
   canUploadProjectMaterial,
+  defaultProjectMaterialRequirementsByStageType,
   getProjectMaterialStatusLabel,
   selectCurrentApprovedProjectMaterials,
   validateProjectMaterialUploadMeta,
@@ -540,6 +541,46 @@ test("project stage metadata supports editable multi group scope without schema 
   assert.equal(canTeamGroupAccessProjectStage({ allowedTeamGroupIds: [], legacyTeamGroupId: null, actorTeamGroupId: "g9" }), true);
   assert.equal(canTeamGroupAccessProjectStage({ allowedTeamGroupIds: [], legacyTeamGroupId: "legacy", actorTeamGroupId: "legacy" }), true);
   assert.equal(canTeamGroupAccessProjectStage({ allowedTeamGroupIds: [], legacyTeamGroupId: "legacy", actorTeamGroupId: "other" }), false);
+});
+
+test("roadshow project stages may require no uploaded materials", () => {
+  assert.deepEqual(defaultProjectMaterialRequirementsByStageType.roadshow, []);
+
+  const encoded = encodeProjectStageDescription({
+    description: "路演现场打分，不要求学生上传材料",
+    requiredMaterials: ["ppt_pdf"],
+    allowedTeamGroupIds: ["g1"],
+    stageType: "roadshow",
+  });
+  const parsed = parseProjectStageDescription(encoded, "roadshow");
+  const projectTab = readFileSync(
+    path.join(process.cwd(), "src/components/tabs/project-tab.tsx"),
+    "utf8",
+  );
+  const stageRoute = readFileSync(
+    path.join(process.cwd(), "src/app/api/project-stages/route.ts"),
+    "utf8",
+  );
+  const stageItemRoute = readFileSync(
+    path.join(process.cwd(), "src/app/api/project-stages/[stageId]/route.ts"),
+    "utf8",
+  );
+  const assignmentRoute = readFileSync(
+    path.join(process.cwd(), "src/app/api/expert-reviews/assignments/route.ts"),
+    "utf8",
+  );
+  const workspaceShell = readFileSync(
+    path.join(process.cwd(), "src/components/workspace-shell.tsx"),
+    "utf8",
+  );
+
+  assert.deepEqual(parsed.requiredMaterials, []);
+  assert.match(projectTab, /roadshow:\s*\[\]/);
+  assert.match(stageRoute, /stageType,[\s\S]*description/);
+  assert.match(stageItemRoute, /stageType,[\s\S]*description/);
+  assert.match(assignmentRoute, /projectReviewStage\.type === "roadshow"/);
+  assert.match(assignmentRoute, /teamGroupIds/);
+  assert.match(workspaceShell, /选择路演项目组/);
 });
 
 test("project stage edit form and routes expose multi group scope", () => {

@@ -240,6 +240,7 @@ export async function PUT(
         name,
         type: stageType,
         description: encodeProjectStageDescription({
+          stageType,
           description,
           requiredMaterials,
           allowedTeamGroupIds: teamGroupIds,

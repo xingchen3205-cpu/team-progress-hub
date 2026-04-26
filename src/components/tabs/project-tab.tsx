@@ -36,7 +36,7 @@ const projectMaterialRequirementOptions: Array<{
 
 const defaultRequiredMaterialsByStageType: Record<Workspace.ProjectReviewStageTypeKey, MaterialRequirementKey[]> = {
   online_review: ["ppt_pdf", "plan_pdf", "video_20mb"],
-  roadshow: ["ppt_pdf"],
+  roadshow: [],
 };
 
 const getRequirementOption = (key?: MaterialRequirementKey | "") =>
@@ -614,6 +614,11 @@ export default function ProjectTab() {
             </label>
             <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 lg:col-span-2">
               <p className="text-sm font-medium text-slate-700">要求上传内容</p>
+              {stageDraft.type === "roadshow" ? (
+                <p className="mt-2 rounded-lg border border-blue-100 bg-white px-3 py-2 text-xs text-slate-500">
+                  路演评审只生成现场打分任务，可不要求学生上传材料。
+                </p>
+              ) : null}
               <div className="mt-3 grid gap-2 sm:grid-cols-3">
                 {projectMaterialRequirementOptions.map((option) => (
                   <label
@@ -800,6 +805,11 @@ export default function ProjectTab() {
               </label>
               <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 lg:col-span-2">
                 <p className="text-sm font-medium text-slate-700">要求上传内容</p>
+                {stageDraft.type === "roadshow" ? (
+                  <p className="mt-2 rounded-lg border border-blue-100 bg-white px-3 py-2 text-xs text-slate-500">
+                    路演评审只生成现场打分任务，可不要求学生上传材料。
+                  </p>
+                ) : null}
                 <div className="mt-3 grid gap-2 sm:grid-cols-3">
                   {projectMaterialRequirementOptions.map((option) => (
                     <label

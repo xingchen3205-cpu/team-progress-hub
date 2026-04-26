@@ -253,6 +253,14 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
       material.status === "approved" &&
       (!reviewAssignmentDraft.stageId || material.stageId === reviewAssignmentDraft.stageId),
   );
+  const selectedReviewStageTeamGroups = selectedReviewStage
+    ? teamGroups.filter((group) => {
+        const allowedTeamGroupIds =
+          selectedReviewStage.allowedTeamGroupIds ??
+          (selectedReviewStage.teamGroup?.id ? [selectedReviewStage.teamGroup.id] : []);
+        return allowedTeamGroupIds.length === 0 || allowedTeamGroupIds.includes(group.id);
+      })
+    : [];
 
   const getSidebarUserMeta = () => {
     if (currentRole === "admin" || currentRole === "school_admin") {
@@ -1440,6 +1448,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                       ...current,
                       stageId: event.target.value,
                       materialSubmissionIds: [],
+                      teamGroupIds: [],
                       roundLabel: selectedStage?.name || current.roundLabel,
                       deadline: selectedStage?.deadline
                         ? Workspace.formatBeijingDateTimeInput(selectedStage.deadline)
@@ -1482,57 +1491,100 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
             </div>
 
             {!isEditingReviewAssignment ? (
-            <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
-              <div className="flex items-center justify-between gap-3">
-                <div>
-                  <p className="text-sm font-semibold text-slate-700">选择已生效项目材料</p>
-                  <p className="mt-1 text-xs text-slate-400">
-                    {selectedReviewStage?.type === "roadshow"
-                      ? "路演只用项目组名单生成打分任务，不向专家展示材料。"
-                      : "网络评审会把已生效材料同步给专家查看。"}
-                  </p>
+              selectedReviewStage?.type === "roadshow" ? (
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-700">选择路演项目组</p>
+                      <p className="mt-1 text-xs text-slate-400">
+                        路演不要求上传材料，只按项目组生成现场打分任务。
+                      </p>
+                    </div>
+                    <span className="text-xs text-slate-400">
+                      已选 {reviewAssignmentDraft.teamGroupIds.length} 组
+                    </span>
+                  </div>
+                  <div className="mt-3 grid max-h-56 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
+                    {selectedReviewStageTeamGroups.length > 0 ? (
+                      selectedReviewStageTeamGroups.map((group) => (
+                        <label
+                          className="flex items-center gap-3 rounded-xl border border-white bg-white px-3 py-2 text-sm"
+                          key={group.id}
+                        >
+                          <input
+                            checked={reviewAssignmentDraft.teamGroupIds.includes(group.id)}
+                            className="h-4 w-4 rounded border-slate-300 text-blue-600"
+                            onChange={(event) =>
+                              setReviewAssignmentDraft((current) => ({
+                                ...current,
+                                teamGroupIds: event.target.checked
+                                  ? [...new Set([...current.teamGroupIds, group.id])]
+                                  : current.teamGroupIds.filter((id) => id !== group.id),
+                              }))
+                            }
+                            type="checkbox"
+                          />
+                          <span className="min-w-0 flex-1 truncate font-semibold text-slate-800">
+                            {group.name}
+                          </span>
+                        </label>
+                      ))
+                    ) : (
+                      <p className="rounded-xl border border-dashed border-slate-200 bg-white px-3 py-4 text-sm text-slate-400">
+                        当前轮次暂无可选项目组，请先检查项目管理轮次开放范围。
+                      </p>
+                    )}
+                  </div>
                 </div>
-                <span className="text-xs text-slate-400">
-                  已选 {reviewAssignmentDraft.materialSubmissionIds.length} 项
-                </span>
-              </div>
-              <div className="mt-3 max-h-56 space-y-2 overflow-y-auto pr-1">
-                {approvedProjectMaterialsForReview.length > 0 ? (
-                  approvedProjectMaterialsForReview.map((material) => (
-                    <label
-                      className="flex items-start gap-3 rounded-xl border border-white bg-white px-3 py-2 text-sm"
-                      key={material.id}
-                    >
-                      <input
-                        checked={reviewAssignmentDraft.materialSubmissionIds.includes(material.id)}
-                        className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600"
-                        onChange={(event) =>
-                          setReviewAssignmentDraft((current) => ({
-                            ...current,
-                            materialSubmissionIds: event.target.checked
-                              ? [...new Set([...current.materialSubmissionIds, material.id])]
-                              : current.materialSubmissionIds.filter((id) => id !== material.id),
-                          }))
-                        }
-                        type="checkbox"
-                      />
-                      <span className="min-w-0 flex-1">
-                        <span className="block truncate font-semibold text-slate-800">
-                          {material.teamGroupName} · {material.title}
-                        </span>
-                        <span className="mt-0.5 block truncate text-xs text-slate-400">
-                          {material.stageName} · {material.fileName}
-                        </span>
-                      </span>
-                    </label>
-                  ))
-                ) : (
-                  <p className="rounded-xl border border-dashed border-slate-200 bg-white px-3 py-4 text-sm text-slate-400">
-                    当前轮次暂无已生效项目材料，请先在项目管理中完成提交与审批。
-                  </p>
-                )}
-              </div>
-            </div>
+              ) : (
+                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-700">选择已生效项目材料</p>
+                      <p className="mt-1 text-xs text-slate-400">网络评审会把已生效材料同步给专家查看。</p>
+                    </div>
+                    <span className="text-xs text-slate-400">
+                      已选 {reviewAssignmentDraft.materialSubmissionIds.length} 项
+                    </span>
+                  </div>
+                  <div className="mt-3 max-h-56 space-y-2 overflow-y-auto pr-1">
+                    {approvedProjectMaterialsForReview.length > 0 ? (
+                      approvedProjectMaterialsForReview.map((material) => (
+                        <label
+                          className="flex items-start gap-3 rounded-xl border border-white bg-white px-3 py-2 text-sm"
+                          key={material.id}
+                        >
+                          <input
+                            checked={reviewAssignmentDraft.materialSubmissionIds.includes(material.id)}
+                            className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600"
+                            onChange={(event) =>
+                              setReviewAssignmentDraft((current) => ({
+                                ...current,
+                                materialSubmissionIds: event.target.checked
+                                  ? [...new Set([...current.materialSubmissionIds, material.id])]
+                                  : current.materialSubmissionIds.filter((id) => id !== material.id),
+                              }))
+                            }
+                            type="checkbox"
+                          />
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate font-semibold text-slate-800">
+                              {material.teamGroupName} · {material.title}
+                            </span>
+                            <span className="mt-0.5 block truncate text-xs text-slate-400">
+                              {material.stageName} · {material.fileName}
+                            </span>
+                          </span>
+                        </label>
+                      ))
+                    ) : (
+                      <p className="rounded-xl border border-dashed border-slate-200 bg-white px-3 py-4 text-sm text-slate-400">
+                        当前轮次暂无已生效项目材料，请先在项目管理中完成提交与审批。
+                      </p>
+                    )}
+                  </div>
+                </div>
+              )
             ) : null}
 
             <div className="rounded-2xl border border-slate-200 bg-white p-4">

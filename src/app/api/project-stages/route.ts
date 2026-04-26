@@ -226,6 +226,7 @@ export async function POST(request: NextRequest) {
         name: name,
         type: stageType,
         description: encodeProjectStageDescription({
+          stageType,
           description,
           requiredMaterials,
           allowedTeamGroupIds: teamGroupIds,

@@ -300,6 +300,7 @@ export type ExpertReviewAssignmentDraft = {
   targetName: string;
   stageId: string;
   materialSubmissionIds: string[];
+  teamGroupIds: string[];
   roundLabel: string;
   overview: string;
   deadline: string;
@@ -1471,6 +1472,7 @@ export const defaultExpertReviewAssignmentDraft = (
   targetName: "",
   stageId: "",
   materialSubmissionIds: [],
+  teamGroupIds: [],
   roundLabel: "校内专家预审",
   overview: "",
   deadline: getDefaultReviewAssignmentDeadline(),
@@ -5228,6 +5230,7 @@ function useWorkspaceController({
         targetName: firstAssignment.targetName,
         stageId: "",
         materialSubmissionIds: [],
+        teamGroupIds: [],
         roundLabel: firstAssignment.roundLabel,
         overview: firstAssignment.overview,
         deadline: firstAssignment.deadline
@@ -5282,7 +5285,13 @@ function useWorkspaceController({
       return;
     }
 
-    if (reviewAssignmentDraft.materialSubmissionIds.length === 0) {
+    const selectedStage = projectStages.find((stage) => stage.id === reviewAssignmentDraft.stageId) ?? null;
+    if (selectedStage?.type === "roadshow" && reviewAssignmentDraft.teamGroupIds.length === 0) {
+      setLoadError("请先选择路演项目组");
+      return;
+    }
+
+    if (selectedStage?.type !== "roadshow" && reviewAssignmentDraft.materialSubmissionIds.length === 0) {
       setLoadError("请先选择已生效项目材料");
       return;
     }
@@ -5299,6 +5308,7 @@ function useWorkspaceController({
         body: JSON.stringify({
           stageId: reviewAssignmentDraft.stageId,
           materialSubmissionIds: reviewAssignmentDraft.materialSubmissionIds,
+          teamGroupIds: reviewAssignmentDraft.teamGroupIds,
           expertUserIds: reviewAssignmentDraft.expertUserIds,
           roundLabel: reviewAssignmentDraft.roundLabel.trim(),
           overview: reviewAssignmentDraft.overview.trim(),
