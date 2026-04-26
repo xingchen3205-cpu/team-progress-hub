@@ -50,10 +50,14 @@ test("expert opinion ledger supports admin assignment and group submissions", ()
   assert.match(serializerSource, /teamGroupId:\s*feedback\.teamGroupId/);
   assert.match(serializerSource, /teamGroupName:\s*feedback\.teamGroup\?\.name/);
   assert.match(opinionTabSource, /录入专家意见/);
+  assert.match(opinionTabSource, /expertOpinionGroups/);
+  assert.match(opinionTabSource, /分组设置/);
+  assert.match(opinionTabSource, /全校台账/);
 });
 
 test("administrator navigation removes training and task center copy uses global scope", () => {
   const contextSource = readSource("src/components/workspace-context.tsx");
+  const shellSource = readSource("src/components/workspace-shell.tsx");
   const tasksTabSource = readSource("src/components/tabs/tasks-tab.tsx");
 
   const adminPermissionBlock = contextSource.match(/admin:\s*\{[\s\S]*?\n  school_admin:/)?.[0] ?? "";
@@ -63,4 +67,7 @@ test("administrator navigation removes training and task center copy uses global
 
   assert.match(tasksTabSource, /全校任务台账/);
   assert.match(tasksTabSource, /currentRole === "admin" \|\| currentRole === "school_admin"/);
+  assert.match(shellSource, /getSidebarTabLabel/);
+  assert.match(shellSource, /item\.key === "board"[\s\S]*currentRole === "admin"/);
+  assert.match(shellSource, /全校任务台账/);
 });

@@ -274,6 +274,14 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
     return currentUser?.teamGroupName ?? "未绑定项目组";
   };
 
+  const getSidebarTabLabel = (item: { key: string; label: string }) => {
+    if (item.key === "board" && (currentRole === "admin" || currentRole === "school_admin")) {
+      return "全校任务台账";
+    }
+
+    return item.label;
+  };
+
   if (isBooting) {
     return (
       <main className="workspace-depth-bg relative flex min-h-screen items-center justify-center overflow-hidden px-4 py-6">
@@ -476,7 +484,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                       href={href}
                     >
                       <Icon className="h-[18px] w-[18px]" strokeWidth={2.1} />
-                      <span>{item.label}</span>
+                      <span>{getSidebarTabLabel(item)}</span>
                     </Link>
                   );
                 })}
@@ -551,7 +559,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                       onClick={() => setMobileSidebarOpen(false)}
                     >
                       <Icon className="h-[18px] w-[18px]" strokeWidth={2.1} />
-                      <span>{item.label}</span>
+                      <span>{getSidebarTabLabel(item)}</span>
                     </Link>
                   );
                 })}

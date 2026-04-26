@@ -5,6 +5,8 @@ import * as Workspace from "@/components/workspace-context";
 export default function ExpertOpinionTab() {
   const {
     experts,
+    currentRole,
+    teamGroups,
     setExpertModalOpen,
     setExpertDraft,
     setExpertFiles,
@@ -33,7 +35,131 @@ export default function ExpertOpinionTab() {
     ActionButton,
   } = Workspace;
 
-const renderExperts = () => (
+  const isGlobalExpertOpinionView = currentRole === "admin" || currentRole === "school_admin";
+  const expertOpinionGroups = isGlobalExpertOpinionView
+    ? [
+        {
+          id: "global",
+          title: "全校台账",
+          description: "校级统一整理、暂不指定项目组的专家意见。",
+          items: experts.filter((session) => !session.teamGroupId),
+        },
+        ...teamGroups.map((group) => ({
+          id: group.id,
+          title: group.name,
+          description: "指定给该项目组的专家意见，组内教师和学生可见。",
+          items: experts.filter((session) => session.teamGroupId === group.id),
+        })),
+      ].filter((group) => group.items.length > 0)
+    : [
+        {
+          id: "current-team",
+          title: "本组专家意见",
+          description: "本项目组沉淀的专家辅导、评审反馈与后续动作。",
+          items: experts,
+        },
+      ];
+
+  const renderExpertCard = (session: (typeof experts)[number]) => (
+    <article
+      key={session.id}
+      className={`expert-session-card relative ${surfaceCardClassName}`}
+    >
+      <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+        <div>
+          <p className="text-sm font-medium text-blue-600">
+            {session.date} · {session.format} · {session.teamGroupName ?? "全校台账"}
+          </p>
+          <h3 className="mt-1 text-base font-semibold text-slate-900">
+            {session.expert} · {session.topic}
+          </h3>
+        </div>
+        <div className="mt-1 flex flex-col items-start gap-3 md:mt-0 md:items-end">
+          {session.attachments.length > 0 ? (
+            <div className="relative">
+              <button
+                className="expert-attachment-trigger"
+                onClick={() =>
+                  setOpenExpertAttachmentMenuId((current) => (current === session.id ? null : session.id))
+                }
+                type="button"
+              >
+                <Paperclip className="h-4 w-4" />
+                <span>查看附件</span>
+                <ChevronDown className="h-4 w-4" />
+              </button>
+              {openExpertAttachmentMenuId === session.id ? (
+                <div className="document-view-menu absolute right-0 top-full z-20 mt-2 min-w-[260px] rounded-xl p-1">
+                  {session.attachments.map((attachment) => (
+                    <div className="flex items-center gap-2" key={attachment.id}>
+                      <button
+                        className="document-view-menu-item min-w-0 flex-1"
+                        disabled={!attachment.downloadUrl}
+                        onClick={() => {
+                          setOpenExpertAttachmentMenuId(null);
+                          if (attachment.downloadUrl) {
+                            handlePreviewDocument({
+                              downloadUrl: attachment.downloadUrl,
+                              fileName: attachment.fileName,
+                              mimeType: attachment.mimeType,
+                            });
+                          }
+                        }}
+                        title={attachment.fileName}
+                        type="button"
+                      >
+                        <span className="block truncate">{attachment.fileName}</span>
+                      </button>
+                      <button
+                        className="team-icon-button opacity-100"
+                        disabled={!attachment.downloadUrl}
+                        onClick={() => {
+                          setOpenExpertAttachmentMenuId(null);
+                          handleDownload(attachment.downloadUrl);
+                        }}
+                        title="下载附件"
+                        type="button"
+                      >
+                        <Download className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
+      </div>
+      <div className="mt-4 space-y-2">
+        <div className="expert-detail-row summary">
+          <MessageSquareText className="h-4 w-4 shrink-0" />
+          <div className="min-w-0">
+            <p className="text-xs font-medium text-slate-400">反馈摘要</p>
+            <p className="mt-1 text-sm leading-7 text-slate-600">{session.summary}</p>
+          </div>
+        </div>
+        <div className="expert-detail-row action">
+          <CheckCircle2 className="h-4 w-4 shrink-0" />
+          <div className="min-w-0">
+            <p className="text-xs font-medium text-slate-400">落实动作</p>
+            <p className="mt-1 text-sm leading-7 text-slate-600">{session.nextAction}</p>
+          </div>
+        </div>
+      </div>
+      {permissions.canDeleteExpert ? (
+        <button
+          className="expert-delete-button"
+          onClick={() => removeExpert(session.id, session.topic)}
+          title="删除意见"
+          type="button"
+        >
+          <Trash2 className="h-4 w-4" />
+        </button>
+      ) : null}
+    </article>
+  );
+
+  const renderExperts = () => (
     <div className="space-y-4">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <SectionHeader
@@ -62,104 +188,23 @@ const renderExperts = () => (
 
       <section className="space-y-4">
         {experts.length > 0 ? (
-          experts.map((session) => (
-            <article
-              key={session.id}
-              className={`expert-session-card relative ${surfaceCardClassName}`}
-            >
-              <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+          <div className="space-y-5">
+            {isGlobalExpertOpinionView ? (
+              <div className="rounded-xl border border-blue-100 bg-blue-50/70 px-4 py-3 text-sm leading-6 text-slate-600">
+                <p className="font-semibold text-slate-800">分组设置</p>
+                <p className="mt-1">录入时可设为全校台账，或指定到某个项目组；指定后该组教师和学生可见。</p>
+              </div>
+            ) : null}
+            {expertOpinionGroups.map((group) => (
+              <div className="space-y-3" key={group.id}>
                 <div>
-                  <p className="text-sm font-medium text-blue-600">
-                    {session.date} · {session.format} · {session.teamGroupName ?? "全校台账"}
-                  </p>
-                  <h3 className="mt-1 text-base font-semibold text-slate-900">
-                    {session.expert} · {session.topic}
-                  </h3>
+                  <h3 className="text-base font-semibold text-slate-900">{group.title}</h3>
+                  <p className="mt-1 text-sm text-slate-500">{group.description}</p>
                 </div>
-                <div className="mt-1 flex flex-col items-start gap-3 md:mt-0 md:items-end">
-                  {session.attachments.length > 0 ? (
-                    <div className="relative">
-                      <button
-                        className="expert-attachment-trigger"
-                        onClick={() =>
-                          setOpenExpertAttachmentMenuId((current) => (current === session.id ? null : session.id))
-                        }
-                        type="button"
-                      >
-                        <Paperclip className="h-4 w-4" />
-                        <span>查看附件</span>
-                        <ChevronDown className="h-4 w-4" />
-                      </button>
-                      {openExpertAttachmentMenuId === session.id ? (
-                        <div className="document-view-menu absolute right-0 top-full z-20 mt-2 min-w-[260px] rounded-xl p-1">
-                          {session.attachments.map((attachment) => (
-                            <div className="flex items-center gap-2" key={attachment.id}>
-                              <button
-                                className="document-view-menu-item min-w-0 flex-1"
-                                disabled={!attachment.downloadUrl}
-                                onClick={() => {
-                                  setOpenExpertAttachmentMenuId(null);
-                                  if (attachment.downloadUrl) {
-                                    handlePreviewDocument({
-                                      downloadUrl: attachment.downloadUrl,
-                                      fileName: attachment.fileName,
-                                      mimeType: attachment.mimeType,
-                                    });
-                                  }
-                                }}
-                                title={attachment.fileName}
-                                type="button"
-                              >
-                                <span className="block truncate">{attachment.fileName}</span>
-                              </button>
-                              <button
-                                className="team-icon-button opacity-100"
-                                disabled={!attachment.downloadUrl}
-                                onClick={() => {
-                                  setOpenExpertAttachmentMenuId(null);
-                                  handleDownload(attachment.downloadUrl);
-                                }}
-                                title="下载附件"
-                                type="button"
-                              >
-                                <Download className="h-4 w-4" />
-                              </button>
-                            </div>
-                          ))}
-                        </div>
-                      ) : null}
-                    </div>
-                  ) : null}
-                </div>
+                <div className="space-y-4">{group.items.map(renderExpertCard)}</div>
               </div>
-              <div className="mt-4 space-y-2">
-                <div className="expert-detail-row summary">
-                  <MessageSquareText className="h-4 w-4 shrink-0" />
-                  <div className="min-w-0">
-                    <p className="text-xs font-medium text-slate-400">反馈摘要</p>
-                    <p className="mt-1 text-sm leading-7 text-slate-600">{session.summary}</p>
-                  </div>
-                </div>
-                <div className="expert-detail-row action">
-                  <CheckCircle2 className="h-4 w-4 shrink-0" />
-                  <div className="min-w-0">
-                    <p className="text-xs font-medium text-slate-400">落实动作</p>
-                    <p className="mt-1 text-sm leading-7 text-slate-600">{session.nextAction}</p>
-                  </div>
-                </div>
-              </div>
-              {permissions.canDeleteExpert ? (
-                <button
-                  className="expert-delete-button"
-                  onClick={() => removeExpert(session.id, session.topic)}
-                  title="删除意见"
-                  type="button"
-                >
-                  <Trash2 className="h-4 w-4" />
-                </button>
-              ) : null}
-            </article>
-          ))
+            ))}
+          </div>
         ) : (
           <EmptyState
             description="专家意见录入后会按权限范围展示，便于团队持续跟进。"
