@@ -2868,6 +2868,31 @@ a:hover {
   backdrop-filter: blur(14px);
 }
 
+.toast-center-card {
+  animation:
+    toast-pop 220ms ease-out,
+    toast-fade 240ms ease-in 1.95s forwards;
+}
+
+@keyframes toast-pop {
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.94);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes toast-fade {
+  to {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.98);
+  }
+}
+
 @media (max-width: 767px) {
   .timeline-item:not(:last-child)::before {
     left: 21px;

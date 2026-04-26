@@ -18,6 +18,7 @@ type ReviewGroup = {
   key: string;
   targetName: string;
   roundLabel: string;
+  startAt: string | null;
   deadline: string | null;
   overview: string;
   items: ExpertReviewAssignmentItem[];
@@ -99,6 +100,7 @@ const groupReviewAssignments = (assignments: ExpertReviewAssignmentItem[]) =>
         key: assignment.packageId,
         targetName: assignment.targetName,
         roundLabel: assignment.roundLabel,
+        startAt: assignment.startAt,
         deadline: assignment.deadline,
         overview: assignment.overview,
         items: [assignment],
@@ -128,6 +130,26 @@ const materialEntries = (assignment: ExpertReviewAssignmentItem) =>
     ["ppt", "路演材料", assignment.materials.ppt],
     ["video", "演示视频", assignment.materials.video],
   ] as const).filter(([, , material]) => Boolean(material));
+
+const getReviewWindowBlockMessage = (assignment: ExpertReviewAssignmentItem) => {
+  if (assignment.score) {
+    return null;
+  }
+
+  if (assignment.reviewWindowState === "not_started") {
+    return "当前不在评审时间段内，评审尚未开始。";
+  }
+
+  if (assignment.reviewWindowState === "ended" || assignment.statusKey === "locked") {
+    return "当前不在评审时间段内，评审已结束。";
+  }
+
+  if (assignment.statusKey !== "pending" || assignment.canEdit) {
+    return null;
+  }
+
+  return "当前不在评审时间段内，暂不能进入评审或提交分数。";
+};
 
 function StatusBadge({ statusKey }: { statusKey: ExpertReviewAssignmentItem["statusKey"] }) {
   const meta = {
@@ -245,6 +267,7 @@ export default function ExpertReviewTab() {
     currentUser,
     currentRole,
     reviewAssignments,
+    projectStages,
     canCreateReviewPackage,
     canManageReviewMaterials,
     openPreviewAsset,
@@ -283,6 +306,16 @@ export default function ExpertReviewTab() {
   const [reviewScreenActionKey, setReviewScreenActionKey] = useState<string | null>(null);
 
   const groupedAssignments = useMemo(() => groupReviewAssignments(reviewAssignments), [reviewAssignments]);
+  const assignmentsByStageId = useMemo(() => {
+    const map = new Map<string, ExpertReviewAssignmentItem[]>();
+    for (const assignment of reviewAssignments) {
+      if (!assignment.projectReviewStageId) {
+        continue;
+      }
+      map.set(assignment.projectReviewStageId, [...(map.get(assignment.projectReviewStageId) ?? []), assignment]);
+    }
+    return map;
+  }, [reviewAssignments]);
   const networkAssignments = reviewAssignments.filter((assignment) => !isRoadshowAssignment(assignment));
   const roadshowAssignments = reviewAssignments.filter((assignment) => isRoadshowAssignment(assignment));
   const selectedAssignment =
@@ -462,6 +495,12 @@ export default function ExpertReviewTab() {
   };
 
   const openMaterial = (assignment: ExpertReviewAssignmentItem, kind: "plan" | "ppt" | "video") => {
+    const windowBlockMessage = getReviewWindowBlockMessage(assignment);
+    if (windowBlockMessage) {
+      setLoadError(windowBlockMessage);
+      return;
+    }
+
     const material = assignment.materials[kind];
     if (!material) {
       setLoadError("当前评审材料暂未上传");
@@ -477,6 +516,12 @@ export default function ExpertReviewTab() {
   };
 
   const startNetworkReview = (assignment: ExpertReviewAssignmentItem) => {
+    const windowBlockMessage = getReviewWindowBlockMessage(assignment);
+    if (windowBlockMessage) {
+      setLoadError(windowBlockMessage);
+      return;
+    }
+
     setSelectedAssignmentId(assignment.id);
     setExpertMode("network-detail");
     setNetworkScoreDrafts((current) => ({
@@ -500,12 +545,17 @@ export default function ExpertReviewTab() {
         ? formatScoreForAssignment(activeRoadshowAssignment)
         : "",
     );
+    const windowBlockMessage = getReviewWindowBlockMessage(activeRoadshowAssignment);
+    if (windowBlockMessage) {
+      setLoadError(windowBlockMessage);
+      return;
+    }
     setExpertMode(activeRoadshowAssignment.statusKey === "pending" ? "roadshow-score" : "roadshow-done");
   };
 
   const prepareNetworkSubmission = (assignment: ExpertReviewAssignmentItem) => {
     if (assignment.score || assignment.statusKey !== "pending" || !assignment.canEdit) {
-      setLoadError("该评审已提交，不能修改");
+      setLoadError(getReviewWindowBlockMessage(assignment) ?? "该评审已提交，不能修改");
       return;
     }
 
@@ -536,7 +586,7 @@ export default function ExpertReviewTab() {
     }
 
     if (activeRoadshowAssignment.score || activeRoadshowAssignment.statusKey !== "pending" || !activeRoadshowAssignment.canEdit) {
-      setLoadError("该路演评分已提交，不能修改");
+      setLoadError(getReviewWindowBlockMessage(activeRoadshowAssignment) ?? "该路演评分已提交，不能修改");
       return;
     }
 
@@ -970,6 +1020,94 @@ export default function ExpertReviewTab() {
         </div>
       </section>
 
+      {canCreateReviewPackage && projectStages.length > 0 ? (
+        <section className="rounded-[28px] border border-blue-100 bg-white p-5 shadow-[0_14px_40px_rgba(15,23,42,0.05)]">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <p className="text-sm font-semibold text-blue-600">项目管理阶段</p>
+              <h3 className="mt-1 text-lg font-bold text-slate-950">可分配评审阶段</h3>
+              <p className="mt-2 text-sm text-slate-500">
+                项目管理创建网络评审或项目路演后，可在这里直接分配专家和设置独立评审时间。
+              </p>
+            </div>
+            <span className="rounded-full bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700">
+              {projectStages.length} 个阶段
+            </span>
+          </div>
+          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {projectStages.map((stage) => {
+              const configuredAssignments = assignmentsByStageId.get(stage.id) ?? [];
+              const reviewConfigStatus =
+                configuredAssignments.length > 0
+                  ? "configured"
+                  : stage.reviewConfig?.status ?? "unconfigured";
+              const reviewConfigStatusLabel =
+                reviewConfigStatus === "configured"
+                  ? "已配置"
+                  : reviewConfigStatus === "archived"
+                    ? "已归档"
+                    : "未配置";
+              const firstConfiguredGroup = configuredAssignments[0]?.packageId ?? null;
+              return (
+                <button
+                  className={`rounded-2xl border p-4 text-left transition hover:-translate-y-0.5 ${
+                    reviewConfigStatus === "configured"
+                      ? "border-blue-200 bg-blue-50/70 hover:bg-blue-50"
+                      : "border-slate-200 bg-slate-50 hover:border-blue-200 hover:bg-blue-50"
+                  }`}
+                  key={stage.id}
+                  onClick={() => {
+                    if (firstConfiguredGroup) {
+                      setActiveGroupKey(firstConfiguredGroup);
+                      return;
+                    }
+                    openReviewAssignmentModal(undefined, stage.id);
+                  }}
+                  type="button"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-base font-bold text-slate-950">{stage.name}</p>
+                      <p className="mt-2 text-sm text-slate-500">
+                        {stage.type === "roadshow" ? "项目路演" : "网络评审"}
+                      </p>
+                    </div>
+                    <span
+                      className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${
+                        stage.type === "roadshow"
+                          ? "bg-emerald-50 text-emerald-700"
+                          : "bg-blue-50 text-blue-700"
+                      }`}
+                    >
+                      {stage.type === "roadshow" ? "路演" : "网评"}
+                    </span>
+                  </div>
+                  <p className="mt-3 line-clamp-2 text-xs leading-5 text-slate-400">
+                    上传窗口：{stage.startAt ? formatDateTime(stage.startAt) : "未设置"} - {stage.deadline ? formatDateTime(stage.deadline) : "未设置"}
+                  </p>
+                  <div className="mt-3 flex items-center justify-between gap-3">
+                    <span
+                      className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+                        reviewConfigStatus === "configured"
+                          ? "bg-blue-100 text-blue-700"
+                          : reviewConfigStatus === "archived"
+                            ? "bg-slate-200 text-slate-600"
+                            : "bg-amber-50 text-amber-700"
+                      }`}
+                    >
+                      {reviewConfigStatusLabel}
+                    </span>
+                    <span className="text-sm font-semibold text-blue-600">
+                      {reviewConfigStatus === "configured" ? "查看已配置评审 →" : "分配专家并设置评审时间 →"}
+                    </span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      ) : null}
+
       {groupedAssignments.length === 0 ? (
         <section className="rounded-3xl border border-slate-200 bg-white p-8">
           <EmptyState description="从项目管理选择已生效材料并分配专家后，专家评分数据会显示在这里。" icon={FileCheck} title="暂无评审任务" />
@@ -1204,7 +1342,7 @@ export default function ExpertReviewTab() {
                   onClick={() => deleteReviewAssignment(activeGroup.items[0].id, activeGroup.targetName)}
                   type="button"
                 >
-                  删除当前评审包
+                  取消本阶段评审配置
                 </button>
               </div>
             ) : null}

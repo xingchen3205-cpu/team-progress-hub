@@ -55,6 +55,24 @@ const projectReviewStageInclude = {
   _count: {
     select: { submissions: true },
   },
+  packages: {
+    where: { status: { not: "cancelled" as const } },
+    select: {
+      id: true,
+      status: true,
+      deadline: true,
+      assignments: {
+        select: {
+          id: true,
+          score: {
+            select: {
+              lockedAt: true,
+            },
+          },
+        },
+      },
+    },
+  },
 };
 
 const parseOptionalDate = (value: unknown) => {
@@ -271,9 +289,36 @@ export async function DELETE(
   const { stageId } = await params;
 
   try {
-    await prisma.projectReviewStage.delete({
-      where: { id: stageId },
+    const result = await prisma.$transaction(async (tx) => {
+      const lockedScore = await tx.expertReviewScore.findFirst({
+        where: {
+          lockedAt: { not: null },
+          assignment: {
+            reviewPackage: {
+              projectReviewStageId: stageId,
+            },
+          },
+        },
+        select: { id: true },
+      });
+
+      if (lockedScore) {
+        return { locked: true };
+      }
+
+      await tx.expertReviewPackage.deleteMany({
+        where: { projectReviewStageId: stageId },
+      });
+      await tx.projectReviewStage.delete({
+        where: { id: stageId },
+      });
+
+      return { locked: false };
     });
+
+    if (result.locked) {
+      return NextResponse.json({ message: "已有正式评分，只能归档后保留数据" }, { status: 403 });
+    }
 
     return NextResponse.json({ success: true });
   } catch (error) {

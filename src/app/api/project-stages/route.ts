@@ -55,6 +55,24 @@ const projectReviewStageInclude = {
   _count: {
     select: { submissions: true },
   },
+  packages: {
+    where: { status: { not: "cancelled" as const } },
+    select: {
+      id: true,
+      status: true,
+      deadline: true,
+      assignments: {
+        select: {
+          id: true,
+          score: {
+            select: {
+              lockedAt: true,
+            },
+          },
+        },
+      },
+    },
+  },
 };
 
 const parseOptionalDate = (value: unknown) => {

@@ -36,6 +36,7 @@ export async function POST(
         select: {
           createdById: true,
           teamGroupId: true,
+          status: true,
         },
       },
     },
@@ -43,6 +44,10 @@ export async function POST(
 
   if (!assignment) {
     return NextResponse.json({ message: "评审任务不存在" }, { status: 404 });
+  }
+
+  if (assignment.reviewPackage.status !== "configured") {
+    return NextResponse.json({ message: "评审配置已取消，不能上传材料" }, { status: 409 });
   }
 
   if (

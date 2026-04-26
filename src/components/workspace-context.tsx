@@ -303,6 +303,7 @@ export type ExpertReviewAssignmentDraft = {
   teamGroupIds: string[];
   roundLabel: string;
   overview: string;
+  startAt: string;
   deadline: string;
 };
 
@@ -392,6 +393,13 @@ export type ProjectReviewStageItem = {
     name: string;
   } | null;
   submissionCount: number;
+  reviewConfig?: {
+    status: "unconfigured" | "configured" | "archived";
+    statusLabel: "未配置" | "已配置" | "已归档";
+    packageCount: number;
+    expertAssignmentCount: number;
+    deadline: string | null;
+  };
 };
 
 export type ProjectMaterialStatusKey = "pending" | "approved" | "rejected";
@@ -1475,9 +1483,11 @@ export const defaultExpertReviewAssignmentDraft = (
   teamGroupIds: [],
   roundLabel: "校内专家预审",
   overview: "",
+  startAt: getDefaultReviewAssignmentStartAt(),
   deadline: getDefaultReviewAssignmentDeadline(),
 });
 
+export const getDefaultReviewAssignmentStartAt = () => getBeijingDateTimeInputAtHour(new Date(), 9);
 export const getDefaultReviewAssignmentDeadline = () => getBeijingDateTimeInputAtHour(new Date(), 18);
 
 export const defaultExpertReviewMaterialDraft = (): ExpertReviewMaterialDraft => ({
@@ -1748,17 +1758,15 @@ export function SuccessToast({ toast }: { toast: SuccessToastState }) {
   }
 
   return (
-    <div className="pointer-events-none fixed top-5 right-5 z-[80] w-[min(360px,calc(100vw-2rem))]">
-      <div className="depth-emphasis px-4 py-3">
-        <div className="flex items-start gap-3">
-          <div className="relative mt-0.5 flex h-10 w-10 items-center justify-center rounded-full bg-white text-[#1a6fd4] shadow-[0_12px_28px_rgba(26,111,212,0.18)]">
-            <span className="absolute inset-0 rounded-full bg-[#1a6fd4]/12 animate-ping" />
-            <CheckCircle2 className="relative h-5 w-5" />
+    <div className="pointer-events-none fixed inset-0 z-[80] flex items-center justify-center px-4">
+      <div className="toast-center-card animate-[toast-pop_220ms_ease-out] rounded-[28px] border border-emerald-100 bg-white px-7 py-6 text-center shadow-[0_28px_80px_rgba(15,23,42,0.22)]">
+        <div className="flex flex-col items-center">
+          <div className="relative flex h-16 w-16 items-center justify-center rounded-full bg-emerald-50 text-emerald-600 shadow-[0_16px_32px_rgba(16,185,129,0.18)]">
+            <span className="absolute inset-0 rounded-full bg-emerald-400/15 animate-ping" />
+            <CheckCircle2 className="relative h-9 w-9" />
           </div>
-          <div className="min-w-0">
-            <p className="text-sm font-semibold text-slate-900">{toast.title}</p>
-            {toast.detail ? <p className="mt-1 text-sm leading-6 text-slate-500">{toast.detail}</p> : null}
-          </div>
+          <p className="mt-5 text-base font-bold text-slate-950">{toast.title}</p>
+          {toast.detail ? <p className="mt-2 max-w-sm text-sm leading-6 text-slate-500">{toast.detail}</p> : null}
         </div>
       </div>
     </div>
@@ -1778,20 +1786,18 @@ export function ErrorToast({
 
   return (
     <div
-      className="fixed left-1/2 top-6 z-[90] w-[min(520px,calc(100vw-2rem))] -translate-x-1/2"
+      className="pointer-events-none fixed inset-0 z-[90] flex items-center justify-center px-4"
       role="alert"
     >
-      <div className="rounded-2xl border border-rose-100 bg-white px-4 py-4 shadow-[0_20px_55px_rgba(225,29,72,0.18)]">
-        <div className="flex items-start gap-3">
-          <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-rose-50 text-rose-600">
-            <X className="h-5 w-5" />
+      <div className="toast-center-card pointer-events-auto animate-[toast-pop_220ms_ease-out] rounded-[28px] border border-rose-100 bg-white px-7 py-6 text-center shadow-[0_28px_80px_rgba(225,29,72,0.22)]">
+        <div className="flex flex-col items-center">
+          <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full bg-rose-50 text-rose-600 shadow-[0_16px_32px_rgba(225,29,72,0.14)]">
+            <X className="h-9 w-9" />
           </div>
-          <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold text-slate-950">操作未完成</p>
-            <p className="mt-1 text-sm leading-6 text-slate-600">{message}</p>
-          </div>
+          <p className="mt-5 text-base font-bold text-slate-950">操作未完成</p>
+          <p className="mt-2 max-w-sm text-sm leading-6 text-slate-600">{message}</p>
           <button
-            className="rounded-lg px-2 py-1 text-xs font-semibold text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+            className="mt-5 rounded-xl border border-slate-200 bg-white px-5 py-2 text-sm font-semibold text-slate-500 transition hover:bg-slate-50 hover:text-slate-700"
             onClick={onDismiss}
             type="button"
           >
@@ -2159,6 +2165,18 @@ function useWorkspaceController({
 
     return () => window.clearTimeout(timer);
   }, [successToast]);
+
+  useEffect(() => {
+    if (!loadError) {
+      return;
+    }
+
+    const timer = window.setTimeout(() => {
+      setLoadError(null);
+    }, 2200);
+
+    return () => window.clearTimeout(timer);
+  }, [loadError]);
 
   const showSuccessToast = (title: string, detail?: string) => {
     setLoadError(null);
@@ -5256,7 +5274,10 @@ function useWorkspaceController({
     }
   };
 
-  const openReviewAssignmentModal = (assignmentsToEdit?: ExpertReviewAssignmentItem[]) => {
+  const openReviewAssignmentModal = (
+    assignmentsToEdit?: ExpertReviewAssignmentItem[],
+    initialStageId?: string,
+  ) => {
     const editAssignments = assignmentsToEdit?.filter(Boolean) ?? [];
 
     if (editAssignments.length > 0) {
@@ -5266,11 +5287,14 @@ function useWorkspaceController({
         expertUserId: firstAssignment.expert.id,
         expertUserIds: editAssignments.map((assignment) => assignment.expert.id),
         targetName: firstAssignment.targetName,
-        stageId: "",
+        stageId: firstAssignment.projectReviewStageId ?? "",
         materialSubmissionIds: [],
         teamGroupIds: [],
         roundLabel: firstAssignment.roundLabel,
         overview: firstAssignment.overview,
+        startAt: firstAssignment.startAt
+          ? formatBeijingDateTimeInput(firstAssignment.startAt)
+          : getDefaultReviewAssignmentStartAt(),
         deadline: firstAssignment.deadline
           ? formatBeijingDateTimeInput(firstAssignment.deadline)
           : getDefaultReviewAssignmentDeadline(),
@@ -5280,7 +5304,13 @@ function useWorkspaceController({
     }
 
     setReviewAssignmentEditAssignmentId(null);
-    setReviewAssignmentDraft(defaultExpertReviewAssignmentDraft(expertMembers[0]?.id ?? ""));
+    const initialStage = projectStages.find((stage) => stage.id === initialStageId) ?? null;
+    const baseDraft = defaultExpertReviewAssignmentDraft(expertMembers[0]?.id ?? "");
+    setReviewAssignmentDraft({
+      ...baseDraft,
+      stageId: initialStageId ?? "",
+      roundLabel: initialStage?.name ?? baseDraft.roundLabel,
+    });
     setReviewAssignmentModalOpen(true);
   };
 
@@ -5288,6 +5318,25 @@ function useWorkspaceController({
     if (reviewAssignmentEditAssignmentId) {
       if (reviewAssignmentDraft.expertUserIds.length === 0) {
         setLoadError("请至少保留一位评审专家");
+        return;
+      }
+
+      if (!reviewAssignmentDraft.startAt || !reviewAssignmentDraft.deadline) {
+        setLoadError("请设置专家评审开始时间和截止时间");
+        return;
+      }
+
+      if (new Date(reviewAssignmentDraft.deadline).getTime() <= new Date(reviewAssignmentDraft.startAt).getTime()) {
+        setLoadError("评审截止时间必须晚于评审开始时间");
+        return;
+      }
+
+      const selectedStage = projectStages.find((stage) => stage.id === reviewAssignmentDraft.stageId) ?? null;
+      if (
+        selectedStage?.deadline &&
+        new Date(reviewAssignmentDraft.startAt).getTime() < new Date(selectedStage.deadline).getTime()
+      ) {
+        setLoadError("评审开始时间不能早于项目材料上传截止时间");
         return;
       }
 
@@ -5299,6 +5348,9 @@ function useWorkspaceController({
             expertUserIds: reviewAssignmentDraft.expertUserIds,
             roundLabel: reviewAssignmentDraft.roundLabel.trim(),
             overview: reviewAssignmentDraft.overview.trim(),
+            startAt: reviewAssignmentDraft.startAt
+              ? new Date(reviewAssignmentDraft.startAt).toISOString()
+              : null,
             deadline: reviewAssignmentDraft.deadline
               ? new Date(reviewAssignmentDraft.deadline).toISOString()
               : null,
@@ -5308,7 +5360,7 @@ function useWorkspaceController({
         setReviewAssignmentModalOpen(false);
         setReviewAssignmentEditAssignmentId(null);
         setReviewAssignmentDraft(defaultExpertReviewAssignmentDraft(expertMembers[0]?.id ?? ""));
-        showSuccessToast("评审包已更新", "截止时间、说明和专家名单已同步到专家端。");
+        showSuccessToast("评审包已更新", "评审时间、说明和专家名单已同步到专家端。");
         refreshWorkspace("reviewAssignments");
       } catch (error) {
         setLoadError(error instanceof Error ? error.message : "评审任务更新失败");
@@ -5339,6 +5391,24 @@ function useWorkspaceController({
       return;
     }
 
+    if (!reviewAssignmentDraft.startAt || !reviewAssignmentDraft.deadline) {
+      setLoadError("请设置专家评审开始时间和截止时间");
+      return;
+    }
+
+    if (new Date(reviewAssignmentDraft.deadline).getTime() <= new Date(reviewAssignmentDraft.startAt).getTime()) {
+      setLoadError("评审截止时间必须晚于评审开始时间");
+      return;
+    }
+
+    if (
+      selectedStage?.deadline &&
+      new Date(reviewAssignmentDraft.startAt).getTime() < new Date(selectedStage.deadline).getTime()
+    ) {
+      setLoadError("评审开始时间不能早于项目材料上传截止时间");
+      return;
+    }
+
     setIsSaving(true);
     try {
       await requestJson("/api/expert-reviews/assignments", {
@@ -5350,6 +5420,9 @@ function useWorkspaceController({
           expertUserIds: reviewAssignmentDraft.expertUserIds,
           roundLabel: reviewAssignmentDraft.roundLabel.trim(),
           overview: reviewAssignmentDraft.overview.trim(),
+          startAt: reviewAssignmentDraft.startAt
+            ? new Date(reviewAssignmentDraft.startAt).toISOString()
+            : undefined,
           deadline: reviewAssignmentDraft.deadline
             ? new Date(reviewAssignmentDraft.deadline).toISOString()
             : undefined,
@@ -5494,11 +5567,11 @@ function useWorkspaceController({
   const deleteReviewAssignment = (assignmentId: string, targetName: string) => {
     setConfirmDialog({
       open: true,
-      title: "删除专家评审包",
-      message: `确认删除专家评审包「${targetName}」？相关指派、评分与临时材料都会一起清除。`,
-      confirmLabel: "确认删除",
-      successTitle: "评审包已删除",
-      successDetail: "相关指派、评分和材料已经一并清理。",
+      title: "取消本阶段评审配置",
+      message: `确认取消「${targetName}」的本阶段评审配置？项目管理阶段和学生已生效材料会保留，专家分配、评审时间和投屏链接会失效，之后可重新配置。`,
+      confirmLabel: "确认取消配置",
+      successTitle: "评审配置已取消",
+      successDetail: "项目阶段仍保留，可重新分配专家并设置评审时间。",
       onConfirm: () => deleteReviewAssignmentRequest(assignmentId),
     });
   };

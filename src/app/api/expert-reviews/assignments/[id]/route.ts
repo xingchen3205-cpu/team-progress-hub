@@ -8,7 +8,6 @@ import {
 import { assertRole } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { canAccessTeamScopedResource } from "@/lib/team-scope";
-import { deleteStoredFile } from "@/lib/uploads";
 
 const assignmentInclude = {
   expertUser: {
@@ -25,9 +24,12 @@ const assignmentInclude = {
       targetName: true,
       roundLabel: true,
       overview: true,
+      status: true,
+      startAt: true,
       deadline: true,
       projectReviewStage: {
         select: {
+          id: true,
           type: true,
         },
       },
@@ -82,6 +84,7 @@ export async function PATCH(
         expertUserIds?: string[];
         roundLabel?: string;
         overview?: string;
+        startAt?: string | null;
         deadline?: string | null;
       }
     | null;
@@ -107,8 +110,19 @@ export async function PATCH(
         : null
       : undefined;
 
+  const parsedStartAt =
+    body && "startAt" in body
+      ? body.startAt
+        ? new Date(body.startAt)
+        : null
+      : undefined;
+
+  if (parsedStartAt instanceof Date && Number.isNaN(parsedStartAt.getTime())) {
+    return NextResponse.json({ message: "评审开始时间格式无效" }, { status: 400 });
+  }
+
   if (parsedDeadline instanceof Date && Number.isNaN(parsedDeadline.getTime())) {
-    return NextResponse.json({ message: "截止时间格式无效" }, { status: 400 });
+    return NextResponse.json({ message: "评审截止时间格式无效" }, { status: 400 });
   }
 
   const assignment = await prisma.expertReviewAssignment.findUnique({
@@ -116,6 +130,11 @@ export async function PATCH(
     include: {
       reviewPackage: {
         include: {
+          projectReviewStage: {
+            select: {
+              deadline: true,
+            },
+          },
           assignments: {
             include: { score: true },
           },
@@ -126,6 +145,20 @@ export async function PATCH(
 
   if (!assignment) {
     return NextResponse.json({ message: "评审任务不存在" }, { status: 404 });
+  }
+
+  const effectiveStartAt = parsedStartAt === undefined ? assignment.reviewPackage.startAt : parsedStartAt;
+  const effectiveDeadline = parsedDeadline === undefined ? assignment.reviewPackage.deadline : parsedDeadline;
+  if (effectiveStartAt && effectiveDeadline && effectiveDeadline.getTime() <= effectiveStartAt.getTime()) {
+    return NextResponse.json({ message: "评审截止时间必须晚于评审开始时间" }, { status: 400 });
+  }
+
+  if (
+    assignment.reviewPackage.projectReviewStage?.deadline &&
+    effectiveStartAt &&
+    effectiveStartAt.getTime() < assignment.reviewPackage.projectReviewStage.deadline.getTime()
+  ) {
+    return NextResponse.json({ message: "评审开始时间不能早于项目材料上传截止时间" }, { status: 400 });
   }
 
   if (
@@ -163,6 +196,8 @@ export async function PATCH(
       data: {
         roundLabel: body?.roundLabel?.trim() || null,
         overview: body?.overview?.trim() || null,
+        status: "configured",
+        ...(parsedStartAt !== undefined ? { startAt: parsedStartAt } : {}),
         ...(parsedDeadline !== undefined ? { deadline: parsedDeadline } : {}),
       },
     });
@@ -206,7 +241,7 @@ export async function DELETE(
   }
 
   try {
-    assertRole(user.role, ["admin", "school_admin", "teacher", "leader"]);
+    assertRole(user.role, ["admin", "school_admin"]);
   } catch {
     return NextResponse.json({ message: "无权限" }, { status: 403 });
   }
@@ -218,6 +253,12 @@ export async function DELETE(
       reviewPackage: {
         include: {
           materials: true,
+          displaySessions: true,
+          assignments: {
+            include: {
+              score: true,
+            },
+          },
         },
       },
     },
@@ -236,13 +277,31 @@ export async function DELETE(
     return NextResponse.json({ message: "无权限删除该评审任务" }, { status: 403 });
   }
 
-  const fileKeys = assignment.reviewPackage.materials.map((item) => item.filePath);
+  const hasLockedScore = assignment.reviewPackage.assignments.some((item) => item.score?.lockedAt);
+  if (hasLockedScore) {
+    return NextResponse.json({ message: "已有正式评分，不能取消本阶段评审配置" }, { status: 403 });
+  }
 
-  await prisma.expertReviewPackage.delete({
-    where: { id: assignment.packageId },
+  await prisma.$transaction(async (tx) => {
+    await tx.reviewDisplaySession.deleteMany({
+      where: { packageId: assignment.packageId },
+    });
+    await tx.expertReviewMaterial.deleteMany({
+      where: { packageId: assignment.packageId },
+    });
+    await tx.expertReviewAssignment.deleteMany({
+      where: { packageId: assignment.packageId },
+    });
+    await tx.expertReviewPackage.update({
+      where: { id: assignment.packageId },
+      data: {
+        status: "cancelled",
+        startAt: null,
+        deadline: null,
+        overview: null,
+      },
+    });
   });
-
-  await Promise.allSettled(fileKeys.map((fileKey) => deleteStoredFile(fileKey)));
 
   return NextResponse.json({ success: true });
 }

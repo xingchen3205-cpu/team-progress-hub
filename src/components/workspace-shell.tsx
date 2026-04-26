@@ -1445,9 +1445,6 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                       materialSubmissionIds: [],
                       teamGroupIds: [],
                       roundLabel: selectedStage?.name || current.roundLabel,
-                      deadline: selectedStage?.deadline
-                        ? Workspace.formatBeijingDateTimeInput(selectedStage.deadline)
-                        : current.deadline,
                     }));
                   }}
                 >
@@ -1473,7 +1470,18 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                 />
               </label>
               <label className="block text-sm text-slate-500">
-                截止时间
+                评审开始时间
+                <input
+                  className={fieldClassName}
+                  type="datetime-local"
+                  value={reviewAssignmentDraft.startAt}
+                  onChange={(event) =>
+                    setReviewAssignmentDraft((current) => ({ ...current, startAt: event.target.value }))
+                  }
+                />
+              </label>
+              <label className="block text-sm text-slate-500">
+                评审截止时间
                 <input
                   className={fieldClassName}
                   type="datetime-local"
@@ -1484,6 +1492,9 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                 />
               </label>
             </div>
+            <p className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-xs leading-6 text-blue-700">
+              评审时间与学生上传时间分开。上传时间只控制项目管理材料提交；专家仅能在这里设置的评审开始与截止时间内进入评审、查看材料并提交分数。
+            </p>
 
             {!isEditingReviewAssignment ? (
               selectedReviewStage?.type === "roadshow" ? (

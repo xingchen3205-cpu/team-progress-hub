@@ -119,9 +119,14 @@ test("workspace errors render as fixed popup instead of inline page banner", () 
 
   assert.match(contextSource, /export function ErrorToast/);
   assert.match(contextSource, /role="alert"/);
-  assert.match(contextSource, /fixed left-1\/2 top-6/);
+  assert.match(contextSource, /fixed inset-0 z-\[90\] flex items-center justify-center/);
+  assert.match(contextSource, /animate-\[toast-pop/);
+  assert.match(contextSource, /window\.setTimeout\(\(\) => \{\s*setLoadError\(null\);\s*\}, 2200\)/);
+  assert.match(contextSource, /export function SuccessToast/);
+  assert.match(contextSource, /fixed inset-0 z-\[80\] flex items-center justify-center/);
   assert.match(shellSource, /<ErrorToast message=\{loadError\}/);
   assert.doesNotMatch(shellSource, /loadError \? \(\s*<div className="[^"]*border-red-200 bg-red-50/);
+  assert.doesNotMatch(contextSource, /fixed top-5 right-5/);
 });
 
 test("overview main grid stretches columns and lets the notice card fill remaining height", () => {

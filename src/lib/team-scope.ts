@@ -75,20 +75,28 @@ export const buildExpertReviewAssignmentVisibilityWhere = (actor: TeamScopedActo
           { deadline: null },
           { deadline: { gt: now } },
         ],
+        status: { not: "cancelled" as const },
       },
     };
   }
 
   if (hasGlobalAdminPrivileges(actor.role)) {
-    return {};
+    return {
+      reviewPackage: {
+        status: { not: "cancelled" as const },
+      },
+    };
   }
 
   return {
-    reviewPackage: buildTeamScopedResourceWhere({
-      actor,
-      ownerField: "createdById",
-      includeUnassignedForGroupedUsers: true,
-    }),
+    reviewPackage: {
+      status: { not: "cancelled" as const },
+      ...buildTeamScopedResourceWhere({
+        actor,
+        ownerField: "createdById",
+        includeUnassignedForGroupedUsers: true,
+      }),
+    },
   };
 };
 

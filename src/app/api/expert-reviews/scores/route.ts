@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import {
   getExpertReviewLockState,
+  getExpertReviewWindowState,
   serializeExpertReviewAssignment,
 } from "@/lib/expert-review";
 import { assertRole } from "@/lib/permissions";
@@ -23,9 +24,12 @@ const assignmentInclude = {
       targetName: true,
       roundLabel: true,
       overview: true,
+      status: true,
+      startAt: true,
       deadline: true,
       projectReviewStage: {
         select: {
+          id: true,
           type: true,
         },
       },
@@ -103,8 +107,22 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: "无权限提交该评审任务" }, { status: 403 });
   }
 
+  if (assignment.reviewPackage.status !== "configured") {
+    return NextResponse.json({ message: "评审配置已取消，不能提交评分" }, { status: 409 });
+  }
+
   if (assignment.score) {
     return NextResponse.json({ message: "评分已提交，不能修改" }, { status: 409 });
+  }
+
+  const reviewWindowState = getExpertReviewWindowState({
+    startAt: assignment.reviewPackage.startAt,
+    deadline: assignment.reviewPackage.deadline,
+    lockedAt: null,
+  });
+
+  if (reviewWindowState.key === "not_started") {
+    return NextResponse.json({ message: "评审尚未开始，请在管理员设置的评审时间内提交" }, { status: 409 });
   }
 
   if (

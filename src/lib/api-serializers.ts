@@ -7,6 +7,7 @@ import type {
   Event,
   ExpertAttachment,
   ExpertFeedback,
+  ExpertReviewPackage,
   Notification,
   ProjectMaterialSubmission,
   ProjectReviewStage,
@@ -512,6 +513,16 @@ export const serializeTrainingSession = (
 type ProjectReviewStageWithRelations = ProjectReviewStage & {
   creator?: Pick<User, "id" | "name" | "avatar" | "role"> | null;
   teamGroup?: Pick<TeamGroup, "id" | "name"> | null;
+  packages?: Array<
+    Pick<ExpertReviewPackage, "id" | "status" | "deadline"> & {
+      assignments?: Array<{
+        id: string;
+        score?: {
+          lockedAt: Date | null;
+        } | null;
+      }>;
+    }
+  >;
   _count?: {
     submissions?: number;
   };
@@ -540,6 +551,20 @@ const serializeProjectMaterialUser = (
 export const serializeProjectReviewStage = (stage: ProjectReviewStageWithRelations) => {
   const stageMeta = parseProjectStageDescription(stage.description, stage.type);
   const hasStageMeta = stage.description?.startsWith("__PROJECT_STAGE_META__:");
+  const activePackages = stage.packages ?? [];
+  const configuredPackageCount = activePackages.filter((reviewPackage) => reviewPackage.status === "configured").length;
+  const archivedPackageCount = activePackages.filter((reviewPackage) => reviewPackage.status === "archived").length;
+  const expertAssignmentCount = activePackages.reduce(
+    (total, reviewPackage) => total + (reviewPackage.assignments?.length ?? 0),
+    0,
+  );
+  const hasLockedScore = activePackages.some((reviewPackage) =>
+    reviewPackage.assignments?.some((assignment) => Boolean(assignment.score?.lockedAt)),
+  );
+  const nearestReviewDeadline = activePackages
+    .map((reviewPackage) => reviewPackage.deadline)
+    .filter((deadline): deadline is Date => Boolean(deadline))
+    .sort((left, right) => left.getTime() - right.getTime())[0] ?? null;
 
   return {
     id: stage.id,
@@ -566,6 +591,23 @@ export const serializeProjectReviewStage = (stage: ProjectReviewStageWithRelatio
         }
       : null,
     submissionCount: stage._count?.submissions ?? 0,
+    reviewConfig: {
+      status:
+        archivedPackageCount > 0 || hasLockedScore
+          ? "archived"
+          : configuredPackageCount > 0
+            ? "configured"
+            : "unconfigured",
+      statusLabel:
+        archivedPackageCount > 0 || hasLockedScore
+          ? "已归档"
+          : configuredPackageCount > 0
+            ? "已配置"
+            : "未配置",
+      packageCount: activePackages.length,
+      expertAssignmentCount,
+      deadline: nearestReviewDeadline?.toISOString() ?? null,
+    },
   };
 };
 

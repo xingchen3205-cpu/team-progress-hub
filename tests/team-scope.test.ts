@@ -47,6 +47,7 @@ describe("team-scoped workspace visibility", () => {
       {
         reviewPackage: {
           OR: [{ createdById: "leader-1" }, { teamGroupId: "group-a" }, { teamGroupId: null }],
+          status: { not: "cancelled" },
         },
       },
     );
@@ -70,7 +71,10 @@ describe("team-scoped workspace visibility", () => {
         teamGroupId: null,
       }),
       {
-        reviewPackage: { createdById: "teacher-without-team" },
+        reviewPackage: {
+          createdById: "teacher-without-team",
+          status: { not: "cancelled" },
+        },
       },
     );
   });

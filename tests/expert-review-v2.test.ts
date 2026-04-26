@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, it } from "node:test";
 
-import { getExpertReviewMode } from "@/lib/expert-review";
+import { getExpertReviewMode, getExpertReviewWindowState } from "@/lib/expert-review";
 
 const readSource = (filePath: string) =>
   readFileSync(path.join(process.cwd(), filePath), "utf8");
@@ -186,20 +186,69 @@ describe("expert review v2 constraints", () => {
     assert.match(shellSource, /选择项目管理轮次/);
     assert.match(shellSource, /选择已生效项目材料/);
     assert.match(shellSource, /批量选择专家/);
+    assert.match(tabSource, /可分配评审阶段/);
+    assert.match(tabSource, /分配专家并设置评审时间/);
     assert.doesNotMatch(shellSource, /评审对象 \/ 项目名称/);
     assert.doesNotMatch(shellSource, /和主文档中心完全分离/);
     assert.match(tabSource, /项目管理已生效材料/);
   });
 
-  it("uses current Beijing date or selected project stage deadline instead of stale hardcoded review deadline", () => {
+  it("uses an independent expert review window instead of the project material upload window", () => {
     const contextSource = readSource("src/components/workspace-context.tsx");
     const shellSource = readSource("src/components/workspace-shell.tsx");
+    const routeSource = readSource("src/app/api/expert-reviews/assignments/route.ts");
 
     assert.doesNotMatch(contextSource, /2026-04-10T18:00/);
+    assert.match(contextSource, /getDefaultReviewAssignmentStartAt/);
     assert.match(contextSource, /getDefaultReviewAssignmentDeadline/);
     assert.match(contextSource, /formatBeijingDateTimeInput/);
-    assert.match(shellSource, /selectedStage\?\.deadline/);
-    assert.match(shellSource, /deadline:\s*selectedStage\?\.deadline\s*\?/);
+    assert.match(shellSource, /评审开始时间/);
+    assert.match(shellSource, /评审截止时间/);
+    assert.match(shellSource, /与学生上传时间分开/);
+    assert.match(routeSource, /startAt\?:\s*string/);
+    assert.match(routeSource, /const startAt = body\?\.startAt \? new Date\(body\.startAt\) : null/);
+    assert.match(routeSource, /const effectiveStartAt = startAt/);
+    assert.match(routeSource, /startAt:\s*effectiveStartAt/);
+    assert.doesNotMatch(routeSource, /startAt:\s*projectReviewStage\.startAt/);
+    assert.doesNotMatch(routeSource, /const effectiveDeadline = deadline \?\? projectReviewStage\.deadline/);
+    assert.doesNotMatch(shellSource, /deadline:\s*selectedStage\?\.deadline\s*\?/);
+  });
+
+  it("blocks expert entry and scoring outside the configured review window", () => {
+    const scoreRouteSource = readSource("src/app/api/expert-reviews/scores/route.ts");
+    const materialRouteSource = readSource("src/app/api/expert-reviews/assignments/[id]/materials/[kind]/route.ts");
+    const tabSource = readSource("src/components/tabs/expert-review-tab.tsx");
+
+    assert.equal(
+      getExpertReviewWindowState({
+        startAt: "2026-04-30T09:00:00.000Z",
+        deadline: "2026-05-01T09:00:00.000Z",
+        now: new Date("2026-04-29T09:00:00.000Z"),
+      }).key,
+      "not_started",
+    );
+    assert.equal(
+      getExpertReviewWindowState({
+        startAt: "2026-04-30T09:00:00.000Z",
+        deadline: "2026-05-01T09:00:00.000Z",
+        now: new Date("2026-04-30T10:00:00.000Z"),
+      }).key,
+      "open",
+    );
+    assert.equal(
+      getExpertReviewWindowState({
+        startAt: "2026-04-30T09:00:00.000Z",
+        deadline: "2026-05-01T09:00:00.000Z",
+        now: new Date("2026-05-01T09:00:00.000Z"),
+      }).key,
+      "ended",
+    );
+    assert.match(scoreRouteSource, /getExpertReviewWindowState/);
+    assert.match(scoreRouteSource, /评审尚未开始/);
+    assert.match(materialRouteSource, /getExpertReviewWindowState/);
+    assert.match(materialRouteSource, /评审尚未开始/);
+    assert.match(tabSource, /getReviewWindowBlockMessage/);
+    assert.match(tabSource, /当前不在评审时间段内/);
   });
 
   it("allows administrators to edit review packages without deleting submitted expert scores", () => {
@@ -213,5 +262,47 @@ describe("expert review v2 constraints", () => {
     assert.match(contextSource, /reviewAssignmentEditAssignmentId/);
     assert.match(contextSource, /method:\s*"PATCH"/);
     assert.match(tabSource, /编辑当前评审包/);
+  });
+
+  it("treats project stages as the source and cancelled expert review packages as reconfigurable children", () => {
+    const schemaSource = readSource("prisma/schema.prisma");
+    const assignmentRouteSource = readSource("src/app/api/expert-reviews/assignments/route.ts");
+    const assignmentItemRouteSource = readSource("src/app/api/expert-reviews/assignments/[id]/route.ts");
+    const teamScopeSource = readSource("src/lib/team-scope.ts");
+    const tabSource = readSource("src/components/tabs/expert-review-tab.tsx");
+
+    assert.match(schemaSource, /enum ExpertReviewPackageStatus/);
+    assert.match(schemaSource, /configured/);
+    assert.match(schemaSource, /cancelled/);
+    assert.match(schemaSource, /status\s+ExpertReviewPackageStatus\s+@default\(configured\)/);
+    assert.match(assignmentRouteSource, /existingReviewPackages/);
+    assert.match(assignmentRouteSource, /status:\s*"configured"/);
+    assert.match(assignmentRouteSource, /status\s*===\s*"cancelled"/);
+    assert.match(assignmentRouteSource, /该阶段已存在评审配置，请编辑当前评审包/);
+    assert.match(assignmentItemRouteSource, /取消本阶段评审配置/);
+    assert.match(assignmentItemRouteSource, /status:\s*"cancelled"/);
+    assert.match(assignmentItemRouteSource, /reviewDisplaySession\.deleteMany/);
+    assert.match(assignmentItemRouteSource, /expertReviewAssignment\.deleteMany/);
+    assert.doesNotMatch(assignmentItemRouteSource, /expertReviewPackage\.delete\(/);
+    assert.match(teamScopeSource, /status:\s*\{\s*not:\s*"cancelled"(?:\s+as const)?\s*\}/);
+    assert.match(tabSource, /取消本阶段评审配置/);
+    assert.match(tabSource, /已配置/);
+    assert.match(tabSource, /未配置/);
+  });
+
+  it("keeps upload windows and expert review windows separate with backend enforcement", () => {
+    const assignmentRouteSource = readSource("src/app/api/expert-reviews/assignments/route.ts");
+    const assignmentItemRouteSource = readSource("src/app/api/expert-reviews/assignments/[id]/route.ts");
+    const stageDeleteRouteSource = readSource("src/app/api/project-stages/[stageId]/route.ts");
+
+    assert.match(assignmentRouteSource, /projectReviewStage\.deadline/);
+    assert.match(assignmentRouteSource, /评审开始时间不能早于项目材料上传截止时间/);
+    assert.match(assignmentItemRouteSource, /assignment\.reviewPackage\.projectReviewStage\?\.deadline/);
+    assert.match(assignmentItemRouteSource, /评审开始时间不能早于项目材料上传截止时间/);
+    assert.match(stageDeleteRouteSource, /expertReviewScore\.findFirst/);
+    assert.match(stageDeleteRouteSource, /已有正式评分，只能归档后保留数据/);
+    assert.match(stageDeleteRouteSource, /prisma\.\$transaction/);
+    assert.match(stageDeleteRouteSource, /expertReviewPackage\.deleteMany/);
+    assert.match(stageDeleteRouteSource, /projectReviewStage\.delete/);
   });
 });

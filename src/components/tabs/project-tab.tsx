@@ -323,7 +323,7 @@ export default function ProjectTab() {
     setConfirmDialog({
       open: true,
       title: "删除项目阶段",
-      message: `确认删除「${stage.name}」？该阶段下的项目材料记录也会被一并删除。`,
+      message: `确认删除「${stage.name}」？删除该阶段会同步删除对应专家评审配置、专家任务、投屏链接和未锁定评分记录；如已有正式评分，系统会拒绝删除并要求归档保留数据。`,
       confirmLabel: "确认删除",
       successTitle: "项目阶段已删除",
       onConfirm: async () => {
@@ -1045,6 +1045,28 @@ export default function ProjectTab() {
                       {stage.deadline ? `截止 ${formatDateTime(stage.deadline)}` : "未设置截止时间"} · 已提交{" "}
                       {stage.submissionCount} 份
                     </p>
+                    {stage.reviewConfig ? (
+                      <div className="mt-3 flex flex-wrap items-center gap-2 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2 text-xs">
+                        <span className="font-semibold text-slate-500">评审状态：</span>
+                        <span
+                          className={`rounded-full px-2 py-0.5 font-semibold ${
+                            stage.reviewConfig.status === "configured"
+                              ? "bg-blue-50 text-blue-700"
+                              : stage.reviewConfig.status === "archived"
+                                ? "bg-slate-200 text-slate-600"
+                                : "bg-amber-50 text-amber-700"
+                          }`}
+                        >
+                          {stage.reviewConfig.statusLabel}
+                        </span>
+                        {stage.reviewConfig.status === "configured" ? (
+                          <span className="text-slate-500">
+                            {stage.reviewConfig.expertAssignmentCount} 位专家
+                            {stage.reviewConfig.deadline ? `，截止 ${formatDateTime(stage.reviewConfig.deadline)}` : ""}
+                          </span>
+                        ) : null}
+                      </div>
+                    ) : null}
                   </div>
                   {canManageStages ? (
                     <div className="flex items-center gap-2">

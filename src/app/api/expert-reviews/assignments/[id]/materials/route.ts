@@ -28,9 +28,12 @@ const assignmentInclude = {
       targetName: true,
       roundLabel: true,
       overview: true,
+      status: true,
+      startAt: true,
       deadline: true,
       projectReviewStage: {
         select: {
+          id: true,
           type: true,
         },
       },
@@ -113,6 +116,10 @@ export async function POST(
 
   if (!assignment) {
     return NextResponse.json({ message: "评审任务不存在" }, { status: 404 });
+  }
+
+  if (assignment.reviewPackage.status !== "configured") {
+    return NextResponse.json({ message: "评审配置已取消，不能维护材料" }, { status: 409 });
   }
 
   if (
@@ -353,6 +360,7 @@ export async function DELETE(
         select: {
           createdById: true,
           teamGroupId: true,
+          status: true,
         },
       },
     },
@@ -360,6 +368,10 @@ export async function DELETE(
 
   if (!assignment) {
     return NextResponse.json({ message: "评审任务不存在" }, { status: 404 });
+  }
+
+  if (assignment.reviewPackage.status !== "configured") {
+    return NextResponse.json({ message: "评审配置已取消，不能维护材料" }, { status: 409 });
   }
 
   if (

@@ -31,9 +31,12 @@ const assignmentInclude = {
       targetName: true,
       roundLabel: true,
       overview: true,
+      status: true,
+      startAt: true,
       deadline: true,
       projectReviewStage: {
         select: {
+          id: true,
           type: true,
         },
       },
@@ -114,6 +117,7 @@ export async function POST(request: NextRequest) {
         targetName?: string;
         roundLabel?: string;
         overview?: string;
+        startAt?: string;
         deadline?: string;
       }
     | null;
@@ -150,10 +154,19 @@ export async function POST(request: NextRequest) {
   const targetName = body?.targetName?.trim();
   const roundLabel = body?.roundLabel?.trim() || null;
   const overview = body?.overview?.trim() || null;
+  const startAt = body?.startAt ? new Date(body.startAt) : null;
   const deadline = body?.deadline ? new Date(body.deadline) : null;
 
+  if (startAt && Number.isNaN(startAt.getTime())) {
+    return NextResponse.json({ message: "评审开始时间格式无效" }, { status: 400 });
+  }
+
   if (deadline && Number.isNaN(deadline.getTime())) {
-    return NextResponse.json({ message: "截止时间格式无效" }, { status: 400 });
+    return NextResponse.json({ message: "评审截止时间格式无效" }, { status: 400 });
+  }
+
+  if (startAt && deadline && deadline.getTime() <= startAt.getTime()) {
+    return NextResponse.json({ message: "评审截止时间必须晚于评审开始时间" }, { status: 400 });
   }
 
   if (stageId || materialSubmissionIds.length > 0 || teamGroupIds.length > 0 || expertUserIds.length > 0) {
@@ -199,7 +212,19 @@ export async function POST(request: NextRequest) {
       overview ||
       stageMeta.description ||
       `来源于项目管理「${projectReviewStage.name}」已生效材料。`;
-    const effectiveDeadline = deadline ?? projectReviewStage.deadline ?? null;
+    const effectiveStartAt = startAt;
+    const effectiveDeadline = deadline;
+
+    if (!effectiveStartAt || !effectiveDeadline) {
+      return NextResponse.json({ message: "请设置专家评审开始时间和截止时间" }, { status: 400 });
+    }
+
+    if (
+      projectReviewStage.deadline &&
+      effectiveStartAt.getTime() < projectReviewStage.deadline.getTime()
+    ) {
+      return NextResponse.json({ message: "评审开始时间不能早于项目材料上传截止时间" }, { status: 400 });
+    }
 
     let selectedMaterials: Array<
       Awaited<ReturnType<typeof prisma.projectMaterialSubmission.findMany>>[number] & {
@@ -265,44 +290,89 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    const assignments = await prisma.$transaction(async (tx) => {
-      const materialGroups = new Map<string, typeof selectedMaterials>();
-      if (projectReviewStage.type !== "roadshow") {
-        for (const projectMaterialSubmission of selectedMaterials) {
-          const current = materialGroups.get(projectMaterialSubmission.teamGroupId) ?? [];
-          current.push(projectMaterialSubmission);
-          materialGroups.set(projectMaterialSubmission.teamGroupId, current);
-        }
+    const materialGroups = new Map<string, typeof selectedMaterials>();
+    if (projectReviewStage.type !== "roadshow") {
+      for (const projectMaterialSubmission of selectedMaterials) {
+        const current = materialGroups.get(projectMaterialSubmission.teamGroupId) ?? [];
+        current.push(projectMaterialSubmission);
+        materialGroups.set(projectMaterialSubmission.teamGroupId, current);
       }
+    }
 
-      const packageTargets =
-        projectReviewStage.type === "roadshow"
-          ? selectedTeamGroups.map((teamGroup) => ({
-              teamGroupId: teamGroup.id,
-              targetName: teamGroup.name,
-              materials: [] as typeof selectedMaterials,
-            }))
-          : Array.from(materialGroups.entries()).map(([teamGroupId, materials]) => ({
-              teamGroupId,
-              targetName: materials[0]?.teamGroup.name ?? "项目组",
-              materials,
-            }));
+    const packageTargets =
+      projectReviewStage.type === "roadshow"
+        ? selectedTeamGroups.map((teamGroup) => ({
+            teamGroupId: teamGroup.id,
+            targetName: teamGroup.name,
+            materials: [] as typeof selectedMaterials,
+          }))
+        : Array.from(materialGroups.entries()).map(([teamGroupId, materials]) => ({
+            teamGroupId,
+            targetName: materials[0]?.teamGroup.name ?? "项目组",
+            materials,
+          }));
+
+    const existingReviewPackages = await prisma.expertReviewPackage.findMany({
+      where: {
+        projectReviewStageId: projectReviewStage.id,
+        teamGroupId: { in: packageTargets.map((target) => target.teamGroupId) },
+      },
+      select: {
+        id: true,
+        teamGroupId: true,
+        status: true,
+      },
+    });
+
+    const existingConfiguredPackage = existingReviewPackages.find(
+      (reviewPackage) => reviewPackage.status === "configured" || reviewPackage.status === "archived",
+    );
+
+    if (existingConfiguredPackage) {
+      return NextResponse.json({ message: "该阶段已存在评审配置，请编辑当前评审包" }, { status: 409 });
+    }
+
+    const assignments = await prisma.$transaction(async (tx) => {
 
       const packageIds: string[] = [];
       for (const target of packageTargets) {
-        const reviewPackage = await tx.expertReviewPackage.create({
-          data: {
-            targetName: target.targetName,
-            roundLabel: effectiveRoundLabel,
-            overview: effectiveOverview,
-            startAt: projectReviewStage.startAt ?? null,
-            deadline: effectiveDeadline,
-            createdById: user.id,
-            teamGroupId: target.teamGroupId,
-            projectReviewStageId: projectReviewStage.id,
-          },
-          select: { id: true },
-        });
+        const reusablePackage = existingReviewPackages.find(
+          (reviewPackage) =>
+            reviewPackage.status === "cancelled" && reviewPackage.teamGroupId === target.teamGroupId,
+        );
+        if (reusablePackage) {
+          await tx.reviewDisplaySession.deleteMany({ where: { packageId: reusablePackage.id } });
+          await tx.expertReviewMaterial.deleteMany({ where: { packageId: reusablePackage.id } });
+          await tx.expertReviewAssignment.deleteMany({ where: { packageId: reusablePackage.id } });
+        }
+        const reviewPackage = reusablePackage
+          ? await tx.expertReviewPackage.update({
+              where: { id: reusablePackage.id },
+              data: {
+                targetName: target.targetName,
+                roundLabel: effectiveRoundLabel,
+                overview: effectiveOverview,
+                status: "configured",
+                startAt: effectiveStartAt,
+                deadline: effectiveDeadline,
+                createdById: user.id,
+              },
+              select: { id: true },
+            })
+          : await tx.expertReviewPackage.create({
+              data: {
+                targetName: target.targetName,
+                roundLabel: effectiveRoundLabel,
+                overview: effectiveOverview,
+                status: "configured",
+                startAt: effectiveStartAt,
+                deadline: effectiveDeadline,
+                createdById: user.id,
+                teamGroupId: target.teamGroupId,
+                projectReviewStageId: projectReviewStage.id,
+              },
+              select: { id: true },
+            });
         packageIds.push(reviewPackage.id);
 
         if (projectReviewStage.type === "online_review") {
@@ -379,6 +449,8 @@ export async function POST(request: NextRequest) {
         targetName,
         roundLabel,
         overview,
+        status: "configured",
+        startAt,
         deadline,
         createdById: user.id,
         teamGroupId: hasGlobalAdminPrivileges(user.role) ? null : user.teamGroupId,

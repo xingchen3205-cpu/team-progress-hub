@@ -56,6 +56,7 @@ export async function GET(request: NextRequest) {
         select: {
           targetName: true,
           roundLabel: true,
+          status: true,
           deadline: true,
         },
       },
@@ -133,6 +134,10 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: "评审项目不存在" }, { status: 404 });
   }
 
+  if (reviewPackage.status !== "configured") {
+    return NextResponse.json({ message: "评审配置已取消，不能生成大屏链接" }, { status: 409 });
+  }
+
   const projectReviewStageType = reviewPackage.projectReviewStage?.type ??
     (reviewPackage.materials.length === 0 ? "roadshow" : "online_review");
 
@@ -145,9 +150,8 @@ export async function POST(request: NextRequest) {
   }
 
   const now = new Date();
-  const startsAt = reviewPackage.projectReviewStage?.startAt ?? reviewPackage.startAt ?? now;
+  const startsAt = reviewPackage.startAt ?? now;
   const tokenExpiresAt =
-    reviewPackage.projectReviewStage?.deadline ??
     reviewPackage.deadline ??
     new Date(now.getTime() + 4 * 60 * 60 * 1000);
 

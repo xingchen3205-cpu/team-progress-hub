@@ -140,7 +140,7 @@ export type ExpertReviewMode = "network" | "roadshow";
 
 export const getExpertReviewMode = (
   assignment: Pick<ExpertReviewPackage, "targetName" | "roundLabel" | "overview"> & {
-    projectReviewStage?: Pick<ProjectReviewStage, "type"> | null;
+    projectReviewStage?: Pick<ProjectReviewStage, "id" | "type"> | null;
   },
 ): ExpertReviewMode => {
   if (assignment.projectReviewStage?.type === "roadshow") {
@@ -153,6 +153,39 @@ export const getExpertReviewMode = (
 
   const text = `${assignment.roundLabel ?? ""} ${assignment.targetName ?? ""} ${assignment.overview ?? ""}`;
   return /路演|答辩|现场|视频/i.test(text) ? "roadshow" : "network";
+};
+
+export type ExpertReviewWindowKey = "not_started" | "open" | "ended";
+
+export const getExpertReviewWindowState = ({
+  startAt,
+  deadline,
+  lockedAt,
+  now = new Date(),
+}: {
+  startAt?: Date | string | null;
+  deadline?: Date | string | null;
+  lockedAt?: Date | string | null;
+  now?: Date;
+}): {
+  key: ExpertReviewWindowKey;
+  label: "未开始" | "进行中" | "已结束";
+} => {
+  if (lockedAt) {
+    return { key: "ended", label: "已结束" };
+  }
+
+  const nowTime = now.getTime();
+
+  if (startAt && new Date(startAt).getTime() > nowTime) {
+    return { key: "not_started", label: "未开始" };
+  }
+
+  if (deadline && new Date(deadline).getTime() <= nowTime) {
+    return { key: "ended", label: "已结束" };
+  }
+
+  return { key: "open", label: "进行中" };
 };
 
 export const getExpertReviewLockState = ({
@@ -175,10 +208,12 @@ export const getExpertReviewLockState = ({
 
 export const getExpertReviewStatus = ({
   status,
+  startAt,
   deadline,
   score,
 }: {
   status: ExpertReviewAssignmentStatus;
+  startAt?: Date | string | null;
   deadline?: Date | string | null;
   score?: Pick<ExpertReviewScore, "lockedAt"> | null;
 }) => {
@@ -189,7 +224,10 @@ export const getExpertReviewStatus = ({
     };
   }
 
-  if (status === "locked" || getExpertReviewLockState({ deadline, lockedAt: null })) {
+  if (
+    status === "locked" ||
+    getExpertReviewWindowState({ startAt, deadline, lockedAt: null }).key === "ended"
+  ) {
     return {
       key: "locked" as const,
       label: "已锁定" as const,
@@ -227,8 +265,8 @@ export const validateExpertReviewScores = (payload: Record<ExpertReviewScoreFiel
 export const serializeExpertReviewAssignment = (
   assignment: ExpertReviewAssignment & {
     expertUser: Pick<User, "id" | "name" | "avatar" | "role">;
-    reviewPackage: Pick<ExpertReviewPackage, "id" | "targetName" | "roundLabel" | "overview" | "deadline"> & {
-      projectReviewStage?: Pick<ProjectReviewStage, "type"> | null;
+    reviewPackage: Pick<ExpertReviewPackage, "id" | "targetName" | "roundLabel" | "overview" | "status" | "startAt" | "deadline"> & {
+      projectReviewStage?: Pick<ProjectReviewStage, "id" | "type"> | null;
       materials: Array<
         Pick<
           ExpertReviewMaterial,
@@ -253,8 +291,14 @@ export const serializeExpertReviewAssignment = (
 ) => {
   const derivedStatus = getExpertReviewStatus({
     status: assignment.status,
+    startAt: assignment.reviewPackage.startAt,
     deadline: assignment.reviewPackage.deadline,
     score: assignment.score,
+  });
+  const reviewWindowState = getExpertReviewWindowState({
+    startAt: assignment.reviewPackage.startAt,
+    deadline: assignment.reviewPackage.deadline,
+    lockedAt: assignment.score?.lockedAt ?? null,
   });
   const planMaterial = assignment.reviewPackage.materials.find((item) => item.kind === "plan") ?? null;
   const pptMaterial = assignment.reviewPackage.materials.find((item) => item.kind === "ppt") ?? null;
@@ -263,14 +307,19 @@ export const serializeExpertReviewAssignment = (
   return {
     id: assignment.id,
     packageId: assignment.reviewPackage.id,
+    packageStatus: assignment.reviewPackage.status,
+    projectReviewStageId: assignment.reviewPackage.projectReviewStage?.id ?? null,
     targetName: assignment.reviewPackage.targetName,
     roundLabel: assignment.reviewPackage.roundLabel ?? "当前轮次",
     overview: assignment.reviewPackage.overview ?? "",
     reviewMode: getExpertReviewMode(assignment.reviewPackage),
+    startAt: assignment.reviewPackage.startAt?.toISOString() ?? null,
     deadline: assignment.reviewPackage.deadline?.toISOString() ?? null,
+    reviewWindowState: reviewWindowState.key,
+    reviewWindowLabel: reviewWindowState.label,
     status: derivedStatus.label,
     statusKey: derivedStatus.key,
-    canEdit: derivedStatus.key === "pending" && !assignment.score,
+    canEdit: derivedStatus.key === "pending" && reviewWindowState.key === "open" && !assignment.score,
     expert: {
       id: assignment.expertUser.id,
       name: assignment.expertUser.name,

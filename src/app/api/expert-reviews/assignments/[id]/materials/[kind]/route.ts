@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { getSessionUser } from "@/lib/auth";
 import { buildInlineDisposition } from "@/lib/downloads";
-import { getExpertReviewLockState } from "@/lib/expert-review";
+import { getExpertReviewLockState, getExpertReviewWindowState } from "@/lib/expert-review";
 import { assertRole } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { canAccessTeamScopedResource } from "@/lib/team-scope";
@@ -50,8 +50,22 @@ export async function GET(
     return NextResponse.json({ message: "评审任务不存在" }, { status: 404 });
   }
 
+  if (assignment.reviewPackage.status !== "configured") {
+    return NextResponse.json({ message: "评审配置已取消，材料查看权限已关闭" }, { status: 410 });
+  }
+
   if (user.role === "expert" && assignment.expertUserId !== user.id) {
     return NextResponse.json({ message: "无权限查看该材料" }, { status: 403 });
+  }
+
+  if (
+    user.role === "expert" &&
+    getExpertReviewWindowState({
+      startAt: assignment.reviewPackage.startAt,
+      deadline: assignment.reviewPackage.deadline,
+    }).key === "not_started"
+  ) {
+    return NextResponse.json({ message: "评审尚未开始，材料查看权限暂未开放" }, { status: 409 });
   }
 
   if (

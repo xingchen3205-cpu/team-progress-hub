@@ -350,6 +350,13 @@ test("project material serializers emit stable api payloads", () => {
       },
       teamGroup: { id: "group-1", name: "智在必行" },
       submissionCount: 2,
+      reviewConfig: {
+        status: "unconfigured",
+        statusLabel: "未配置",
+        packageCount: 0,
+        expertAssignmentCount: 0,
+        deadline: null,
+      },
     },
   );
 
@@ -731,7 +738,7 @@ test("project stage api routes expose management actions", () => {
   assert.match(stageItemRoute, /canManageProjectReviewStage\(user\.role\)/);
   assert.match(stageItemRoute, /prisma\.projectReviewStage\s*\.\s*update/);
   assert.match(stageItemRoute, /prisma\.projectReviewStage\s*\.\s*findFirst/);
-  assert.match(stageItemRoute, /prisma\.projectReviewStage\s*\.\s*delete/);
+  assert.match(stageItemRoute, /tx\.projectReviewStage\s*\.\s*delete/);
   assert.doesNotMatch(stageItemRoute, /接口待实现/);
   assert.doesNotMatch(stageItemRoute, /status:\s*501/);
   assert.match(stageItemRoute, /typeof body\?\.name !== "string"/);

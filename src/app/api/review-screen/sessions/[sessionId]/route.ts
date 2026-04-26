@@ -29,6 +29,7 @@ export async function GET(
           targetName: true,
           roundLabel: true,
           overview: true,
+          status: true,
           startAt: true,
           deadline: true,
         },
@@ -60,6 +61,10 @@ export async function GET(
 
   if (!session || session.tokenHash !== hashReviewScreenToken(token)) {
     return NextResponse.json({ message: "链接无效" }, { status: 404 });
+  }
+
+  if (session.reviewPackage.status !== "configured") {
+    return NextResponse.json({ message: "评审配置已取消，链接已失效" }, { status: 410 });
   }
 
   const now = new Date();

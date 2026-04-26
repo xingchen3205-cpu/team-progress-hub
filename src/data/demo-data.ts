@@ -237,11 +237,16 @@ export type ExpertItem = {
 export type ExpertReviewAssignmentItem = {
   id: string;
   packageId: string;
+  packageStatus?: "configured" | "cancelled" | "archived";
+  projectReviewStageId?: string | null;
   targetName: string;
   roundLabel: string;
   overview: string;
   reviewMode?: "network" | "roadshow";
+  startAt: string | null;
   deadline: string | null;
+  reviewWindowState?: "not_started" | "open" | "ended";
+  reviewWindowLabel?: "未开始" | "进行中" | "已结束";
   status: "待评审" | "已提交" | "已锁定";
   statusKey: "pending" | "completed" | "locked";
   canEdit: boolean;

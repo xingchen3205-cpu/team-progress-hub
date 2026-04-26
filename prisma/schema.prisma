@@ -33,6 +33,12 @@ enum ExpertReviewMaterialKind {
   video
 }
 
+enum ExpertReviewPackageStatus {
+  configured
+  cancelled
+  archived
+}
+
 enum TaskStatus {
   todo
   doing
@@ -489,6 +495,7 @@ model ExpertReviewPackage {
   targetName           String
   roundLabel           String?
   overview             String?
+  status               ExpertReviewPackageStatus @default(configured)
   startAt              DateTime?
   deadline             DateTime?
   createdById          String
@@ -504,6 +511,8 @@ model ExpertReviewPackage {
 
   @@index([teamGroupId, createdAt])
   @@index([projectReviewStageId, createdAt])
+  @@index([projectReviewStageId, teamGroupId, status])
+  @@index([status, createdAt])
 }
 
 model ExpertReviewAssignment {
