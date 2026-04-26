@@ -594,9 +594,9 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
           </aside>
 
           <section className="min-w-0 flex-1 overflow-visible">
-            <header className="topbar-enhanced relative z-50 mx-auto max-w-[1200px]">
+            <header className="topbar-enhanced relative z-50 mx-auto max-w-[1200px] overflow-visible">
               <div className="mx-auto flex max-w-[1200px] flex-col gap-3 lg:flex-row lg:items-center lg:justify-between lg:gap-4">
-                <div className="flex min-h-10 items-center gap-3">
+                <div className="flex min-h-10 shrink-0 items-center gap-3">
                   <button
                     className="depth-button-secondary inline-flex h-10 w-10 items-center justify-center rounded-lg text-[color:var(--color-neutral)] xl:hidden"
                     onClick={() => setMobileSidebarOpen(true)}
@@ -604,7 +604,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                   >
                     <Menu className="h-5 w-5" />
                   </button>
-                  <div className="topbar-global-kicker hidden items-center gap-2 rounded-full border border-blue-100 bg-blue-50/80 px-3 py-1.5 text-xs font-semibold text-blue-700 sm:inline-flex">
+                  <div className="topbar-global-kicker hidden shrink-0 items-center gap-2 whitespace-nowrap rounded-full border border-blue-100 bg-blue-50/80 px-3 py-1.5 text-xs font-semibold text-blue-700 sm:inline-flex">
                     <span className="h-1.5 w-1.5 rounded-full bg-blue-500 shadow-[0_0_0_4px_rgba(37,99,235,0.10)]" />
                     全局操作
                   </div>
@@ -612,18 +612,18 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
 
                 <div className="hidden flex-1 lg:block" />
 
-                <div className="flex w-full flex-wrap items-center justify-between gap-2 sm:w-auto sm:justify-end sm:gap-3">
-                  <span className="header-date hidden text-[13px] text-slate-500 md:inline-flex">
+                <div className="flex w-full shrink-0 flex-nowrap items-center justify-end gap-2 overflow-visible sm:w-auto sm:gap-3">
+                  <span className="header-date hidden shrink-0 whitespace-nowrap text-[13px] text-slate-500 md:inline-flex">
                     {formatFriendlyDate(currentDateTime)}
                   </span>
-                  <div className="header-sync-indicator group relative hidden md:inline-flex">
+                  <div className="header-sync-indicator group relative hidden shrink-0 md:inline-flex">
                     <span className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500">
                       <Cloud className="h-4 w-4" />
                     </span>
                     <span className="header-sync-tooltip">数据已同步</span>
                   </div>
                   <button
-                    className="depth-button-secondary relative inline-flex h-10 items-center gap-2 rounded-xl px-3 text-[color:var(--color-neutral)]"
+                    className="depth-button-secondary relative inline-flex h-10 shrink-0 items-center gap-2 whitespace-nowrap rounded-xl px-3 text-[color:var(--color-neutral)]"
                     onClick={() => setNotificationsOpen(true)}
                     type="button"
                   >
@@ -635,9 +635,9 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                       </span>
                     ) : null}
                   </button>
-                  <div className="header-profile-menu relative" ref={profileMenuRef}>
+                  <div className="header-profile-menu relative shrink-0" ref={profileMenuRef}>
                     <button
-                      className="depth-button-secondary flex items-center gap-2 rounded-xl px-2.5 py-2 text-left transition sm:gap-3 sm:px-3"
+                      className="depth-button-secondary flex shrink-0 items-center gap-2 whitespace-nowrap rounded-xl px-2.5 py-2 text-left transition sm:gap-3 sm:px-3"
                       onClick={() => setProfileMenuOpen((current) => !current)}
                       type="button"
                     >
@@ -648,7 +648,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                         name={currentUser.profile.name}
                         textClassName="text-sm font-semibold text-white"
                       />
-                      <div className="hidden min-w-0 sm:block">
+                      <div className="hidden min-w-0 shrink-0 sm:block">
                         <p className="truncate text-sm font-medium text-slate-900">{currentUser.profile.name}</p>
                         <p className="mt-0.5 text-xs text-slate-400">查看个人信息</p>
                       </div>
@@ -673,9 +673,9 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                       </div>
                     ) : null}
                   </div>
-                  <div className="header-toolbar-divider hidden h-8 w-px bg-slate-200 md:block" />
+                  <div className="header-toolbar-divider hidden h-8 w-px shrink-0 bg-slate-200 md:block" />
                   <ActionButton
-                    className="px-3 sm:px-4"
+                    className="shrink-0 whitespace-nowrap px-3 sm:px-4"
                     disabled={!permissions.canPublishAnnouncement}
                     onClick={() => setAnnouncementModalOpen(true)}
                     title="无权限"
