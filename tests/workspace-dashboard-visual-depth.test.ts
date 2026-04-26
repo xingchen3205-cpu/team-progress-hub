@@ -107,6 +107,23 @@ test("workspace desktop sidebar keeps a full-height shell on wide screens", () =
   assert.match(desktopSidebarBlock, /flex-1 overflow-y-auto/);
 });
 
+test("workspace errors render as fixed popup instead of inline page banner", () => {
+  const contextSource = readFileSync(
+    path.join(process.cwd(), "src/components/workspace-context.tsx"),
+    "utf8",
+  );
+  const shellSource = readFileSync(
+    path.join(process.cwd(), "src/components/workspace-shell.tsx"),
+    "utf8",
+  );
+
+  assert.match(contextSource, /export function ErrorToast/);
+  assert.match(contextSource, /role="alert"/);
+  assert.match(contextSource, /fixed left-1\/2 top-6/);
+  assert.match(shellSource, /<ErrorToast message=\{loadError\}/);
+  assert.doesNotMatch(shellSource, /loadError \? \(\s*<div className="[^"]*border-red-200 bg-red-50/);
+});
+
 test("overview main grid stretches columns and lets the notice card fill remaining height", () => {
   const source = readFileSync(
     path.join(process.cwd(), "src/components/tabs/overview-tab.tsx"),
@@ -126,4 +143,22 @@ test("overview report card fills the left column bottom instead of ending early"
   );
 
   assert.match(source, /\{\/\* 今日汇报 \*\/\}\s*<article className="overview-card flex flex-1 flex-col p-5">/);
+});
+
+test("workspace topbar is a global action bar without duplicating the active page title", () => {
+  const source = readFileSync(
+    path.join(process.cwd(), "src/components/workspace-shell.tsx"),
+    "utf8",
+  );
+
+  const topbarStart = source.indexOf('<header className="topbar-enhanced mx-auto max-w-[1200px]');
+  const contentStart = source.indexOf('<div className="mx-auto mt-4 flex max-w-[1200px] flex-col gap-4">', topbarStart);
+  const topbarBlock = source.slice(topbarStart, contentStart);
+
+  assert.match(topbarBlock, /topbar-global-kicker/);
+  assert.match(topbarBlock, /formatFriendlyDate\(currentDateTime\)/);
+  assert.match(topbarBlock, /setNotificationsOpen\(true\)/);
+  assert.match(topbarBlock, /setAnnouncementModalOpen\(true\)/);
+  assert.doesNotMatch(topbarBlock, /topbar-page-title/);
+  assert.doesNotMatch(topbarBlock, /activeTabItem\.label/);
 });

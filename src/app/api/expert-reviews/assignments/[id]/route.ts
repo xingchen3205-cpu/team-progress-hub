@@ -26,6 +26,11 @@ const assignmentInclude = {
       roundLabel: true,
       overview: true,
       deadline: true,
+      projectReviewStage: {
+        select: {
+          type: true,
+        },
+      },
       materials: {
         orderBy: { uploadedAt: "asc" },
         select: {

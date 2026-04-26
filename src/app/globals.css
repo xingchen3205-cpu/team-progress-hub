@@ -2858,20 +2858,14 @@ a:hover {
 /* ─── Topbar Enhanced ─── */
 .topbar-enhanced {
   display: flex;
-  min-height: 64px;
+  min-height: 60px;
   align-items: center;
-  padding: 0 24px;
-  background: #ffffff;
-  border: 1px solid rgba(200, 215, 235, 0.6);
-  border-radius: 14px;
-  box-shadow: 0 2px 12px rgba(15, 42, 92, 0.06);
-}
-
-.topbar-page-title {
-  font-size: 20px;
-  font-weight: 700;
-  color: #0f172a;
-  letter-spacing: -0.01em;
+  padding: 10px 18px;
+  background: rgba(255, 255, 255, 0.86);
+  border: 1px solid rgba(219, 231, 245, 0.9);
+  border-radius: 18px;
+  box-shadow: 0 10px 24px rgba(37, 99, 235, 0.08);
+  backdrop-filter: blur(14px);
 }
 
 @media (max-width: 767px) {

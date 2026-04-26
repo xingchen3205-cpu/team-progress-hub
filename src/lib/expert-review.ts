@@ -3,6 +3,7 @@ import type {
   ExpertReviewMaterial,
   ExpertReviewMaterialKind,
   ExpertReviewPackage,
+  ProjectReviewStage,
   ExpertReviewAssignmentStatus,
   ExpertReviewScore,
   User,
@@ -138,8 +139,18 @@ export const expertReviewAcceptAttributes: Record<ExpertReviewMaterialKind, stri
 export type ExpertReviewMode = "network" | "roadshow";
 
 export const getExpertReviewMode = (
-  assignment: Pick<ExpertReviewPackage, "targetName" | "roundLabel" | "overview">,
+  assignment: Pick<ExpertReviewPackage, "targetName" | "roundLabel" | "overview"> & {
+    projectReviewStage?: Pick<ProjectReviewStage, "type"> | null;
+  },
 ): ExpertReviewMode => {
+  if (assignment.projectReviewStage?.type === "roadshow") {
+    return "roadshow";
+  }
+
+  if (assignment.projectReviewStage?.type === "online_review") {
+    return "network";
+  }
+
   const text = `${assignment.roundLabel ?? ""} ${assignment.targetName ?? ""} ${assignment.overview ?? ""}`;
   return /路演|答辩|现场|视频/i.test(text) ? "roadshow" : "network";
 };
@@ -217,6 +228,7 @@ export const serializeExpertReviewAssignment = (
   assignment: ExpertReviewAssignment & {
     expertUser: Pick<User, "id" | "name" | "avatar" | "role">;
     reviewPackage: Pick<ExpertReviewPackage, "id" | "targetName" | "roundLabel" | "overview" | "deadline"> & {
+      projectReviewStage?: Pick<ProjectReviewStage, "type"> | null;
       materials: Array<
         Pick<
           ExpertReviewMaterial,

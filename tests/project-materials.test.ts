@@ -581,6 +581,44 @@ test("roadshow project stages may require no uploaded materials", () => {
   assert.match(assignmentRoute, /projectReviewStage\.type === "roadshow"/);
   assert.match(assignmentRoute, /teamGroupIds/);
   assert.match(workspaceShell, /选择路演项目组/);
+  assert.match(workspaceShell, /selectedReviewStageTeamGroups/);
+  assert.match(workspaceShell, /reviewAssignmentDraft\.teamGroupIds/);
+});
+
+test("project stage labels use review type names without material wording", () => {
+  const projectTab = readFileSync(
+    path.join(process.cwd(), "src/components/tabs/project-tab.tsx"),
+    "utf8",
+  );
+
+  assert.match(
+    serializeProjectReviewStage({
+      id: "stage-roadshow",
+      name: "决赛路演",
+      type: "roadshow",
+      description: null,
+      isOpen: true,
+      startAt: null,
+      deadline: null,
+      createdAt: new Date("2026-04-25T06:00:00.000Z"),
+      updatedAt: new Date("2026-04-25T06:00:00.000Z"),
+      creator: {
+        id: "admin-1",
+        name: "系统管理员",
+        avatar: "系",
+        avatarUrl: null,
+        role: "admin",
+      },
+      teamGroup: null,
+      _count: { submissions: 0 },
+    } as Parameters<typeof serializeProjectReviewStage>[0]).typeLabel,
+    /项目路演/,
+  );
+  assert.match(projectTab, /label:\s*"网络评审"/);
+  assert.match(projectTab, /label:\s*"项目路演"/);
+  assert.doesNotMatch(projectTab, /网络评审材料/);
+  assert.doesNotMatch(projectTab, /路演归档材料/);
+  assert.doesNotMatch(projectTab, /路演材料阶段/);
 });
 
 test("project stage edit form and routes expose multi group scope", () => {

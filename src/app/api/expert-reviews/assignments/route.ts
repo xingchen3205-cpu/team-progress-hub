@@ -32,6 +32,11 @@ const assignmentInclude = {
       roundLabel: true,
       overview: true,
       deadline: true,
+      projectReviewStage: {
+        select: {
+          type: true,
+        },
+      },
       materials: {
         orderBy: { uploadedAt: "asc" },
         select: {
@@ -189,7 +194,7 @@ export async function POST(request: NextRequest) {
       return matched?.key ?? "plan_pdf";
     };
     const effectiveRoundLabel =
-      roundLabel || `${projectReviewStage.name} · ${projectReviewStage.type === "roadshow" ? "路演" : "网络评审"}`;
+      roundLabel || `${projectReviewStage.name} · ${projectReviewStage.type === "roadshow" ? "项目路演" : "网络评审"}`;
     const effectiveOverview =
       overview ||
       stageMeta.description ||

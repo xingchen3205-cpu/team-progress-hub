@@ -3,6 +3,8 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, it } from "node:test";
 
+import { getExpertReviewMode } from "@/lib/expert-review";
+
 const readSource = (filePath: string) =>
   readFileSync(path.join(process.cwd(), filePath), "utf8");
 
@@ -31,6 +33,19 @@ describe("expert review v2 constraints", () => {
     assert.match(routeSource, /roadshowScore/);
     assert.match(routeSource, /Math\.round\(roadshowScore \* 100\)/);
     assert.match(routeSource, /Number\.isInteger\(roadshowScore \* 100\)/);
+  });
+
+  it("derives review mode from linked project stage type instead of label text", () => {
+    const assignment = {
+      targetName: "智在必行",
+      roundLabel: "第一轮测试",
+      overview: "来源于项目管理「第一轮测试」已生效材料。",
+      projectReviewStage: { type: "roadshow" },
+    } as Parameters<typeof getExpertReviewMode>[0] & {
+      projectReviewStage: { type: "roadshow" };
+    };
+
+    assert.equal(getExpertReviewMode(assignment), "roadshow");
   });
 
   it("locks expert scores after first submission and stores all scores as cents", () => {

@@ -545,7 +545,7 @@ export const serializeProjectReviewStage = (stage: ProjectReviewStageWithRelatio
     id: stage.id,
     name: stage.name,
     type: stage.type,
-    typeLabel: stage.type === "online_review" ? "网络评审" : "路演材料",
+    typeLabel: stage.type === "online_review" ? "网络评审" : "项目路演",
     description: stageMeta.description,
     ...(hasStageMeta
       ? {

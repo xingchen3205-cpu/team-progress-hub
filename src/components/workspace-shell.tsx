@@ -149,7 +149,6 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
     permissions,
     sidebarTabs,
     safeActiveTab,
-    activeTabItem,
     taskAssignableMembers,
     expertMembers,
     projectStages,
@@ -238,6 +237,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
     ConfirmDialog,
     EmptyState,
     SuccessToast,
+    ErrorToast,
     ActionButton,
     UserAvatar,
   } = Workspace;
@@ -348,11 +348,6 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
             </header>
 
             <section className="min-h-0 flex-1 px-5 py-5 md:px-8 md:py-7">
-              {loadError ? (
-                <div className="mb-4 rounded-2xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700">
-                  {loadError}
-                </div>
-              ) : null}
               {tabContent}
             </section>
           </div>
@@ -360,6 +355,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
         <WorkspaceUnitFooter />
 
         <SuccessToast toast={successToast} />
+        <ErrorToast message={loadError} onDismiss={() => setLoadError(null)} />
 
         {previewAsset ? (
           <Modal
@@ -599,7 +595,10 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                   >
                     <Menu className="h-5 w-5" />
                   </button>
-                  <p className="topbar-page-title">{activeTabItem.label}</p>
+                  <div className="topbar-global-kicker hidden items-center gap-2 rounded-full border border-blue-100 bg-blue-50/80 px-3 py-1.5 text-xs font-semibold text-blue-700 sm:inline-flex">
+                    <span className="h-1.5 w-1.5 rounded-full bg-blue-500 shadow-[0_0_0_4px_rgba(37,99,235,0.10)]" />
+                    全局操作
+                  </div>
                 </div>
 
                 <div className="hidden flex-1 lg:block" />
@@ -683,11 +682,6 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
             </header>
 
             <div className="mx-auto mt-4 flex max-w-[1200px] flex-col gap-4">
-              {loadError ? (
-                <div className="rounded-xl border border-red-200 bg-red-50 px-5 py-4 text-sm text-red-700">
-                  {loadError}
-                </div>
-              ) : null}
               {tabContent}
             </div>
           </section>
@@ -696,6 +690,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
       <WorkspaceUnitFooter />
 
       <SuccessToast toast={successToast} />
+      <ErrorToast message={loadError} onDismiss={() => setLoadError(null)} />
 
       {questionImportModalOpen ? (
         <Modal

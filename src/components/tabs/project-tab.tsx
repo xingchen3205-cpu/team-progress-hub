@@ -66,13 +66,13 @@ const stageTypeOptions: Array<{
 }> = [
   {
     value: "online_review",
-    label: "网络评审材料",
-    description: "用于网评阶段，专家可按管理员分配查看材料。",
+    label: "网络评审",
+    description: "用于专家线上审阅项目材料并评分。",
   },
   {
     value: "roadshow",
-    label: "路演归档材料",
-    description: "用于路演前归档，路演专家打分界面不展示材料。",
+    label: "项目路演",
+    description: "用于现场路演打分，不要求上传材料。",
   },
 ];
 
@@ -83,10 +83,10 @@ const statusBadgeClassNames: Record<Workspace.ProjectMaterialStatusKey, string> 
 };
 
 const projectCardClassName =
-  "rounded-2xl border border-slate-200/80 bg-white p-6 shadow-[0_4px_16px_rgba(15,23,42,0.04)]";
+  "project-dashboard-panel rounded-[20px] border border-blue-100/80 bg-white/95 p-6 shadow-[0_16px_40px_rgba(15,23,42,0.08)]";
 
 const projectInputClassName =
-  "mt-2 w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-2.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10";
+  "mt-2 w-full rounded-xl border border-blue-100 bg-slate-50/80 px-3.5 py-2.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-500/10";
 
 const isStageWithinActiveWindow = (stage: Workspace.ProjectReviewStageItem) => {
   const now = Date.now();
@@ -459,20 +459,20 @@ export default function ProjectTab() {
         title="项目管理"
       />
 
-      <section className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+      <section className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
         {projectStatCards.map((card) => {
           const Icon = card.icon;
           return (
             <div
-              className="project-stat-card flex items-start gap-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-[0_4px_16px_rgba(15,23,42,0.04)] transition hover:-translate-y-0.5 hover:shadow-[0_8px_24px_rgba(15,23,42,0.07)]"
+              className="project-stat-card flex min-h-[104px] items-center gap-4 rounded-[18px] border border-blue-100/80 bg-white/95 p-5 shadow-[0_10px_24px_rgba(37,99,235,0.08)] transition hover:-translate-y-0.5 hover:shadow-[0_14px_30px_rgba(37,99,235,0.12)]"
               key={card.label}
             >
-              <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-xl ${card.tone}`}>
+              <span className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl ${card.tone}`}>
                 <Icon className="h-5 w-5" />
               </span>
               <span>
-                <span className="block text-xs font-medium text-slate-400">{card.label}</span>
-                <span className={`mt-2 block text-3xl font-bold leading-none ${card.valueClassName}`}>
+                <span className="block text-sm font-semibold text-slate-500">{card.label}</span>
+                <span className={`mt-2 block text-[34px] font-black leading-none tracking-[-0.03em] ${card.valueClassName}`}>
                   {card.value}
                 </span>
               </span>
@@ -490,18 +490,18 @@ export default function ProjectTab() {
                 创建评审阶段
               </h3>
               <p className="mt-1 text-sm text-slate-500">
-                管理员先开放网评或路演材料阶段，学生端才会出现对应上传入口。
+                管理员先创建网络评审或项目路演阶段，学生端按开放范围提交对应内容。
               </p>
             </div>
           </div>
 
-          <div className="mt-4 grid gap-4 lg:grid-cols-2">
+          <div className="project-stage-create-grid mt-5 grid gap-5 xl:grid-cols-[minmax(260px,1.25fr)_minmax(220px,1fr)_minmax(190px,0.75fr)_minmax(190px,0.75fr)]">
             <label className="block text-sm font-medium text-slate-700">
               阶段名称
               <input
                 className={projectInputClassName}
                 onChange={(event) => setStageDraft((current) => ({ ...current, name: event.target.value }))}
-                placeholder="如：第一轮网络评审材料提交"
+                placeholder="如：第一轮网络评审"
                 value={stageDraft.name}
               />
             </label>
@@ -529,7 +529,7 @@ export default function ProjectTab() {
                 {stageTypeOptions.find((item) => item.value === stageDraft.type)?.description}
               </span>
             </label>
-            <label className="block text-sm font-medium text-slate-700">
+            <label className="block text-sm font-medium text-slate-700 xl:col-span-2">
               开放项目组
               <div className="mt-2 overflow-hidden rounded-xl border border-slate-200 bg-white">
                 <label className="flex items-center gap-2 rounded-lg bg-white px-3 py-2 text-sm text-slate-700 ring-1 ring-slate-200">
@@ -578,7 +578,7 @@ export default function ProjectTab() {
                 </p>
               </div>
             </label>
-            <label className="flex min-h-40 flex-col items-center justify-center gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-5 text-sm font-medium text-slate-700">
+            <label className="flex min-h-40 flex-col items-center justify-center gap-3 rounded-xl border border-blue-100 bg-slate-50/80 px-4 py-5 text-sm font-medium text-slate-700 xl:col-span-2">
               <span className="text-xs text-slate-400">学生上传权限</span>
               <span className="relative inline-flex h-7 w-14 items-center">
                 <input
@@ -612,51 +612,52 @@ export default function ProjectTab() {
                 value={stageDraft.deadline}
               />
             </label>
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 lg:col-span-2">
+            <div className="rounded-xl border border-blue-100 bg-slate-50/80 p-4 xl:col-span-2">
               <p className="text-sm font-medium text-slate-700">要求上传内容</p>
               {stageDraft.type === "roadshow" ? (
-                <p className="mt-2 rounded-lg border border-blue-100 bg-white px-3 py-2 text-xs text-slate-500">
-                  路演评审只生成现场打分任务，可不要求学生上传材料。
+                <p className="mt-3 rounded-lg border border-blue-100 bg-white px-3 py-2 text-xs leading-6 text-slate-500">
+                  项目路演只开放专家现场评分，不要求学生上传材料。
                 </p>
-              ) : null}
-              <div className="mt-3 grid gap-2 sm:grid-cols-3">
-                {projectMaterialRequirementOptions.map((option) => (
-                  <label
-                    className={`flex items-start gap-2 rounded-lg border px-3 py-3 text-sm transition ${
-                      stageDraft.requiredMaterials.includes(option.key)
-                        ? "border-blue-200 bg-blue-50 text-blue-800"
-                        : "border-white bg-white text-slate-600"
-                    }`}
-                    key={option.key}
-                  >
-                    <input
-                      checked={stageDraft.requiredMaterials.includes(option.key)}
-                      className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600"
-                      onChange={(event) =>
-                        setStageDraft((current) => {
-                          const requiredMaterials = event.target.checked
-                            ? [...new Set([...current.requiredMaterials, option.key])]
-                            : current.requiredMaterials.filter((item) => item !== option.key);
-                          return {
-                            ...current,
-                            requiredMaterials:
-                              requiredMaterials.length > 0
-                                ? requiredMaterials
-                                : defaultRequiredMaterialsByStageType[current.type],
-                          };
-                        })
-                      }
-                      type="checkbox"
-                    />
-                    <span>
-                      <span className="block font-semibold text-slate-800">{option.label}</span>
-                      <span className="mt-0.5 block text-xs text-slate-400">{option.description}</span>
-                    </span>
-                  </label>
-                ))}
-              </div>
+              ) : (
+                <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                  {projectMaterialRequirementOptions.map((option) => (
+                    <label
+                      className={`flex min-h-[64px] items-start gap-2 rounded-lg border px-3 py-3 text-sm transition ${
+                        stageDraft.requiredMaterials.includes(option.key)
+                          ? "border-blue-200 bg-blue-50 text-blue-800"
+                          : "border-white bg-white text-slate-600"
+                      }`}
+                      key={option.key}
+                    >
+                      <input
+                        checked={stageDraft.requiredMaterials.includes(option.key)}
+                        className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600"
+                        onChange={(event) =>
+                          setStageDraft((current) => {
+                            const requiredMaterials = event.target.checked
+                              ? [...new Set([...current.requiredMaterials, option.key])]
+                              : current.requiredMaterials.filter((item) => item !== option.key);
+                            return {
+                              ...current,
+                              requiredMaterials:
+                                requiredMaterials.length > 0
+                                  ? requiredMaterials
+                                  : defaultRequiredMaterialsByStageType[current.type],
+                            };
+                          })
+                        }
+                        type="checkbox"
+                      />
+                      <span>
+                        <span className="block font-semibold text-slate-800">{option.label}</span>
+                        <span className="mt-0.5 block text-xs text-slate-400">{option.description}</span>
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              )}
             </div>
-            <label className="block text-sm font-medium text-slate-700 lg:col-span-2">
+            <label className="block text-sm font-medium text-slate-700 xl:col-span-2">
               阶段说明
               <textarea
                 className={`${textareaClassName} rounded-xl border-slate-200 bg-slate-50 focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10`}
@@ -702,7 +703,7 @@ export default function ProjectTab() {
                 <input
                   className={projectInputClassName}
                   onChange={(event) => setStageDraft((current) => ({ ...current, name: event.target.value }))}
-                  placeholder="如：第一轮网络评审材料提交"
+                  placeholder="如：第一轮网络评审"
                   value={stageDraft.name}
                 />
               </label>
@@ -803,49 +804,50 @@ export default function ProjectTab() {
                   value={stageDraft.deadline}
                 />
               </label>
-              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 lg:col-span-2">
+              <div className="rounded-xl border border-blue-100 bg-slate-50/80 p-4 lg:col-span-2">
                 <p className="text-sm font-medium text-slate-700">要求上传内容</p>
                 {stageDraft.type === "roadshow" ? (
-                  <p className="mt-2 rounded-lg border border-blue-100 bg-white px-3 py-2 text-xs text-slate-500">
-                    路演评审只生成现场打分任务，可不要求学生上传材料。
+                  <p className="mt-3 rounded-lg border border-blue-100 bg-white px-3 py-2 text-xs leading-6 text-slate-500">
+                    项目路演只开放专家现场评分，不要求学生上传材料。
                   </p>
-                ) : null}
-                <div className="mt-3 grid gap-2 sm:grid-cols-3">
-                  {projectMaterialRequirementOptions.map((option) => (
-                    <label
-                      className={`flex items-start gap-2 rounded-lg border px-3 py-3 text-sm transition ${
-                        stageDraft.requiredMaterials.includes(option.key)
-                          ? "border-blue-200 bg-blue-50 text-blue-800"
-                          : "border-white bg-white text-slate-600"
-                      }`}
-                      key={option.key}
-                    >
-                      <input
-                        checked={stageDraft.requiredMaterials.includes(option.key)}
-                        className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600"
-                        onChange={(event) =>
-                          setStageDraft((current) => {
-                            const requiredMaterials = event.target.checked
-                              ? [...new Set([...current.requiredMaterials, option.key])]
-                              : current.requiredMaterials.filter((item) => item !== option.key);
-                            return {
-                              ...current,
-                              requiredMaterials:
-                                requiredMaterials.length > 0
-                                  ? requiredMaterials
-                                  : defaultRequiredMaterialsByStageType[current.type],
-                            };
-                          })
-                        }
-                        type="checkbox"
-                      />
-                      <span>
-                        <span className="block font-semibold text-slate-800">{option.label}</span>
-                        <span className="mt-0.5 block text-xs text-slate-400">{option.description}</span>
-                      </span>
-                    </label>
-                  ))}
-                </div>
+                ) : (
+                  <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                    {projectMaterialRequirementOptions.map((option) => (
+                      <label
+                        className={`flex min-h-[64px] items-start gap-2 rounded-lg border px-3 py-3 text-sm transition ${
+                          stageDraft.requiredMaterials.includes(option.key)
+                            ? "border-blue-200 bg-blue-50 text-blue-800"
+                            : "border-white bg-white text-slate-600"
+                        }`}
+                        key={option.key}
+                      >
+                        <input
+                          checked={stageDraft.requiredMaterials.includes(option.key)}
+                          className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600"
+                          onChange={(event) =>
+                            setStageDraft((current) => {
+                              const requiredMaterials = event.target.checked
+                                ? [...new Set([...current.requiredMaterials, option.key])]
+                                : current.requiredMaterials.filter((item) => item !== option.key);
+                              return {
+                                ...current,
+                                requiredMaterials:
+                                  requiredMaterials.length > 0
+                                    ? requiredMaterials
+                                    : defaultRequiredMaterialsByStageType[current.type],
+                              };
+                            })
+                          }
+                          type="checkbox"
+                        />
+                        <span>
+                          <span className="block font-semibold text-slate-800">{option.label}</span>
+                          <span className="mt-0.5 block text-xs text-slate-400">{option.description}</span>
+                        </span>
+                      </label>
+                    ))}
+                  </div>
+                )}
               </div>
               <label className="block text-sm font-medium text-slate-700 lg:col-span-2">
                 阶段说明
@@ -985,7 +987,7 @@ export default function ProjectTab() {
         </section>
       ) : null}
 
-      <section className="grid gap-5 xl:grid-cols-[minmax(0,0.95fr)_minmax(0,1.05fr)]">
+      <section className="project-lower-grid grid gap-5 xl:grid-cols-[minmax(420px,0.92fr)_minmax(520px,1.08fr)]">
         <div className={projectCardClassName}>
           <div className="flex items-center justify-between gap-3">
             <div>
@@ -1001,29 +1003,32 @@ export default function ProjectTab() {
           </div>
           <div className="mt-4 space-y-3">
             {projectStages.length > 0 ? (
-              projectStages.map((stage) => (
+              projectStages.map((stage, stageIndex) => (
                 <article
                   key={stage.id}
-                  className="rounded-xl border border-slate-200 bg-white p-4 transition hover:border-blue-200 hover:shadow-[0_3px_12px_rgba(15,23,42,0.05)]"
+                  className="grid gap-4 rounded-2xl border border-blue-100 bg-white p-4 shadow-[0_8px_20px_rgba(15,23,42,0.035)] transition hover:border-blue-200 hover:shadow-[0_12px_24px_rgba(37,99,235,0.08)] sm:grid-cols-[54px_1fr_auto] sm:items-center"
                 >
-                  <div className="flex flex-wrap items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <h4 className="font-semibold text-slate-950">{stage.name}</h4>
-                        <span className="rounded-md bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700">
-                          {stage.typeLabel}
-                        </span>
-                        <span
-                          className={`rounded-md px-2.5 py-1 text-xs font-semibold ${
-                            stage.isOpen ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"
-                          }`}
-                        >
-                          {stage.isOpen ? "开放中" : "已关闭"}
-                        </span>
-                      </div>
-                      <p className="mt-2 text-sm text-slate-500">
-                        {stage.description || getStageScopeLabel(stage, teamGroups)}
-                      </p>
+                  <div className="project-stage-index flex h-14 w-12 items-center justify-center rounded-xl bg-blue-50 text-2xl font-black text-blue-600">
+                    {stageIndex + 1}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <h4 className="font-semibold text-slate-950">{stage.name}</h4>
+                      <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700">
+                        {stage.typeLabel}
+                      </span>
+                      <span
+                        className={`rounded-full px-2.5 py-1 text-xs font-semibold ${
+                          stage.isOpen ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"
+                        }`}
+                      >
+                        {stage.isOpen ? "开放中" : "已关闭"}
+                      </span>
+                    </div>
+                    <p className="mt-2 text-sm text-slate-500">
+                      {stage.description || getStageScopeLabel(stage, teamGroups)}
+                    </p>
+                    {stage.type === "online_review" ? (
                       <div className="mt-3 flex flex-wrap gap-2">
                         {(stage.requiredMaterials ?? defaultRequiredMaterialsByStageType[stage.type]).map((requirement) => (
                           <span
@@ -1034,33 +1039,33 @@ export default function ProjectTab() {
                           </span>
                         ))}
                       </div>
-                      <p className="mt-2 text-xs text-slate-400">
-                        {stage.startAt ? `开始 ${formatDateTime(stage.startAt)}` : "未设置开始时间"} ·{" "}
-                        {stage.deadline ? `截止 ${formatDateTime(stage.deadline)}` : "未设置截止时间"} ·{" "}
-                        已提交 {stage.submissionCount} 份
-                      </p>
-                    </div>
-                    {canManageStages ? (
-                      <div className="flex items-center gap-2">
-                        <button
-                          className="rounded-lg border border-blue-100 bg-blue-50 p-2 text-blue-600 transition hover:border-blue-200 hover:bg-blue-100"
-                          onClick={() => editStage(stage)}
-                          title="编辑阶段"
-                          type="button"
-                        >
-                          <Pencil className="h-4 w-4" />
-                        </button>
-                        <button
-                          className="rounded-lg border border-slate-200 bg-white p-2 text-slate-400 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700"
-                          onClick={() => deleteStage(stage)}
-                          title="删除阶段"
-                          type="button"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
                     ) : null}
+                    <p className="mt-2 text-xs text-slate-400">
+                      {stage.startAt ? `开始 ${formatDateTime(stage.startAt)}` : "未设置开始时间"} ·{" "}
+                      {stage.deadline ? `截止 ${formatDateTime(stage.deadline)}` : "未设置截止时间"} · 已提交{" "}
+                      {stage.submissionCount} 份
+                    </p>
                   </div>
+                  {canManageStages ? (
+                    <div className="flex items-center gap-2">
+                      <button
+                        className="rounded-xl border border-blue-100 bg-blue-50 p-2.5 text-blue-600 transition hover:border-blue-200 hover:bg-blue-100"
+                        onClick={() => editStage(stage)}
+                        title="编辑阶段"
+                        type="button"
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </button>
+                      <button
+                        className="rounded-xl border border-slate-200 bg-white p-2.5 text-slate-400 transition hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700"
+                        onClick={() => deleteStage(stage)}
+                        title="删除阶段"
+                        type="button"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
+                  ) : null}
                 </article>
               ))
             ) : (
@@ -1094,7 +1099,7 @@ export default function ProjectTab() {
               sortedMaterials.map((material) => (
                 <article
                   key={material.id}
-                  className="rounded-xl border border-slate-200 bg-white p-4 transition hover:border-blue-200 hover:shadow-[0_3px_12px_rgba(15,23,42,0.05)]"
+                  className="project-material-card rounded-2xl border border-blue-100 bg-white p-5 shadow-[0_8px_20px_rgba(15,23,42,0.035)] transition hover:border-blue-200 hover:shadow-[0_12px_24px_rgba(37,99,235,0.08)]"
                 >
                   <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                     <div className="min-w-0 flex-1">

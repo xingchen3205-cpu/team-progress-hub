@@ -1765,6 +1765,44 @@ export function SuccessToast({ toast }: { toast: SuccessToastState }) {
   );
 }
 
+export function ErrorToast({
+  message,
+  onDismiss,
+}: {
+  message: string | null;
+  onDismiss: () => void;
+}) {
+  if (!message) {
+    return null;
+  }
+
+  return (
+    <div
+      className="fixed left-1/2 top-6 z-[90] w-[min(520px,calc(100vw-2rem))] -translate-x-1/2"
+      role="alert"
+    >
+      <div className="rounded-2xl border border-rose-100 bg-white px-4 py-4 shadow-[0_20px_55px_rgba(225,29,72,0.18)]">
+        <div className="flex items-start gap-3">
+          <div className="mt-0.5 flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-rose-50 text-rose-600">
+            <X className="h-5 w-5" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-slate-950">操作未完成</p>
+            <p className="mt-1 text-sm leading-6 text-slate-600">{message}</p>
+          </div>
+          <button
+            className="rounded-lg px-2 py-1 text-xs font-semibold text-slate-400 transition hover:bg-slate-100 hover:text-slate-600"
+            onClick={onDismiss}
+            type="button"
+          >
+            关闭
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export function ActionButton({
   children,
   onClick,

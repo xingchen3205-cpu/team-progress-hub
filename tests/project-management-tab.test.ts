@@ -67,6 +67,11 @@ test("project management tab uses the polished stage and material dashboard layo
   const tabSource = read("src/components/tabs/project-tab.tsx");
 
   assert.match(tabSource, /project-stat-card/);
+  assert.match(tabSource, /project-dashboard-panel/);
+  assert.match(tabSource, /project-stage-create-grid/);
+  assert.match(tabSource, /project-lower-grid/);
+  assert.match(tabSource, /project-stage-index/);
+  assert.match(tabSource, /project-material-card/);
   assert.match(tabSource, /创建评审阶段/);
   assert.match(tabSource, /要求上传内容/);
   assert.match(tabSource, /PPT PDF/);
@@ -75,6 +80,10 @@ test("project management tab uses the polished stage and material dashboard layo
   assert.match(tabSource, /项目阶段/);
   assert.match(tabSource, /项目材料/);
   assert.match(tabSource, /全部项目组可提交/);
+  assert.match(tabSource, /网络评审/);
+  assert.match(tabSource, /项目路演/);
+  assert.doesNotMatch(tabSource, /网络评审材料/);
+  assert.doesNotMatch(tabSource, /路演材料/);
 });
 
 test("project stage editing opens a modal instead of reusing the create form", () => {
