@@ -294,11 +294,18 @@ describe("expert review v2 constraints", () => {
     const assignmentRouteSource = readSource("src/app/api/expert-reviews/assignments/route.ts");
     const assignmentItemRouteSource = readSource("src/app/api/expert-reviews/assignments/[id]/route.ts");
     const stageDeleteRouteSource = readSource("src/app/api/project-stages/[stageId]/route.ts");
+    const contextSource = readSource("src/components/workspace-context.tsx");
 
     assert.match(assignmentRouteSource, /projectReviewStage\.deadline/);
-    assert.match(assignmentRouteSource, /评审开始时间不能早于项目材料上传截止时间/);
-    assert.match(assignmentItemRouteSource, /assignment\.reviewPackage\.projectReviewStage\?\.deadline/);
-    assert.match(assignmentItemRouteSource, /评审开始时间不能早于项目材料上传截止时间/);
+    assert.match(assignmentRouteSource, /isOpen:\s*true/);
+    assert.match(assignmentRouteSource, /projectReviewStage\.isOpen\s*!==\s*false/);
+    assert.match(assignmentRouteSource, /如需提前评审，请先在项目管理中关闭学生上传/);
+    assert.match(assignmentItemRouteSource, /const projectReviewStage = assignment\.reviewPackage\.projectReviewStage/);
+    assert.match(assignmentItemRouteSource, /isOpen:\s*true/);
+    assert.match(assignmentItemRouteSource, /projectReviewStage\?\.isOpen\s*!==\s*false/);
+    assert.match(assignmentItemRouteSource, /如需提前评审，请先在项目管理中关闭学生上传/);
+    assert.match(contextSource, /selectedStage\?\.isOpen\s*!==\s*false[\s\S]*selectedStage\?\.deadline/);
+    assert.match(contextSource, /如需提前评审，请先在项目管理中关闭学生上传/);
     assert.match(stageDeleteRouteSource, /expertReviewScore\.findFirst/);
     assert.match(stageDeleteRouteSource, /已有正式评分，只能归档后保留数据/);
     assert.match(stageDeleteRouteSource, /prisma\.\$transaction/);

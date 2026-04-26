@@ -5333,10 +5333,11 @@ function useWorkspaceController({
 
       const selectedStage = projectStages.find((stage) => stage.id === reviewAssignmentDraft.stageId) ?? null;
       if (
+        selectedStage?.isOpen !== false &&
         selectedStage?.deadline &&
         new Date(reviewAssignmentDraft.startAt).getTime() < new Date(selectedStage.deadline).getTime()
       ) {
-        setLoadError("评审开始时间不能早于项目材料上传截止时间");
+        setLoadError("评审开始时间不能早于项目材料上传截止时间；如需提前评审，请先在项目管理中关闭学生上传。");
         return;
       }
 
@@ -5402,10 +5403,11 @@ function useWorkspaceController({
     }
 
     if (
+      selectedStage?.isOpen !== false &&
       selectedStage?.deadline &&
       new Date(reviewAssignmentDraft.startAt).getTime() < new Date(selectedStage.deadline).getTime()
     ) {
-      setLoadError("评审开始时间不能早于项目材料上传截止时间");
+      setLoadError("评审开始时间不能早于项目材料上传截止时间；如需提前评审，请先在项目管理中关闭学生上传。");
       return;
     }
 

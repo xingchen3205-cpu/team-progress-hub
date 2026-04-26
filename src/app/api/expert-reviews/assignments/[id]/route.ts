@@ -132,6 +132,7 @@ export async function PATCH(
         include: {
           projectReviewStage: {
             select: {
+              isOpen: true,
               deadline: true,
             },
           },
@@ -153,12 +154,17 @@ export async function PATCH(
     return NextResponse.json({ message: "评审截止时间必须晚于评审开始时间" }, { status: 400 });
   }
 
+  const projectReviewStage = assignment.reviewPackage.projectReviewStage;
   if (
-    assignment.reviewPackage.projectReviewStage?.deadline &&
+    projectReviewStage?.isOpen !== false &&
+    projectReviewStage?.deadline &&
     effectiveStartAt &&
-    effectiveStartAt.getTime() < assignment.reviewPackage.projectReviewStage.deadline.getTime()
+    effectiveStartAt.getTime() < projectReviewStage.deadline.getTime()
   ) {
-    return NextResponse.json({ message: "评审开始时间不能早于项目材料上传截止时间" }, { status: 400 });
+    return NextResponse.json(
+      { message: "评审开始时间不能早于项目材料上传截止时间；如需提前评审，请先在项目管理中关闭学生上传。" },
+      { status: 400 },
+    );
   }
 
   if (

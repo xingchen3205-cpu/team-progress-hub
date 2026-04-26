@@ -181,6 +181,7 @@ export async function POST(request: NextRequest) {
         name: true,
         type: true,
         description: true,
+        isOpen: true,
         startAt: true,
         deadline: true,
       },
@@ -220,10 +221,14 @@ export async function POST(request: NextRequest) {
     }
 
     if (
+      projectReviewStage.isOpen !== false &&
       projectReviewStage.deadline &&
       effectiveStartAt.getTime() < projectReviewStage.deadline.getTime()
     ) {
-      return NextResponse.json({ message: "评审开始时间不能早于项目材料上传截止时间" }, { status: 400 });
+      return NextResponse.json(
+        { message: "评审开始时间不能早于项目材料上传截止时间；如需提前评审，请先在项目管理中关闭学生上传。" },
+        { status: 400 },
+      );
     }
 
     let selectedMaterials: Array<
