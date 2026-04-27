@@ -2164,12 +2164,6 @@ a:hover {
   align-items: center;
 }
 
-.topbar-enhanced .header-date {
-  min-width: max-content;
-  flex-shrink: 0;
-  white-space: nowrap;
-}
-
 .header-sync-tooltip {
   position: absolute;
   right: 0;
@@ -2866,6 +2860,8 @@ a:hover {
   display: flex;
   min-height: 60px;
   align-items: center;
+  justify-content: space-between;
+  gap: 18px;
   padding: 10px 18px;
   background: rgba(255, 255, 255, 0.86);
   border: 1px solid rgba(219, 231, 245, 0.9);
@@ -2874,8 +2870,237 @@ a:hover {
   backdrop-filter: blur(14px);
 }
 
-@media (max-width: 1100px) {
-  .topbar-enhanced .header-date {
+.topbar-left,
+.topbar-right {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+
+.topbar-left {
+  flex: 1;
+  gap: 12px;
+}
+
+.topbar-right {
+  flex-shrink: 0;
+  gap: 8px;
+}
+
+.topbar-mobile-menu,
+.topbar-icon-btn {
+  position: relative;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #5a6478;
+  cursor: pointer;
+  transition:
+    background-color 150ms ease,
+    color 150ms ease;
+}
+
+.topbar-mobile-menu {
+  display: inline-flex;
+  border: 1px solid rgba(216, 222, 232, 0.9);
+  background: #ffffff;
+}
+
+.topbar-icon-btn {
+  display: inline-flex;
+}
+
+.topbar-mobile-menu:hover,
+.topbar-icon-btn:hover {
+  background: #f5f7fa;
+  color: #1a2336;
+}
+
+.topbar-page-stack {
+  display: flex;
+  min-width: 44px;
+  flex-shrink: 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  color: #1a2336;
+  font-weight: 650;
+  line-height: 1.12;
+  white-space: nowrap;
+}
+
+.topbar-page-main,
+.topbar-page-sub {
+  display: block;
+  font-size: 15px;
+}
+
+.topbar-divider {
+  width: 1px;
+  height: 28px;
+  flex-shrink: 0;
+  background: #e0e5ee;
+}
+
+.topbar-date-pill,
+.topbar-weather-pill {
+  display: inline-flex;
+  min-width: max-content;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 8px;
+  color: #1a2336;
+  white-space: nowrap;
+}
+
+.topbar-date-pill {
+  padding: 0 4px;
+}
+
+.topbar-date-pill svg,
+.topbar-weather-pill svg {
+  flex-shrink: 0;
+  color: #8a96a8;
+}
+
+.topbar-date-copy {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  color: #4a5468;
+  font-size: 12.5px;
+  font-weight: 500;
+  line-height: 1.05;
+  white-space: nowrap;
+}
+
+.topbar-date-copy > span {
+  white-space: nowrap;
+}
+
+.topbar-weather-pill {
+  border-radius: 14px;
+  padding: 4px 8px;
+  color: #1a2336;
+  font-size: 12.5px;
+  font-weight: 500;
+}
+
+.topbar-action-primary {
+  display: inline-flex;
+  height: 36px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  border: 0;
+  border-radius: 8px;
+  background: #eaf2ff;
+  padding: 0 14px;
+  color: #2563d8;
+  cursor: pointer;
+  font-size: 13px;
+  font-weight: 650;
+  white-space: nowrap;
+  transition: background-color 150ms ease;
+}
+
+.topbar-action-primary:hover:not(:disabled) {
+  background: #dbe9ff;
+}
+
+.topbar-action-primary:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.topbar-icon-badge {
+  position: absolute;
+  top: 5px;
+  right: 4px;
+  display: inline-flex;
+  min-width: 16px;
+  height: 16px;
+  align-items: center;
+  justify-content: center;
+  border: 2px solid #ffffff;
+  border-radius: 999px;
+  background: #d4373a;
+  padding: 0 4px;
+  color: #ffffff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.topbar-icon-dot {
+  position: absolute;
+  top: 8px;
+  right: 9px;
+  width: 8px;
+  height: 8px;
+  border: 2px solid #ffffff;
+  border-radius: 999px;
+  background: #d4373a;
+}
+
+.topbar-user-button {
+  display: inline-flex;
+  height: 40px;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 10px;
+  border: 0;
+  border-radius: 22px;
+  background: transparent;
+  padding: 4px 10px 4px 4px;
+  color: #1a2336;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background-color 150ms ease;
+}
+
+.topbar-user-button:hover {
+  background: #f5f7fa;
+}
+
+.topbar-user-name {
+  color: #1a2336;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+@media (max-width: 980px) {
+  .topbar-weather-pill {
+    display: none;
+  }
+}
+
+@media (max-width: 760px) {
+  .topbar-date-pill,
+  .topbar-right > .topbar-divider {
+    display: none;
+  }
+}
+
+@media (max-width: 640px) {
+  .topbar-enhanced {
+    padding: 10px 12px;
+  }
+
+  .topbar-action-primary {
+    width: 36px;
+    padding: 0;
+  }
+
+  .topbar-action-primary span,
+  .topbar-user-name {
     display: none;
   }
 }

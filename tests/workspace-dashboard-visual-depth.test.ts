@@ -150,7 +150,7 @@ test("overview report card fills the left column bottom instead of ending early"
   assert.match(source, /\{\/\* 今日汇报 \*\/\}\s*<article className="overview-card flex flex-1 flex-col p-5">/);
 });
 
-test("workspace topbar is a global action bar without duplicating the active page title", () => {
+test("workspace topbar matches the requested home layout with live weather", () => {
   const source = readFileSync(
     path.join(process.cwd(), "src/components/workspace-shell.tsx"),
     "utf8",
@@ -160,14 +160,18 @@ test("workspace topbar is a global action bar without duplicating the active pag
   const contentStart = source.indexOf('<div className="mx-auto mt-4 flex max-w-[1200px] flex-col gap-4">', topbarStart);
   const topbarBlock = source.slice(topbarStart, contentStart);
 
-  assert.match(topbarBlock, /topbar-global-kicker/);
+  assert.match(topbarBlock, /topbar-left/);
+  assert.match(topbarBlock, /topbar-page-main/);
+  assert.match(topbarBlock, /topbar-page-sub/);
+  assert.match(topbarBlock, /topbar-date-pill/);
+  assert.match(topbarBlock, /topbar-weather-pill/);
   assert.match(topbarBlock, /formatFriendlyDate\(currentDateTime\)/);
+  assert.match(topbarBlock, /workspaceWeather/);
+  assert.match(topbarBlock, /\/api\/weather\/nanjing/);
   assert.match(topbarBlock, /setNotificationsOpen\(true\)/);
   assert.match(topbarBlock, /setAnnouncementModalOpen\(true\)/);
-  assert.match(topbarBlock, /header-date hidden min-w-max shrink-0 whitespace-nowrap/);
-  assert.match(topbarBlock, /flex w-full shrink-0 flex-nowrap items-center justify-end/);
+  assert.match(topbarBlock, /topbar-right/);
   assert.match(topbarBlock, /header-profile-menu relative shrink-0/);
-  assert.match(topbarBlock, /className="shrink-0 whitespace-nowrap px-3 sm:px-4"/);
-  assert.doesNotMatch(topbarBlock, /topbar-page-title/);
-  assert.doesNotMatch(topbarBlock, /activeTabItem\.label/);
+  assert.match(topbarBlock, /className="topbar-action-primary"/);
+  assert.doesNotMatch(topbarBlock, /18°C/);
 });

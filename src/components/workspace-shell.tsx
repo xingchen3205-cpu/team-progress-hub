@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import type { ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import type { TeamRoleLabel, TaskDraft, DocumentDraft } from "@/components/workspace-context";
 import * as Workspace from "@/components/workspace-context";
 
@@ -198,9 +198,11 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
 
   const {
     BellPlus,
+    CalendarDays,
     ChevronDown,
     Cloud,
     Download,
+    HelpCircle,
     Loader2,
     LogOut,
     Menu,
@@ -282,6 +284,70 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
 
     return item.label;
   };
+
+  const activeTopbarItem = allTabs.find((item) => item.key === safeActiveTab);
+  const activeTopbarLabel = activeTopbarItem ? getSidebarTabLabel(activeTopbarItem) : "首页概览";
+  const topbarPageTitle =
+    safeActiveTab === "overview"
+      ? { main: "首页", sub: "概览" }
+      : { main: activeTopbarLabel, sub: "" };
+  const topbarDateParts = {
+    date: `${currentDateTime.getMonth() + 1}月${currentDateTime.getDate()}日`,
+    weekday: ["星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"][
+      currentDateTime.getDay()
+    ],
+  };
+  const [workspaceWeather, setWorkspaceWeather] = useState({
+    label: "南京天气",
+    title: "正在获取南京实时天气",
+  });
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadWeather = async () => {
+      try {
+        const response = await fetch("/api/weather/nanjing", { cache: "no-store" });
+        if (!response.ok) {
+          throw new Error("weather unavailable");
+        }
+
+        const payload = (await response.json()) as {
+          city?: string;
+          observedAt?: string | null;
+          temperature?: number;
+          weatherText?: string;
+        };
+
+        if (!isMounted || typeof payload.temperature !== "number") {
+          return;
+        }
+
+        const city = payload.city || "南京";
+        const temperature = `${Math.round(payload.temperature)}°C`;
+        const weatherText = payload.weatherText ? ` · ${payload.weatherText}` : "";
+        setWorkspaceWeather({
+          label: `${city} ${temperature}`,
+          title: `${city}实时天气：${temperature}${weatherText}`,
+        });
+      } catch {
+        if (isMounted) {
+          setWorkspaceWeather({
+            label: "南京天气",
+            title: "南京实时天气暂未更新",
+          });
+        }
+      }
+    };
+
+    void loadWeather();
+    const timer = window.setInterval(() => void loadWeather(), 30 * 60 * 1000);
+
+    return () => {
+      isMounted = false;
+      window.clearInterval(timer);
+    };
+  }, []);
 
   if (isBooting) {
     return (
@@ -591,97 +657,120 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
 
           <section className="min-w-0 flex-1 overflow-visible">
             <header className="topbar-enhanced relative z-50 mx-auto max-w-[1200px] overflow-visible">
-              <div className="mx-auto flex max-w-[1200px] flex-col gap-3 lg:flex-row lg:items-center lg:justify-between lg:gap-4">
-                <div className="flex min-h-10 shrink-0 items-center gap-3">
+              <div className="topbar-left">
+                <div className="flex shrink-0 items-center gap-3">
                   <button
-                    className="depth-button-secondary inline-flex h-10 w-10 items-center justify-center rounded-lg text-[color:var(--color-neutral)] xl:hidden"
+                    className="topbar-mobile-menu xl:hidden"
                     onClick={() => setMobileSidebarOpen(true)}
                     type="button"
+                    title="打开导航"
                   >
                     <Menu className="h-5 w-5" />
                   </button>
-                  <div className="topbar-global-kicker hidden shrink-0 items-center gap-2 whitespace-nowrap rounded-full border border-blue-100 bg-blue-50/80 px-3 py-1.5 text-xs font-semibold text-blue-700 sm:inline-flex">
-                    <span className="h-1.5 w-1.5 rounded-full bg-blue-500 shadow-[0_0_0_4px_rgba(37,99,235,0.10)]" />
-                    全局操作
+                  <div className="topbar-page-stack">
+                    <span className="topbar-page-main">{topbarPageTitle.main}</span>
+                    {topbarPageTitle.sub ? (
+                      <span className="topbar-page-sub">{topbarPageTitle.sub}</span>
+                    ) : null}
                   </div>
                 </div>
 
-                <div className="hidden flex-1 lg:block" />
-
-                <div className="flex w-full shrink-0 flex-nowrap items-center justify-end gap-2 overflow-visible sm:w-auto sm:gap-3">
-                  <span className="header-date hidden min-w-max shrink-0 whitespace-nowrap text-[13px] text-slate-500 md:inline-flex">
-                    {formatFriendlyDate(currentDateTime)}
+                <span className="topbar-divider" />
+                <span className="topbar-date-pill" title={formatFriendlyDate(currentDateTime)}>
+                  <CalendarDays className="h-4 w-4" />
+                  <span className="topbar-date-copy">
+                    <span>{topbarDateParts.date}</span>
+                    <span>{topbarDateParts.weekday}</span>
                   </span>
-                  <div className="header-sync-indicator group relative hidden shrink-0 md:inline-flex">
-                    <span className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-slate-200 bg-white text-slate-500">
-                      <Cloud className="h-4 w-4" />
+                </span>
+                <span className="topbar-weather-pill" data-weather-endpoint="/api/weather/nanjing" title={workspaceWeather.title}>
+                  <Cloud className="h-4 w-4" />
+                  <span>{workspaceWeather.label}</span>
+                </span>
+              </div>
+
+              <div className="topbar-right">
+                <button
+                  className="topbar-action-primary"
+                  disabled={!permissions.canPublishAnnouncement}
+                  onClick={() => setAnnouncementModalOpen(true)}
+                  title={permissions.canPublishAnnouncement ? "发布全校公告" : "无权限"}
+                  type="button"
+                >
+                  <BellPlus className="h-4 w-4" />
+                  <span>发布公告</span>
+                </button>
+
+                <span className="topbar-divider" />
+
+                <button
+                  className="topbar-icon-btn"
+                  onClick={() => setNotificationsOpen(true)}
+                  title="待办事项"
+                  type="button"
+                >
+                  <BellPlus className="h-4 w-4" />
+                  {todoItemCount > 0 ? (
+                    <span className="topbar-icon-badge">
+                      {todoItemCount}
                     </span>
-                    <span className="header-sync-tooltip">数据已同步</span>
-                  </div>
+                  ) : null}
+                </button>
+                <button
+                  className="topbar-icon-btn"
+                  onClick={() => setNotificationsOpen(true)}
+                  title="消息通知"
+                  type="button"
+                >
+                  <BellPlus className="h-4 w-4" />
+                  {todoNotifications.length > 0 ? (
+                    <span className="topbar-icon-dot" />
+                  ) : null}
+                </button>
+                <button
+                  className="topbar-icon-btn"
+                  title="帮助与反馈"
+                  type="button"
+                >
+                  <HelpCircle className="h-4 w-4" />
+                </button>
+
+                <span className="topbar-divider hidden sm:block" />
+
+                <div className="header-profile-menu relative shrink-0" ref={profileMenuRef}>
                   <button
-                    className="depth-button-secondary relative inline-flex h-10 shrink-0 items-center gap-2 whitespace-nowrap rounded-xl px-3 text-[color:var(--color-neutral)]"
-                    onClick={() => setNotificationsOpen(true)}
+                    className="topbar-user-button"
+                    onClick={() => setProfileMenuOpen((current) => !current)}
                     type="button"
                   >
-                    <BellPlus className="h-4 w-4" />
-                    <span className="hidden text-sm font-medium sm:inline">待办</span>
-                    {todoItemCount > 0 ? (
-                      <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-[var(--color-danger)] px-1.5 text-[10px] font-semibold text-white">
-                        {todoItemCount}
-                      </span>
-                    ) : null}
+                    <UserAvatar
+                      avatar={currentUser.profile.avatar}
+                      avatarUrl={currentUser.profile.avatarUrl}
+                      className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--color-primary)] text-sm font-semibold text-white"
+                      name={currentUser.profile.name}
+                      textClassName="text-sm font-semibold text-white"
+                    />
+                    <span className="topbar-user-name">{currentUser.profile.name}</span>
+                    <ChevronDown className={`h-4 w-4 text-slate-400 transition ${profileMenuOpen ? "rotate-180" : ""}`} />
                   </button>
-                  <div className="header-profile-menu relative shrink-0" ref={profileMenuRef}>
-                    <button
-                      className="depth-button-secondary flex shrink-0 items-center gap-2 whitespace-nowrap rounded-xl px-2.5 py-2 text-left transition sm:gap-3 sm:px-3"
-                      onClick={() => setProfileMenuOpen((current) => !current)}
-                      type="button"
-                    >
-                      <UserAvatar
-                        avatar={currentUser.profile.avatar}
-                        avatarUrl={currentUser.profile.avatarUrl}
-                        className="flex h-9 w-9 items-center justify-center rounded-full bg-[var(--color-primary)] text-sm font-semibold text-white"
-                        name={currentUser.profile.name}
-                        textClassName="text-sm font-semibold text-white"
-                      />
-                      <div className="hidden min-w-0 shrink-0 sm:block">
-                        <p className="truncate text-sm font-medium text-slate-900">{currentUser.profile.name}</p>
-                        <p className="mt-0.5 text-xs text-slate-400">查看个人信息</p>
-                      </div>
-                      <ChevronDown className={`h-4 w-4 text-slate-400 transition ${profileMenuOpen ? "rotate-180" : ""}`} />
-                    </button>
-                    {profileMenuOpen ? (
-                      <div className="header-profile-menu-panel absolute right-0 top-full z-[80] mt-2 min-w-[180px] rounded-xl p-1">
-                        <button
-                          className="header-profile-menu-item"
-                          onClick={openProfilePage}
-                          type="button"
-                        >
-                          查看个人信息
-                        </button>
-                        <button
-                          className="header-profile-menu-item danger"
-                          onClick={() => void handleLogout()}
-                          type="button"
-                        >
-                          退出登录
-                        </button>
-                      </div>
-                    ) : null}
-                  </div>
-                  <div className="header-toolbar-divider hidden h-8 w-px shrink-0 bg-slate-200 md:block" />
-                  <ActionButton
-                    className="shrink-0 whitespace-nowrap px-3 sm:px-4"
-                    disabled={!permissions.canPublishAnnouncement}
-                    onClick={() => setAnnouncementModalOpen(true)}
-                    title="无权限"
-                    variant="primary"
-                  >
-                    <span className="inline-flex items-center gap-2">
-                      <BellPlus className="h-4 w-4" />
-                      <span className="hidden sm:inline">发布公告</span>
-                    </span>
-                  </ActionButton>
+                  {profileMenuOpen ? (
+                    <div className="header-profile-menu-panel absolute right-0 top-full z-[80] mt-2 min-w-[180px] rounded-xl p-1">
+                      <button
+                        className="header-profile-menu-item"
+                        onClick={openProfilePage}
+                        type="button"
+                      >
+                        查看个人信息
+                      </button>
+                      <button
+                        className="header-profile-menu-item danger"
+                        onClick={() => void handleLogout()}
+                        type="button"
+                      >
+                        退出登录
+                      </button>
+                    </div>
+                  ) : null}
                 </div>
               </div>
             </header>
