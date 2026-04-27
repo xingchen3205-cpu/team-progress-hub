@@ -1,70 +1,129 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import { useEffect } from "react";
 import type { TabKey } from "@/components/workspace-context";
 
 import TabSkeleton from "@/components/tab-skeleton";
 import { WorkspaceProvider, useWorkspaceContext } from "@/components/workspace-context";
 import { WorkspaceShell } from "@/components/workspace-shell";
 
-const OverviewTab = dynamic(() => import("@/components/tabs/overview-tab"), {
-  loading: () => <TabSkeleton />,
+const loadOverviewTab = () => import("@/components/tabs/overview-tab");
+const loadTimelineTab = () => import("@/components/tabs/timeline-tab");
+const loadTasksTab = () => import("@/components/tabs/tasks-tab");
+const loadTrainingTab = () => import("@/components/tabs/training-tab");
+const loadScheduleTab = () => import("@/components/tabs/schedule-tab");
+const loadExpertOpinionTab = () => import("@/components/tabs/expert-opinion-tab");
+const loadExpertReviewTab = () => import("@/components/tabs/expert-review-tab");
+const loadDocumentsTab = () => import("@/components/tabs/documents-tab");
+const loadProjectTab = () => import("@/components/tabs/project-tab");
+const loadTeamTab = () => import("@/components/tabs/team-tab");
+const loadAssistantTab = () => import("@/components/tabs/assistant-tab");
+const loadProfileTab = () => import("@/components/tabs/profile-tab");
+
+const OverviewTab = dynamic(loadOverviewTab, {
+  loading: () => <TabSkeleton variant="workspace" />,
 });
-const TimelineTab = dynamic(() => import("@/components/tabs/timeline-tab"), {
-  loading: () => <TabSkeleton />,
+const TimelineTab = dynamic(loadTimelineTab, {
+  loading: () => <TabSkeleton variant="workspace" />,
 });
-const TasksTab = dynamic(() => import("@/components/tabs/tasks-tab"), {
-  loading: () => <TabSkeleton />,
+const TasksTab = dynamic(loadTasksTab, {
+  loading: () => <TabSkeleton variant="workspace" />,
 });
-const TrainingTab = dynamic(() => import("@/components/tabs/training-tab"), {
-  loading: () => <TabSkeleton />,
+const TrainingTab = dynamic(loadTrainingTab, {
+  loading: () => <TabSkeleton variant="workspace" />,
 });
-const ScheduleTab = dynamic(() => import("@/components/tabs/schedule-tab"), {
-  loading: () => <TabSkeleton />,
+const ScheduleTab = dynamic(loadScheduleTab, {
+  loading: () => <TabSkeleton variant="workspace" />,
 });
-const ExpertOpinionTab = dynamic(() => import("@/components/tabs/expert-opinion-tab"), {
-  loading: () => <TabSkeleton />,
+const ExpertOpinionTab = dynamic(loadExpertOpinionTab, {
+  loading: () => <TabSkeleton variant="workspace" />,
 });
-const ExpertReviewTab = dynamic(() => import("@/components/tabs/expert-review-tab"), {
-  loading: () => <TabSkeleton />,
+const ExpertReviewTab = dynamic(loadExpertReviewTab, {
+  loading: () => <TabSkeleton variant="workspace" />,
 });
-const DocumentsTab = dynamic(() => import("@/components/tabs/documents-tab"), {
-  loading: () => <TabSkeleton />,
+const DocumentsTab = dynamic(loadDocumentsTab, {
+  loading: () => <TabSkeleton variant="workspace" />,
 });
-const ProjectTab = dynamic(() => import("@/components/tabs/project-tab"), {
-  loading: () => <TabSkeleton />,
+const ProjectTab = dynamic(loadProjectTab, {
+  loading: () => <TabSkeleton variant="workspace" />,
 });
-const TeamTab = dynamic(() => import("@/components/tabs/team-tab"), {
-  loading: () => <TabSkeleton />,
+const TeamTab = dynamic(loadTeamTab, {
+  loading: () => <TabSkeleton variant="workspace" />,
 });
-const AssistantTab = dynamic(() => import("@/components/tabs/assistant-tab"), {
-  loading: () => <TabSkeleton />,
+const AssistantTab = dynamic(loadAssistantTab, {
+  loading: () => <TabSkeleton variant="workspace" />,
 });
-const ProfileTab = dynamic(() => import("@/components/tabs/profile-tab"), {
-  loading: () => <TabSkeleton />,
+const ProfileTab = dynamic(loadProfileTab, {
+  loading: () => <TabSkeleton variant="workspace" />,
 });
 
+const preloadWorkspaceTabComponents: Record<TabKey, () => Promise<unknown>> = {
+  overview: loadOverviewTab,
+  timeline: loadTimelineTab,
+  board: loadTasksTab,
+  training: loadTrainingTab,
+  reports: loadScheduleTab,
+  experts: loadExpertOpinionTab,
+  review: loadExpertReviewTab,
+  documents: loadDocumentsTab,
+  project: loadProjectTab,
+  team: loadTeamTab,
+  assistant: loadAssistantTab,
+  profile: loadProfileTab,
+};
+
+const priorityPreloadTabs: TabKey[] = ["overview", "board", "reports", "documents", "project", "team"];
+
 function WorkspaceDashboardContent() {
-  const { safeActiveTab } = useWorkspaceContext();
+  const { safeActiveTab, isActiveTabResourceLoading } = useWorkspaceContext();
+  const tabContent = (
+    <>
+      {safeActiveTab === "overview" && <OverviewTab />}
+      {safeActiveTab === "timeline" && <TimelineTab />}
+      {safeActiveTab === "board" && <TasksTab />}
+      {safeActiveTab === "training" && <TrainingTab />}
+      {safeActiveTab === "reports" && <ScheduleTab />}
+      {safeActiveTab === "experts" && <ExpertOpinionTab />}
+      {safeActiveTab === "review" && <ExpertReviewTab />}
+      {safeActiveTab === "documents" && <DocumentsTab />}
+      {safeActiveTab === "project" && <ProjectTab />}
+      {safeActiveTab === "team" && <TeamTab />}
+      {safeActiveTab === "assistant" && <AssistantTab />}
+      {safeActiveTab === "profile" && <ProfileTab />}
+    </>
+  );
+  const visibleTabContent = isActiveTabResourceLoading ? <TabSkeleton variant="workspace" /> : tabContent;
+
+  useEffect(() => {
+    const preloadTargets = priorityPreloadTabs.filter((tab) => tab !== safeActiveTab).slice(0, 4);
+    const preload = () => {
+      for (const tab of preloadTargets) {
+        void preloadWorkspaceTabComponents[tab]();
+      }
+    };
+    const idleWindow = window as Window & {
+      requestIdleCallback?: (callback: () => void, options?: { timeout: number }) => number;
+      cancelIdleCallback?: (handle: number) => void;
+    };
+    const usedIdleCallback = Boolean(idleWindow.requestIdleCallback);
+    const idleHandle = idleWindow.requestIdleCallback
+      ? idleWindow.requestIdleCallback(preload, { timeout: 1200 })
+      : window.setTimeout(preload, 240);
+
+    return () => {
+      if (usedIdleCallback && idleWindow.cancelIdleCallback) {
+        idleWindow.cancelIdleCallback(idleHandle);
+        return;
+      }
+
+      window.clearTimeout(idleHandle);
+    };
+  }, [safeActiveTab]);
 
   return (
     <WorkspaceShell
-      tabContent={
-        <>
-          {safeActiveTab === "overview" && <OverviewTab />}
-          {safeActiveTab === "timeline" && <TimelineTab />}
-          {safeActiveTab === "board" && <TasksTab />}
-          {safeActiveTab === "training" && <TrainingTab />}
-          {safeActiveTab === "reports" && <ScheduleTab />}
-          {safeActiveTab === "experts" && <ExpertOpinionTab />}
-          {safeActiveTab === "review" && <ExpertReviewTab />}
-          {safeActiveTab === "documents" && <DocumentsTab />}
-          {safeActiveTab === "project" && <ProjectTab />}
-          {safeActiveTab === "team" && <TeamTab />}
-          {safeActiveTab === "assistant" && <AssistantTab />}
-          {safeActiveTab === "profile" && <ProfileTab />}
-        </>
-      }
+      tabContent={visibleTabContent}
     />
   );
 }

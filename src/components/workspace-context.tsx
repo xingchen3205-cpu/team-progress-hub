@@ -1914,6 +1914,7 @@ function useWorkspaceController({
   const [isBooting, setIsBooting] = useState(true);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
+  const [activeTabResourceLoading, setActiveTabResourceLoading] = useState(false);
   const loadedWorkspaceResourcesRef = useRef<Set<string>>(new Set());
   const refreshResourceQueueRef = useRef<Set<WorkspaceResourceKey>>(new Set());
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
@@ -2727,6 +2728,11 @@ function useWorkspaceController({
     const loadActiveTabResources = async () => {
       try {
         const resourceKeys = getWorkspaceTabResourceKeys(safeActiveTab, currentUserRole);
+        const pendingResourceKeys = resourceKeys.filter(
+          (resourceKey) =>
+            !loadedWorkspaceResourcesRef.current.has(getWorkspaceResourceLoadedKey(resourceKey, currentUserRole)),
+        );
+        setActiveTabResourceLoading(pendingResourceKeys.length > 0);
         if (resourceKeys.length > 0) {
           await loadWorkspaceResources(resourceKeys, currentUserRole);
         }
@@ -2744,6 +2750,7 @@ function useWorkspaceController({
         setLoadError(message);
       } finally {
         if (isMounted) {
+          setActiveTabResourceLoading(false);
           setIsBooting(false);
         }
       }
@@ -2754,7 +2761,7 @@ function useWorkspaceController({
     return () => {
       isMounted = false;
     };
-  }, [currentUser?.role, getWorkspaceTabResourceKeys, loadWorkspaceResources, safeActiveTab]);
+  }, [currentUser?.role, getWorkspaceResourceLoadedKey, getWorkspaceTabResourceKeys, loadWorkspaceResources, safeActiveTab]);
 
   useEffect(() => {
     const currentUserRole = currentUser?.role;
@@ -6221,6 +6228,9 @@ function useWorkspaceController({
     setCurrentDateTime,
     isBooting,
     setIsBooting,
+    activeTabResourceLoading,
+    setActiveTabResourceLoading,
+    isActiveTabResourceLoading: activeTabResourceLoading && !isBooting,
     loadError,
     setLoadError,
     reloadToken,
