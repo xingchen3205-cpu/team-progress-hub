@@ -83,10 +83,9 @@ const statusBadgeClassNames: Record<Workspace.ProjectMaterialStatusKey, string> 
 };
 
 const projectCardClassName =
-  "project-dashboard-panel rounded-[20px] border border-blue-100/80 bg-white/95 p-6 shadow-[0_16px_40px_rgba(15,23,42,0.08)]";
+  "empty-card project-dashboard-panel";
 
-const projectInputClassName =
-  "mt-2 w-full rounded-xl border border-blue-100 bg-slate-50/80 px-3.5 py-2.5 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-500/10";
+const projectInputClassName = "input";
 
 const isStageWithinActiveWindow = (stage: Workspace.ProjectReviewStageItem) => {
   const now = Date.now();
@@ -165,7 +164,6 @@ export default function ProjectTab() {
     Loader2,
     Pencil,
     Plus,
-    SectionHeader,
     Trash2,
     Upload,
     UserAvatar,
@@ -484,109 +482,134 @@ export default function ProjectTab() {
   };
 
   return (
-    <div className="space-y-4">
-      <SectionHeader
-        description="按评审阶段沉淀项目组最终材料，项目负责人提交后由本组任意指导教师审批生效。"
-        title="项目管理"
-      />
-
-      <section className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
-        {projectStatCards.map((card) => {
-          const Icon = card.icon;
-          return (
-            <div
-              className="project-stat-card flex min-h-[104px] items-center gap-4 rounded-[18px] border border-blue-100/80 bg-white/95 p-5 shadow-[0_10px_24px_rgba(37,99,235,0.08)] transition hover:-translate-y-0.5 hover:shadow-[0_14px_30px_rgba(37,99,235,0.12)]"
-              key={card.label}
-            >
-              <span className={`flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl ${card.tone}`}>
-                <Icon className="h-5 w-5" />
-              </span>
-              <span>
-                <span className="block text-sm font-semibold text-slate-500">{card.label}</span>
-                <span className={`mt-2 block text-[34px] font-black leading-none tracking-[-0.03em] ${card.valueClassName}`}>
-                  {card.value}
-                </span>
-              </span>
+    <div className="project-management-retrofit space-y-5">
+      <section className="project-page-head">
+        <div>
+          <div className="breadcrumb">
+            <span>工作台</span>
+            <span className="sep">/</span>
+            <span className="here">项目管理</span>
+          </div>
+          <div className="page-title-row">
+            <div>
+              <h1 className="page-title">项目管理</h1>
+              <p className="page-desc">按评审阶段沉淀项目组最终材料，项目负责人提交后由本组任意指导教师审批生效。</p>
             </div>
-          );
-        })}
+          </div>
+        </div>
+
+        <div className="stat-strip">
+          {projectStatCards.map((card) => {
+            const Icon = card.icon;
+            const tone =
+              card.label === "评审阶段"
+                ? "blue"
+                : card.label === "待审批材料"
+                  ? "amber"
+                  : card.label === "已生效材料"
+                    ? "emerald"
+                    : "rose";
+            return (
+              <div className="stat-item project-stat-card" key={card.label}>
+                <span className={`stat-icon ${tone}`}>
+                  <Icon className="h-4 w-4" />
+                </span>
+                <span>
+                  <span className="stat-label">{card.label}</span>
+                  <span className={`stat-value ${card.valueClassName}`}>{card.value}</span>
+                </span>
+              </div>
+            );
+          })}
+        </div>
       </section>
 
       {canManageStages ? (
-        <section className={projectCardClassName}>
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-            <div>
-              <h3 className="inline-flex items-center gap-2 text-lg font-bold text-slate-950">
-                <Plus className="h-5 w-5 text-blue-600" />
-                创建评审阶段
-              </h3>
-              <p className="mt-1 text-sm text-slate-500">
-                管理员先创建网络评审或项目路演阶段，学生端按开放范围提交对应内容。
-              </p>
+        <section className="section">
+          <div className="section-title">
+            <div className="section-title-left">
+              <span className="accent" />
+              <h2>创建评审阶段</h2>
+              <span className="section-hint">管理员先创建网络评审或项目路演阶段，学生端按开放范围提交对应内容</span>
             </div>
           </div>
 
-          <div className="project-stage-create-grid mt-5 grid gap-5 xl:grid-cols-[minmax(260px,1.25fr)_minmax(220px,1fr)_minmax(190px,0.75fr)_minmax(190px,0.75fr)]">
-            <label className="block text-sm font-medium text-slate-700">
-              阶段名称
-              <input
-                className={projectInputClassName}
-                onChange={(event) => setStageDraft((current) => ({ ...current, name: event.target.value }))}
-                placeholder="如：第一轮网络评审"
-                value={stageDraft.name}
-              />
-            </label>
-            <label className="block text-sm font-medium text-slate-700">
-              阶段类型
-              <select
-                className={projectInputClassName}
-                onChange={(event) => {
-                  const nextType = event.target.value as Workspace.ProjectReviewStageTypeKey;
-                  setStageDraft((current) => ({
-                    ...current,
-                    type: nextType,
-                    requiredMaterials: defaultRequiredMaterialsByStageType[nextType],
-                  }));
-                }}
-                value={stageDraft.type}
-              >
-                {stageTypeOptions.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </select>
-              <span className="mt-1 block text-xs text-slate-400">
-                {stageTypeOptions.find((item) => item.value === stageDraft.type)?.description}
-              </span>
-            </label>
-            <label className="block text-sm font-medium text-slate-700 xl:col-span-2">
-              开放项目组
-              <div className="mt-2 overflow-hidden rounded-xl border border-slate-200 bg-white">
-                <label className="flex items-center gap-2 rounded-lg bg-white px-3 py-2 text-sm text-slate-700 ring-1 ring-slate-200">
+          <div className="card project-form-card">
+            <div className="project-stage-create-grid form-grid">
+              <label className="field">
+                <span className="field-label">阶段名称 <span className="req">*</span></span>
+                <input
+                  className={projectInputClassName}
+                  onChange={(event) => setStageDraft((current) => ({ ...current, name: event.target.value }))}
+                  placeholder="如：第一轮网络评审"
+                  value={stageDraft.name}
+                />
+              </label>
+
+              <label className="field">
+                <span className="field-label">阶段类型 <span className="req">*</span></span>
+                <select
+                  className="select"
+                  onChange={(event) => {
+                    const nextType = event.target.value as Workspace.ProjectReviewStageTypeKey;
+                    setStageDraft((current) => ({
+                      ...current,
+                      type: nextType,
+                      requiredMaterials: defaultRequiredMaterialsByStageType[nextType],
+                    }));
+                  }}
+                  value={stageDraft.type}
+                >
+                  {stageTypeOptions.map((option) => (
+                    <option key={option.value} value={option.value}>
+                      {option.label}
+                    </option>
+                  ))}
+                </select>
+                <span className="field-hint">
+                  {stageTypeOptions.find((item) => item.value === stageDraft.type)?.description}
+                </span>
+              </label>
+
+              <label className="field">
+                <span className="field-label">开放时间 <span className="req">*</span></span>
+                <div className="date-row">
                   <input
-                    checked={stageDraft.teamGroupIds.length === 0}
-                    className="h-4 w-4 rounded border-slate-300 text-blue-600"
-                    onChange={() => setStageDraft((current) => ({ ...current, teamGroupIds: [] }))}
-                    type="checkbox"
+                    className={projectInputClassName}
+                    onChange={(event) => setStageDraft((current) => ({ ...current, startAt: event.target.value }))}
+                    type="datetime-local"
+                    value={stageDraft.startAt}
                   />
-                  <span className="font-medium">全部项目组可提交</span>
-                </label>
-                <div className="grid max-h-36 gap-2 overflow-y-auto border-t border-slate-100 bg-slate-50 p-3 sm:grid-cols-2">
+                  <span className="arrow">→</span>
+                  <input
+                    className={projectInputClassName}
+                    onChange={(event) => setStageDraft((current) => ({ ...current, deadline: event.target.value }))}
+                    type="datetime-local"
+                    value={stageDraft.deadline}
+                  />
+                </div>
+              </label>
+
+              <label className="field span-2">
+                <span className="field-label">开放项目组</span>
+                <div className="group-pickers">
+                  <label className={`chip all-toggle ${stageDraft.teamGroupIds.length === 0 ? "active" : ""}`}>
+                    <input
+                      checked={stageDraft.teamGroupIds.length === 0}
+                      className="sr-only"
+                      onChange={() => setStageDraft((current) => ({ ...current, teamGroupIds: [] }))}
+                      type="checkbox"
+                    />
+                    <span className="check">✓</span>
+                    <span>全部项目组</span>
+                  </label>
                   {teamGroups.map((group) => {
                     const checked = stageDraft.teamGroupIds.includes(group.id);
                     return (
-                      <label
-                        className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm ring-1 transition ${
-                          checked
-                            ? "bg-blue-50 text-blue-700 ring-blue-200"
-                            : "bg-white text-slate-600 ring-slate-200 hover:bg-slate-50"
-                        }`}
-                        key={group.id}
-                      >
+                      <label className={`chip ${checked ? "active" : ""}`} key={group.id}>
                         <input
                           checked={checked}
-                          className="h-4 w-4 rounded border-slate-300 text-blue-600"
+                          className="sr-only"
                           onChange={(event) =>
                             setStageDraft((current) => ({
                               ...current,
@@ -597,115 +620,97 @@ export default function ProjectTab() {
                           }
                           type="checkbox"
                         />
-                        <span className="truncate">{group.name}</span>
+                        {checked ? <span className="check">✓</span> : null}
+                        <span>{group.name}</span>
                       </label>
                     );
                   })}
                 </div>
-                <p className="border-t border-slate-100 px-3 py-2 text-xs text-slate-400">
+                <span className="field-hint">
                   {stageDraft.teamGroupIds.length === 0
-                    ? "当前面向全部项目组开放。"
+                    ? "勾选全部项目组即向全校开放；也可点击具体项目组单独开放。"
                     : `已选择 ${selectedTeamGroupCount} 个项目组。`}
-                </p>
-              </div>
-            </label>
-            <label className="flex min-h-40 flex-col items-center justify-center gap-3 rounded-xl border border-blue-100 bg-slate-50/80 px-4 py-5 text-sm font-medium text-slate-700 xl:col-span-2">
-              <span className="text-xs text-slate-400">学生上传权限</span>
-              <span className="relative inline-flex h-7 w-14 items-center">
-                <input
-                  checked={stageDraft.isOpen}
-                  className="peer sr-only"
-                  onChange={(event) =>
-                    setStageDraft((current) => ({ ...current, isOpen: event.target.checked }))
-                  }
-                  type="checkbox"
-                />
-                <span className="absolute inset-0 rounded-full bg-slate-300 transition peer-checked:bg-blue-600" />
-                <span className="absolute left-1 h-5 w-5 rounded-full bg-white shadow transition peer-checked:translate-x-7" />
-              </span>
-              <span>{stageDraft.isOpen ? "当前开放学生上传" : "当前已关闭学生上传"}</span>
-            </label>
-            <label className="block text-sm font-medium text-slate-700">
-              开始时间
-              <input
-                className={projectInputClassName}
-                onChange={(event) => setStageDraft((current) => ({ ...current, startAt: event.target.value }))}
-                type="datetime-local"
-                value={stageDraft.startAt}
-              />
-            </label>
-            <label className="block text-sm font-medium text-slate-700">
-              截止时间
-              <input
-                className={projectInputClassName}
-                onChange={(event) => setStageDraft((current) => ({ ...current, deadline: event.target.value }))}
-                type="datetime-local"
-                value={stageDraft.deadline}
-              />
-            </label>
-            <div className="rounded-xl border border-blue-100 bg-slate-50/80 p-4 xl:col-span-2">
-              <p className="text-sm font-medium text-slate-700">要求上传内容</p>
-              {stageDraft.type === "roadshow" ? (
-                <p className="mt-3 rounded-lg border border-blue-100 bg-white px-3 py-2 text-xs leading-6 text-slate-500">
-                  项目路演只开放专家现场评分，不要求学生上传材料。
-                </p>
-              ) : (
-                <div className="mt-3 grid gap-2 sm:grid-cols-3">
-                  {projectMaterialRequirementOptions.map((option) => (
-                    <label
-                      className={`flex min-h-[64px] items-start gap-2 rounded-lg border px-3 py-3 text-sm transition ${
-                        stageDraft.requiredMaterials.includes(option.key)
-                          ? "border-blue-200 bg-blue-50 text-blue-800"
-                          : "border-white bg-white text-slate-600"
-                      }`}
-                      key={option.key}
-                    >
-                      <input
-                        checked={stageDraft.requiredMaterials.includes(option.key)}
-                        className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600"
-                        onChange={(event) =>
-                          setStageDraft((current) => {
-                            const requiredMaterials = event.target.checked
-                              ? [...new Set([...current.requiredMaterials, option.key])]
-                              : current.requiredMaterials.filter((item) => item !== option.key);
-                            return {
-                              ...current,
-                              requiredMaterials:
-                                requiredMaterials.length > 0
-                                  ? requiredMaterials
-                                  : defaultRequiredMaterialsByStageType[current.type],
-                            };
-                          })
-                        }
-                        type="checkbox"
-                      />
-                      <span>
-                        <span className="block font-semibold text-slate-800">{option.label}</span>
-                        <span className="mt-0.5 block text-xs text-slate-400">{option.description}</span>
-                      </span>
-                    </label>
-                  ))}
-                </div>
-              )}
-            </div>
-            <label className="block text-sm font-medium text-slate-700 xl:col-span-2">
-              阶段说明
-              <textarea
-                className={`${textareaClassName} rounded-xl border-slate-200 bg-slate-50 focus:border-blue-500 focus:bg-white focus:ring-4 focus:ring-blue-500/10`}
-                onChange={(event) => setStageDraft((current) => ({ ...current, description: event.target.value }))}
-                placeholder="说明提交内容、材料格式或本轮用途。"
-                value={stageDraft.description}
-              />
-            </label>
-          </div>
+                </span>
+              </label>
 
-          <div className="mt-4 flex justify-end">
-            <ActionButton disabled={isSaving} onClick={() => void saveStage()} variant="primary">
-              <span className="inline-flex items-center gap-2">
+              <label className="toggle-row span-2">
+                <span className="toggle-info">
+                  <span className="toggle-title">允许学生上传材料</span>
+                  <span className="toggle-desc">关闭后学生端将只能查看评审阶段，无法提交新材料</span>
+                </span>
+                <span className="switch">
+                  <input
+                    checked={stageDraft.isOpen}
+                    onChange={(event) =>
+                      setStageDraft((current) => ({ ...current, isOpen: event.target.checked }))
+                    }
+                    type="checkbox"
+                  />
+                  <span className="slider" />
+                </span>
+              </label>
+
+              <div className="field span-2">
+                <p className="field-label">要求上传内容</p>
+                {stageDraft.type === "roadshow" ? (
+                  <p className="field-hint rounded-lg border border-blue-100 bg-white px-3 py-2">
+                    项目路演只开放专家现场评分，不要求学生上传材料。
+                  </p>
+                ) : (
+                  <div className="material-tags">
+                    {projectMaterialRequirementOptions.map((option) => (
+                      <label
+                        className={`mat-tag ${stageDraft.requiredMaterials.includes(option.key) ? "active" : ""}`}
+                        key={option.key}
+                      >
+                        <input
+                          checked={stageDraft.requiredMaterials.includes(option.key)}
+                          className="sr-only"
+                          onChange={(event) =>
+                            setStageDraft((current) => {
+                              const requiredMaterials = event.target.checked
+                                ? [...new Set([...current.requiredMaterials, option.key])]
+                                : current.requiredMaterials.filter((item) => item !== option.key);
+                              return {
+                                ...current,
+                                requiredMaterials:
+                                  requiredMaterials.length > 0
+                                    ? requiredMaterials
+                                    : defaultRequiredMaterialsByStageType[current.type],
+                              };
+                            })
+                          }
+                          type="checkbox"
+                        />
+                        <FileText className="h-4 w-4" />
+                        <span>{option.label}</span>
+                        <span className="tip">{option.key === "video_20mb" ? "≤20MB" : "PDF"}</span>
+                      </label>
+                    ))}
+                  </div>
+                )}
+            </div>
+
+              <label className="field span-3">
+                <span className="field-label">阶段说明</span>
+                <textarea
+                  className="textarea"
+                  onChange={(event) => setStageDraft((current) => ({ ...current, description: event.target.value }))}
+                  placeholder="说明提交内容、材料格式或本轮用途（选填）"
+                  value={stageDraft.description}
+                />
+              </label>
+            </div>
+
+            <div className="form-actions">
+              <button className="btn btn-secondary" disabled={isSaving} onClick={resetStageForm} type="button">
+                取消
+              </button>
+              <button className="btn btn-primary" disabled={isSaving} onClick={() => void saveStage()} type="button">
                 {isSaving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
                 <span>创建阶段</span>
-              </span>
-            </ActionButton>
+              </button>
+            </div>
           </div>
         </section>
       ) : null}
@@ -1018,7 +1023,7 @@ export default function ProjectTab() {
         </section>
       ) : null}
 
-      <section className="project-lower-grid grid gap-5 xl:grid-cols-[minmax(420px,0.92fr)_minmax(520px,1.08fr)]">
+      <section className="bottom-grid project-lower-grid">
         <div className={projectCardClassName}>
           <div className="flex items-center justify-between gap-3">
             <div>

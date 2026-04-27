@@ -2902,3 +2902,829 @@ a:hover {
     box-shadow: none;
   }
 }
+
+/* Workspace tab retrofit overrides. Kept late in the file so Turbopack serves them reliably. */
+.project-management-retrofit,
+.expert-opinion-retrofit {
+  color: #1f2937;
+}
+
+.project-management-retrofit .breadcrumb,
+.expert-opinion-retrofit .breadcrumb {
+  margin-bottom: 8px;
+  color: #8a96a8;
+  font-size: 12px;
+}
+
+.project-management-retrofit .breadcrumb .sep,
+.expert-opinion-retrofit .breadcrumb .sep {
+  margin: 0 6px;
+  color: #c5cdd9;
+}
+
+.project-management-retrofit .breadcrumb .here,
+.expert-opinion-retrofit .breadcrumb .here {
+  color: #5a6478;
+}
+
+.project-management-retrofit .page-title,
+.expert-opinion-retrofit .page-title {
+  margin: 0;
+  color: #1a2336;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 0;
+  line-height: 1.25;
+}
+
+.project-management-retrofit .page-desc,
+.expert-opinion-retrofit .page-desc {
+  margin-top: 6px;
+  max-width: 680px;
+  color: #6e7891;
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.project-page-head,
+.opinion-page-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+  border: 1px solid #e8ecf2;
+  border-radius: 12px;
+  background: #ffffff;
+  padding: 22px 28px;
+}
+
+.project-page-head .page-title-row,
+.opinion-page-head > div:first-child {
+  min-width: 0;
+}
+
+.stat-strip {
+  display: flex;
+  flex-wrap: wrap;
+  overflow: hidden;
+  border: 1px solid #e8ecf2;
+  border-radius: 10px;
+  background: #fafbfc;
+}
+
+.stat-item {
+  display: flex;
+  min-width: 150px;
+  align-items: center;
+  gap: 12px;
+  border-right: 1px solid #e8ecf2;
+  padding: 12px 18px;
+}
+
+.stat-item:last-child {
+  border-right: 0;
+}
+
+.stat-icon {
+  display: inline-flex;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  border-radius: 8px;
+}
+
+.stat-icon.blue {
+  background: #e6f0ff;
+  color: #2563d8;
+}
+
+.stat-icon.amber {
+  background: #fff4e0;
+  color: #c47b08;
+}
+
+.stat-icon.emerald {
+  background: #e3f6ec;
+  color: #0f9d58;
+}
+
+.stat-icon.rose {
+  background: #fdebec;
+  color: #d4373a;
+}
+
+.stat-label {
+  display: block;
+  color: #8a96a8;
+  font-size: 11px;
+  line-height: 1.2;
+}
+
+.stat-value {
+  display: block;
+  margin-top: 2px;
+  color: #1a2336;
+  font-size: 19px;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.project-management-retrofit .section {
+  margin-bottom: 8px;
+}
+
+.project-management-retrofit .section-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 0;
+  margin-bottom: 14px;
+  letter-spacing: 0;
+}
+
+.project-management-retrofit .section-title-left {
+  display: flex;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+}
+
+.project-management-retrofit .section-title h2 {
+  margin: 0;
+  color: #1a2336;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.35;
+}
+
+.project-management-retrofit .section-title .accent {
+  width: 3px;
+  height: 14px;
+  border-radius: 2px;
+  background: #2563d8;
+}
+
+.project-management-retrofit .section-hint {
+  color: #8a96a8;
+  font-size: 12px;
+}
+
+.project-management-retrofit .card,
+.project-management-retrofit .empty-card,
+.expert-opinion-retrofit .opinion-ledger-group,
+.expert-opinion-retrofit .opinion-ledger-toolbar {
+  border: 1px solid #e8ecf2;
+  border-radius: 12px;
+  background: #ffffff;
+}
+
+.project-management-retrofit .card {
+  padding: 24px 28px;
+}
+
+.project-management-retrofit .form-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 20px 24px;
+}
+
+.project-management-retrofit .field {
+  display: flex;
+  min-width: 0;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.project-management-retrofit .span-2 {
+  grid-column: span 2;
+}
+
+.project-management-retrofit .span-3 {
+  grid-column: span 3;
+}
+
+.project-management-retrofit .field-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: #4a5468;
+  font-size: 12.5px;
+  font-weight: 650;
+}
+
+.project-management-retrofit .req {
+  color: #d4373a;
+}
+
+.project-management-retrofit .field-hint {
+  margin-top: 2px;
+  color: #8a96a8;
+  font-size: 11.5px;
+  line-height: 1.6;
+}
+
+.project-management-retrofit .input,
+.project-management-retrofit .select,
+.project-management-retrofit .textarea,
+.expert-opinion-retrofit .filter-select,
+.expert-opinion-retrofit .search-input {
+  width: 100%;
+  border: 1px solid #d8dee8;
+  border-radius: 7px;
+  background-color: #ffffff;
+  color: #1f2937;
+  font-size: 13.5px;
+  outline: none;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease,
+    background-color 0.15s ease;
+}
+
+.project-management-retrofit .input,
+.project-management-retrofit .select,
+.project-management-retrofit .textarea {
+  padding: 9px 12px;
+}
+
+.project-management-retrofit .input:focus,
+.project-management-retrofit .select:focus,
+.project-management-retrofit .textarea:focus,
+.expert-opinion-retrofit .filter-select:focus,
+.expert-opinion-retrofit .search-input:focus {
+  border-color: #2563d8;
+  box-shadow: 0 0 0 3px rgba(37, 99, 216, 0.12);
+}
+
+.project-management-retrofit .textarea {
+  min-height: 78px;
+  resize: vertical;
+  line-height: 1.6;
+}
+
+.project-management-retrofit .select,
+.expert-opinion-retrofit .filter-select {
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236e7891' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-position: right 11px center;
+  background-repeat: no-repeat;
+  padding-right: 32px;
+}
+
+.project-management-retrofit .date-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 16px minmax(0, 1fr);
+  gap: 8px;
+  align-items: end;
+}
+
+.project-management-retrofit .date-row .arrow {
+  display: flex;
+  justify-content: center;
+  padding-bottom: 10px;
+  color: #c5cdd9;
+}
+
+.project-management-retrofit .group-pickers,
+.project-management-retrofit .material-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.project-management-retrofit .chip,
+.project-management-retrofit .mat-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 1px solid #d8dee8;
+  background: #ffffff;
+  color: #4a5468;
+  cursor: pointer;
+  font-size: 12.5px;
+  user-select: none;
+  transition: all 0.15s ease;
+}
+
+.project-management-retrofit .chip {
+  border-radius: 20px;
+  padding: 6px 12px;
+}
+
+.project-management-retrofit .mat-tag {
+  border-radius: 8px;
+  padding: 7px 12px 7px 10px;
+}
+
+.project-management-retrofit .chip:hover,
+.project-management-retrofit .mat-tag:hover {
+  border-color: #b6c0d4;
+}
+
+.project-management-retrofit .chip.active,
+.project-management-retrofit .mat-tag.active {
+  border-color: #2563d8;
+  background: #eaf2ff;
+  color: #1a4fb5;
+}
+
+.project-management-retrofit .chip.all-toggle.active {
+  border-color: #2563d8;
+  background: #2563d8;
+  color: #ffffff;
+}
+
+.project-management-retrofit .check {
+  font-size: 12px;
+  line-height: 1;
+}
+
+.project-management-retrofit .mat-tag .tip {
+  margin-left: 2px;
+  color: #8a96a8;
+  font-size: 10.5px;
+}
+
+.project-management-retrofit .mat-tag.active .tip {
+  color: #5b7ec5;
+}
+
+.project-management-retrofit .toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border: 1px solid #e8ecf2;
+  border-radius: 8px;
+  background: #f7f9fc;
+  padding: 12px 14px;
+}
+
+.project-management-retrofit .toggle-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.project-management-retrofit .toggle-title {
+  color: #1a2336;
+  font-size: 13px;
+  font-weight: 650;
+}
+
+.project-management-retrofit .toggle-desc {
+  color: #8a96a8;
+  font-size: 11.5px;
+}
+
+.project-management-retrofit .switch {
+  position: relative;
+  display: inline-block;
+  width: 38px;
+  height: 22px;
+  flex-shrink: 0;
+}
+
+.project-management-retrofit .switch input {
+  width: 0;
+  height: 0;
+  opacity: 0;
+}
+
+.project-management-retrofit .slider {
+  position: absolute;
+  inset: 0;
+  border-radius: 22px;
+  background: #cbd2dc;
+  cursor: pointer;
+  transition: 0.2s;
+}
+
+.project-management-retrofit .slider::before {
+  content: "";
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+  transition: 0.2s;
+}
+
+.project-management-retrofit .switch input:checked + .slider {
+  background: #2563d8;
+}
+
+.project-management-retrofit .switch input:checked + .slider::before {
+  transform: translateX(16px);
+}
+
+.project-management-retrofit .form-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 22px;
+  border-top: 1px solid #eef1f6;
+  padding-top: 20px;
+}
+
+.project-management-retrofit .btn,
+.expert-opinion-retrofit .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: 7px;
+  padding: 9px 18px;
+  font-size: 13.5px;
+  font-weight: 650;
+  transition: all 0.15s ease;
+}
+
+.project-management-retrofit .btn-primary,
+.expert-opinion-retrofit .btn-primary {
+  background: #2563d8;
+  color: #ffffff;
+}
+
+.project-management-retrofit .btn-primary:hover,
+.expert-opinion-retrofit .btn-primary:hover {
+  background: #1f57bf;
+}
+
+.project-management-retrofit .btn-secondary,
+.expert-opinion-retrofit .btn-secondary {
+  border: 1px solid #d8dee8;
+  background: #ffffff;
+  color: #4a5468;
+}
+
+.project-management-retrofit .btn-secondary:hover,
+.expert-opinion-retrofit .btn-secondary:hover {
+  border-color: #b6c0d4;
+  background: #f5f7fa;
+}
+
+.project-management-retrofit .bottom-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 20px;
+}
+
+.project-management-retrofit .empty-card {
+  padding: 22px 24px;
+}
+
+.expert-opinion-retrofit {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.expert-opinion-retrofit .opinion-page-head {
+  align-items: flex-start;
+}
+
+.expert-opinion-retrofit .opinion-ledger-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 18px;
+}
+
+.expert-opinion-retrofit .toolbar-label {
+  margin-right: 4px;
+  color: #6e7891;
+  font-size: 12.5px;
+  font-weight: 650;
+}
+
+.expert-opinion-retrofit .filter-select {
+  width: auto;
+  min-width: 140px;
+  padding: 7px 30px 7px 12px;
+  font-size: 13px;
+}
+
+.expert-opinion-retrofit .search-wrap {
+  position: relative;
+  min-width: 180px;
+  max-width: 280px;
+  flex: 1;
+}
+
+.expert-opinion-retrofit .search-icon {
+  position: absolute;
+  top: 50%;
+  left: 10px;
+  transform: translateY(-50%);
+  color: #8a96a8;
+}
+
+.expert-opinion-retrofit .search-input {
+  padding: 7px 12px 7px 32px;
+  font-size: 13px;
+}
+
+.expert-opinion-retrofit .toolbar-spacer {
+  flex: 1;
+}
+
+.expert-opinion-retrofit .toolbar-meta {
+  color: #8a96a8;
+  font-size: 12px;
+}
+
+.expert-opinion-retrofit .toolbar-meta strong {
+  color: #1a2336;
+  font-weight: 700;
+}
+
+.opinion-ledger-group {
+  overflow: hidden;
+}
+
+.opinion-ledger-group .group-header {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 12px;
+  padding: 14px 20px;
+  text-align: left;
+  transition: background 0.15s ease;
+}
+
+.opinion-ledger-group .group-header:hover {
+  background: #fafbfc;
+}
+
+.opinion-ledger-group.open .group-header {
+  border-bottom: 1px solid #eef1f6;
+}
+
+.opinion-ledger-group .group-chevron {
+  display: flex;
+  width: 20px;
+  height: 20px;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  color: #8a96a8;
+  transition: transform 0.2s ease;
+}
+
+.opinion-ledger-group.open .group-chevron {
+  transform: rotate(180deg);
+}
+
+.opinion-ledger-group .group-name {
+  color: #1a2336;
+  font-size: 14.5px;
+  font-weight: 700;
+}
+
+.opinion-ledger-group .group-count {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 10px;
+  background: #eaf2ff;
+  padding: 2px 8px;
+  color: #1a4fb5;
+  font-size: 11.5px;
+  font-weight: 650;
+}
+
+.opinion-ledger-group .group-count.zero {
+  background: #f0f2f5;
+  color: #8a96a8;
+}
+
+.opinion-ledger-group .group-meta {
+  margin-left: auto;
+  color: #8a96a8;
+  font-size: 12px;
+}
+
+.opinion-ledger-group .group-body {
+  padding: 14px 20px 18px;
+}
+
+.opinion-ledger-group .group-empty {
+  padding: 26px 12px;
+  text-align: center;
+  color: #8a96a8;
+  font-size: 12.5px;
+}
+
+.opinion-card {
+  border: 1px solid #eef1f6;
+  border-radius: 10px;
+  background: #fafbfc;
+  transition: border-color 0.15s ease;
+}
+
+.opinion-card + .opinion-card {
+  margin-top: 12px;
+}
+
+.opinion-card:hover {
+  border-color: #d8dee8;
+}
+
+.opinion-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid #eef1f6;
+  padding: 12px 16px;
+}
+
+.opinion-meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  color: #5a6478;
+  font-size: 12.5px;
+}
+
+.opinion-meta .date {
+  color: #1a2336;
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+
+.opinion-meta .meta-dot {
+  width: 3px;
+  height: 3px;
+  border-radius: 999px;
+  background: #c5cdd9;
+}
+
+.opinion-meta .tag {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 4px;
+  background: #eef2f7;
+  padding: 2px 8px;
+  color: #4a5468;
+  font-size: 11.5px;
+}
+
+.opinion-meta .experts {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: #4a5468;
+}
+
+.opinion-meta .experts strong {
+  color: #1a2336;
+  font-weight: 700;
+}
+
+.opinion-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+}
+
+.opinion-actions .icon-mini {
+  display: flex;
+  width: 28px;
+  height: 28px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 6px;
+  color: #6e7891;
+  transition:
+    background 0.15s ease,
+    color 0.15s ease;
+}
+
+.opinion-actions .icon-mini:hover {
+  background: #eef2f7;
+  color: #1a2336;
+}
+
+.opinion-actions .icon-mini.danger:hover {
+  background: #fdebec;
+  color: #d4373a;
+}
+
+.opinion-body {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 16px 14px;
+}
+
+.opinion-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.opinion-row .label {
+  display: flex;
+  width: 68px;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 5px;
+  padding-top: 1px;
+  color: #8a96a8;
+  font-size: 12px;
+}
+
+.opinion-row .dot-color {
+  width: 6px;
+  height: 6px;
+  flex-shrink: 0;
+  border-radius: 999px;
+}
+
+.opinion-row .dot-color.amber {
+  background: #c47b08;
+}
+
+.opinion-row .dot-color.emerald {
+  background: #0f9d58;
+}
+
+.opinion-row .value {
+  flex: 1;
+  color: #1f2937;
+  font-size: 13px;
+  line-height: 1.65;
+}
+
+.opinion-row .link {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  margin-left: 6px;
+  color: #2563d8;
+}
+
+.opinion-row .link:hover {
+  text-decoration: underline;
+}
+
+@media (max-width: 1180px) {
+  .project-page-head,
+  .opinion-page-head {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .stat-strip {
+    width: 100%;
+  }
+}
+
+@media (max-width: 980px) {
+  .project-management-retrofit .form-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .project-management-retrofit .span-3 {
+    grid-column: span 2;
+  }
+
+  .project-management-retrofit .bottom-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 640px) {
+  .project-management-retrofit .form-grid,
+  .project-management-retrofit .date-row {
+    grid-template-columns: 1fr;
+  }
+
+  .project-management-retrofit .span-2,
+  .project-management-retrofit .span-3 {
+    grid-column: span 1;
+  }
+
+  .project-management-retrofit .date-row .arrow {
+    display: none;
+  }
+
+  .opinion-head,
+  .opinion-row,
+  .opinion-ledger-group .group-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .opinion-ledger-group .group-meta,
+  .opinion-actions {
+    margin-left: 0;
+  }
+}

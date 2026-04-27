@@ -66,10 +66,19 @@ test("project management data is loaded when project tab is active", () => {
 test("project management tab uses the polished stage and material dashboard layout", () => {
   const tabSource = read("src/components/tabs/project-tab.tsx");
 
-  assert.match(tabSource, /project-stat-card/);
-  assert.match(tabSource, /project-dashboard-panel/);
-  assert.match(tabSource, /project-stage-create-grid/);
-  assert.match(tabSource, /project-lower-grid/);
+  assert.match(tabSource, /project-page-head/);
+  assert.match(tabSource, /stat-strip/);
+  assert.match(tabSource, /stat-item/);
+  assert.match(tabSource, /section-title/);
+  assert.match(tabSource, /form-grid/);
+  assert.match(tabSource, /group-pickers/);
+  assert.match(tabSource, /chip all-toggle/);
+  assert.match(tabSource, /material-tags/);
+  assert.match(tabSource, /mat-tag/);
+  assert.match(tabSource, /date-row/);
+  assert.match(tabSource, /form-actions/);
+  assert.match(tabSource, /bottom-grid/);
+  assert.match(tabSource, /empty-card/);
   assert.match(tabSource, /project-stage-index/);
   assert.match(tabSource, /project-material-card/);
   assert.match(tabSource, /创建评审阶段/);

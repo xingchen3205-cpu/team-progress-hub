@@ -518,80 +518,76 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
             </div>
           </aside>
 
-          <aside
-            className={`depth-sidebar depth-sidebar-enhanced sidebar-government-pattern fixed inset-y-0 left-0 z-50 w-[min(82vw,260px)] overflow-hidden px-4 py-6 text-white transition-all duration-200 xl:hidden ${
-              mobileSidebarOpen
-                ? "translate-x-0 opacity-100 shadow-xl"
-                : "-translate-x-[calc(100%+2rem)] opacity-0 shadow-none pointer-events-none"
-            }`}
-          >
-            <div className="sidebar flex h-full flex-col">
-              <div className="sidebar-header flex items-center justify-between pb-5">
-                <div className="sidebar-logo flex items-center gap-3">
-                  <div className="sidebar-logo-wrapper flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/15 bg-white/10">
-                    <Image alt="南铁校徽" className="h-7 w-7 object-contain" height={77} src="/official-logo.png" width={430} />
+          {mobileSidebarOpen ? (
+            <aside className="depth-sidebar depth-sidebar-enhanced sidebar-government-pattern fixed inset-y-0 left-0 z-50 w-[min(82vw,260px)] translate-x-0 overflow-hidden px-4 py-6 text-white opacity-100 shadow-xl transition-all duration-200 xl:hidden">
+              <div className="sidebar flex h-full flex-col">
+                <div className="sidebar-header flex items-center justify-between pb-5">
+                  <div className="sidebar-logo flex items-center gap-3">
+                    <div className="sidebar-logo-wrapper flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/15 bg-white/10">
+                      <Image alt="南铁校徽" className="h-7 w-7 object-contain" height={77} src="/official-logo.png" width={430} />
+                    </div>
+                    <div className="min-w-0">
+                      <h1 className="school-name text-[15px] font-bold leading-tight tracking-[0.01em]">中国国际大学生创新大赛管理系统</h1>
+                      <p className="school-sub mt-1">南京铁道职业技术学院</p>
+                    </div>
                   </div>
-                  <div className="min-w-0">
-                    <h1 className="school-name text-[15px] font-bold leading-tight tracking-[0.01em]">中国国际大学生创新大赛管理系统</h1>
-                    <p className="school-sub mt-1">南京铁道职业技术学院</p>
-                  </div>
+                  <button
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 text-white/80"
+                    onClick={() => setMobileSidebarOpen(false)}
+                    type="button"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
                 </div>
-                <button
-                  className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 text-white/80"
-                  onClick={() => setMobileSidebarOpen(false)}
-                  type="button"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
 
-              <nav className="sidebar-nav mt-5 space-y-1">
-                {sidebarTabs.map((item) => {
-                  const Icon = item.icon;
-                  const isActive = item.key === safeActiveTab;
-                  const href =
-                    item.key === "overview" ? "/workspace" : `/workspace?tab=${item.key}`;
+                <nav className="sidebar-nav mt-5 space-y-1">
+                  {sidebarTabs.map((item) => {
+                    const Icon = item.icon;
+                    const isActive = item.key === safeActiveTab;
+                    const href =
+                      item.key === "overview" ? "/workspace" : `/workspace?tab=${item.key}`;
 
-                  return (
-                    <Link
-                      key={`mobile-${item.key}`}
-                      className={`sidebar-nav-item no-underline ${isActive ? "sidebar-nav-item-active" : ""}`}
-                      href={href}
-                      onClick={() => setMobileSidebarOpen(false)}
-                    >
-                      <Icon className="h-[18px] w-[18px]" strokeWidth={2.1} />
-                      <span>{getSidebarTabLabel(item)}</span>
-                    </Link>
-                  );
-                })}
-              </nav>
+                    return (
+                      <Link
+                        key={`mobile-${item.key}`}
+                        className={`sidebar-nav-item no-underline ${isActive ? "sidebar-nav-item-active" : ""}`}
+                        href={href}
+                        onClick={() => setMobileSidebarOpen(false)}
+                      >
+                        <Icon className="h-[18px] w-[18px]" strokeWidth={2.1} />
+                        <span>{getSidebarTabLabel(item)}</span>
+                      </Link>
+                    );
+                  })}
+                </nav>
 
-              <div className="sidebar-user-area mt-auto">
-                <div className="flex items-center gap-3">
-                  <UserAvatar
-                    avatar={currentUser.profile.avatar}
-                    avatarUrl={currentUser.profile.avatarUrl}
-                    className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-500 text-sm font-semibold text-white"
-                    name={currentUser.profile.name}
-                    textClassName="text-sm font-semibold text-white"
-                  />
-                  <div className="min-w-0">
-                    <p className="sidebar-user-name truncate">{currentUser.profile.name}</p>
-                    <p className="sidebar-user-role mt-0.5">{roleLabels[currentRole]}</p>
-                    <p className="mt-0.5 text-[11px] text-white/45">{getSidebarUserMeta()}</p>
+                <div className="sidebar-user-area mt-auto">
+                  <div className="flex items-center gap-3">
+                    <UserAvatar
+                      avatar={currentUser.profile.avatar}
+                      avatarUrl={currentUser.profile.avatarUrl}
+                      className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-500 text-sm font-semibold text-white"
+                      name={currentUser.profile.name}
+                      textClassName="text-sm font-semibold text-white"
+                    />
+                    <div className="min-w-0">
+                      <p className="sidebar-user-name truncate">{currentUser.profile.name}</p>
+                      <p className="sidebar-user-role mt-0.5">{roleLabels[currentRole]}</p>
+                      <p className="mt-0.5 text-[11px] text-white/45">{getSidebarUserMeta()}</p>
+                    </div>
                   </div>
+                  <button
+                    className="mt-4 inline-flex items-center gap-2 text-sm text-white/50 transition hover:text-white"
+                    onClick={() => void handleLogout()}
+                    type="button"
+                  >
+                    <LogOut className="h-4 w-4" />
+                    <span>退出</span>
+                  </button>
                 </div>
-                <button
-                  className="mt-4 inline-flex items-center gap-2 text-sm text-white/50 transition hover:text-white"
-                  onClick={() => void handleLogout()}
-                  type="button"
-                >
-                  <LogOut className="h-4 w-4" />
-                  <span>退出</span>
-                </button>
               </div>
-            </div>
-          </aside>
+            </aside>
+          ) : null}
 
           <section className="min-w-0 flex-1 overflow-visible">
             <header className="topbar-enhanced relative z-50 mx-auto max-w-[1200px] overflow-visible">
