@@ -92,6 +92,25 @@ test("overview-tab supports admin-wide report group summary", () => {
   assert.match(source, /查看详情 →/);
 });
 
+test("admin overview metric cards use governance status instead of old personal counters", () => {
+  const source = readFileSync(
+    path.join(process.cwd(), "src/components/tabs/overview-tab.tsx"),
+    "utf8",
+  );
+  const adminMetricsBlock = source.match(/if \(hasGlobalAdminRole\) \{[\s\S]*?\n  \}/)?.[0] ?? "";
+
+  assert.match(adminMetricsBlock, /label:\s*"项目组进度"/);
+  assert.match(adminMetricsBlock, /label:\s*"材料待处理"/);
+  assert.match(adminMetricsBlock, /label:\s*"专家评审"/);
+  assert.match(adminMetricsBlock, /label:\s*"系统待处理"/);
+  assert.match(adminMetricsBlock, /pendingProjectMaterialCount \+ pendingDocumentCount/);
+  assert.match(adminMetricsBlock, /bugFeedbackCount \+ pendingApprovalCount/);
+  assert.doesNotMatch(adminMetricsBlock, /label:\s*"待审核账号"/);
+  assert.doesNotMatch(adminMetricsBlock, /label:\s*"进行中工单"/);
+  assert.doesNotMatch(adminMetricsBlock, /label:\s*"未读消息"/);
+  assert.doesNotMatch(adminMetricsBlock, /label:\s*"文档待审批"/);
+});
+
 test("workspace desktop sidebar keeps a full-height shell on wide screens", () => {
   const source = readFileSync(
     path.join(process.cwd(), "src/components/workspace-shell.tsx"),

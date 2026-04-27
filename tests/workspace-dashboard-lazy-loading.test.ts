@@ -28,7 +28,7 @@ test("workspace defines tab-scoped resource loading", () => {
   assert.match(contextSource, /const getWorkspaceTabResourceKeys = useCallback/);
   assert.match(
     contextSource,
-    /case "overview":[\s\S]*?"announcements"[\s\S]*?"events"[\s\S]*?"tasks"[\s\S]*?"documents"[\s\S]*?"team"[\s\S]*?"reviewAssignments"[\s\S]*?"reports"/,
+    /case "overview":[\s\S]*?"announcements"[\s\S]*?"events"[\s\S]*?"tasks"[\s\S]*?"documents"[\s\S]*?"projectMaterials"[\s\S]*?"team"[\s\S]*?"reviewAssignments"[\s\S]*?"reports"/,
   );
   assert.match(
     contextSource,

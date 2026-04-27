@@ -2514,7 +2514,16 @@ function useWorkspaceController({
 
       switch (tab) {
         case "overview":
-          return ["announcements", "events", "tasks", "documents", "team", "reviewAssignments", "reports"];
+          return [
+            "announcements",
+            "events",
+            "tasks",
+            "documents",
+            ...(role === "admin" || role === "school_admin" ? (["projectMaterials"] as const) : []),
+            "team",
+            "reviewAssignments",
+            "reports",
+          ];
         case "timeline":
           return ["events"];
         case "board":

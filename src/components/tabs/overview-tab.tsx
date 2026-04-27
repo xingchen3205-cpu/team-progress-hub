@@ -259,8 +259,12 @@ function buildOverviewMetricCards(args: {
   currentRole: string;
   hasGlobalAdminRole: boolean;
   pendingApprovalCount: number;
+  reportCompleteGroupCount: number;
+  reportGroupCount: number;
+  pendingProjectMaterialCount: number;
   openTaskCount: number;
   unreadMessageCount: number;
+  bugFeedbackCount: number;
   pendingDocumentCount: number;
   unsubmittedReportCount: number;
   unassignedTaskCount: number;
@@ -283,8 +287,12 @@ function buildOverviewMetricCards(args: {
     currentRole,
     hasGlobalAdminRole,
     pendingApprovalCount,
+    reportCompleteGroupCount,
+    reportGroupCount,
+    pendingProjectMaterialCount,
     openTaskCount,
     unreadMessageCount,
+    bugFeedbackCount,
     pendingDocumentCount,
     unsubmittedReportCount,
     unassignedTaskCount,
@@ -300,36 +308,36 @@ function buildOverviewMetricCards(args: {
   if (hasGlobalAdminRole) {
     return [
       {
-        label: "待审核账号",
-        value: pendingApprovalCount,
-        unit: "个",
+        label: "项目组进度",
+        value: reportCompleteGroupCount,
+        unit: `/${reportGroupCount}组`,
         tone: "blue",
-        icon: icons.account,
-        onClick: () => openTarget("team"),
+        icon: icons.report,
+        onClick: () => openTarget("reports"),
       },
       {
-        label: "进行中工单",
-        value: openTaskCount,
+        label: "材料待处理",
+        value: pendingProjectMaterialCount + pendingDocumentCount,
         unit: "项",
         tone: "amber",
-        icon: icons.board,
-        onClick: () => openTarget("board"),
-      },
-      {
-        label: "未读消息",
-        value: unreadMessageCount,
-        unit: "条",
-        tone: "green",
-        icon: icons.mail,
-        onClick: () => openTarget("notifications"),
-      },
-      {
-        label: "文档待审批",
-        value: pendingDocumentCount,
-        unit: "份",
-        tone: "red",
         icon: icons.document,
-        onClick: () => openTarget("documents"),
+        onClick: () => openTarget(pendingProjectMaterialCount > 0 ? "project" : "documents"),
+      },
+      {
+        label: "专家评审",
+        value: pendingExpertReviewCount,
+        unit: "项",
+        tone: "green",
+        icon: icons.review,
+        onClick: () => openTarget("review"),
+      },
+      {
+        label: "系统待处理",
+        value: bugFeedbackCount + pendingApprovalCount,
+        unit: "项",
+        tone: "red",
+        icon: icons.account,
+        onClick: () => openTarget(bugFeedbackCount > 0 ? "notifications" : "team"),
       },
     ];
   }
@@ -788,6 +796,7 @@ export default function OverviewTab() {
     tasks,
     reviewAssignments,
     documents,
+    projectMaterials,
     countdown,
     setSelectedAnnouncement,
     currentRole,
@@ -813,15 +822,22 @@ export default function OverviewTab() {
   const openTasks = tasks.filter((task) => task.status !== "archived");
   const completedTaskCount = tasks.filter((task) => task.status === "archived").length;
   const pendingDocumentCount = pendingLeaderReviewCount + pendingTeacherReviewCount;
+  const pendingProjectMaterialCount = projectMaterials.filter((material) => material.status === "pending").length;
   const reviewedDocumentCount = documents.filter((document) => document.statusKey !== "pending").length;
   const reviewCompletedCount = reviewAssignments.filter(
     (assignment) => assignment.statusKey === "completed" || assignment.statusKey === "locked" || Boolean(assignment.score),
   ).length;
   const pendingExpertReviewCount = reviewAssignments.filter((assignment) => assignment.statusKey === "pending").length;
+  const bugFeedbackCount = unreadTodoNotifications.filter((notification) => notification.type === "bug_feedback").length;
   const unsubmittedReportCount = reportableMembers.filter((member) => !todayReportEntryMap.has(member.id)).length;
   const unassignedTaskCount = tasks.filter((task) => task.status === "todo" && !task.assigneeId).length;
   const activeMyTaskCount = myOpenTasks.filter((task) => task.status === "doing" || task.status === "review").length;
   const myPendingReportCount = todayReportEntryMap.has(currentMemberId) ? 0 : 1;
+  const adminReportGroupItems = useMemo(
+    () => buildAdminReportGroupItems({ members: reportableMembers, teamGroups, todayReportEntryMap }),
+    [reportableMembers, teamGroups, todayReportEntryMap],
+  );
+  const fullySubmittedGroupCount = adminReportGroupItems.filter((group) => group.status === "complete").length;
 
   const sortedEvents = useMemo(
     () =>
@@ -845,8 +861,12 @@ export default function OverviewTab() {
     currentRole,
     hasGlobalAdminRole,
     pendingApprovalCount: pendingApprovalMembers.length,
+    reportCompleteGroupCount: fullySubmittedGroupCount,
+    reportGroupCount: adminReportGroupItems.length,
+    pendingProjectMaterialCount,
     openTaskCount: openTasks.length,
     unreadMessageCount: unreadTodoNotifications.length,
+    bugFeedbackCount,
     pendingDocumentCount,
     unsubmittedReportCount,
     unassignedTaskCount,
@@ -884,11 +904,6 @@ export default function OverviewTab() {
   });
 
   const reportStatusItems = buildReportStatusItems(reportableMembers, todayReportEntryMap);
-  const adminReportGroupItems = useMemo(
-    () => buildAdminReportGroupItems({ members: reportableMembers, teamGroups, todayReportEntryMap }),
-    [reportableMembers, teamGroups, todayReportEntryMap],
-  );
-  const fullySubmittedGroupCount = adminReportGroupItems.filter((group) => group.status === "complete").length;
   const visibleEvents = sortedEvents.slice(0, 3);
   const visibleAnnouncements = announcements.slice(0, 3);
 
