@@ -1996,10 +1996,6 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
           title="帮助与反馈"
         >
           <div className="space-y-4">
-            <div className={`${subtleCardClassName} text-sm leading-7 text-slate-500`}>
-              提交后会生成站内消息并发送给系统管理员，校级管理员不会收到该类 Bug 反馈。
-            </div>
-
             <div>
               <label className="text-sm text-slate-500">
                 Bug 标题 <span className="text-red-500">*</span>
