@@ -164,7 +164,7 @@ test("workspace topbar is a global action bar without duplicating the active pag
   assert.match(topbarBlock, /formatFriendlyDate\(currentDateTime\)/);
   assert.match(topbarBlock, /setNotificationsOpen\(true\)/);
   assert.match(topbarBlock, /setAnnouncementModalOpen\(true\)/);
-  assert.match(topbarBlock, /header-date hidden shrink-0 whitespace-nowrap/);
+  assert.match(topbarBlock, /header-date hidden min-w-max shrink-0 whitespace-nowrap/);
   assert.match(topbarBlock, /flex w-full shrink-0 flex-nowrap items-center justify-end/);
   assert.match(topbarBlock, /header-profile-menu relative shrink-0/);
   assert.match(topbarBlock, /className="shrink-0 whitespace-nowrap px-3 sm:px-4"/);

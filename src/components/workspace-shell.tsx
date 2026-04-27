@@ -609,7 +609,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                 <div className="hidden flex-1 lg:block" />
 
                 <div className="flex w-full shrink-0 flex-nowrap items-center justify-end gap-2 overflow-visible sm:w-auto sm:gap-3">
-                  <span className="header-date hidden shrink-0 whitespace-nowrap text-[13px] text-slate-500 md:inline-flex">
+                  <span className="header-date hidden min-w-max shrink-0 whitespace-nowrap text-[13px] text-slate-500 md:inline-flex">
                     {formatFriendlyDate(currentDateTime)}
                   </span>
                   <div className="header-sync-indicator group relative hidden shrink-0 md:inline-flex">

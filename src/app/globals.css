@@ -2164,6 +2164,12 @@ a:hover {
   align-items: center;
 }
 
+.topbar-enhanced .header-date {
+  min-width: max-content;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
 .header-sync-tooltip {
   position: absolute;
   right: 0;
@@ -2866,6 +2872,12 @@ a:hover {
   border-radius: 18px;
   box-shadow: 0 10px 24px rgba(37, 99, 235, 0.08);
   backdrop-filter: blur(14px);
+}
+
+@media (max-width: 1100px) {
+  .topbar-enhanced .header-date {
+    display: none;
+  }
 }
 
 .toast-center-card {
