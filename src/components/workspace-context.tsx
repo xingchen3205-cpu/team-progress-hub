@@ -959,7 +959,7 @@ export const rolePermissions = {
   },
   teacher: {
     visibleTabs: ["overview", "timeline", "board", "training", "reports", "experts", "documents", "project", "team", "assistant", "profile"] as TabKey[],
-    canPublishAnnouncement: true,
+    canPublishAnnouncement: false,
     canSendDirective: true,
     canCreateTask: true,
     canEditTask: true,
@@ -980,7 +980,7 @@ export const rolePermissions = {
   },
   leader: {
     visibleTabs: ["overview", "timeline", "board", "training", "reports", "experts", "documents", "project", "team", "assistant", "profile"] as TabKey[],
-    canPublishAnnouncement: true,
+    canPublishAnnouncement: false,
     canSendDirective: false,
     canCreateTask: true,
     canEditTask: true,

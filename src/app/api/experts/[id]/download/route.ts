@@ -47,7 +47,6 @@ export async function GET(
     !canAccessTeamScopedResource(
       user,
       { ownerId: feedback.createdById, teamGroupId: feedback.teamGroupId },
-      { allowUnassignedForGroupedUsers: true },
     )
   ) {
     return NextResponse.json({ message: "无权限查看该专家意见" }, { status: 403 });

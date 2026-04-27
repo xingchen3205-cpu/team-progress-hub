@@ -437,7 +437,7 @@ export const teamMembers: TeamMember[] = [
     avatar: "李",
     systemRole: "指导教师",
     role: "指导教师",
-    responsibility: "把关方向、审核文档、发布公告和校内资源协调",
+    responsibility: "把关方向、审核文档、节点提醒和校内资源协调",
     progress: "总览",
     canBeManagedByLeader: false,
     todayFocus: "审核终版材料并发布节点提醒",

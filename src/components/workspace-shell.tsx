@@ -207,8 +207,6 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
     Loader2,
     LogOut,
     Menu,
-    RefreshCw,
-    UserCircle,
     X,
     documentCategories,
     roleLabels,
@@ -302,6 +300,36 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
     title: "正在获取南京实时天气",
   });
   const [topbarHelpOpen, setTopbarHelpOpen] = useState(false);
+  const [bugFeedbackDraft, setBugFeedbackDraft] = useState({ title: "", detail: "" });
+  const [bugFeedbackError, setBugFeedbackError] = useState<string | null>(null);
+  const [bugFeedbackSuccess, setBugFeedbackSuccess] = useState<string | null>(null);
+  const [bugFeedbackSubmitting, setBugFeedbackSubmitting] = useState(false);
+
+  const submitBugFeedback = async () => {
+    const title = bugFeedbackDraft.title.trim();
+    const detail = bugFeedbackDraft.detail.trim();
+
+    setBugFeedbackSuccess(null);
+    if (!title || !detail) {
+      setBugFeedbackError("请填写 Bug 标题和问题描述");
+      return;
+    }
+
+    setBugFeedbackSubmitting(true);
+    setBugFeedbackError(null);
+    try {
+      await requestJson("/api/bug-feedback", {
+        method: "POST",
+        body: JSON.stringify({ title, detail }),
+      });
+      setBugFeedbackDraft({ title: "", detail: "" });
+      setBugFeedbackSuccess("反馈已提交，系统管理员会在消息中收到。");
+    } catch (error) {
+      setBugFeedbackError(error instanceof Error ? error.message : "反馈提交失败");
+    } finally {
+      setBugFeedbackSubmitting(false);
+    }
+  };
 
   useEffect(() => {
     let isMounted = true;
@@ -688,18 +716,21 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
               </div>
 
               <div className="topbar-right">
-                <button
-                  className="topbar-action-primary"
-                  disabled={!permissions.canPublishAnnouncement}
-                  onClick={() => setAnnouncementModalOpen(true)}
-                  title={permissions.canPublishAnnouncement ? "发布全校公告" : "无权限"}
-                  type="button"
-                >
-                  <BellPlus className="h-4 w-4" />
-                  <span>发布公告</span>
-                </button>
+                {permissions.canPublishAnnouncement ? (
+                  <>
+                    <button
+                      className="topbar-action-primary"
+                      onClick={() => setAnnouncementModalOpen(true)}
+                      title="发布全校公告"
+                      type="button"
+                    >
+                      <BellPlus className="h-4 w-4" />
+                      <span>发布公告</span>
+                    </button>
 
-                <span className="topbar-divider" />
+                    <span className="topbar-divider" />
+                  </>
+                ) : null}
 
                 <button
                   className="topbar-icon-btn"
@@ -1965,49 +1996,60 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
           title="帮助与反馈"
         >
           <div className="space-y-4">
-            <div className="grid gap-3">
-              <button
-                className="topbar-help-option"
-                onClick={() => {
-                  setTopbarHelpOpen(false);
-                  setNotificationsOpen(true);
-                }}
-                type="button"
-              >
-                <ClipboardCheck className="h-4 w-4" />
-                <span>待办与消息</span>
-              </button>
-              <button
-                className="topbar-help-option"
-                onClick={() => {
-                  setTopbarHelpOpen(false);
-                  openProfilePage();
-                }}
-                type="button"
-              >
-                <UserCircle className="h-4 w-4" />
-                <span>个人资料</span>
-              </button>
-              <button
-                className="topbar-help-option"
-                onClick={() => {
-                  setTopbarHelpOpen(false);
-                  void refreshWorkspace();
-                }}
-                type="button"
-              >
-                <RefreshCw className="h-4 w-4" />
-                <span>刷新数据</span>
-              </button>
+            <div className={`${subtleCardClassName} text-sm leading-7 text-slate-500`}>
+              提交后会生成站内消息并发送给系统管理员，校级管理员不会收到该类 Bug 反馈。
             </div>
 
-            <div className={`${subtleCardClassName} text-sm leading-7 text-slate-500`}>
-              <p className="font-medium text-slate-800">支持单位：南京君如玉科技有限公司</p>
-              <p className="mt-1">需要处理待办、检查账号信息或刷新页面数据时，可以从这里快速进入。</p>
+            <div>
+              <label className="text-sm text-slate-500">
+                Bug 标题 <span className="text-red-500">*</span>
+                <input
+                  className={fieldClassName}
+                  onChange={(event) =>
+                    setBugFeedbackDraft((current) => ({ ...current, title: event.target.value }))
+                  }
+                  placeholder="例如：教师账号显示了发布公告按钮"
+                  type="text"
+                  value={bugFeedbackDraft.title}
+                />
+              </label>
             </div>
+
+            <div>
+              <label className="text-sm text-slate-500">
+                问题描述 <span className="text-red-500">*</span>
+                <textarea
+                  className={textareaClassName}
+                  onChange={(event) =>
+                    setBugFeedbackDraft((current) => ({ ...current, detail: event.target.value }))
+                  }
+                  placeholder="请写清楚账号角色、页面位置、操作步骤和实际看到的问题。"
+                  value={bugFeedbackDraft.detail}
+                />
+              </label>
+            </div>
+
+            {bugFeedbackError ? (
+              <p className="rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-600">
+                {bugFeedbackError}
+              </p>
+            ) : null}
+            {bugFeedbackSuccess ? (
+              <p className="rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+                {bugFeedbackSuccess}
+              </p>
+            ) : null}
 
             <ModalActions>
               <ActionButton onClick={() => setTopbarHelpOpen(false)}>关闭</ActionButton>
+              <ActionButton
+                loading={bugFeedbackSubmitting}
+                loadingLabel="提交中"
+                onClick={() => void submitBugFeedback()}
+                variant="primary"
+              >
+                提交反馈
+              </ActionButton>
             </ModalActions>
           </div>
         </Modal>

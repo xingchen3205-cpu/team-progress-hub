@@ -107,7 +107,7 @@ async function main() {
       password: "teacher123",
       role: Role.teacher,
       avatar: "李",
-      responsibility: "把关方向、审核文档、发布公告和校内资源协调",
+      responsibility: "把关方向、审核文档、节点提醒和校内资源协调",
     },
     {
       id: "leader-1",

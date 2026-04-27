@@ -50,7 +50,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    assertRole(user.role, ["admin", "school_admin", "teacher", "leader"]);
+    assertRole(user.role, ["admin", "school_admin"]);
   } catch {
     return NextResponse.json({ message: "无权限" }, { status: 403 });
   }
@@ -82,12 +82,7 @@ export async function POST(request: NextRequest) {
   });
 
   if (notifyTeam) {
-    const targetRoles =
-      hasGlobalAdminPrivileges(user.role)
-        ? (["teacher", "leader", "member"] as const)
-        : user.role === "teacher"
-          ? (["leader", "member"] as const)
-          : (["member"] as const);
+    const targetRoles = ["teacher", "leader", "member"] as const;
 
     const recipients = await prisma.user.findMany({
       where: {
@@ -98,11 +93,6 @@ export async function POST(request: NextRequest) {
         id: {
           not: user.id,
         },
-        ...(hasGlobalAdminPrivileges(user.role)
-          ? {}
-          : user.teamGroupId
-            ? { teamGroupId: user.teamGroupId }
-            : { id: "__no_team_group_recipients__" }),
       },
       select: {
         id: true,

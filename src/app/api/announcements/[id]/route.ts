@@ -16,7 +16,7 @@ export async function DELETE(
 
   try {
     assertMainWorkspaceRole(user.role);
-    assertRole(user.role, ["admin", "school_admin", "teacher", "leader"]);
+    assertRole(user.role, ["admin", "school_admin"]);
   } catch {
     return NextResponse.json({ message: "无权限" }, { status: 403 });
   }

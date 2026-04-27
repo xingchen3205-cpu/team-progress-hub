@@ -196,6 +196,6 @@ test("topbar help icon opens a real help and feedback panel", () => {
   assert.match(source, /topbarHelpOpen/);
   assert.match(source, /setTopbarHelpOpen\(true\)/);
   assert.match(source, /Modal[\s\S]*title="帮助与反馈"/);
-  assert.match(source, /openProfilePage\(\)/);
-  assert.match(source, /refreshWorkspace\(\)/);
+  assert.match(source, /submitBugFeedback/);
+  assert.match(source, /\/api\/bug-feedback/);
 });

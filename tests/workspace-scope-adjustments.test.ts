@@ -76,6 +76,21 @@ test("expert opinion ledger supports admin assignment and group submissions", ()
   assert.match(expertItemRouteSource, /teamGroupId:\s*requestedTeamGroupId/);
 });
 
+test("expert opinion pending assignment filters are admin-only", () => {
+  const expertsRouteSource = readSource("src/app/api/experts/route.ts");
+  const expertDownloadRouteSource = readSource("src/app/api/experts/[id]/download/route.ts");
+  const opinionTabSource = readSource("src/components/tabs/expert-opinion-tab.tsx");
+
+  assert.match(opinionTabSource, /const canUseGlobalExpertOpinionFilters = isGlobalExpertOpinionView/);
+  assert.match(opinionTabSource, /\{canUseGlobalExpertOpinionFilters \? \(/);
+  assert.match(opinionTabSource, /<option value="unassigned">待分配<\/option>/);
+  assert.match(opinionTabSource, /const matchesScope = canUseGlobalExpertOpinionFilters/);
+  assert.match(opinionTabSource, /opinionScopeFilter === "unassigned"/);
+  assert.match(opinionTabSource, /\) : null\}/);
+  assert.doesNotMatch(expertsRouteSource, /includeUnassignedForGroupedUsers:\s*true/);
+  assert.doesNotMatch(expertDownloadRouteSource, /allowUnassignedForGroupedUsers:\s*true/);
+});
+
 test("administrator navigation removes training and task center copy uses global scope", () => {
   const contextSource = readSource("src/components/workspace-context.tsx");
   const shellSource = readSource("src/components/workspace-shell.tsx");

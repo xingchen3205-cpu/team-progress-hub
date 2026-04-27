@@ -40,6 +40,7 @@ export default function ExpertOpinionTab() {
   } = Workspace;
 
   const isGlobalExpertOpinionView = currentRole === "admin" || currentRole === "school_admin";
+  const canUseGlobalExpertOpinionFilters = isGlobalExpertOpinionView;
   const [selectedExpertOpinionGroupId, setSelectedExpertOpinionGroupId] = useState("all");
   const [opinionScopeFilter, setOpinionScopeFilter] = useState<OpinionScopeFilter>("all");
   const [opinionTimeFilter, setOpinionTimeFilter] = useState<OpinionTimeFilter>("all");
@@ -123,18 +124,29 @@ export default function ExpertOpinionTab() {
     };
 
     return baseExpertOpinionGroups
-      .filter((group) => selectedExpertOpinionGroupId === "all" || group.id === selectedExpertOpinionGroupId)
+      .filter(
+        (group) =>
+          !canUseGlobalExpertOpinionFilters ||
+          selectedExpertOpinionGroupId === "all" ||
+          group.id === selectedExpertOpinionGroupId,
+      )
       .map((group) => ({
         ...group,
         items: group.items.filter((session) => {
-          const matchesScope =
-            opinionScopeFilter === "all" ||
-            (opinionScopeFilter === "assigned" ? Boolean(session.teamGroupId) : !session.teamGroupId);
+          const matchesScope = canUseGlobalExpertOpinionFilters
+            ? opinionScopeFilter === "all" ||
+              (opinionScopeFilter === "assigned"
+                ? Boolean(session.teamGroupId)
+                : opinionScopeFilter === "unassigned"
+                  ? !session.teamGroupId
+                  : true)
+            : true;
           return matchesScope && isWithinTimeRange(session.date) && matchesSearch(session);
         }),
       }));
   }, [
     baseExpertOpinionGroups,
+    canUseGlobalExpertOpinionFilters,
     currentTimestamp,
     expertOpinionSearch,
     opinionScopeFilter,
@@ -282,28 +294,30 @@ export default function ExpertOpinionTab() {
       <div className="opinion-ledger-toolbar">
         <span className="sr-only">分组设置</span>
         <span className="toolbar-label">筛选</span>
-        <select
-          className="filter-select"
-          onChange={(event) => setOpinionScopeFilter(event.target.value as OpinionScopeFilter)}
-          value={opinionScopeFilter}
-        >
-          <option value="all">全部意见</option>
-          <option value="assigned">已分配项目组</option>
-          <option value="unassigned">待分配</option>
-        </select>
-        {isGlobalExpertOpinionView ? (
-          <select
-            className="filter-select"
-            onChange={(event) => setSelectedExpertOpinionGroupId(event.target.value)}
-            value={selectedExpertOpinionGroupId}
-          >
-            <option value="all">全部项目组</option>
-            {baseExpertOpinionGroups.map((group) => (
-              <option key={group.id} value={group.id}>
-                {group.title}
-              </option>
-            ))}
-          </select>
+        {canUseGlobalExpertOpinionFilters ? (
+          <>
+            <select
+              className="filter-select"
+              onChange={(event) => setOpinionScopeFilter(event.target.value as OpinionScopeFilter)}
+              value={opinionScopeFilter}
+            >
+              <option value="all">全部意见</option>
+              <option value="assigned">已分配项目组</option>
+              <option value="unassigned">待分配</option>
+            </select>
+            <select
+              className="filter-select"
+              onChange={(event) => setSelectedExpertOpinionGroupId(event.target.value)}
+              value={selectedExpertOpinionGroupId}
+            >
+              <option value="all">全部项目组</option>
+              {baseExpertOpinionGroups.map((group) => (
+                <option key={group.id} value={group.id}>
+                  {group.title}
+                </option>
+              ))}
+            </select>
+          </>
         ) : null}
         <select
           className="filter-select"
