@@ -159,10 +159,18 @@ test("workspace topbar matches the requested home layout with live weather", () 
   const topbarStart = source.indexOf('<header className="topbar-enhanced relative z-50 mx-auto max-w-[1200px]');
   const contentStart = source.indexOf('<div className="mx-auto mt-4 flex max-w-[1200px] flex-col gap-4">', topbarStart);
   const topbarBlock = source.slice(topbarStart, contentStart);
+  const css = readFileSync(path.join(process.cwd(), "src/app/globals.css"), "utf8");
+  const pageStackCss = css.slice(
+    css.indexOf(".topbar-page-stack"),
+    css.indexOf(".topbar-divider"),
+  );
 
   assert.match(topbarBlock, /topbar-left/);
-  assert.match(topbarBlock, /topbar-page-main/);
-  assert.match(topbarBlock, /topbar-page-sub/);
+  assert.match(topbarBlock, /topbar-page-title/);
+  assert.match(source, /safeActiveTab === "overview" \? "首页概览" : activeTopbarLabel/);
+  assert.doesNotMatch(topbarBlock, /topbar-page-sub/);
+  assert.match(pageStackCss, /flex-direction:\s*row/);
+  assert.doesNotMatch(pageStackCss, /flex-direction:\s*column/);
   assert.match(topbarBlock, /topbar-date-pill/);
   assert.match(topbarBlock, /topbar-weather-pill/);
   assert.match(topbarBlock, /formatFriendlyDate\(currentDateTime\)/);
@@ -170,8 +178,24 @@ test("workspace topbar matches the requested home layout with live weather", () 
   assert.match(topbarBlock, /\/api\/weather\/nanjing/);
   assert.match(topbarBlock, /setNotificationsOpen\(true\)/);
   assert.match(topbarBlock, /setAnnouncementModalOpen\(true\)/);
+  assert.match(topbarBlock, /ClipboardCheck/);
+  assert.doesNotMatch(topbarBlock, /title="消息通知"/);
+  assert.match(topbarBlock, /setTopbarHelpOpen\(true\)/);
   assert.match(topbarBlock, /topbar-right/);
   assert.match(topbarBlock, /header-profile-menu relative shrink-0/);
   assert.match(topbarBlock, /className="topbar-action-primary"/);
   assert.doesNotMatch(topbarBlock, /18°C/);
+});
+
+test("topbar help icon opens a real help and feedback panel", () => {
+  const source = readFileSync(
+    path.join(process.cwd(), "src/components/workspace-shell.tsx"),
+    "utf8",
+  );
+
+  assert.match(source, /topbarHelpOpen/);
+  assert.match(source, /setTopbarHelpOpen\(true\)/);
+  assert.match(source, /Modal[\s\S]*title="帮助与反馈"/);
+  assert.match(source, /openProfilePage\(\)/);
+  assert.match(source, /refreshWorkspace\(\)/);
 });

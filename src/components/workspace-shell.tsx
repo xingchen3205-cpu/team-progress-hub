@@ -200,12 +200,15 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
     BellPlus,
     CalendarDays,
     ChevronDown,
+    ClipboardCheck,
     Cloud,
     Download,
     HelpCircle,
     Loader2,
     LogOut,
     Menu,
+    RefreshCw,
+    UserCircle,
     X,
     documentCategories,
     roleLabels,
@@ -287,10 +290,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
 
   const activeTopbarItem = allTabs.find((item) => item.key === safeActiveTab);
   const activeTopbarLabel = activeTopbarItem ? getSidebarTabLabel(activeTopbarItem) : "首页概览";
-  const topbarPageTitle =
-    safeActiveTab === "overview"
-      ? { main: "首页", sub: "概览" }
-      : { main: activeTopbarLabel, sub: "" };
+  const topbarPageTitle = safeActiveTab === "overview" ? "首页概览" : activeTopbarLabel;
   const topbarDateParts = {
     date: `${currentDateTime.getMonth() + 1}月${currentDateTime.getDate()}日`,
     weekday: ["星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"][
@@ -301,6 +301,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
     label: "南京天气",
     title: "正在获取南京实时天气",
   });
+  const [topbarHelpOpen, setTopbarHelpOpen] = useState(false);
 
   useEffect(() => {
     let isMounted = true;
@@ -668,10 +669,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                     <Menu className="h-5 w-5" />
                   </button>
                   <div className="topbar-page-stack">
-                    <span className="topbar-page-main">{topbarPageTitle.main}</span>
-                    {topbarPageTitle.sub ? (
-                      <span className="topbar-page-sub">{topbarPageTitle.sub}</span>
-                    ) : null}
+                    <span className="topbar-page-title">{topbarPageTitle}</span>
                   </div>
                 </div>
 
@@ -706,10 +704,10 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                 <button
                   className="topbar-icon-btn"
                   onClick={() => setNotificationsOpen(true)}
-                  title="待办事项"
+                  title="待办与未读提醒"
                   type="button"
                 >
-                  <BellPlus className="h-4 w-4" />
+                  <ClipboardCheck className="h-4 w-4" />
                   {todoItemCount > 0 ? (
                     <span className="topbar-icon-badge">
                       {todoItemCount}
@@ -718,17 +716,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                 </button>
                 <button
                   className="topbar-icon-btn"
-                  onClick={() => setNotificationsOpen(true)}
-                  title="消息通知"
-                  type="button"
-                >
-                  <BellPlus className="h-4 w-4" />
-                  {todoNotifications.length > 0 ? (
-                    <span className="topbar-icon-dot" />
-                  ) : null}
-                </button>
-                <button
-                  className="topbar-icon-btn"
+                  onClick={() => setTopbarHelpOpen(true)}
                   title="帮助与反馈"
                   type="button"
                 >
@@ -1965,6 +1953,61 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
 
             <ModalActions>
               <ActionButton onClick={() => setNotificationsOpen(false)}>稍后处理</ActionButton>
+            </ModalActions>
+          </div>
+        </Modal>
+      ) : null}
+
+      {topbarHelpOpen ? (
+        <Modal
+          onClose={() => setTopbarHelpOpen(false)}
+          panelClassName="max-w-[min(92vw,520px)]"
+          title="帮助与反馈"
+        >
+          <div className="space-y-4">
+            <div className="grid gap-3">
+              <button
+                className="topbar-help-option"
+                onClick={() => {
+                  setTopbarHelpOpen(false);
+                  setNotificationsOpen(true);
+                }}
+                type="button"
+              >
+                <ClipboardCheck className="h-4 w-4" />
+                <span>待办与消息</span>
+              </button>
+              <button
+                className="topbar-help-option"
+                onClick={() => {
+                  setTopbarHelpOpen(false);
+                  openProfilePage();
+                }}
+                type="button"
+              >
+                <UserCircle className="h-4 w-4" />
+                <span>个人资料</span>
+              </button>
+              <button
+                className="topbar-help-option"
+                onClick={() => {
+                  setTopbarHelpOpen(false);
+                  void refreshWorkspace();
+                }}
+                type="button"
+              >
+                <RefreshCw className="h-4 w-4" />
+                <span>刷新数据</span>
+              </button>
+            </div>
+
+            <div className={`${subtleCardClassName} text-sm leading-7 text-slate-500`}>
+              <p className="font-medium text-slate-800">支持单位：南京君如玉科技有限公司</p>
+              <p className="mt-1">需要处理待办、检查账号信息或刷新页面数据时，可以从这里快速进入。</p>
+            </div>
+
+            <ModalActions>
+              <ActionButton onClick={() => setTopbarHelpOpen(false)}>关闭</ActionButton>
             </ModalActions>
           </div>
         </Modal>
