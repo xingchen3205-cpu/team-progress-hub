@@ -221,6 +221,7 @@ export default function ReviewScreenSessionPage() {
     [projectOrder],
   );
   const projectResults = useMemo(() => payload?.projectResults ?? [], [payload?.projectResults]);
+  const hasDrawStarted = phase !== "draw" || Boolean(payload?.session.phaseStartedAt);
   const drawGroups = useMemo(() => {
     const groups = new Map<string, { name: string; index: number; projects: ProjectOrderItem[] }>();
     projectOrder.forEach((project, index) => {
@@ -238,6 +239,7 @@ export default function ReviewScreenSessionPage() {
         projects: group.projects.sort((left, right) => left.groupSlotIndex - right.groupSlotIndex),
       }));
   }, [projectOrder]);
+  const visibleDrawGroups = hasDrawStarted ? drawGroups : [];
   const activeProjectResult =
     projectResults.find((project) => project.reviewPackage.id === payload?.session.currentPackageId) ??
     projectResults.find((project) => !project.finalScore.ready) ??
@@ -264,12 +266,12 @@ export default function ReviewScreenSessionPage() {
   const revealStartedAt = payload?.session.revealStartedAt;
 
   useEffect(() => {
-    if (phase === "draw" && projectOrder.length > 0) {
+    if (phase === "draw" && hasDrawStarted && projectOrder.length > 0) {
       const startedAt = Date.now();
       setDrawAnimationStartedAt(startedAt);
       setDrawFrameTime(startedAt);
     }
-  }, [phase, projectOrder.length, projectOrderKey]);
+  }, [hasDrawStarted, phase, projectOrder.length, projectOrderKey]);
 
   useEffect(() => {
     if (drawAnimationStartedAt === null) return;
@@ -334,6 +336,7 @@ export default function ReviewScreenSessionPage() {
   const drawElapsed = drawAnimationStartedAt === null ? 0 : drawFrameTime - drawAnimationStartedAt;
   const drawOverlayActive =
     phase === "draw" &&
+    hasDrawStarted &&
     projectOrder.length > 0 &&
     drawAnimationStartedAt !== null &&
     drawElapsed < drawAnimationDuration;
@@ -687,8 +690,8 @@ export default function ReviewScreenSessionPage() {
             </div>
 
             <div className="grid flex-1 auto-rows-min grid-cols-[repeat(auto-fit,minmax(320px,1fr))] gap-4 overflow-y-auto">
-              {drawGroups.length ? (
-                drawGroups.map((group) => (
+              {visibleDrawGroups.length ? (
+                visibleDrawGroups.map((group) => (
                 <article className="contest-card draw-overlay-card overflow-hidden" key={group.name}>
                   <div className="flex items-center justify-between border-b border-slate-200 bg-[linear-gradient(135deg,rgba(26,58,110,0.06),rgba(194,40,50,0.04))] px-5 py-4">
                     <h3 className="text-sm font-black text-[#1a3a6e]">{group.name}</h3>
@@ -712,8 +715,8 @@ export default function ReviewScreenSessionPage() {
               ) : (
                 <div className="contest-card col-span-full flex min-h-[420px] flex-col items-center justify-center text-center text-slate-400">
                   <ShieldCheck className="h-14 w-14 text-blue-200" />
-                  <p className="mt-4 text-base font-black text-slate-500">等待管理员生成路演顺序</p>
-                  <p className="mt-1 text-sm">生成后将按抽签或配置顺序同步到投屏</p>
+                  <p className="mt-4 text-base font-black text-slate-500">等待管理员点击随机抽签</p>
+                  <p className="mt-1 text-sm">打开大屏不会自动抽签，抽签后才同步分组结果</p>
                 </div>
               )}
             </div>
@@ -903,11 +906,6 @@ export default function ReviewScreenSessionPage() {
               {phase === "presentation" ? "路演展示时间" : "专家提问时间"}
             </p>
           </div>
-          <aside className="absolute right-[60px] top-1/2 z-10 -translate-y-1/2 text-center">
-            <p className="mb-3 text-xs font-bold tracking-[1px] text-white/45">提交进度</p>
-            <p className="font-mono text-[44px] font-black text-white">{progressText}</p>
-            <p className="mt-1 text-xs text-white/35">等待全部有效席位提交</p>
-          </aside>
         </section>
       ) : null}
 

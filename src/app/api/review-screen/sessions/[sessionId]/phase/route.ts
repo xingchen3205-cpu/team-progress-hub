@@ -53,10 +53,11 @@ export async function POST(
   }
 
   const allowedNextPhases: Record<string, readonly ValidPhase[]> = {
-    draw: ["draw", "presentation"],
-    presentation: ["presentation", "qa"],
-    qa: ["qa", "scoring"],
-    scoring: ["scoring"],
+    draw: ["draw", "presentation", "finished"],
+    presentation: ["presentation", "qa", "finished"],
+    qa: ["qa", "scoring", "finished"],
+    scoring: ["scoring", "finished"],
+    reveal: ["finished"],
     finished: [],
   };
   if (!allowedNextPhases[session.screenPhase]?.includes(phase)) {

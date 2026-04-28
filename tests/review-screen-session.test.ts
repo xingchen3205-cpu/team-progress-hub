@@ -146,7 +146,7 @@ describe("roadshow review screen session", () => {
     assert.match(adminTabSource, /voidReviewScreenSeat/);
     assert.match(screenPageSource, /useSearchParams/);
     assert.match(screenPageSource, /专家 1/);
-    assert.match(screenPageSource, /等待全部有效席位提交/);
+    assert.doesNotMatch(screenPageSource, /等待全部有效席位提交/);
     assert.match(screenPageSource, /最终得分/);
   });
 
@@ -155,6 +155,7 @@ describe("roadshow review screen session", () => {
     const publicRouteSource = readSource("src/app/api/review-screen/sessions/[sessionId]/route.ts");
     const orderRouteSource = readSource("src/app/api/review-screen/sessions/[sessionId]/order/route.ts");
     const nextProjectRouteSource = readSource("src/app/api/review-screen/sessions/[sessionId]/next-project/route.ts");
+    const phaseRouteSource = readSource("src/app/api/review-screen/sessions/[sessionId]/phase/route.ts");
     const adminTabSource = readSource("src/components/tabs/expert-review-tab.tsx");
     const screenPageSource = readSource("src/app/review-screen/session/[sessionId]/page.tsx");
 
@@ -187,8 +188,18 @@ describe("roadshow review screen session", () => {
     assert.match(adminTabSource, /路演分组容量/);
     assert.match(adminTabSource, /getRoadshowGroupSizesPayload/);
     assert.doesNotMatch(adminTabSource, /disabled=\{Boolean\(screenSession\)\}/);
+    assert.match(adminTabSource, /mergeConsoleSeats/);
+    assert.match(adminTabSource, /结束本轮/);
+    assert.match(adminTabSource, /changeReviewScreenPhase\(group, "finished"\)/);
+    assert.match(adminTabSource, /getReviewScreenPhaseActionLabel/);
+    assert.doesNotMatch(adminTabSource, /阶段已切换为：\$\{phase\}/);
     assert.doesNotMatch(adminTabSource, /启动计时/);
+    assert.match(phaseRouteSource, /reveal: \["finished"\]/);
+    assert.match(phaseRouteSource, /scoring: \["scoring", "finished"\]/);
     assert.match(screenPageSource, /projectResults/);
+    assert.match(screenPageSource, /hasDrawStarted/);
+    assert.match(screenPageSource, /payload\?\.session\.phaseStartedAt/);
+    assert.doesNotMatch(screenPageSource, /等待全部有效席位提交/);
   });
 
   it("lets administrators regenerate a screen link for testing even after the old review deadline", () => {

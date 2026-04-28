@@ -54,6 +54,12 @@ type ReviewScreenSessionState = {
   }>;
 };
 
+type ReviewScreenConsoleSeat = ReviewScreenSessionState["seats"][number];
+type ReviewScreenLiveSeat = Pick<ReviewScreenConsoleSeat, "seatNo" | "displayName" | "status"> & {
+  id?: string;
+  voidedAt?: string | null;
+};
+
 type ReviewScreenProjectOrderItem = {
   orderIndex: number;
   packageId: string;
@@ -63,6 +69,34 @@ type ReviewScreenProjectOrderItem = {
   groupIndex: number;
   groupSlotIndex: number;
   revealedAt: string | null;
+};
+
+const reviewScreenPhaseActionLabels: Record<string, string> = {
+  draw: "抽签准备",
+  presentation: "路演展示",
+  qa: "答辩提问",
+  scoring: "评分进行中",
+  reveal: "揭晓分数",
+  finished: "本轮结束",
+};
+
+const getReviewScreenPhaseActionLabel = (phase: string) =>
+  reviewScreenPhaseActionLabels[phase] ?? "现场阶段";
+
+const mergeConsoleSeats = (
+  sessionSeats: ReviewScreenConsoleSeat[],
+  liveSeats: ReviewScreenLiveSeat[],
+) => {
+  const liveSeatByNo = new Map(liveSeats.map((seat) => [seat.seatNo, seat]));
+  return sessionSeats.map((seat) => {
+    const liveSeat = liveSeatByNo.get(seat.seatNo);
+    return {
+      ...seat,
+      displayName: liveSeat?.displayName ?? seat.displayName,
+      status: liveSeat?.status ?? seat.status,
+      voidedAt: liveSeat?.voidedAt ?? seat.voidedAt,
+    };
+  });
 };
 
 const getInitial = (name?: string | null) => (name?.trim().slice(0, 1) || "评").toUpperCase();
@@ -342,7 +376,7 @@ export default function ExpertReviewTab() {
         totalProjectCount: number;
         currentPackageId: string | null;
         reviewPackage?: { targetName: string };
-        seats: ReviewScreenSessionState["seats"];
+        seats: ReviewScreenLiveSeat[];
         projectOrder: ReviewScreenProjectOrderItem[];
       }
     >
@@ -370,7 +404,7 @@ export default function ExpertReviewTab() {
               totalProjectCount: number;
               currentPackageId: string | null;
             };
-            seats: ReviewScreenSessionState["seats"];
+            seats: ReviewScreenLiveSeat[];
             reviewPackage?: { targetName: string };
             projectOrder: ReviewScreenProjectOrderItem[];
           }>(
@@ -674,6 +708,10 @@ export default function ExpertReviewTab() {
       setLoadError("请先生成现场大屏链接");
       return;
     }
+    if (!seatId) {
+      setLoadError("请选择要排除的专家席位");
+      return;
+    }
 
     setReviewScreenActionKey(`${group.key}:${seatId}`);
     try {
@@ -691,6 +729,22 @@ export default function ExpertReviewTab() {
               ...value,
               message: `${payload.seat.displayName} 已从本轮计分排除。`,
               seats: value.seats.map((seat) => (seat.id === payload.seat.id ? payload.seat : seat)),
+            };
+          }
+        }
+        return next;
+      });
+      setScreenLiveData((current) => {
+        const next = { ...current };
+        for (const [key, value] of Object.entries(next)) {
+          if (reviewScreenSessions[key]?.sessionId === screenSession.sessionId) {
+            next[key] = {
+              ...value,
+              seats: value.seats.map((seat) =>
+                seat.seatNo === payload.seat.seatNo
+                  ? { ...seat, status: payload.seat.status, voidedAt: payload.seat.voidedAt }
+                  : seat,
+              ),
             };
           }
         }
@@ -816,15 +870,29 @@ export default function ExpertReviewTab() {
     }
     setReviewScreenActionKey(`${group.key}:phase:${phase}`);
     try {
-      await requestJson(`/api/review-screen/sessions/${screenSession.sessionId}/phase`, {
+      const payload = await requestJson<{ session: { screenPhase: string } }>(`/api/review-screen/sessions/${screenSession.sessionId}/phase`, {
         method: "POST",
         body: JSON.stringify({ phase }),
       });
+      const phaseLabel = getReviewScreenPhaseActionLabel(payload.session.screenPhase);
       setReviewScreenSessions((current) => {
         const next = { ...current };
         for (const [key, value] of Object.entries(next)) {
           if (value.sessionId === screenSession.sessionId) {
-            next[key] = { ...value, message: `阶段已切换为：${phase}。` };
+            next[key] = { ...value, message: `阶段已切换为：${phaseLabel}。` };
+          }
+        }
+        return next;
+      });
+      setScreenLiveData((current) => {
+        const next = { ...current };
+        for (const [key, value] of Object.entries(next)) {
+          if (reviewScreenSessions[key]?.sessionId === screenSession.sessionId) {
+            next[key] = {
+              ...value,
+              screenPhase: payload.session.screenPhase,
+              phaseLabel,
+            };
           }
         }
         return next;
@@ -1054,7 +1122,7 @@ export default function ExpertReviewTab() {
 
     const screenSession = reviewScreenSessions[group.key];
     const liveData = screenLiveData[group.key];
-    const consoleSeats = liveData?.seats ?? screenSession?.seats ?? [];
+    const consoleSeats = mergeConsoleSeats(screenSession?.seats ?? [], liveData?.seats ?? []);
     const timingDraft = screenTimingDrafts[group.key] ?? getDefaultScreenTimingDraft();
     const groupDraft = screenGroupDrafts[group.key] ?? "";
     const roadshowProjectCount = getRoadshowProjectCount(group);
@@ -1066,6 +1134,7 @@ export default function ExpertReviewTab() {
     const canStartScoring = currentPhase === "qa";
     const canRevealScore = currentPhase === "scoring";
     const canGoNextProject = currentPhase === "reveal";
+    const canEndRound = currentPhase !== "finished";
 
     return (
       <article className="rounded-[28px] border border-blue-100 bg-gradient-to-br from-blue-50/80 via-white to-white p-5 shadow-[0_14px_40px_rgba(37,99,235,0.08)] lg:p-6">
@@ -1279,7 +1348,7 @@ export default function ExpertReviewTab() {
             <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4">
               <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                 <p className="text-xs font-bold text-slate-800">阶段控制</p>
-                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-5">
                   <button
                     className="inline-flex items-center justify-center rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-bold text-blue-700 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-60"
                     disabled={!canStartPresentation || reviewScreenActionKey === `${group.key}:phase:presentation`}
@@ -1312,6 +1381,15 @@ export default function ExpertReviewTab() {
                   >
                     <Eye className="h-3.5 w-3.5" />
                     揭晓分数
+                  </button>
+                  <button
+                    className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
+                    disabled={!canEndRound || reviewScreenActionKey === `${group.key}:phase:finished`}
+                    onClick={() => void changeReviewScreenPhase(group, "finished")}
+                    type="button"
+                  >
+                    <CheckCircle2 className="h-3.5 w-3.5" />
+                    结束本轮
                   </button>
                 </div>
               </div>

@@ -40,6 +40,9 @@ const readSource = (filePath) =>
   assert.match(screenPageSource, /draw-sequence-overlay/);
   assert.match(screenPageSource, /phase-panel/);
   assert.match(screenPageSource, /drawOverlayActive/);
+  assert.match(screenPageSource, /hasDrawStarted/);
+  assert.match(screenPageSource, /payload\?\.session\.phaseStartedAt/);
+  assert.doesNotMatch(screenPageSource, /等待全部有效席位提交/);
   assert.match(screenPageSource, /score-reveal-overlay/);
   assert.match(screenPageSource, /waiting-dots/);
   assert.match(screenPageSource, /seat-pop/);
@@ -61,11 +64,14 @@ const readSource = (filePath) =>
   // APIs still present
   const sessionRouteSource = readSource("src/app/api/review-screen/sessions/route.ts");
   const publicRouteSource = readSource("src/app/api/review-screen/sessions/[sessionId]/route.ts");
+  const phaseRouteSource = readSource("src/app/api/review-screen/sessions/[sessionId]/phase/route.ts");
   assert.match(sessionRouteSource, /stageReviewPackages/);
   assert.match(sessionRouteSource, /projectReviewStageId/);
   assert.match(sessionRouteSource, /roadshowGroupSizes/);
   assert.match(sessionRouteSource, /buildRoadshowProjectOrderRows/);
   assert.match(publicRouteSource, /projectResults/);
+  assert.match(phaseRouteSource, /reveal: \["finished"\]/);
+  assert.match(phaseRouteSource, /scoring: \["scoring", "finished"\]/);
 
   // Admin tab still has controls
   const adminTabSource = readSource("src/components/tabs/expert-review-tab.tsx");
@@ -79,6 +85,11 @@ const readSource = (filePath) =>
   assert.match(adminTabSource, /生成并复制链接/);
   assert.match(adminTabSource, /路演分组容量/);
   assert.match(adminTabSource, /getRoadshowGroupSizesPayload/);
+  assert.match(adminTabSource, /mergeConsoleSeats/);
+  assert.match(adminTabSource, /结束本轮/);
+  assert.match(adminTabSource, /changeReviewScreenPhase\(group, "finished"\)/);
+  assert.match(adminTabSource, /getReviewScreenPhaseActionLabel/);
+  assert.doesNotMatch(adminTabSource, /阶段已切换为：\$\{phase\}/);
   assert.doesNotMatch(adminTabSource, /disabled=\{Boolean\(screenSession\)\}/);
 }
 
