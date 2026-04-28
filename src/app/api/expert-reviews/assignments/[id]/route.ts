@@ -70,6 +70,8 @@ const assignmentInclude = {
           status: true,
           startedAt: true,
           tokenExpiresAt: true,
+          screenPhase: true,
+          currentPackageId: true,
         },
       },
     },

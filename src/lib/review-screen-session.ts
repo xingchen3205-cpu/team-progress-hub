@@ -2,6 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 
 export type ReviewScreenSeatStatus = "pending" | "submitted" | "voided";
 export type ReviewScreenSessionStatus = "waiting" | "scoring" | "revealed" | "closed";
+export type ReviewScreenPhase = "draw" | "presentation" | "qa" | "scoring" | "reveal" | "finished";
 
 export type ReviewScreenSeatInput = {
   seatNo: number;
@@ -20,6 +21,12 @@ export type ReviewScreenSourceSeat = {
 export type ReviewScreenFinalScoreOptions = {
   dropHighestCount: number;
   dropLowestCount: number;
+};
+
+export type ReviewScreenPhaseConfig = {
+  presentationSeconds: number;
+  qaSeconds: number;
+  scoringSeconds: number;
 };
 
 export const createReviewScreenToken = () => {
@@ -143,4 +150,83 @@ export const getReviewScreenTimelineState = ({
   }
 
   return { phase: "scoring" as const, remainingSeconds, label: "评分进行中" };
+};
+
+export const getPhaseCountdownSeconds = (
+  phase: ReviewScreenPhase,
+  config: ReviewScreenPhaseConfig & { countdownSeconds?: number },
+): number => {
+  switch (phase) {
+    case "presentation":
+      return config.presentationSeconds;
+    case "qa":
+      return config.qaSeconds;
+    case "scoring":
+      return config.scoringSeconds ?? config.countdownSeconds ?? 60;
+    default:
+      return 0;
+  }
+};
+
+export const getPhaseLabel = (phase: ReviewScreenPhase): string => {
+  switch (phase) {
+    case "draw":
+      return "抽签排序";
+    case "presentation":
+      return "路演展示";
+    case "qa":
+      return "答辩提问";
+    case "scoring":
+      return "评分进行中";
+    case "reveal":
+      return "最终得分";
+    case "finished":
+      return "本轮结束";
+    default:
+      return "等待开始";
+  }
+};
+
+export const getPhaseRemainingSeconds = ({
+  phase,
+  phaseStartedAt,
+  config,
+  now,
+}: {
+  phase: ReviewScreenPhase;
+  phaseStartedAt?: string | Date | null;
+  config: ReviewScreenPhaseConfig & { countdownSeconds?: number };
+  now?: Date;
+}): number => {
+  const totalSeconds = getPhaseCountdownSeconds(phase, config);
+  if (totalSeconds <= 0 || !phaseStartedAt) return 0;
+
+  const startedTime = new Date(phaseStartedAt).getTime();
+  const nowTime = (now ?? new Date()).getTime();
+  return Math.max(0, Math.ceil((startedTime + totalSeconds * 1000 - nowTime) / 1000));
+};
+
+export const getRevealAnimationProgress = ({
+  revealStartedAt,
+  durationSeconds = 3,
+  now,
+}: {
+  revealStartedAt?: string | Date | null;
+  durationSeconds?: number;
+  now?: Date;
+}): number => {
+  if (!revealStartedAt) return 0;
+  const startedTime = new Date(revealStartedAt).getTime();
+  const nowTime = (now ?? new Date()).getTime();
+  const elapsed = (nowTime - startedTime) / 1000;
+  return Math.min(1, Math.max(0, elapsed / durationSeconds));
+};
+
+export const shuffleArray = <T>(array: T[]): T[] => {
+  const result = [...array];
+  for (let i = result.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [result[i], result[j]] = [result[j], result[i]];
+  }
+  return result;
 };

@@ -120,7 +120,7 @@ describe("roadshow review screen session", () => {
     assert.match(adminTabSource, /voidReviewScreenSeat/);
     assert.match(screenPageSource, /useSearchParams/);
     assert.match(screenPageSource, /专家 1/);
-    assert.match(screenPageSource, /等待全部专家提交/);
+    assert.match(screenPageSource, /等待全部有效席位提交/);
     assert.match(screenPageSource, /最终得分/);
   });
 
@@ -139,5 +139,48 @@ describe("roadshow review screen session", () => {
     assert.match(adminTabSource, /packageIds/);
     assert.match(adminTabSource, /stageGroupKeys/);
     assert.match(screenPageSource, /projectResults/);
+  });
+
+  it("renders the review screen page in a blue-white theme suitable for large-screen projection", () => {
+    const screenPageSource = readSource("src/app/review-screen/session/[sessionId]/page.tsx");
+
+    assert.match(screenPageSource, /bg-gradient-to-br from-blue-50 via-white to-slate-50/);
+    assert.match(screenPageSource, /text-slate-900/);
+    assert.doesNotMatch(screenPageSource, /bg-slate-950/);
+  });
+
+  it("shows current time and phase on the review screen header", () => {
+    const screenPageSource = readSource("src/app/review-screen/session/[sessionId]/page.tsx");
+
+    assert.match(screenPageSource, /useCurrentTime/);
+    assert.match(screenPageSource, /new Date\(\)/);
+    assert.match(screenPageSource, /现场路演评审投屏/);
+    assert.match(screenPageSource, /currentTime/);
+  });
+
+  it("does not render admin control buttons on the projection screen", () => {
+    const screenPageSource = readSource("src/app/review-screen/session/[sessionId]/page.tsx");
+
+    assert.doesNotMatch(screenPageSource, /作废席位/);
+    assert.doesNotMatch(screenPageSource, /开始评分/);
+    assert.doesNotMatch(screenPageSource, /生成并复制链接/);
+    assert.doesNotMatch(screenPageSource, /voidReviewScreenSeat/);
+    assert.doesNotMatch(screenPageSource, /startReviewScreenScoring/);
+    assert.doesNotMatch(screenPageSource, /copyReviewScreenLink/);
+    assert.doesNotMatch(screenPageSource, /onClick/);
+  });
+
+  it("includes large-screen key copy and anonymous seat status on the projection screen", () => {
+    const screenPageSource = readSource("src/app/review-screen/session/[sessionId]/page.tsx");
+
+    assert.match(screenPageSource, /当前评审项目/);
+    assert.match(screenPageSource, /匿名专家席位状态/);
+    assert.match(screenPageSource, /最终得分/);
+    assert.match(screenPageSource, /提交进度/);
+    assert.match(screenPageSource, /现场说明/);
+    assert.match(screenPageSource, /本轮排名/);
+    assert.match(screenPageSource, /专家 1/);
+    assert.match(screenPageSource, /专家 2/);
+    assert.match(screenPageSource, /专家 3/);
   });
 });

@@ -96,6 +96,9 @@ export async function POST(request: NextRequest) {
         countdownSeconds?: number;
         dropHighestCount?: number;
         dropLowestCount?: number;
+        presentationSeconds?: number;
+        qaSeconds?: number;
+        scoringSeconds?: number;
       }
     | null;
   const packageId = body?.packageId?.trim();
@@ -212,6 +215,9 @@ export async function POST(request: NextRequest) {
   const countdownSeconds = clampInteger(body?.countdownSeconds, 60, 10, 600);
   const dropHighestCount = clampInteger(body?.dropHighestCount, 1, 0, 5);
   const dropLowestCount = clampInteger(body?.dropLowestCount, 1, 0, 5);
+  const presentationSeconds = clampInteger(body?.presentationSeconds, 480, 60, 1800);
+  const qaSeconds = clampInteger(body?.qaSeconds, 420, 60, 1800);
+  const scoringSeconds = clampInteger(body?.scoringSeconds, 60, 10, 600);
   const { token, tokenHash } = createReviewScreenToken();
 
   const { session, seats } = await prisma.$transaction(async (tx) => {
@@ -224,6 +230,9 @@ export async function POST(request: NextRequest) {
         countdownSeconds,
         dropHighestCount,
         dropLowestCount,
+        presentationSeconds,
+        qaSeconds,
+        scoringSeconds,
         createdById: user.id,
       },
       select: {
@@ -232,9 +241,14 @@ export async function POST(request: NextRequest) {
         startsAt: true,
         tokenExpiresAt: true,
         countdownSeconds: true,
+        presentationSeconds: true,
+        qaSeconds: true,
+        scoringSeconds: true,
         dropHighestCount: true,
         dropLowestCount: true,
         status: true,
+        screenPhase: true,
+        currentPackageId: true,
       },
     });
 

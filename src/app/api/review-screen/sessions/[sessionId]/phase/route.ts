@@ -4,6 +4,12 @@ import { getSessionUser } from "@/lib/auth";
 import { assertRole } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
+const validPhases = ["draw", "presentation", "qa", "scoring", "finished"] as const;
+type ValidPhase = typeof validPhases[number];
+
+const isValidPhase = (phase?: string): phase is ValidPhase =>
+  Boolean(phase && validPhases.includes(phase as ValidPhase));
+
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ sessionId: string }> },
@@ -20,13 +26,16 @@ export async function POST(
   }
 
   const { sessionId } = await params;
-  const body = (await request.json().catch(() => null)) as { countdownSeconds?: number } | null;
-  const countdownSeconds = typeof body?.countdownSeconds === "number"
-    ? Math.min(600, Math.max(10, Math.trunc(body.countdownSeconds)))
-    : undefined;
+  const body = (await request.json().catch(() => null)) as { phase?: string } | null;
+  const phase = body?.phase?.trim();
+
+  if (!isValidPhase(phase)) {
+    return NextResponse.json({ message: "无效的阶段" }, { status: 400 });
+  }
+
   const session = await prisma.reviewDisplaySession.findUnique({
     where: { id: sessionId },
-    select: { id: true, tokenExpiresAt: true },
+    select: { id: true, tokenExpiresAt: true, currentPackageId: true, packageId: true },
   });
 
   if (!session) {
@@ -38,29 +47,31 @@ export async function POST(
   }
 
   const updatedSession = await prisma.reviewDisplaySession.update({
-    where: { id: session.id },
+    where: { id: sessionId },
     data: {
-      status: "scoring",
-      startedAt: new Date(),
-      screenPhase: "scoring",
+      screenPhase: phase,
       phaseStartedAt: new Date(),
-      ...(countdownSeconds ? { countdownSeconds } : {}),
+      ...(phase === "scoring" ? { status: "scoring", startedAt: new Date() } : {}),
+      ...(phase === "finished" ? { status: "closed", endedAt: new Date() } : {}),
     },
     select: {
       id: true,
-      status: true,
-      startedAt: true,
-      countdownSeconds: true,
       screenPhase: true,
       phaseStartedAt: true,
+      revealStartedAt: true,
+      status: true,
+      startedAt: true,
+      endedAt: true,
     },
   });
 
   return NextResponse.json({
     session: {
       ...updatedSession,
-      startedAt: updatedSession.startedAt?.toISOString() ?? null,
       phaseStartedAt: updatedSession.phaseStartedAt?.toISOString() ?? null,
+      revealStartedAt: updatedSession.revealStartedAt?.toISOString() ?? null,
+      startedAt: updatedSession.startedAt?.toISOString() ?? null,
+      endedAt: updatedSession.endedAt?.toISOString() ?? null,
     },
   });
 }

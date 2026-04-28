@@ -4,8 +4,11 @@ import { prisma } from "@/lib/prisma";
 import {
   buildAnonymousReviewScreenSeats,
   calculateReviewScreenFinalScore,
+  getPhaseLabel,
+  getPhaseRemainingSeconds,
   getReviewScreenTimelineState,
   hashReviewScreenToken,
+  type ReviewScreenPhase,
   type ReviewScreenSeatStatus,
 } from "@/lib/review-screen-session";
 
@@ -65,6 +68,23 @@ export async function GET(
           },
         },
       },
+      projectOrders: {
+        orderBy: { orderIndex: "asc" },
+        select: {
+          packageId: true,
+          orderIndex: true,
+          revealedAt: true,
+          reviewPackage: {
+            select: {
+              id: true,
+              targetName: true,
+              roundLabel: true,
+              overview: true,
+              deadline: true,
+            },
+          },
+        },
+      },
     },
   });
 
@@ -102,6 +122,7 @@ export async function GET(
       voidedAt: seat.voidedAt?.toISOString() ?? null,
     };
   });
+
   const projectResults = Array.from(
     seats.reduce<
       Map<
@@ -126,7 +147,7 @@ export async function GET(
     }, new Map()).values(),
   ).map((project) => {
     const finalScore = calculateReviewScreenFinalScore(
-      project.seats.map((seat, index) => ({
+      project.seats.map((seat, index: number) => ({
         seatNo: index + 1,
         status: seat.status,
         totalScoreCents: seat.totalScoreCents,
@@ -157,13 +178,19 @@ export async function GET(
       finalScore,
     };
   });
+
+  // Determine active project: use currentPackageId if available, otherwise fallback
+  const screenPhase: ReviewScreenPhase = session.screenPhase ?? "draw";
+  const currentPackageId = session.currentPackageId ?? session.reviewPackage.id;
+
   const activeProjectResult =
+    projectResults.find((project) => project.reviewPackage.id === currentPackageId) ??
     projectResults.find((project) => !project.finalScore.ready) ??
     projectResults.find((project) => project.reviewPackage.id === session.reviewPackage.id) ??
     projectResults[0] ??
     null;
-  const finalScore =
-    activeProjectResult?.finalScore ??
+
+  const activeFinalScore = activeProjectResult?.finalScore ??
     calculateReviewScreenFinalScore(
       [],
       {
@@ -171,25 +198,101 @@ export async function GET(
         dropLowestCount: session.dropLowestCount,
       },
     );
+
+  const phaseRemainingSeconds = getPhaseRemainingSeconds({
+    phase: screenPhase,
+    phaseStartedAt: session.phaseStartedAt,
+    config: {
+      presentationSeconds: session.presentationSeconds ?? 480,
+      qaSeconds: session.qaSeconds ?? 420,
+      scoringSeconds: session.scoringSeconds ?? session.countdownSeconds ?? 60,
+      countdownSeconds: session.countdownSeconds,
+    },
+    now,
+  });
+
   const timeline = getReviewScreenTimelineState({
     status: session.status,
     startedAt: session.startedAt,
     countdownSeconds: session.countdownSeconds,
     now,
-    hasFinalScore: finalScore.ready,
+    hasFinalScore: activeFinalScore.ready,
   });
+
+  const revealedPackageIds = new Set(
+    (session.projectOrders ?? [])
+      .filter((o) => o.revealedAt != null)
+      .map((o) => o.packageId),
+  );
+
+  // Mask final scores before reveal
+  const isRevealPhase = screenPhase === "reveal";
+
+  const maskedProjectResults = projectResults.map((project) => {
+    const isRevealed =
+      revealedPackageIds.has(project.reviewPackage.id) ||
+      (isRevealPhase && project.reviewPackage.id === currentPackageId);
+    if (isRevealed) return project;
+    return {
+      ...project,
+      finalScore: {
+        ready: false,
+        finalScoreText: null,
+        effectiveSeatCount: project.finalScore.effectiveSeatCount,
+        submittedSeatCount: project.finalScore.submittedSeatCount,
+        waitingSeatNos: project.finalScore.waitingSeatNos,
+        droppedSeatNos: project.finalScore.droppedSeatNos,
+      },
+    };
+  });
+
+  const activeProjectMasked = maskedProjectResults.find(
+    (project) => project.reviewPackage.id === currentPackageId,
+  ) ?? activeProjectResult;
+
+  const maskedActiveFinalScore = activeProjectMasked?.finalScore ??
+    calculateReviewScreenFinalScore(
+      [],
+      {
+        dropHighestCount: session.dropHighestCount,
+        dropLowestCount: session.dropLowestCount,
+      },
+    );
+
+  const projectOrder = (session.projectOrders ?? []).map((order) => ({
+    orderIndex: order.orderIndex,
+    packageId: order.packageId,
+    targetName: order.reviewPackage?.targetName ?? "",
+    roundLabel: order.reviewPackage?.roundLabel ?? "",
+    revealedAt: order.revealedAt?.toISOString() ?? null,
+  }));
+
+  const currentProjectIndex = projectOrder.findIndex(
+    (o) => o.packageId === currentPackageId,
+  );
 
   return NextResponse.json({
     session: {
       id: session.id,
       status: session.status,
+      screenPhase,
       startsAt: session.startsAt?.toISOString() ?? session.reviewPackage.startAt?.toISOString() ?? null,
       tokenExpiresAt: session.tokenExpiresAt.toISOString(),
       countdownSeconds: session.countdownSeconds,
+      presentationSeconds: session.presentationSeconds ?? 480,
+      qaSeconds: session.qaSeconds ?? 420,
+      scoringSeconds: session.scoringSeconds ?? session.countdownSeconds ?? 60,
       dropHighestCount: session.dropHighestCount,
       dropLowestCount: session.dropLowestCount,
       startedAt: session.startedAt?.toISOString() ?? null,
+      phaseStartedAt: session.phaseStartedAt?.toISOString() ?? null,
+      revealStartedAt: session.revealStartedAt?.toISOString() ?? null,
       timeline,
+      phaseLabel: getPhaseLabel(screenPhase),
+      phaseRemainingSeconds,
+      currentPackageId,
+      currentProjectIndex: currentProjectIndex >= 0 ? currentProjectIndex : 0,
+      totalProjectCount: projectOrder.length,
     },
     reviewPackage: {
       id: activeProjectResult?.reviewPackage.id ?? session.reviewPackage.id,
@@ -199,8 +302,9 @@ export async function GET(
       deadline: activeProjectResult?.reviewPackage.deadline ?? session.reviewPackage.deadline?.toISOString() ?? null,
     },
     seats: activeProjectResult?.seats ?? [],
-    finalScore,
-    projectResults,
+    finalScore: maskedActiveFinalScore,
+    projectResults: maskedProjectResults,
+    projectOrder,
     serverTime: now.toISOString(),
   });
 }

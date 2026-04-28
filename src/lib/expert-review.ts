@@ -291,7 +291,7 @@ export const serializeExpertReviewAssignment = (
     > | null;
     displaySeats?: Array<
       Pick<ReviewDisplaySeat, "status"> & {
-        session: Pick<ReviewDisplaySession, "status" | "startedAt" | "tokenExpiresAt">;
+        session: Pick<ReviewDisplaySession, "status" | "startedAt" | "tokenExpiresAt" | "screenPhase" | "currentPackageId">;
       }
     >;
   },
@@ -318,6 +318,8 @@ export const serializeExpertReviewAssignment = (
             (seat) =>
               seat.status !== "voided" &&
               seat.session.status === "scoring" &&
+              seat.session.screenPhase === "scoring" &&
+              seat.session.currentPackageId === assignment.reviewPackage.id &&
               Boolean(seat.session.startedAt) &&
               seat.session.tokenExpiresAt.getTime() > Date.now(),
           ),

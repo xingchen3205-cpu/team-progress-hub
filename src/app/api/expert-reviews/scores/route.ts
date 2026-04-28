@@ -71,6 +71,8 @@ const assignmentInclude = {
           status: true,
           startedAt: true,
           tokenExpiresAt: true,
+          screenPhase: true,
+          currentPackageId: true,
         },
       },
     },
@@ -139,6 +141,8 @@ export async function POST(request: NextRequest) {
         },
         session: {
           status: "scoring",
+          screenPhase: "scoring",
+          currentPackageId: assignment.reviewPackage.id,
           startedAt: {
             not: null,
           },
