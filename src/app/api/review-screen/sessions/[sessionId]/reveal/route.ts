@@ -25,15 +25,17 @@ export async function POST(
   const session = await prisma.reviewDisplaySession.findUnique({
     where: { id: sessionId },
     include: {
+      reviewPackage: {
+        select: {
+          projectReviewStageId: true,
+        },
+      },
       seats: {
         orderBy: { seatNo: "asc" },
-        include: {
-          assignment: {
-            select: {
-              packageId: true,
-              score: { select: { totalScore: true } },
-            },
-          },
+        select: {
+          seatNo: true,
+          expertUserId: true,
+          status: true,
         },
       },
     },
@@ -48,9 +50,30 @@ export async function POST(
   }
 
   const currentPackageId = session.currentPackageId ?? session.packageId;
-  const currentSeats = session.seats.filter(
-    (seat) => seat.assignment.packageId === currentPackageId,
+  const currentAssignments = await prisma.expertReviewAssignment.findMany({
+    where: { packageId: currentPackageId },
+    select: {
+      expertUserId: true,
+      score: { select: { totalScore: true } },
+    },
+  });
+  const assignmentsByExpertId = new Map(
+    currentAssignments.map((assignment) => [assignment.expertUserId, assignment]),
   );
+  const currentSeats = session.seats.flatMap((seat) => {
+    const assignment = assignmentsByExpertId.get(seat.expertUserId);
+    if (!assignment) {
+      return [];
+    }
+
+    return [
+      {
+        seatNo: seat.seatNo,
+        status: seat.status,
+        totalScoreCents: assignment.score?.totalScore ?? null,
+      },
+    ];
+  });
 
   const finalScore = calculateReviewScreenFinalScore(
     currentSeats.map((seat) => ({
@@ -58,10 +81,10 @@ export async function POST(
       status:
         seat.status === "voided"
           ? "voided"
-          : seat.assignment.score
+          : typeof seat.totalScoreCents === "number"
             ? "submitted"
             : "pending",
-      totalScoreCents: seat.assignment.score?.totalScore ?? null,
+      totalScoreCents: seat.totalScoreCents,
     })),
     {
       dropHighestCount: session.dropHighestCount,

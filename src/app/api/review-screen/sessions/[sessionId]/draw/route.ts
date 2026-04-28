@@ -49,10 +49,30 @@ export async function POST(
           projectReviewStageId: session.reviewPackage.projectReviewStageId,
           status: "configured",
         },
-        select: { id: true, targetName: true },
+        select: {
+          id: true,
+          targetName: true,
+          assignments: {
+            select: {
+              id: true,
+              expertUserId: true,
+            },
+          },
+        },
         orderBy: [{ createdAt: "asc" }, { id: "asc" }],
       })
-    : [session.reviewPackage];
+    : [
+        {
+          ...session.reviewPackage,
+          assignments: await prisma.expertReviewAssignment.findMany({
+            where: { packageId: session.reviewPackage.id },
+            select: {
+              id: true,
+              expertUserId: true,
+            },
+          }),
+        },
+      ];
 
   if (stagePackages.length === 0) {
     return NextResponse.json({ message: "没有可抽签的项目" }, { status: 400 });
@@ -73,6 +93,34 @@ export async function POST(
         orderIndex: index,
       })),
     });
+
+    const firstPackage = shuffled.find((pkg) => pkg.id === firstPackageId);
+    if (firstPackage) {
+      const assignmentByExpertId = new Map(
+        firstPackage.assignments.map((assignment) => [assignment.expertUserId, assignment.id]),
+      );
+      const seats = await tx.reviewDisplaySeat.findMany({
+        where: { sessionId },
+        select: {
+          id: true,
+          expertUserId: true,
+        },
+      });
+
+      await Promise.all(
+        seats.flatMap((seat) => {
+          const assignmentId = assignmentByExpertId.get(seat.expertUserId);
+          return assignmentId
+            ? [
+                tx.reviewDisplaySeat.update({
+                  where: { id: seat.id },
+                  data: { assignmentId },
+                }),
+              ]
+            : [];
+        }),
+      );
+    }
 
     return tx.reviewDisplaySession.update({
       where: { id: sessionId },

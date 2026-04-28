@@ -30,8 +30,18 @@ export async function POST(
   const seat = await prisma.reviewDisplaySeat.findFirst({
     where: { id: seatId, sessionId },
     include: {
+      session: {
+        select: {
+          reviewPackage: {
+            select: {
+              projectReviewStageId: true,
+            },
+          },
+        },
+      },
       assignment: {
         select: {
+          packageId: true,
           score: { select: { id: true } },
         },
       },
@@ -42,8 +52,24 @@ export async function POST(
     return NextResponse.json({ message: "专家席位不存在" }, { status: 404 });
   }
 
-  if (seat.assignment.score) {
-    return NextResponse.json({ message: "该专家已提交评分，不能作废席位" }, { status: 409 });
+  const stageScopedScore = await prisma.expertReviewAssignment.findFirst({
+    where: {
+      expertUserId: seat.expertUserId,
+      reviewPackage: seat.session.reviewPackage.projectReviewStageId
+        ? {
+            projectReviewStageId: seat.session.reviewPackage.projectReviewStageId,
+            status: "configured",
+          }
+        : {
+            id: seat.assignment.packageId,
+          },
+      score: { isNot: null },
+    },
+    select: { id: true },
+  });
+
+  if (seat.assignment.score || stageScopedScore) {
+    return NextResponse.json({ message: "该专家已有项目评分，不能排除整轮席位" }, { status: 409 });
   }
 
   const updatedSeat = await prisma.reviewDisplaySeat.update({

@@ -310,10 +310,11 @@ describe("expert review v2 constraints", () => {
     assert.match(assignmentItemRouteSource, /reviewDisplaySession\.deleteMany/);
     assert.match(assignmentItemRouteSource, /expertReviewAssignment\.deleteMany/);
     assert.match(assignmentItemRouteSource, /confirm\s*!==\s*"permanent"/);
-    assert.match(assignmentItemRouteSource, /已有正式评分，请先完成二次确认后永久删除/);
+    assert.match(assignmentItemRouteSource, /已有评分记录，请先完成二次确认后重置评审包/);
     assert.match(assignmentItemRouteSource, /expertReviewPackage\.delete\(/);
     assert.match(teamScopeSource, /status:\s*\{\s*not:\s*"cancelled"(?:\s+as const)?\s*\}/);
     assert.match(tabSource, /取消本阶段评审配置/);
+    assert.match(tabSource, /重置并重新配置评审包/);
     assert.match(tabSource, /已配置/);
     assert.match(tabSource, /未配置/);
   });
@@ -327,16 +328,16 @@ describe("expert review v2 constraints", () => {
 
     assert.match(assignmentItemRouteSource, /const confirm = request\.nextUrl\.searchParams\.get\("confirm"\)/);
     assert.match(assignmentItemRouteSource, /confirm\s*!==\s*"permanent"/);
-    assert.match(assignmentItemRouteSource, /永久删除已归档评审包/);
+    assert.match(assignmentItemRouteSource, /评审包已重置，可重新配置/);
     assert.match(stageDeleteRouteSource, /const confirm = request\.nextUrl\.searchParams\.get\("confirm"\)/);
     assert.match(stageDeleteRouteSource, /confirm\s*!==\s*"permanent"/);
     assert.match(stageDeleteRouteSource, /已有正式评分，请先完成二次确认后永久删除/);
     assert.match(contextSource, /openSecondConfirmDialog/);
-    assert.match(contextSource, /二次确认删除/);
-    assert.match(contextSource, /确认永久删除/);
+    assert.match(contextSource, /二次确认重置/);
+    assert.match(contextSource, /确认重置/);
     assert.match(projectTabSource, /permanent:\s*stage\.reviewConfig\?\.status === "archived"/);
     assert.match(projectTabSource, /永久删除已归档阶段/);
-    assert.match(expertReviewTabSource, /永久删除已归档评审包/);
+    assert.match(expertReviewTabSource, /重置并重新配置评审包/);
   });
 
   it("keeps upload windows and expert review windows separate with backend enforcement", () => {

@@ -18,6 +18,11 @@ export type ReviewScreenSourceSeat = {
   totalScoreCents?: number | null;
 };
 
+export type ReviewDisplaySeatSeedSource = {
+  id: string;
+  expertUserId: string;
+};
+
 export type ReviewScreenFinalScoreOptions = {
   dropHighestCount: number;
   dropLowestCount: number;
@@ -55,6 +60,27 @@ export const buildAnonymousReviewScreenSeats = (seats: ReviewScreenSourceSeat[])
     status: seat.status,
     scoreText: seat.status === "submitted" ? formatScoreCents(seat.totalScoreCents) : null,
   }));
+
+export const buildReviewDisplaySeatSeeds = (assignments: ReviewDisplaySeatSeedSource[]) => {
+  const seenExpertIds = new Set<string>();
+
+  return assignments.flatMap((assignment) => {
+    if (seenExpertIds.has(assignment.expertUserId)) {
+      return [];
+    }
+    seenExpertIds.add(assignment.expertUserId);
+
+    return [
+      {
+        assignmentId: assignment.id,
+        expertUserId: assignment.expertUserId,
+        seatNo: seenExpertIds.size,
+        displayName: `专家 ${seenExpertIds.size}`,
+        status: "pending" as const,
+      },
+    ];
+  });
+};
 
 export const calculateReviewScreenFinalScore = (
   seats: ReviewScreenSeatInput[],

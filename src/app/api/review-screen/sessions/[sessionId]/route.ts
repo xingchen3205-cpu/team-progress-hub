@@ -29,12 +29,26 @@ export async function GET(
       reviewPackage: {
         select: {
           id: true,
+          projectReviewStageId: true,
           targetName: true,
           roundLabel: true,
           overview: true,
           status: true,
           startAt: true,
           deadline: true,
+          assignments: {
+            orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+            select: {
+              id: true,
+              expertUserId: true,
+              score: {
+                select: {
+                  totalScore: true,
+                  submittedAt: true,
+                },
+              },
+            },
+          },
         },
       },
       seats: {
@@ -47,25 +61,6 @@ export async function GET(
           displayName: true,
           status: true,
           voidedAt: true,
-          assignment: {
-            select: {
-              reviewPackage: {
-                select: {
-                  id: true,
-                  targetName: true,
-                  roundLabel: true,
-                  overview: true,
-                  deadline: true,
-                },
-              },
-              score: {
-                select: {
-                  totalScore: true,
-                  submittedAt: true,
-                },
-              },
-            },
-          },
         },
       },
       projectOrders: {
@@ -77,10 +72,26 @@ export async function GET(
           reviewPackage: {
             select: {
               id: true,
+              projectReviewStageId: true,
               targetName: true,
               roundLabel: true,
               overview: true,
+              status: true,
+              startAt: true,
               deadline: true,
+              assignments: {
+                orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+                select: {
+                  id: true,
+                  expertUserId: true,
+                  score: {
+                    select: {
+                      totalScore: true,
+                      submittedAt: true,
+                    },
+                  },
+                },
+              },
             },
           },
         },
@@ -101,53 +112,81 @@ export async function GET(
     return NextResponse.json({ message: "链接已过期" }, { status: 410 });
   }
 
-  const seats = session.seats.map((seat) => {
-    const derivedStatus: ReviewScreenSeatStatus =
-      seat.status === "voided"
-        ? "voided"
-        : seat.assignment.score
-          ? "submitted"
-          : "pending";
+  const seats = session.seats.map((seat) => ({
+    id: seat.id,
+    assignmentId: seat.assignmentId,
+    expertUserId: seat.expertUserId,
+    seatNo: seat.seatNo,
+    displayName: seat.displayName,
+    status: seat.status,
+    voidedAt: seat.voidedAt?.toISOString() ?? null,
+  }));
 
-    return {
-      id: seat.id,
-      assignmentId: seat.assignmentId,
-      expertUserId: seat.expertUserId,
-      reviewPackage: seat.assignment.reviewPackage,
-      seatNo: seat.seatNo,
-      displayName: seat.displayName,
-      status: derivedStatus,
-      totalScoreCents: seat.assignment.score?.totalScore ?? null,
-      submittedAt: seat.assignment.score?.submittedAt?.toISOString() ?? null,
-      voidedAt: seat.voidedAt?.toISOString() ?? null,
-    };
-  });
+  const projectOrderPackages = session.projectOrders.length > 0
+    ? session.projectOrders.map((order) => order.reviewPackage)
+    : session.reviewPackage.projectReviewStageId
+      ? await prisma.expertReviewPackage.findMany({
+          where: {
+            projectReviewStageId: session.reviewPackage.projectReviewStageId,
+            status: "configured",
+          },
+          orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+          select: {
+            id: true,
+            projectReviewStageId: true,
+            targetName: true,
+            roundLabel: true,
+            overview: true,
+            status: true,
+            startAt: true,
+            deadline: true,
+            assignments: {
+              orderBy: [{ createdAt: "asc" }, { id: "asc" }],
+              select: {
+                id: true,
+                expertUserId: true,
+                score: {
+                  select: {
+                    totalScore: true,
+                    submittedAt: true,
+                  },
+                },
+              },
+            },
+          },
+        })
+      : [session.reviewPackage];
 
-  const projectResults = Array.from(
-    seats.reduce<
-      Map<
-        string,
-        {
-          reviewPackage: typeof seats[number]["reviewPackage"];
-          seats: typeof seats;
-        }
-      >
-    >((groups, seat) => {
-      const existing = groups.get(seat.reviewPackage.id);
-      if (existing) {
-        existing.seats.push(seat);
-        return groups;
+  const projectResults = projectOrderPackages.map((projectPackage) => {
+    const assignmentsByExpertId = new Map(
+      projectPackage.assignments.map((assignment) => [assignment.expertUserId, assignment]),
+    );
+    const projectSeats = seats.flatMap((seat) => {
+      const assignment = assignmentsByExpertId.get(seat.expertUserId);
+      if (!assignment) {
+        return [];
       }
+      const derivedStatus: ReviewScreenSeatStatus =
+        seat.status === "voided"
+          ? "voided"
+          : assignment.score
+            ? "submitted"
+            : "pending";
 
-      groups.set(seat.reviewPackage.id, {
-        reviewPackage: seat.reviewPackage,
-        seats: [seat],
-      });
-      return groups;
-    }, new Map()).values(),
-  ).map((project) => {
+      return [
+        {
+          ...seat,
+          assignmentId: assignment.id,
+          reviewPackage: projectPackage,
+          status: derivedStatus,
+          totalScoreCents: assignment.score?.totalScore ?? null,
+          submittedAt: assignment.score?.submittedAt?.toISOString() ?? null,
+        },
+      ];
+    });
+
     const finalScore = calculateReviewScreenFinalScore(
-      project.seats.map((seat, index: number) => ({
+      projectSeats.map((seat, index: number) => ({
         seatNo: index + 1,
         status: seat.status,
         totalScoreCents: seat.totalScoreCents,
@@ -160,14 +199,14 @@ export async function GET(
 
     return {
       reviewPackage: {
-        id: project.reviewPackage.id,
-        targetName: project.reviewPackage.targetName,
-        roundLabel: project.reviewPackage.roundLabel ?? "项目路演评审",
-        overview: project.reviewPackage.overview ?? "",
-        deadline: project.reviewPackage.deadline?.toISOString() ?? null,
+        id: projectPackage.id,
+        targetName: projectPackage.targetName,
+        roundLabel: projectPackage.roundLabel ?? "项目路演评审",
+        overview: projectPackage.overview ?? "",
+        deadline: projectPackage.deadline?.toISOString() ?? null,
       },
       seats: buildAnonymousReviewScreenSeats(
-        project.seats.map((seat) => ({
+        projectSeats.map((seat) => ({
           assignmentId: seat.assignmentId,
           expertUserId: "hidden",
           expertName: null,
@@ -259,13 +298,19 @@ export async function GET(
       },
     );
 
-  const projectOrder = (session.projectOrders ?? []).map((order) => ({
-    orderIndex: order.orderIndex,
-    packageId: order.packageId,
-    targetName: order.reviewPackage?.targetName ?? "",
-    roundLabel: order.reviewPackage?.roundLabel ?? "",
-    revealedAt: order.revealedAt?.toISOString() ?? null,
-  }));
+  const projectOrderRowsByPackageId = new Map(
+    (session.projectOrders ?? []).map((order) => [order.packageId, order]),
+  );
+  const projectOrder = projectOrderPackages.map((projectPackage, index) => {
+    const order = projectOrderRowsByPackageId.get(projectPackage.id);
+    return {
+      orderIndex: order?.orderIndex ?? index,
+      packageId: projectPackage.id,
+      targetName: projectPackage.targetName ?? "",
+      roundLabel: projectPackage.roundLabel ?? "",
+      revealedAt: order?.revealedAt?.toISOString() ?? null,
+    };
+  });
 
   const currentProjectIndex = projectOrder.findIndex(
     (o) => o.packageId === currentPackageId,

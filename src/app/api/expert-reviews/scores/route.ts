@@ -135,7 +135,7 @@ export async function POST(request: NextRequest) {
   if (isRoadshowAssignment) {
     const startedScreenSeat = await prisma.reviewDisplaySeat.findFirst({
       where: {
-        assignmentId: assignment.id,
+        expertUserId: user.id,
         status: {
           not: "voided",
         },
@@ -277,10 +277,13 @@ export async function POST(request: NextRequest) {
 
     await tx.reviewDisplaySeat.updateMany({
       where: {
-        assignmentId: assignment.id,
-        status: "pending",
+        expertUserId: user.id,
+        status: {
+          not: "voided",
+        },
         session: {
           status: "scoring",
+          currentPackageId: assignment.reviewPackage.id,
         },
       },
       data: { status: "submitted" },

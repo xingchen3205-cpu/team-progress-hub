@@ -60,6 +60,27 @@ describe("roadshow review screen session", () => {
     assert.equal(result.finalScoreText, "89.05");
   });
 
+  it("builds one stable screen seat per expert across all projects in a roadshow stage", async () => {
+    const { buildReviewDisplaySeatSeeds } = await import("../src/lib/review-screen-session");
+
+    const seats = buildReviewDisplaySeatSeeds([
+      { id: "p1-u1", expertUserId: "u1" },
+      { id: "p1-u2", expertUserId: "u2" },
+      { id: "p2-u1", expertUserId: "u1" },
+      { id: "p2-u2", expertUserId: "u2" },
+      { id: "p3-u1", expertUserId: "u1" },
+    ]);
+
+    assert.equal(seats.length, 2);
+    assert.deepEqual(
+      seats.map((seat) => [seat.assignmentId, seat.expertUserId, seat.displayName, seat.status]),
+      [
+        ["p1-u1", "u1", "专家 1", "pending"],
+        ["p1-u2", "u2", "专家 2", "pending"],
+      ],
+    );
+  });
+
   it("averages all scores when there are too few seats for high-low trimming", async () => {
     const { calculateReviewScreenFinalScore } = await import("../src/lib/review-screen-session");
 
@@ -116,7 +137,9 @@ describe("roadshow review screen session", () => {
     assert.match(publicRouteSource, /hashReviewScreenToken/);
     assert.match(publicRouteSource, /tokenExpiresAt/);
     assert.doesNotMatch(publicRouteSource, /expertUser:\s*\{\s*select:\s*\{\s*name/);
-    assert.match(adminTabSource, /作废席位/);
+    assert.match(adminTabSource, /固定专家席位/);
+    assert.match(adminTabSource, /异常排除/);
+    assert.doesNotMatch(adminTabSource, /作废席位/);
     assert.match(adminTabSource, /voidReviewScreenSeat/);
     assert.match(screenPageSource, /useSearchParams/);
     assert.match(screenPageSource, /专家 1/);
@@ -133,12 +156,28 @@ describe("roadshow review screen session", () => {
     assert.match(sessionRouteSource, /stageReviewPackages/);
     assert.match(sessionRouteSource, /projectReviewStageId/);
     assert.match(sessionRouteSource, /packageIds/);
+    assert.match(sessionRouteSource, /buildReviewDisplaySeatSeeds/);
     assert.match(sessionRouteSource, /reviewPackage\.projectReviewStageId/);
     assert.match(publicRouteSource, /projectResults/);
-    assert.match(publicRouteSource, /assignment:\s*\{\s*select:\s*\{\s*reviewPackage/);
+    assert.match(publicRouteSource, /projectOrderPackages/);
+    assert.match(publicRouteSource, /assignmentsByExpertId/);
+    assert.doesNotMatch(publicRouteSource, /seat\.assignment\.reviewPackage/);
     assert.match(adminTabSource, /packageIds/);
     assert.match(adminTabSource, /stageGroupKeys/);
+    assert.match(adminTabSource, /现场大屏控制台/);
+    assert.match(adminTabSource, /lg:grid-cols-\[minmax\(0,1fr\)_280px\]/);
     assert.match(screenPageSource, /projectResults/);
+  });
+
+  it("lets administrators regenerate a screen link for testing even after the old review deadline", () => {
+    const sessionRouteSource = readSource("src/app/api/review-screen/sessions/route.ts");
+    const assignmentRouteSource = readSource("src/app/api/expert-reviews/assignments/[id]/route.ts");
+
+    assert.match(sessionRouteSource, /defaultTokenExpiresAt/);
+    assert.doesNotMatch(sessionRouteSource, /评审已截止，不能生成大屏链接/);
+    assert.match(assignmentRouteSource, /status:\s*"locked"/);
+    assert.match(assignmentRouteSource, /data:\s*\{\s*status:\s*"pending"\s*\}/);
+    assert.match(assignmentRouteSource, /重置并重新配置|评审包已重置/);
   });
 
   it("renders the review screen page in a blue-white theme suitable for large-screen projection", () => {

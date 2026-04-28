@@ -29,7 +29,15 @@ export async function POST(
           packageId: true,
           orderIndex: true,
           reviewPackage: {
-            select: { targetName: true },
+            select: {
+              targetName: true,
+              assignments: {
+                select: {
+                  id: true,
+                  expertUserId: true,
+                },
+              },
+            },
           },
         },
       },
@@ -80,22 +88,49 @@ export async function POST(
 
   const nextPackage = session.projectOrders[nextIndex];
 
-  const updated = await prisma.reviewDisplaySession.update({
-    where: { id: sessionId },
-    data: {
-      currentPackageId: nextPackage.packageId,
-      screenPhase: "presentation",
-      phaseStartedAt: new Date(),
-      revealStartedAt: null,
-      status: "waiting",
-      startedAt: null,
-    },
-    select: {
-      id: true,
-      screenPhase: true,
-      currentPackageId: true,
-      phaseStartedAt: true,
-    },
+  const updated = await prisma.$transaction(async (tx) => {
+    const assignmentByExpertId = new Map(
+      nextPackage.reviewPackage.assignments.map((assignment) => [assignment.expertUserId, assignment.id]),
+    );
+    const seats = await tx.reviewDisplaySeat.findMany({
+      where: { sessionId },
+      select: {
+        id: true,
+        expertUserId: true,
+      },
+    });
+
+    await Promise.all(
+      seats.flatMap((seat) => {
+        const assignmentId = assignmentByExpertId.get(seat.expertUserId);
+        return assignmentId
+          ? [
+              tx.reviewDisplaySeat.update({
+                where: { id: seat.id },
+                data: { assignmentId },
+              }),
+            ]
+          : [];
+      }),
+    );
+
+    return tx.reviewDisplaySession.update({
+      where: { id: sessionId },
+      data: {
+        currentPackageId: nextPackage.packageId,
+        screenPhase: "presentation",
+        phaseStartedAt: new Date(),
+        revealStartedAt: null,
+        status: "waiting",
+        startedAt: null,
+      },
+      select: {
+        id: true,
+        screenPhase: true,
+        currentPackageId: true,
+        phaseStartedAt: true,
+      },
+    });
   });
 
   return NextResponse.json({

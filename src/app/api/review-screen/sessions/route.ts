@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { assertRole } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
-import { createReviewScreenToken } from "@/lib/review-screen-session";
+import { buildReviewDisplaySeatSeeds, createReviewScreenToken } from "@/lib/review-screen-session";
 
 const clampInteger = (value: unknown, fallback: number, min: number, max: number) => {
   const numericValue = typeof value === "number" ? value : Number(value);
@@ -200,17 +200,17 @@ export async function POST(request: NextRequest) {
       .sort((left, right) => left.getTime() - right.getTime())[0] ??
     reviewPackage.startAt ??
     now;
-  const tokenExpiresAt =
+  const defaultTokenExpiresAt = new Date(now.getTime() + 4 * 60 * 60 * 1000);
+  const configuredTokenExpiresAt =
     stageReviewPackages
       .map((stagePackage) => stagePackage.deadline)
       .filter((value): value is Date => value instanceof Date)
       .sort((left, right) => right.getTime() - left.getTime())[0] ??
-    reviewPackage.deadline ??
-    new Date(now.getTime() + 4 * 60 * 60 * 1000);
-
-  if (tokenExpiresAt.getTime() <= now.getTime()) {
-    return NextResponse.json({ message: "评审已截止，不能生成大屏链接" }, { status: 400 });
-  }
+    reviewPackage.deadline;
+  const tokenExpiresAt =
+    configuredTokenExpiresAt && configuredTokenExpiresAt.getTime() > now.getTime()
+      ? configuredTokenExpiresAt
+      : defaultTokenExpiresAt;
 
   const countdownSeconds = clampInteger(body?.countdownSeconds, 60, 10, 600);
   const dropHighestCount = clampInteger(body?.dropHighestCount, 1, 0, 5);
@@ -253,13 +253,13 @@ export async function POST(request: NextRequest) {
     });
 
     await tx.reviewDisplaySeat.createMany({
-      data: stageAssignments.map((assignment, index) => ({
+      data: buildReviewDisplaySeatSeeds(stageAssignments).map((seat) => ({
         sessionId: createdSession.id,
-        assignmentId: assignment.id,
-        expertUserId: assignment.expertUserId,
-        seatNo: index + 1,
-        displayName: `专家 ${index + 1}`,
-        status: assignment.score ? "submitted" : "pending",
+        assignmentId: seat.assignmentId,
+        expertUserId: seat.expertUserId,
+        seatNo: seat.seatNo,
+        displayName: seat.displayName,
+        status: seat.status,
       })),
     });
 

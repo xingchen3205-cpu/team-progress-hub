@@ -238,6 +238,14 @@ export async function PATCH(
       });
     }
 
+    await tx.expertReviewAssignment.updateMany({
+      where: {
+        packageId: assignment.packageId,
+        status: "locked",
+      },
+      data: { status: "pending" },
+    });
+
     return tx.expertReviewAssignment.findMany({
       where: { packageId: assignment.packageId },
       orderBy: [{ createdAt: "desc" }],
@@ -303,7 +311,7 @@ export async function DELETE(
   if (hasLockedScore) {
     if (confirm !== "permanent") {
       return NextResponse.json(
-        { message: "已有正式评分，请先完成二次确认后永久删除" },
+        { message: "已有评分记录，请先完成二次确认后重置评审包" },
         { status: 403 },
       );
     }
@@ -323,7 +331,7 @@ export async function DELETE(
       });
     });
 
-    return NextResponse.json({ success: true, message: "永久删除已归档评审包" });
+    return NextResponse.json({ success: true, message: "评审包已重置，可重新配置" });
   }
 
   await prisma.$transaction(async (tx) => {

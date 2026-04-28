@@ -49,7 +49,9 @@ const readSource = (filePath) =>
   // Admin tab still has controls
   const adminTabSource = readSource("src/components/tabs/expert-review-tab.tsx");
   assert.match(adminTabSource, /现场大屏控制/);
-  assert.match(adminTabSource, /作废席位/);
+  assert.match(adminTabSource, /固定专家席位/);
+  assert.match(adminTabSource, /异常排除/);
+  assert.doesNotMatch(adminTabSource, /作废席位/);
   assert.match(adminTabSource, /voidReviewScreenSeat/);
   assert.match(adminTabSource, /打开大屏/);
   assert.match(adminTabSource, /开始评分/);
