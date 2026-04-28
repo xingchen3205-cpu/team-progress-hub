@@ -221,9 +221,11 @@ export async function POST(request: NextRequest) {
   const { token, tokenHash } = createReviewScreenToken();
 
   const { session, seats } = await prisma.$transaction(async (tx) => {
+    const firstPackageId = stageReviewPackages[0]?.id ?? reviewPackage.id;
     const createdSession = await tx.reviewDisplaySession.create({
       data: {
         packageId: reviewPackage.id,
+        currentPackageId: firstPackageId,
         tokenHash,
         startsAt,
         tokenExpiresAt,
@@ -250,6 +252,14 @@ export async function POST(request: NextRequest) {
         screenPhase: true,
         currentPackageId: true,
       },
+    });
+
+    await tx.reviewDisplayProjectOrder.createMany({
+      data: stageReviewPackages.map((stagePackage, index) => ({
+        sessionId: createdSession.id,
+        packageId: stagePackage.id,
+        orderIndex: index,
+      })),
     });
 
     await tx.reviewDisplaySeat.createMany({
@@ -295,6 +305,13 @@ export async function POST(request: NextRequest) {
       })),
       screenUrl: screenUrl.toString(),
       packageIds: stageReviewPackages.map((stagePackage) => stagePackage.id),
+      projectOrder: stageReviewPackages.map((stagePackage, index) => ({
+        orderIndex: index,
+        packageId: stagePackage.id,
+        targetName: stagePackage.targetName,
+        roundLabel: stagePackage.roundLabel ?? "",
+        revealedAt: null,
+      })),
       projectReviewStageId: reviewPackage.projectReviewStageId,
       projectReviewStageType: "roadshow",
     },

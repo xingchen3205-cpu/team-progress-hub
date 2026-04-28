@@ -3,7 +3,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { assertRole } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
-import { shuffleArray } from "@/lib/review-screen-session";
 
 export async function POST(
   request: NextRequest,
@@ -21,6 +20,14 @@ export async function POST(
   }
 
   const { sessionId } = await params;
+  const body = (await request.json().catch(() => null)) as { packageIds?: string[] } | null;
+  const packageIds = Array.isArray(body?.packageIds)
+    ? body.packageIds.filter((id): id is string => typeof id === "string" && Boolean(id.trim())).map((id) => id.trim())
+    : [];
+
+  if (packageIds.length === 0) {
+    return NextResponse.json({ message: "请提供路演顺序" }, { status: 400 });
+  }
 
   const session = await prisma.reviewDisplaySession.findUnique({
     where: { id: sessionId },
@@ -30,7 +37,6 @@ export async function POST(
           id: true,
           projectReviewStageId: true,
           targetName: true,
-          roundLabel: true,
         },
       },
     },
@@ -45,7 +51,7 @@ export async function POST(
   }
 
   if (session.status !== "waiting" || session.screenPhase !== "draw" || session.startedAt) {
-    return NextResponse.json({ message: "本轮已开始，不能重新抽签" }, { status: 409 });
+    return NextResponse.json({ message: "本轮已开始，不能调整路演顺序" }, { status: 409 });
   }
 
   const stagePackages = session.reviewPackage.projectReviewStageId
@@ -70,6 +76,7 @@ export async function POST(
     : [
         {
           ...session.reviewPackage,
+          roundLabel: "",
           assignments: await prisma.expertReviewAssignment.findMany({
             where: { packageId: session.reviewPackage.id },
             select: {
@@ -80,12 +87,21 @@ export async function POST(
         },
       ];
 
-  if (stagePackages.length === 0) {
-    return NextResponse.json({ message: "没有可抽签的项目" }, { status: 400 });
+  const packageById = new Map(stagePackages.map((stagePackage) => [stagePackage.id, stagePackage]));
+  const uniquePackageIds = [...new Set(packageIds)];
+  const expectedPackageIds = new Set(stagePackages.map((stagePackage) => stagePackage.id));
+  const isSamePackageSet =
+    uniquePackageIds.length === expectedPackageIds.size &&
+    uniquePackageIds.every((packageId) => expectedPackageIds.has(packageId));
+
+  if (!isSamePackageSet) {
+    return NextResponse.json({ message: "路演顺序与本轮项目不匹配" }, { status: 400 });
   }
 
-  const shuffled = shuffleArray(stagePackages);
-  const firstPackageId = shuffled[0]?.id ?? null;
+  const orderedPackages = uniquePackageIds
+    .map((packageId) => packageById.get(packageId))
+    .filter((stagePackage): stagePackage is (typeof stagePackages)[number] => Boolean(stagePackage));
+  const firstPackage = orderedPackages[0] ?? null;
 
   const updatedSession = await prisma.$transaction(async (tx) => {
     await tx.reviewDisplayProjectOrder.deleteMany({
@@ -93,14 +109,13 @@ export async function POST(
     });
 
     await tx.reviewDisplayProjectOrder.createMany({
-      data: shuffled.map((pkg, index) => ({
+      data: orderedPackages.map((stagePackage, index) => ({
         sessionId,
-        packageId: pkg.id,
+        packageId: stagePackage.id,
         orderIndex: index,
       })),
     });
 
-    const firstPackage = shuffled.find((pkg) => pkg.id === firstPackageId);
     if (firstPackage) {
       const assignmentByExpertId = new Map(
         firstPackage.assignments.map((assignment) => [assignment.expertUserId, assignment.id]),
@@ -131,9 +146,9 @@ export async function POST(
     return tx.reviewDisplaySession.update({
       where: { id: sessionId },
       data: {
+        currentPackageId: firstPackage?.id ?? session.packageId,
         screenPhase: "draw",
-        currentPackageId: firstPackageId,
-        phaseStartedAt: new Date(),
+        phaseStartedAt: null,
         revealStartedAt: null,
       },
       select: {
@@ -150,11 +165,11 @@ export async function POST(
       ...updatedSession,
       phaseStartedAt: updatedSession.phaseStartedAt?.toISOString() ?? null,
     },
-    projectOrder: shuffled.map((pkg, index) => ({
+    projectOrder: orderedPackages.map((stagePackage, index) => ({
       orderIndex: index,
-      packageId: pkg.id,
-      targetName: pkg.targetName,
-      roundLabel: pkg.roundLabel ?? "",
+      packageId: stagePackage.id,
+      targetName: stagePackage.targetName,
+      roundLabel: stagePackage.roundLabel ?? "",
       revealedAt: null,
     })),
   });

@@ -53,7 +53,7 @@ export async function POST(
   }
 
   if (!session.projectOrders || session.projectOrders.length === 0) {
-    return NextResponse.json({ message: "请先完成抽签" }, { status: 400 });
+    return NextResponse.json({ message: "请先生成路演顺序" }, { status: 400 });
   }
 
   const currentIndex = session.projectOrders.findIndex(

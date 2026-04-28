@@ -35,7 +35,13 @@ export async function POST(
 
   const session = await prisma.reviewDisplaySession.findUnique({
     where: { id: sessionId },
-    select: { id: true, tokenExpiresAt: true, currentPackageId: true, packageId: true },
+    select: {
+      id: true,
+      tokenExpiresAt: true,
+      currentPackageId: true,
+      packageId: true,
+      screenPhase: true,
+    },
   });
 
   if (!session) {
@@ -44,6 +50,17 @@ export async function POST(
 
   if (session.tokenExpiresAt.getTime() <= Date.now()) {
     return NextResponse.json({ message: "大屏链接已过期" }, { status: 409 });
+  }
+
+  const allowedNextPhases: Record<string, readonly ValidPhase[]> = {
+    draw: ["draw", "presentation"],
+    presentation: ["presentation", "qa"],
+    qa: ["qa", "scoring"],
+    scoring: ["scoring"],
+    finished: [],
+  };
+  if (!allowedNextPhases[session.screenPhase]?.includes(phase)) {
+    return NextResponse.json({ message: "请按路演、答辩、评分的顺序切换阶段" }, { status: 409 });
   }
 
   const updatedSession = await prisma.reviewDisplaySession.update({

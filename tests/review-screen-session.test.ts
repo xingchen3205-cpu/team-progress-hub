@@ -150,6 +150,8 @@ describe("roadshow review screen session", () => {
   it("uses one roadshow screen session for all packages under the same project stage", () => {
     const sessionRouteSource = readSource("src/app/api/review-screen/sessions/route.ts");
     const publicRouteSource = readSource("src/app/api/review-screen/sessions/[sessionId]/route.ts");
+    const orderRouteSource = readSource("src/app/api/review-screen/sessions/[sessionId]/order/route.ts");
+    const nextProjectRouteSource = readSource("src/app/api/review-screen/sessions/[sessionId]/next-project/route.ts");
     const adminTabSource = readSource("src/components/tabs/expert-review-tab.tsx");
     const screenPageSource = readSource("src/app/review-screen/session/[sessionId]/page.tsx");
 
@@ -157,15 +159,26 @@ describe("roadshow review screen session", () => {
     assert.match(sessionRouteSource, /projectReviewStageId/);
     assert.match(sessionRouteSource, /packageIds/);
     assert.match(sessionRouteSource, /buildReviewDisplaySeatSeeds/);
+    assert.match(sessionRouteSource, /reviewDisplayProjectOrder\.createMany/);
     assert.match(sessionRouteSource, /reviewPackage\.projectReviewStageId/);
     assert.match(publicRouteSource, /projectResults/);
     assert.match(publicRouteSource, /projectOrderPackages/);
     assert.match(publicRouteSource, /assignmentsByExpertId/);
     assert.doesNotMatch(publicRouteSource, /seat\.assignment\.reviewPackage/);
+    assert.match(orderRouteSource, /packageIds/);
+    assert.match(orderRouteSource, /本轮已开始，不能调整路演顺序/);
+    assert.match(nextProjectRouteSource, /projectOrders/);
     assert.match(adminTabSource, /packageIds/);
     assert.match(adminTabSource, /stageGroupKeys/);
     assert.match(adminTabSource, /现场大屏控制台/);
     assert.match(adminTabSource, /lg:grid-cols-\[minmax\(0,1fr\)_280px\]/);
+    assert.match(adminTabSource, /路演顺序/);
+    assert.match(adminTabSource, /上移/);
+    assert.match(adminTabSource, /下移/);
+    assert.match(adminTabSource, /路演时长/);
+    assert.match(adminTabSource, /答辩时长/);
+    assert.match(adminTabSource, /评分时长/);
+    assert.doesNotMatch(adminTabSource, /启动计时/);
     assert.match(screenPageSource, /projectResults/);
   });
 

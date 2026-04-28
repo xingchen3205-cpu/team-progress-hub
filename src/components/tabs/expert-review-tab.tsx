@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Ban, CheckCircle2, Copy, ExternalLink, PlayCircle, Shuffle, Eye, Trophy } from "lucide-react";
+import { ArrowDown, ArrowUp, Ban, CheckCircle2, Copy, ExternalLink, Shuffle, Eye, Trophy } from "lucide-react";
 
 import type { ExpertReviewAssignmentItem } from "@/components/workspace-context";
 import * as Workspace from "@/components/workspace-context";
@@ -54,6 +54,14 @@ type ReviewScreenSessionState = {
   }>;
 };
 
+type ReviewScreenProjectOrderItem = {
+  orderIndex: number;
+  packageId: string;
+  targetName: string;
+  roundLabel: string;
+  revealedAt: string | null;
+};
+
 const getInitial = (name?: string | null) => (name?.trim().slice(0, 1) || "评").toUpperCase();
 
 const getReviewMode = (
@@ -86,6 +94,12 @@ const getScoreValue = (assignment: ExpertReviewAssignmentItem) => {
 
   return assignment.score.totalScore / (usesCentScoreScale(assignment) ? 100 : 1);
 };
+
+const getDefaultScreenTimingDraft = () => ({
+  presentationMinutes: "8",
+  qaMinutes: "7",
+  scoringSeconds: "60",
+});
 
 const groupReviewAssignments = (assignments: ExpertReviewAssignmentItem[]) =>
   assignments.reduce<ReviewGroup[]>((groups, assignment) => {
@@ -310,6 +324,9 @@ export default function ExpertReviewTab() {
   const [activeGroupKey, setActiveGroupKey] = useState<string | null>(null);
   const [reviewScreenSessions, setReviewScreenSessions] = useState<Record<string, ReviewScreenSessionState>>({});
   const [reviewScreenActionKey, setReviewScreenActionKey] = useState<string | null>(null);
+  const [screenTimingDrafts, setScreenTimingDrafts] = useState<
+    Record<string, ReturnType<typeof getDefaultScreenTimingDraft>>
+  >({});
   const [screenLiveData, setScreenLiveData] = useState<
     Record<
       string,
@@ -322,6 +339,7 @@ export default function ExpertReviewTab() {
         currentPackageId: string | null;
         reviewPackage?: { targetName: string };
         seats: ReviewScreenSessionState["seats"];
+        projectOrder: ReviewScreenProjectOrderItem[];
       }
     >
   >({});
@@ -350,6 +368,7 @@ export default function ExpertReviewTab() {
             };
             seats: ReviewScreenSessionState["seats"];
             reviewPackage?: { targetName: string };
+            projectOrder: ReviewScreenProjectOrderItem[];
           }>(
             `/api/review-screen/sessions/${sessionState.sessionId}?token=${encodeURIComponent(tokenFromUrl(sessionState.screenUrl))}`,
           );
@@ -364,6 +383,7 @@ export default function ExpertReviewTab() {
               currentPackageId: data.session.currentPackageId,
               reviewPackage: data.reviewPackage,
               seats: data.seats,
+              projectOrder: data.projectOrder,
             },
           }));
         } catch {
@@ -499,6 +519,34 @@ export default function ExpertReviewTab() {
     URL.revokeObjectURL(url);
   };
 
+  const updateScreenTimingDraft = (
+    groupKey: string,
+    field: keyof ReturnType<typeof getDefaultScreenTimingDraft>,
+    value: string,
+  ) => {
+    const normalizedValue = value.replace(/[^\d]/g, "").slice(0, 3);
+    setScreenTimingDrafts((current) => ({
+      ...current,
+      [groupKey]: {
+        ...(current[groupKey] ?? getDefaultScreenTimingDraft()),
+        [field]: normalizedValue,
+      },
+    }));
+  };
+
+  const getReviewScreenTimingPayload = (groupKey: string) => {
+    const draft = screenTimingDrafts[groupKey] ?? getDefaultScreenTimingDraft();
+    const presentationMinutes = Number(draft.presentationMinutes || 8);
+    const qaMinutes = Number(draft.qaMinutes || 7);
+    const scoringSeconds = Number(draft.scoringSeconds || 60);
+
+    return {
+      presentationSeconds: Math.min(1800, Math.max(60, Math.trunc(presentationMinutes * 60))),
+      qaSeconds: Math.min(1800, Math.max(60, Math.trunc(qaMinutes * 60))),
+      scoringSeconds: Math.min(600, Math.max(10, Math.trunc(scoringSeconds))),
+    };
+  };
+
   const createReviewScreenSession = async (group: ReviewGroup) => {
     if (!group.items.some((assignment) => isRoadshowAssignment(assignment))) {
       setLoadError("只有项目路演评审可以生成现场大屏链接");
@@ -508,10 +556,16 @@ export default function ExpertReviewTab() {
     setReviewScreenActionKey(group.key);
     try {
       const payload = await requestJson<{
-        session: { id: string; startedAt?: string | null };
+        session: {
+          id: string;
+          startedAt?: string | null;
+          screenPhase?: string;
+          currentPackageId?: string | null;
+        };
         seats: ReviewScreenSessionState["seats"];
         screenUrl: string;
         packageIds?: string[];
+        projectOrder?: ReviewScreenProjectOrderItem[];
       }>("/api/review-screen/sessions", {
         method: "POST",
         body: JSON.stringify({
@@ -519,6 +573,7 @@ export default function ExpertReviewTab() {
           countdownSeconds: 60,
           dropHighestCount: 1,
           dropLowestCount: 1,
+          ...getReviewScreenTimingPayload(group.key),
         }),
       });
 
@@ -548,43 +603,27 @@ export default function ExpertReviewTab() {
         }
         return next;
       });
-    } catch (error) {
-      setLoadError(error instanceof Error ? error.message : "现场大屏链接生成失败");
-    } finally {
-      setReviewScreenActionKey(null);
-    }
-  };
-
-  const startReviewScreenSession = async (group: ReviewGroup) => {
-    const screenSession = reviewScreenSessions[group.key];
-    if (!screenSession) {
-      setLoadError("请先生成现场大屏链接");
-      return;
-    }
-
-    setReviewScreenActionKey(group.key);
-    try {
-      const payload = await requestJson<{
-        session: { id: string; startedAt: string | null };
-      }>(`/api/review-screen/sessions/${screenSession.sessionId}/start`, {
-        method: "POST",
-        body: JSON.stringify({ countdownSeconds: 60 }),
-      });
-      setReviewScreenSessions((current) => {
-        const next = { ...current };
-        for (const [key, value] of Object.entries(next)) {
-          if (value.sessionId === screenSession.sessionId) {
+      if (payload.projectOrder?.length) {
+        setScreenLiveData((current) => {
+          const next = { ...current };
+          for (const key of stageGroupKeys.length ? stageGroupKeys : [group.key]) {
             next[key] = {
-              ...value,
-              message: "现场评分已开始，倒计时 60 秒。",
-              startedAt: payload.session.startedAt,
+              screenPhase: payload.session.screenPhase ?? "draw",
+              phaseLabel: "待开始",
+              phaseRemainingSeconds: 0,
+              currentProjectIndex: 0,
+              totalProjectCount: payload.projectOrder?.length ?? 0,
+              currentPackageId: payload.session.currentPackageId ?? payload.projectOrder?.[0]?.packageId ?? null,
+              reviewPackage: { targetName: payload.projectOrder?.[0]?.targetName ?? group.targetName },
+              seats: payload.seats,
+              projectOrder: payload.projectOrder ?? [],
             };
           }
-        }
-        return next;
-      });
+          return next;
+        });
+      }
     } catch (error) {
-      setLoadError(error instanceof Error ? error.message : "现场评分启动失败");
+      setLoadError(error instanceof Error ? error.message : "现场大屏链接生成失败");
     } finally {
       setReviewScreenActionKey(null);
     }
@@ -633,14 +672,31 @@ export default function ExpertReviewTab() {
     }
     setReviewScreenActionKey(`${group.key}:draw`);
     try {
-      await requestJson(`/api/review-screen/sessions/${screenSession.sessionId}/draw`, {
+      const payload = await requestJson<{
+        projectOrder: ReviewScreenProjectOrderItem[];
+        session: { currentPackageId: string | null };
+      }>(`/api/review-screen/sessions/${screenSession.sessionId}/draw`, {
         method: "POST",
       });
       setReviewScreenSessions((current) => {
         const next = { ...current };
         for (const [key, value] of Object.entries(next)) {
           if (value.sessionId === screenSession.sessionId) {
-            next[key] = { ...value, message: "抽签顺序已生成，大屏已同步。" };
+            next[key] = { ...value, message: "随机抽签顺序已生成，大屏已同步。" };
+          }
+        }
+        return next;
+      });
+      setScreenLiveData((current) => {
+        const next = { ...current };
+        for (const [key, value] of Object.entries(next)) {
+          if (reviewScreenSessions[key]?.sessionId === screenSession.sessionId) {
+            next[key] = {
+              ...value,
+              currentPackageId: payload.session.currentPackageId,
+              currentProjectIndex: 0,
+              projectOrder: payload.projectOrder,
+            };
           }
         }
         return next;
@@ -650,6 +706,64 @@ export default function ExpertReviewTab() {
     } finally {
       setReviewScreenActionKey(null);
     }
+  };
+
+  const reorderReviewScreenProjects = async (group: ReviewGroup, packageIds: string[]) => {
+    const screenSession = reviewScreenSessions[group.key];
+    if (!screenSession) {
+      setLoadError("请先生成现场大屏链接");
+      return;
+    }
+
+    setReviewScreenActionKey(`${group.key}:order`);
+    try {
+      const payload = await requestJson<{
+        projectOrder: ReviewScreenProjectOrderItem[];
+        session: { currentPackageId: string | null };
+      }>(`/api/review-screen/sessions/${screenSession.sessionId}/order`, {
+        method: "POST",
+        body: JSON.stringify({ packageIds }),
+      });
+      setReviewScreenSessions((current) => {
+        const next = { ...current };
+        for (const [key, value] of Object.entries(next)) {
+          if (value.sessionId === screenSession.sessionId) {
+            next[key] = { ...value, message: "路演顺序已调整，大屏已同步。" };
+          }
+        }
+        return next;
+      });
+      setScreenLiveData((current) => {
+        const next = { ...current };
+        for (const [key, value] of Object.entries(next)) {
+          if (reviewScreenSessions[key]?.sessionId === screenSession.sessionId) {
+            next[key] = {
+              ...value,
+              currentPackageId: payload.session.currentPackageId,
+              currentProjectIndex: 0,
+              projectOrder: payload.projectOrder,
+            };
+          }
+        }
+        return next;
+      });
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "路演顺序调整失败");
+    } finally {
+      setReviewScreenActionKey(null);
+    }
+  };
+
+  const moveReviewScreenProject = (group: ReviewGroup, index: number, direction: -1 | 1) => {
+    const currentOrder = screenLiveData[group.key]?.projectOrder ?? [];
+    const targetIndex = index + direction;
+    if (targetIndex < 0 || targetIndex >= currentOrder.length) {
+      return;
+    }
+
+    const nextOrder = [...currentOrder];
+    [nextOrder[index], nextOrder[targetIndex]] = [nextOrder[targetIndex], nextOrder[index]];
+    void reorderReviewScreenProjects(group, nextOrder.map((item) => item.packageId));
   };
 
   const changeReviewScreenPhase = async (group: ReviewGroup, phase: string) => {
@@ -899,6 +1013,15 @@ export default function ExpertReviewTab() {
     const screenSession = reviewScreenSessions[group.key];
     const liveData = screenLiveData[group.key];
     const consoleSeats = liveData?.seats ?? screenSession?.seats ?? [];
+    const timingDraft = screenTimingDrafts[group.key] ?? getDefaultScreenTimingDraft();
+    const projectOrder = liveData?.projectOrder ?? [];
+    const currentPhase = liveData?.screenPhase ?? "draw";
+    const canAdjustOrder = currentPhase === "draw";
+    const canStartPresentation = currentPhase === "draw" || currentPhase === "presentation";
+    const canStartQa = currentPhase === "presentation";
+    const canStartScoring = currentPhase === "qa";
+    const canRevealScore = currentPhase === "scoring";
+    const canGoNextProject = currentPhase === "reveal";
 
     return (
       <article className="rounded-[28px] border border-blue-100 bg-gradient-to-br from-blue-50/80 via-white to-white p-5 shadow-[0_14px_40px_rgba(37,99,235,0.08)] lg:p-6">
@@ -915,6 +1038,48 @@ export default function ExpertReviewTab() {
           <span className="inline-flex shrink-0 items-center justify-center rounded-full border border-blue-100 bg-white px-3 py-1.5 text-xs font-bold text-blue-700">
             固定专家席位 {consoleSeats.length || group.items.length}
           </span>
+        </div>
+
+        <div className="mt-5 grid gap-3 md:grid-cols-3">
+          <label className="rounded-2xl border border-blue-100 bg-white px-4 py-3">
+            <span className="text-xs font-bold text-slate-600">路演时长</span>
+            <div className="mt-2 flex items-center gap-2">
+              <input
+                className="h-9 min-w-0 flex-1 rounded-xl border border-slate-200 px-3 text-sm font-bold text-slate-900 outline-none transition focus:border-blue-300 focus:ring-2 focus:ring-blue-100 disabled:bg-slate-50 disabled:text-slate-400"
+                disabled={Boolean(screenSession)}
+                inputMode="numeric"
+                onChange={(event) => updateScreenTimingDraft(group.key, "presentationMinutes", event.target.value)}
+                value={timingDraft.presentationMinutes}
+              />
+              <span className="text-xs font-semibold text-slate-400">分钟</span>
+            </div>
+          </label>
+          <label className="rounded-2xl border border-blue-100 bg-white px-4 py-3">
+            <span className="text-xs font-bold text-slate-600">答辩时长</span>
+            <div className="mt-2 flex items-center gap-2">
+              <input
+                className="h-9 min-w-0 flex-1 rounded-xl border border-slate-200 px-3 text-sm font-bold text-slate-900 outline-none transition focus:border-blue-300 focus:ring-2 focus:ring-blue-100 disabled:bg-slate-50 disabled:text-slate-400"
+                disabled={Boolean(screenSession)}
+                inputMode="numeric"
+                onChange={(event) => updateScreenTimingDraft(group.key, "qaMinutes", event.target.value)}
+                value={timingDraft.qaMinutes}
+              />
+              <span className="text-xs font-semibold text-slate-400">分钟</span>
+            </div>
+          </label>
+          <label className="rounded-2xl border border-blue-100 bg-white px-4 py-3">
+            <span className="text-xs font-bold text-slate-600">评分时长</span>
+            <div className="mt-2 flex items-center gap-2">
+              <input
+                className="h-9 min-w-0 flex-1 rounded-xl border border-slate-200 px-3 text-sm font-bold text-slate-900 outline-none transition focus:border-blue-300 focus:ring-2 focus:ring-blue-100 disabled:bg-slate-50 disabled:text-slate-400"
+                disabled={Boolean(screenSession)}
+                inputMode="numeric"
+                onChange={(event) => updateScreenTimingDraft(group.key, "scoringSeconds", event.target.value)}
+                value={timingDraft.scoringSeconds}
+              />
+              <span className="text-xs font-semibold text-slate-400">秒</span>
+            </div>
+          </label>
         </div>
 
         {screenSession ? (
@@ -985,16 +1150,16 @@ export default function ExpertReviewTab() {
                 <div className="grid grid-cols-2 gap-2">
                   <button
                     className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-indigo-200 bg-white px-3 py-2.5 text-xs font-bold text-indigo-700 transition hover:bg-indigo-50 disabled:cursor-not-allowed disabled:opacity-60"
-                    disabled={reviewScreenActionKey === `${group.key}:draw`}
+                    disabled={!canAdjustOrder || reviewScreenActionKey === `${group.key}:draw`}
                     onClick={() => void drawReviewScreenSession(group)}
                     type="button"
                   >
                     <Shuffle className="h-3.5 w-3.5" />
-                    生成抽签
+                    随机抽签
                   </button>
                   <button
                     className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-blue-200 bg-white px-3 py-2.5 text-xs font-bold text-blue-700 transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-60"
-                    disabled={reviewScreenActionKey === `${group.key}:next`}
+                    disabled={!canGoNextProject || reviewScreenActionKey === `${group.key}:next`}
                     onClick={() => void nextReviewScreenProject(group)}
                     type="button"
                   >
@@ -1005,13 +1170,62 @@ export default function ExpertReviewTab() {
               </div>
             </div>
 
+            {projectOrder.length ? (
+              <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4">
+                <div className="flex items-center justify-between gap-2">
+                  <p className="text-xs font-bold text-slate-800">路演顺序</p>
+                  <span className="text-[11px] text-slate-400">
+                    {canAdjustOrder ? "未开始前可上移、下移或随机抽签" : "本轮已开始，顺序已锁定"}
+                  </span>
+                </div>
+                <div className="mt-3 grid gap-2 lg:grid-cols-2">
+                  {projectOrder.map((project, index) => (
+                    <div
+                      className="flex items-center justify-between gap-3 rounded-xl border border-slate-100 bg-slate-50 px-3 py-2"
+                      key={project.packageId}
+                    >
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="inline-flex h-6 min-w-6 items-center justify-center rounded-full bg-blue-600 px-2 text-xs font-bold text-white">
+                            {index + 1}
+                          </span>
+                          <p className="truncate text-xs font-bold text-slate-800">{project.targetName}</p>
+                        </div>
+                        <p className="mt-1 truncate pl-8 text-[11px] text-slate-400">{project.roundLabel || "项目路演"}</p>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-1">
+                        <button
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:bg-blue-50 hover:text-blue-700 disabled:cursor-not-allowed disabled:text-slate-300"
+                          disabled={!canAdjustOrder || index === 0 || reviewScreenActionKey === `${group.key}:order`}
+                          onClick={() => moveReviewScreenProject(group, index, -1)}
+                          title="上移"
+                          type="button"
+                        >
+                          <ArrowUp className="h-3.5 w-3.5" />
+                        </button>
+                        <button
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:bg-blue-50 hover:text-blue-700 disabled:cursor-not-allowed disabled:text-slate-300"
+                          disabled={!canAdjustOrder || index === projectOrder.length - 1 || reviewScreenActionKey === `${group.key}:order`}
+                          onClick={() => moveReviewScreenProject(group, index, 1)}
+                          title="下移"
+                          type="button"
+                        >
+                          <ArrowDown className="h-3.5 w-3.5" />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
+
             <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4">
               <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
                 <p className="text-xs font-bold text-slate-800">阶段控制</p>
-                <div className="grid gap-2 sm:grid-cols-3 lg:grid-cols-6">
+                <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
                   <button
                     className="inline-flex items-center justify-center rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-bold text-blue-700 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-60"
-                    disabled={reviewScreenActionKey === `${group.key}:phase:presentation`}
+                    disabled={!canStartPresentation || reviewScreenActionKey === `${group.key}:phase:presentation`}
                     onClick={() => void changeReviewScreenPhase(group, "presentation")}
                     type="button"
                   >
@@ -1019,7 +1233,7 @@ export default function ExpertReviewTab() {
                   </button>
                   <button
                     className="inline-flex items-center justify-center rounded-xl border border-violet-200 bg-violet-50 px-3 py-2 text-xs font-bold text-violet-700 transition hover:bg-violet-100 disabled:cursor-not-allowed disabled:opacity-60"
-                    disabled={reviewScreenActionKey === `${group.key}:phase:qa`}
+                    disabled={!canStartQa || reviewScreenActionKey === `${group.key}:phase:qa`}
                     onClick={() => void changeReviewScreenPhase(group, "qa")}
                     type="button"
                   >
@@ -1027,7 +1241,7 @@ export default function ExpertReviewTab() {
                   </button>
                   <button
                     className="inline-flex items-center justify-center rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-60"
-                    disabled={reviewScreenActionKey === `${group.key}:phase:scoring`}
+                    disabled={!canStartScoring || reviewScreenActionKey === `${group.key}:phase:scoring`}
                     onClick={() => void changeReviewScreenPhase(group, "scoring")}
                     type="button"
                   >
@@ -1035,28 +1249,12 @@ export default function ExpertReviewTab() {
                   </button>
                   <button
                     className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-700 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-60"
-                    disabled={reviewScreenActionKey === `${group.key}:reveal`}
+                    disabled={!canRevealScore || reviewScreenActionKey === `${group.key}:reveal`}
                     onClick={() => void revealReviewScreenScore(group)}
                     type="button"
                   >
                     <Eye className="h-3.5 w-3.5" />
                     揭晓分数
-                  </button>
-                  <button
-                    className="inline-flex items-center justify-center rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
-                    disabled={reviewScreenActionKey === `${group.key}:phase:finished`}
-                    onClick={() => void changeReviewScreenPhase(group, "finished")}
-                    type="button"
-                  >
-                    结束路演
-                  </button>
-                  <button
-                    className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-rose-100 bg-white px-3 py-2 text-xs font-bold text-rose-600 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-60"
-                    onClick={() => void startReviewScreenSession(group)}
-                    type="button"
-                  >
-                    <PlayCircle className="h-3.5 w-3.5" />
-                    启动计时
                   </button>
                 </div>
               </div>
