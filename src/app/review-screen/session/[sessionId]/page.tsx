@@ -594,6 +594,14 @@ export default function ReviewScreenSessionPage() {
         .waiting-dots i:nth-child(2) { animation-delay: .2s; }
         .waiting-dots i:nth-child(3) { animation-delay: .4s; }
         .seat-pop { animation: seat-pop .5s ease; }
+        .seat-score-ticker {
+          color: #16a34a;
+          font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+          font-size: 26px;
+          font-weight: 900;
+          line-height: 1;
+          animation: score-pop .58s cubic-bezier(.16,1,.3,1);
+        }
         .rank-badge {
           display: inline-flex;
           width: 30px;
@@ -617,6 +625,10 @@ export default function ReviewScreenSessionPage() {
           30% { transform: scale(1.06); }
           60% { transform: scale(.97); }
           100% { transform: scale(1); }
+        }
+        @keyframes score-pop {
+          from { transform: translateY(8px) scale(.92); opacity: 0; filter: blur(4px); }
+          to { transform: translateY(0) scale(1); opacity: 1; filter: blur(0); }
         }
         @keyframes pulse-timer {
           0%, 100% { opacity: 1; transform: scale(1); }
@@ -790,11 +802,14 @@ export default function ReviewScreenSessionPage() {
                       <p className="text-sm font-black text-slate-900">{seat.displayName}</p>
                       <p className="mt-1 text-xs font-semibold text-slate-400">匿名专家席位状态</p>
                     </div>
+                    {isSubmitted && seat.scoreText ? (
+                      <p className="seat-score-ticker">{seat.scoreText}</p>
+                    ) : null}
                     <span className={`inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-bold ${isSubmitted ? "bg-emerald-50 text-emerald-700" : isVoided ? "bg-slate-100 text-slate-500" : "bg-slate-100 text-slate-400"}`}>
                       {isSubmitted ? (
                         <>
                           <CheckCircle2 className="h-3.5 w-3.5" />
-                          已提交
+                          已出分
                         </>
                       ) : isVoided ? (
                         "已排除"
@@ -932,9 +947,6 @@ export default function ReviewScreenSessionPage() {
             <p className="text-sm font-black tracking-[3px] text-slate-400">最终得分 · 最终评审得分</p>
             <h2 className="mt-3 text-xl font-black text-slate-900">{targetName}</h2>
             <p className="score-reveal-score mt-8">{revealAnimatedScore}</p>
-            <p className="mt-4 text-sm font-semibold text-slate-400">
-              评分规则：去掉最高分和最低分，取平均值
-            </p>
             <div className="mt-6 flex justify-center gap-3 text-xs font-bold text-slate-400">
               <span>有效席位 {activeFinalScore?.effectiveSeatCount ?? effectiveCount}</span>
               <span>已提交 {activeFinalScore?.submittedSeatCount ?? submittedCount}</span>

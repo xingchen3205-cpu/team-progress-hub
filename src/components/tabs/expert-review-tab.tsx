@@ -56,8 +56,29 @@ type ReviewScreenSessionState = {
 
 type ReviewScreenConsoleSeat = ReviewScreenSessionState["seats"][number];
 type ReviewScreenLiveSeat = Pick<ReviewScreenConsoleSeat, "seatNo" | "displayName" | "status"> & {
+  assignmentId?: string;
   id?: string;
+  scoreText?: string | null;
   voidedAt?: string | null;
+};
+
+type ReviewScreenFinalScoreState = {
+  ready: boolean;
+  finalScoreText: string | null;
+  effectiveSeatCount: number;
+  submittedSeatCount: number;
+  waitingSeatNos: number[];
+  droppedSeatNos: number[];
+};
+
+type ReviewScreenProjectResult = {
+  reviewPackage: {
+    id: string;
+    targetName: string;
+    roundLabel: string;
+  };
+  seats: ReviewScreenLiveSeat[];
+  finalScore: ReviewScreenFinalScoreState;
 };
 
 type ReviewScreenProjectOrderItem = {
@@ -94,6 +115,7 @@ const mergeConsoleSeats = (
       ...seat,
       displayName: liveSeat?.displayName ?? seat.displayName,
       status: liveSeat?.status ?? seat.status,
+      scoreText: liveSeat?.scoreText ?? null,
       voidedAt: liveSeat?.voidedAt ?? seat.voidedAt,
     };
   });
@@ -136,6 +158,8 @@ const getDefaultScreenTimingDraft = () => ({
   presentationMinutes: "8",
   qaMinutes: "7",
   scoringSeconds: "60",
+  dropHighestCount: "1",
+  dropLowestCount: "1",
 });
 
 const groupReviewAssignments = (assignments: ExpertReviewAssignmentItem[]) =>
@@ -377,6 +401,8 @@ export default function ExpertReviewTab() {
         currentPackageId: string | null;
         reviewPackage?: { targetName: string };
         seats: ReviewScreenLiveSeat[];
+        finalScore: ReviewScreenFinalScoreState | null;
+        projectResults: ReviewScreenProjectResult[];
         projectOrder: ReviewScreenProjectOrderItem[];
       }
     >
@@ -384,16 +410,22 @@ export default function ExpertReviewTab() {
 
   // Poll live screen data when a session exists
   useEffect(() => {
-    const activeKeys = Object.entries(reviewScreenSessions)
-      .filter(([, session]) => Boolean(session.sessionId))
-      .map(([key]) => key);
+    const uniqueSessionEntries = Array.from(
+      Object.entries(reviewScreenSessions)
+        .filter(([, session]) => Boolean(session.sessionId))
+        .reduce((entries, [key, session]) => {
+          if (!entries.has(session.sessionId)) {
+            entries.set(session.sessionId, { key, session });
+          }
+          return entries;
+        }, new Map<string, { key: string; session: ReviewScreenSessionState }>())
+        .values(),
+    );
 
-    if (activeKeys.length === 0) return;
+    if (uniqueSessionEntries.length === 0) return;
 
     const poll = async () => {
-      for (const groupKey of activeKeys) {
-        const sessionState = reviewScreenSessions[groupKey];
-        if (!sessionState) continue;
+      for (const { session: sessionState } of uniqueSessionEntries) {
         try {
           const data = await requestJson<{
             session: {
@@ -405,25 +437,33 @@ export default function ExpertReviewTab() {
               currentPackageId: string | null;
             };
             seats: ReviewScreenLiveSeat[];
+            finalScore: ReviewScreenFinalScoreState;
+            projectResults: ReviewScreenProjectResult[];
             reviewPackage?: { targetName: string };
             projectOrder: ReviewScreenProjectOrderItem[];
           }>(
             `/api/review-screen/sessions/${sessionState.sessionId}?token=${encodeURIComponent(tokenFromUrl(sessionState.screenUrl))}`,
           );
-          setScreenLiveData((prev) => ({
-            ...prev,
-            [groupKey]: {
-              screenPhase: data.session.screenPhase,
-              phaseLabel: data.session.phaseLabel,
-              phaseRemainingSeconds: data.session.phaseRemainingSeconds,
-              currentProjectIndex: data.session.currentProjectIndex,
-              totalProjectCount: data.session.totalProjectCount,
-              currentPackageId: data.session.currentPackageId,
-              reviewPackage: data.reviewPackage,
-              seats: data.seats,
-              projectOrder: data.projectOrder,
-            },
-          }));
+          setScreenLiveData((prev) => {
+            const next = { ...prev };
+            for (const [groupKey, groupSession] of Object.entries(reviewScreenSessions)) {
+              if (groupSession.sessionId !== sessionState.sessionId) continue;
+              next[groupKey] = {
+                screenPhase: data.session.screenPhase,
+                phaseLabel: data.session.phaseLabel,
+                phaseRemainingSeconds: data.session.phaseRemainingSeconds,
+                currentProjectIndex: data.session.currentProjectIndex,
+                totalProjectCount: data.session.totalProjectCount,
+                currentPackageId: data.session.currentPackageId,
+                reviewPackage: data.reviewPackage,
+                seats: data.seats,
+                finalScore: data.finalScore,
+                projectResults: data.projectResults,
+                projectOrder: data.projectOrder,
+              };
+            }
+            return next;
+          });
         } catch {
           // ignore polling errors
         }
@@ -478,6 +518,17 @@ export default function ExpertReviewTab() {
 
     return () => window.clearInterval(timer);
   }, [currentRole, refreshWorkspace, roadshowAssignments]);
+  useEffect(() => {
+    if (!canManageReviewMaterials || Object.keys(reviewScreenSessions).length === 0) {
+      return;
+    }
+
+    const timer = window.setInterval(() => {
+      refreshWorkspace("reviewAssignments");
+    }, 5000);
+
+    return () => window.clearInterval(timer);
+  }, [canManageReviewMaterials, refreshWorkspace, reviewScreenSessions]);
   const selectedAssignment =
     reviewAssignments.find((assignment) => assignment.id === selectedAssignmentId) ??
     networkAssignments[0] ??
@@ -491,6 +542,27 @@ export default function ExpertReviewTab() {
     groupedAssignments.find((group) => group.key === activeGroupKey) ??
     groupedAssignments[0] ??
     null;
+  const activeGroupLiveData = activeGroup ? screenLiveData[activeGroup.key] : undefined;
+  const activeGroupLiveProject = activeGroup && activeGroupLiveData
+    ? activeGroupLiveData.projectResults.find((project) => project.reviewPackage.id === activeGroup.key)
+    : undefined;
+  const activeGroupFinalScoreText =
+    activeGroup && isRoadshowAssignment(activeGroup.items[0])
+      ? activeGroupLiveProject?.finalScore.ready
+        ? activeGroupLiveProject.finalScore.finalScoreText ?? "--"
+        : "--"
+      : activeGroup
+        ? getAverageScore(activeGroup)?.toFixed(2) ?? "--"
+        : "--";
+  const getLiveAssignmentScoreText = (assignment: ExpertReviewAssignmentItem) => {
+    const liveProject = screenLiveData[assignment.packageId]?.projectResults.find(
+      (project) => project.reviewPackage.id === assignment.packageId,
+    );
+    const liveSeat = liveProject?.seats.find((seat) => seat.assignmentId === assignment.id);
+    return liveSeat?.scoreText ?? (assignment.score ? formatScoreForAssignment(assignment) : "--");
+  };
+  const getLiveAssignmentStatusKey = (assignment: ExpertReviewAssignmentItem) =>
+    getLiveAssignmentScoreText(assignment) !== "--" ? "completed" : assignment.statusKey;
   const activeGroupHasLockedScore = Boolean(
     activeGroup?.items.some((assignment) => Boolean(assignment.score?.lockedAt)),
   );
@@ -577,11 +649,15 @@ export default function ExpertReviewTab() {
     const presentationMinutes = Number(draft.presentationMinutes || 8);
     const qaMinutes = Number(draft.qaMinutes || 7);
     const scoringSeconds = Number(draft.scoringSeconds || 60);
+    const dropHighestCount = Number(draft.dropHighestCount || 0);
+    const dropLowestCount = Number(draft.dropLowestCount || 0);
 
     return {
       presentationSeconds: Math.min(1800, Math.max(60, Math.trunc(presentationMinutes * 60))),
       qaSeconds: Math.min(1800, Math.max(60, Math.trunc(qaMinutes * 60))),
       scoringSeconds: Math.min(600, Math.max(10, Math.trunc(scoringSeconds))),
+      dropHighestCount: Math.min(5, Math.max(0, Math.trunc(dropHighestCount))),
+      dropLowestCount: Math.min(5, Math.max(0, Math.trunc(dropLowestCount))),
     };
   };
 
@@ -643,8 +719,6 @@ export default function ExpertReviewTab() {
         body: JSON.stringify({
           packageId: group.key,
           countdownSeconds: 60,
-          dropHighestCount: 1,
-          dropLowestCount: 1,
           ...getReviewScreenTimingPayload(group.key),
           roadshowGroupSizes,
         }),
@@ -689,6 +763,8 @@ export default function ExpertReviewTab() {
               currentPackageId: payload.session.currentPackageId ?? payload.projectOrder?.[0]?.packageId ?? null,
               reviewPackage: { targetName: payload.projectOrder?.[0]?.targetName ?? group.targetName },
               seats: payload.seats,
+              finalScore: null,
+              projectResults: [],
               projectOrder: payload.projectOrder ?? [],
             };
           }
@@ -946,13 +1022,13 @@ export default function ExpertReviewTab() {
         const next = { ...current };
         for (const [key, value] of Object.entries(next)) {
           if (value.sessionId === screenSession.sessionId) {
-            next[key] = { ...value, message: "最终得分已揭晓，大屏正在播放动画。" };
+            next[key] = { ...value, message: "总分已提交，大屏正在播放动画。" };
           }
         }
         return next;
       });
     } catch (error) {
-      setLoadError(error instanceof Error ? error.message : "揭晓分数失败");
+      setLoadError(error instanceof Error ? error.message : "提交分数失败");
     } finally {
       setReviewScreenActionKey(null);
     }
@@ -1133,7 +1209,8 @@ export default function ExpertReviewTab() {
     const canStartQa = currentPhase === "presentation";
     const canStartScoring = currentPhase === "qa";
     const canRevealScore = currentPhase === "scoring";
-    const canGoNextProject = currentPhase === "reveal";
+    const hasNextProject = (liveData?.currentProjectIndex ?? 0) + 1 < (liveData?.totalProjectCount ?? projectOrder.length);
+    const canGoNextProject = (currentPhase === "reveal" || currentPhase === "finished") && hasNextProject;
     const canEndRound = currentPhase !== "finished";
 
     return (
@@ -1153,7 +1230,7 @@ export default function ExpertReviewTab() {
           </span>
         </div>
 
-        <div className="mt-5 grid gap-3 md:grid-cols-4">
+        <div className="mt-5 grid gap-3 md:grid-cols-3 xl:grid-cols-6">
           <label className="rounded-2xl border border-blue-100 bg-white px-4 py-3">
             <span className="text-xs font-bold text-slate-600">路演时长</span>
             <div className="mt-2 flex items-center gap-2">
@@ -1188,6 +1265,30 @@ export default function ExpertReviewTab() {
                 value={timingDraft.scoringSeconds}
               />
               <span className="text-xs font-semibold text-slate-400">秒</span>
+            </div>
+          </label>
+          <label className="rounded-2xl border border-blue-100 bg-white px-4 py-3">
+            <span className="text-xs font-bold text-slate-600">去最高分</span>
+            <div className="mt-2 flex items-center gap-2">
+              <input
+                className="h-9 min-w-0 flex-1 rounded-xl border border-slate-200 px-3 text-sm font-bold text-slate-900 outline-none transition focus:border-blue-300 focus:ring-2 focus:ring-blue-100"
+                inputMode="numeric"
+                onChange={(event) => updateScreenTimingDraft(group.key, "dropHighestCount", event.target.value)}
+                value={timingDraft.dropHighestCount}
+              />
+              <span className="text-xs font-semibold text-slate-400">个</span>
+            </div>
+          </label>
+          <label className="rounded-2xl border border-blue-100 bg-white px-4 py-3">
+            <span className="text-xs font-bold text-slate-600">去最低分</span>
+            <div className="mt-2 flex items-center gap-2">
+              <input
+                className="h-9 min-w-0 flex-1 rounded-xl border border-slate-200 px-3 text-sm font-bold text-slate-900 outline-none transition focus:border-blue-300 focus:ring-2 focus:ring-blue-100"
+                inputMode="numeric"
+                onChange={(event) => updateScreenTimingDraft(group.key, "dropLowestCount", event.target.value)}
+                value={timingDraft.dropLowestCount}
+              />
+              <span className="text-xs font-semibold text-slate-400">个</span>
             </div>
           </label>
           <label className="rounded-2xl border border-blue-100 bg-white px-4 py-3">
@@ -1380,7 +1481,7 @@ export default function ExpertReviewTab() {
                     type="button"
                   >
                     <Eye className="h-3.5 w-3.5" />
-                    揭晓分数
+                    提交分数
                   </button>
                   <button
                     className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-bold text-slate-700 transition hover:bg-slate-100 disabled:cursor-not-allowed disabled:opacity-60"
@@ -1404,7 +1505,13 @@ export default function ExpertReviewTab() {
                 <div className="mt-3 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
                   {consoleSeats.map((seat) => {
                     const statusLabel =
-                      seat.status === "submitted" ? "已提交" : seat.status === "voided" ? "已排除" : "待提交";
+                      seat.status === "submitted" && seat.scoreText
+                        ? `${seat.scoreText} 分`
+                        : seat.status === "submitted"
+                          ? "已出分"
+                          : seat.status === "voided"
+                            ? "已排除"
+                            : "待提交";
                     const statusClassName =
                       seat.status === "submitted"
                         ? "bg-emerald-50 text-emerald-700"
@@ -1931,38 +2038,43 @@ export default function ExpertReviewTab() {
                   <div className="rounded-3xl bg-blue-50 px-6 py-5 text-center">
                     <p className="text-xs font-semibold text-blue-600">最终得分</p>
                     <p className="mt-2 text-5xl font-bold text-blue-700">
-                      {getAverageScore(activeGroup)?.toFixed(2) ?? "--"}
+                      {activeGroupFinalScoreText}
                     </p>
-                    <p className="mt-2 text-xs text-slate-500">全部专家提交后自动计算</p>
+                    <p className="mt-2 text-xs text-slate-500">管理员提交分数后生成总分</p>
                   </div>
                 </div>
                 <div className="mt-6 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                  {activeGroup.items.map((assignment) => (
-                    <div className="rounded-3xl border border-slate-200 bg-slate-50 p-5" key={assignment.id}>
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="flex items-center gap-3">
-                          <div className="flex h-11 w-11 items-center justify-center rounded-full bg-blue-100 font-bold text-blue-700">
-                            {getInitial(assignment.expert.name)}
+                  {activeGroup.items.map((assignment) => {
+                    const scoreText = getLiveAssignmentScoreText(assignment);
+                    return (
+                      <div className="rounded-3xl border border-slate-200 bg-slate-50 p-5" key={assignment.id}>
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-3">
+                            <div className="flex h-11 w-11 items-center justify-center rounded-full bg-blue-100 font-bold text-blue-700">
+                              {getInitial(assignment.expert.name)}
+                            </div>
+                            <div>
+                              <p className="font-bold text-slate-950">{assignment.expert.name}</p>
+                              <p className="text-xs text-slate-400">{assignment.expert.roleLabel}</p>
+                            </div>
                           </div>
-                          <div>
-                            <p className="font-bold text-slate-950">{assignment.expert.name}</p>
-                            <p className="text-xs text-slate-400">{assignment.expert.roleLabel}</p>
-                          </div>
+                          <StatusBadge statusKey={getLiveAssignmentStatusKey(assignment)} />
                         </div>
-                        <StatusBadge statusKey={assignment.statusKey} />
+                        <div className="mt-5 rounded-2xl bg-white p-4">
+                          <p className="text-xs text-slate-400">专家评分</p>
+                          <p className="mt-2 text-3xl font-bold text-slate-950">
+                            {scoreText}
+                            <span className="ml-1 text-xs font-medium text-slate-400">/100</span>
+                          </p>
+                          {assignment.score ? (
+                            <p className="mt-3 text-xs text-slate-400">提交：{formatDateTime(assignment.score.updatedAt)}</p>
+                          ) : scoreText !== "--" ? (
+                            <p className="mt-3 text-xs text-emerald-600">大屏实时同步</p>
+                          ) : null}
+                        </div>
                       </div>
-                      <div className="mt-5 rounded-2xl bg-white p-4">
-                        <p className="text-xs text-slate-400">专家评分</p>
-                        <p className="mt-2 text-3xl font-bold text-slate-950">
-                          {formatScoreForAssignment(assignment)}
-                          <span className="ml-1 text-xs font-medium text-slate-400">/100</span>
-                        </p>
-                        {assignment.score ? (
-                          <p className="mt-3 text-xs text-slate-400">提交：{formatDateTime(assignment.score.updatedAt)}</p>
-                        ) : null}
-                      </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               </article>
             ) : null}
