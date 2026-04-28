@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { assertRole } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import { buildRoadshowProjectOrderRows } from "@/lib/roadshow-screen-groups";
 
 export async function POST(
   request: NextRequest,
@@ -20,7 +21,9 @@ export async function POST(
   }
 
   const { sessionId } = await params;
-  const body = (await request.json().catch(() => null)) as { packageIds?: string[] } | null;
+  const body = (await request.json().catch(() => null)) as
+    | { packageIds?: string[]; roadshowGroupSizes?: number[] }
+    | null;
   const packageIds = Array.isArray(body?.packageIds)
     ? body.packageIds.filter((id): id is string => typeof id === "string" && Boolean(id.trim())).map((id) => id.trim())
     : [];
@@ -101,7 +104,16 @@ export async function POST(
   const orderedPackages = uniquePackageIds
     .map((packageId) => packageById.get(packageId))
     .filter((stagePackage): stagePackage is (typeof stagePackages)[number] => Boolean(stagePackage));
-  const firstPackage = orderedPackages[0] ?? null;
+  let projectOrderRows: ReturnType<typeof buildRoadshowProjectOrderRows<typeof orderedPackages[number]>>;
+  try {
+    projectOrderRows = buildRoadshowProjectOrderRows(orderedPackages, body?.roadshowGroupSizes);
+  } catch (error) {
+    return NextResponse.json(
+      { message: error instanceof Error ? error.message : "路演分组设置无效" },
+      { status: 400 },
+    );
+  }
+  const firstPackage = projectOrderRows[0]?.project ?? null;
 
   const updatedSession = await prisma.$transaction(async (tx) => {
     await tx.reviewDisplayProjectOrder.deleteMany({
@@ -109,10 +121,13 @@ export async function POST(
     });
 
     await tx.reviewDisplayProjectOrder.createMany({
-      data: orderedPackages.map((stagePackage, index) => ({
+      data: projectOrderRows.map((row) => ({
         sessionId,
-        packageId: stagePackage.id,
-        orderIndex: index,
+        packageId: row.project.id,
+        orderIndex: row.orderIndex,
+        groupName: row.groupName,
+        groupIndex: row.groupIndex,
+        groupSlotIndex: row.groupSlotIndex,
       })),
     });
 
@@ -165,11 +180,14 @@ export async function POST(
       ...updatedSession,
       phaseStartedAt: updatedSession.phaseStartedAt?.toISOString() ?? null,
     },
-    projectOrder: orderedPackages.map((stagePackage, index) => ({
-      orderIndex: index,
-      packageId: stagePackage.id,
-      targetName: stagePackage.targetName,
-      roundLabel: stagePackage.roundLabel ?? "",
+    projectOrder: projectOrderRows.map((row) => ({
+      orderIndex: row.orderIndex,
+      packageId: row.project.id,
+      targetName: row.project.targetName,
+      roundLabel: row.project.roundLabel ?? "",
+      groupName: row.groupName,
+      groupIndex: row.groupIndex,
+      groupSlotIndex: row.groupSlotIndex,
       revealedAt: null,
     })),
   });

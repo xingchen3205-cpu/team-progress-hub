@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
-import { CheckCircle2, Clock, ShieldCheck, Trophy } from "lucide-react";
+import { CheckCircle2, Clock, ShieldCheck } from "lucide-react";
 
 type ScreenSeat = {
   assignmentId: string;
@@ -29,6 +29,9 @@ type ProjectOrderItem = {
   packageId: string;
   targetName: string;
   roundLabel: string;
+  groupName: string | null;
+  groupIndex: number;
+  groupSlotIndex: number;
   revealedAt: string | null;
 };
 
@@ -82,15 +85,24 @@ type ScreenPayload = {
   serverTime: string;
 };
 
+type RankingRow = {
+  project: ProjectResult;
+  score: number | null;
+  roadshowOrder: number;
+  isCurrent: boolean;
+  isFinished: boolean;
+};
+
 const fallbackSeats: ScreenSeat[] = [
-  { assignmentId: "fallback-1", seatNo: 1, displayName: "专家 1", avatarText: "评", status: "pending", scoreText: null },
-  { assignmentId: "fallback-2", seatNo: 2, displayName: "专家 2", avatarText: "评", status: "pending", scoreText: null },
-  { assignmentId: "fallback-3", seatNo: 3, displayName: "专家 3", avatarText: "评", status: "pending", scoreText: null },
+  { assignmentId: "fallback-1", seatNo: 1, displayName: "专家 1", avatarText: "1", status: "pending", scoreText: null },
+  { assignmentId: "fallback-2", seatNo: 2, displayName: "专家 2", avatarText: "2", status: "pending", scoreText: null },
+  { assignmentId: "fallback-3", seatNo: 3, displayName: "专家 3", avatarText: "3", status: "pending", scoreText: null },
 ];
 
 const formatSeconds = (seconds: number) => {
-  const minutes = Math.floor(seconds / 60);
-  const restSeconds = seconds % 60;
+  const safeSeconds = Math.max(0, Math.floor(seconds));
+  const minutes = Math.floor(safeSeconds / 60);
+  const restSeconds = safeSeconds % 60;
   return `${String(minutes).padStart(2, "0")}:${String(restSeconds).padStart(2, "0")}`;
 };
 
@@ -107,13 +119,46 @@ const usePulseKey = (key: string) => {
   const [pulse, setPulse] = useState(false);
   useEffect(() => {
     const id = window.requestAnimationFrame(() => setPulse(true));
-    const t = window.setTimeout(() => setPulse(false), 600);
+    const timer = window.setTimeout(() => setPulse(false), 680);
     return () => {
       window.cancelAnimationFrame(id);
-      window.clearTimeout(t);
+      window.clearTimeout(timer);
     };
   }, [key]);
   return pulse;
+};
+
+const getPhaseLabel = (phase: ScreenPhase) => {
+  if (phase === "draw") return "抽签排序";
+  if (phase === "presentation") return "路演展示";
+  if (phase === "qa") return "答辩提问";
+  if (phase === "scoring") return "评分进行中";
+  if (phase === "reveal") return "得分揭晓";
+  return "本轮结束";
+};
+
+const getTabState = (phase: ScreenPhase) => {
+  if (phase === "draw") return "draw";
+  if (phase === "finished") return "rank";
+  return "score";
+};
+
+const getCountdownTone = (seconds: number) => {
+  if (seconds <= 10 && seconds > 0) return "danger";
+  if (seconds <= 30 && seconds > 10) return "warn";
+  return "normal";
+};
+
+const getOrderIndex = (projectOrder: ProjectOrderItem[], packageId: string) => {
+  const index = projectOrder.findIndex((item) => item.packageId === packageId);
+  return index >= 0 ? index + 1 : 0;
+};
+
+const getRankingBadgeClassName = (rank: number) => {
+  if (rank === 1) return "rank-badge gold";
+  if (rank === 2) return "rank-badge silver";
+  if (rank === 3) return "rank-badge bronze";
+  return "rank-badge plain";
 };
 
 export default function ReviewScreenSessionPage() {
@@ -122,7 +167,8 @@ export default function ReviewScreenSessionPage() {
   const token = searchParams.get("token") ?? "";
   const [payload, setPayload] = useState<ScreenPayload | null>(null);
   const [errorMessage, setErrorMessage] = useState("");
-  const prevSeatKeys = useRef<string>("");
+  const [drawAnimationStartedAt, setDrawAnimationStartedAt] = useState<number | null>(null);
+  const [drawFrameTime, setDrawFrameTime] = useState(() => Date.now());
   const currentTime = useCurrentTime();
 
   useEffect(() => {
@@ -165,35 +211,38 @@ export default function ReviewScreenSessionPage() {
     };
   }, [params.sessionId, token]);
 
-  // Track seat state changes for pulse animation
-  const seatKeys = useMemo(() => {
-    if (!payload?.seats) return "";
-    return payload.seats.map((s) => `${s.assignmentId}:${s.status}:${s.scoreText}`).join("|");
-  }, [payload?.seats]);
-
-  useEffect(() => {
-    prevSeatKeys.current = seatKeys;
-  }, [seatKeys]);
-
-  const pulseAll = usePulseKey(seatKeys);
-
   const phase = payload?.session.screenPhase ?? "draw";
+  const activeTab = getTabState(phase);
   const phaseRemaining = payload?.session.phaseRemainingSeconds ?? 0;
-  const timeText = useMemo(
-    () =>
-      [currentTime.getHours(), currentTime.getMinutes(), currentTime.getSeconds()]
-        .map((v) => String(v).padStart(2, "0"))
-        .join(":"),
-    [currentTime],
+  const countdownTone = getCountdownTone(phaseRemaining);
+  const projectOrder = useMemo(() => payload?.projectOrder ?? [], [payload?.projectOrder]);
+  const projectOrderKey = useMemo(
+    () => projectOrder.map((project) => `${project.packageId}:${project.orderIndex}`).join("|"),
+    [projectOrder],
   );
-
-  const projectResults = payload?.projectResults?.length ? payload.projectResults : [];
+  const projectResults = useMemo(() => payload?.projectResults ?? [], [payload?.projectResults]);
+  const drawGroups = useMemo(() => {
+    const groups = new Map<string, { name: string; index: number; projects: ProjectOrderItem[] }>();
+    projectOrder.forEach((project, index) => {
+      const groupIndex = Number.isFinite(project.groupIndex) ? project.groupIndex : 0;
+      const groupName = project.groupName?.trim() || `第${groupIndex + 1}组`;
+      const key = `${groupIndex}:${groupName}`;
+      const current = groups.get(key) ?? { name: groupName, index: groupIndex, projects: [] };
+      current.projects.push({ ...project, groupSlotIndex: project.groupSlotIndex ?? index });
+      groups.set(key, current);
+    });
+    return Array.from(groups.values())
+      .sort((left, right) => left.index - right.index)
+      .map((group) => ({
+        ...group,
+        projects: group.projects.sort((left, right) => left.groupSlotIndex - right.groupSlotIndex),
+      }));
+  }, [projectOrder]);
   const activeProjectResult =
-    projectResults.find((p) => p.reviewPackage.id === payload?.session.currentPackageId) ??
-    projectResults.find((p) => !p.finalScore.ready) ??
+    projectResults.find((project) => project.reviewPackage.id === payload?.session.currentPackageId) ??
+    projectResults.find((project) => !project.finalScore.ready) ??
     projectResults[0] ??
     null;
-
   const seats = activeProjectResult?.seats.length
     ? activeProjectResult.seats
     : payload?.seats.length
@@ -201,412 +250,700 @@ export default function ReviewScreenSessionPage() {
       : fallbackSeats;
 
   const activeFinalScore = activeProjectResult?.finalScore ?? payload?.finalScore;
-  const submittedCount = activeFinalScore?.submittedSeatCount ?? seats.filter((s) => s.status === "submitted").length;
-  const effectiveCount = activeFinalScore?.effectiveSeatCount ?? seats.length;
+  const submittedCount = activeFinalScore?.submittedSeatCount ?? seats.filter((seat) => seat.status === "submitted").length;
+  const effectiveCount = activeFinalScore?.effectiveSeatCount ?? seats.filter((seat) => seat.status !== "voided").length;
   const progressText = `${submittedCount}/${effectiveCount}`;
-  const title = payload?.reviewPackage.roundLabel ?? "项目路演评审";
+  const progressRatio = effectiveCount > 0 ? Math.min(1, submittedCount / effectiveCount) : 0;
+  const progressOffset = 188 - progressRatio * 188;
+  const title = payload?.reviewPackage.roundLabel ?? "校级初赛";
   const targetName = payload?.reviewPackage.targetName ?? "等待项目同步";
-  const projectOrder = payload?.projectOrder ?? [];
   const currentIndex = payload?.session.currentProjectIndex ?? 0;
-  const totalCount = payload?.session.totalProjectCount ?? 0;
-
-  // Reveal animation progress
+  const totalCount = payload?.session.totalProjectCount ?? projectOrder.length;
+  const orderNumber = getOrderIndex(projectOrder, payload?.session.currentPackageId ?? "") || currentIndex + 1;
+  const seatPulse = usePulseKey(seats.map((seat) => `${seat.assignmentId}:${seat.status}:${seat.scoreText}`).join("|"));
   const revealStartedAt = payload?.session.revealStartedAt;
+
+  useEffect(() => {
+    if (phase === "draw" && projectOrder.length > 0) {
+      const startedAt = Date.now();
+      setDrawAnimationStartedAt(startedAt);
+      setDrawFrameTime(startedAt);
+    }
+  }, [phase, projectOrder.length, projectOrderKey]);
+
+  useEffect(() => {
+    if (drawAnimationStartedAt === null) return;
+
+    const duration = Math.min(projectOrder.length, 12) * 1100 + 700;
+    const timer = window.setInterval(() => {
+      const now = Date.now();
+      setDrawFrameTime(now);
+      if (now - drawAnimationStartedAt >= duration) {
+        window.clearInterval(timer);
+      }
+    }, 75);
+    return () => window.clearInterval(timer);
+  }, [drawAnimationStartedAt, projectOrder.length]);
+
+  const timeText = useMemo(
+    () =>
+      [currentTime.getHours(), currentTime.getMinutes(), currentTime.getSeconds()]
+        .map((value) => String(value).padStart(2, "0"))
+        .join(":"),
+    [currentTime],
+  );
+
   const revealProgress = useMemo(() => {
     if (!revealStartedAt) return 0;
     const started = new Date(revealStartedAt).getTime();
-    const now = currentTime.getTime();
-    return Math.min(1, Math.max(0, (now - started) / 3000));
-  }, [revealStartedAt, currentTime]);
+    if (Number.isNaN(started)) return 0;
+    return Math.min(1, Math.max(0, (currentTime.getTime() - started) / 2200));
+  }, [currentTime, revealStartedAt]);
 
   const revealAnimatedScore = useMemo(() => {
     if (!activeFinalScore?.ready || !activeFinalScore.finalScoreText) return "0.00";
     const target = Number.parseFloat(activeFinalScore.finalScoreText);
     if (Number.isNaN(target)) return "0.00";
-    // Ease out cubic
     const eased = 1 - Math.pow(1 - revealProgress, 3);
     return (target * eased).toFixed(2);
-  }, [revealProgress, activeFinalScore?.ready, activeFinalScore?.finalScoreText]);
+  }, [activeFinalScore?.finalScoreText, activeFinalScore?.ready, revealProgress]);
 
-  // Countdown color logic
-  const countdownUrgent = phaseRemaining <= 10 && phaseRemaining > 0;
-  const countdownWarn = phaseRemaining <= 30 && phaseRemaining > 10;
-  const countdownColor = countdownUrgent
-    ? "text-rose-600"
-    : countdownWarn
-      ? "text-amber-600"
-      : "text-blue-700";
-  const countdownBorder = countdownUrgent
-    ? "border-rose-200 bg-rose-50"
-    : countdownWarn
-      ? "border-amber-200 bg-amber-50"
-      : "border-blue-200 bg-blue-50";
+  const rankingRows = useMemo<RankingRow[]>(() => {
+    return projectResults
+      .map((project) => {
+        const score = project.finalScore.ready && project.finalScore.finalScoreText
+          ? Number.parseFloat(project.finalScore.finalScoreText)
+          : null;
+        return {
+          project,
+          score: Number.isNaN(score) ? null : score,
+          roadshowOrder: getOrderIndex(projectOrder, project.reviewPackage.id),
+          isCurrent: project.reviewPackage.id === payload?.session.currentPackageId,
+          isFinished: project.finalScore.ready,
+        };
+      })
+      .sort((left, right) => {
+        if (left.score === null && right.score === null) return left.roadshowOrder - right.roadshowOrder;
+        if (left.score === null) return 1;
+        if (right.score === null) return -1;
+        return right.score - left.score;
+      });
+  }, [payload?.session.currentPackageId, projectOrder, projectResults]);
 
-  const phaseMeta = useMemo(() => {
-    if (!payload?.session) {
-      return { label: "连接中", tone: "bg-slate-100 text-slate-500 border-slate-200" };
-    }
-    const p = payload.session.screenPhase;
-    if (p === "reveal") return { label: "最终得分", tone: "bg-emerald-50 text-emerald-700 border-emerald-200" };
-    if (p === "finished") return { label: "本轮结束", tone: "bg-slate-100 text-slate-500 border-slate-200" };
-    if (p === "draw") return { label: "抽签排序", tone: "bg-blue-50 text-blue-700 border-blue-200" };
-    if (p === "presentation") return { label: "路演展示", tone: "bg-blue-50 text-blue-700 border-blue-200" };
-    if (p === "qa") return { label: "答辩提问", tone: "bg-indigo-50 text-indigo-700 border-indigo-200" };
-    if (p === "scoring") return { label: "评分进行中", tone: "bg-blue-50 text-blue-700 border-blue-200" };
-    return { label: "等待开始", tone: "bg-slate-100 text-slate-500 border-slate-200" };
-  }, [payload?.session]);
+  const drawAnimationDuration = Math.min(projectOrder.length, 12) * 1100 + 700;
+  const drawElapsed = drawAnimationStartedAt === null ? 0 : drawFrameTime - drawAnimationStartedAt;
+  const drawOverlayActive =
+    phase === "draw" &&
+    projectOrder.length > 0 &&
+    drawAnimationStartedAt !== null &&
+    drawElapsed < drawAnimationDuration;
+  const drawOverlayIndex = projectOrder.length > 0
+    ? Math.min(projectOrder.length - 1, Math.max(0, Math.floor(drawElapsed / 1100)))
+    : 0;
+  const drawOverlayItem = projectOrder[drawOverlayIndex] ?? null;
+  const drawOverlayRolling = drawElapsed % 1100 < 650;
+  const drawRollingNumber = projectOrder.length > 0
+    ? ((Math.floor(drawFrameTime / 75) % projectOrder.length) + 1)
+    : 1;
 
   return (
-    <main className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-slate-50 text-slate-900">
-      <div className="mx-auto flex min-h-screen max-w-[1600px] flex-col px-8 py-6">
-        {/* Header */}
-        <header className="flex items-center justify-between rounded-2xl border border-blue-100 bg-white px-8 py-5 shadow-sm">
-          <div className="flex items-center gap-5">
-            <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-600 text-white shadow-md">
-              <ShieldCheck className="h-7 w-7" />
-            </div>
-            <div>
-              <h1 className="text-xl font-bold tracking-tight text-slate-900">{title}</h1>
-              <p className="mt-0.5 text-xs font-semibold tracking-wider text-blue-600 uppercase">
-                现场路演评审投屏
-                {totalCount > 0 ? ` · 第 ${currentIndex + 1} / ${totalCount} 组` : ""}
-              </p>
-            </div>
-          </div>
-          <div className="flex items-center gap-4">
-            <div className={`rounded-xl border px-5 py-2.5 text-sm font-bold ${phaseMeta.tone}`}>
-              {phaseMeta.label}
-            </div>
-            <div className="flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-5 py-2.5 text-slate-700">
-              <Clock className="h-4 w-4 text-slate-400" />
-              <span className="text-lg font-bold tabular-nums tracking-wide">{timeText}</span>
-            </div>
-          </div>
-        </header>
+    <main className="min-h-screen overflow-hidden bg-[#f0f4f9] text-slate-900">
+      <style>{`
+        .screen-hero-gradient {
+          background: linear-gradient(135deg, #1a3a6e 0%, #2856a0 38%, #c22832 74%, #d93440 100%);
+        }
+        .screen-banner {
+          position: relative;
+          height: 68px;
+          overflow: hidden;
+          box-shadow: 0 4px 20px rgba(26, 58, 110, 0.24);
+        }
+        .screen-banner::before {
+          content: "";
+          position: absolute;
+          inset: -120px -80px auto auto;
+          width: 420px;
+          height: 420px;
+          border-radius: 999px;
+          background: radial-gradient(circle, rgba(255,255,255,0.12), transparent 70%);
+        }
+        .screen-tabs {
+          height: 50px;
+          background: #fff;
+          border-bottom: 1px solid #e2e8f0;
+          box-shadow: 0 1px 4px rgba(15, 32, 64, 0.05);
+        }
+        .screen-tab {
+          height: 50px;
+          display: inline-flex;
+          align-items: center;
+          border-bottom: 3px solid transparent;
+          padding: 0 28px;
+          font-size: 14px;
+          font-weight: 700;
+          color: #94a3b8;
+          letter-spacing: 0.5px;
+        }
+        .screen-tab.active {
+          color: #c22832;
+          border-bottom-color: #c22832;
+        }
+        .contest-card {
+          border: 1px solid #e2e8f0;
+          border-radius: 14px;
+          background: #fff;
+          box-shadow: 0 1px 4px rgba(15, 32, 64, 0.05);
+        }
+        .phase-panel {
+          animation: panel-in .32s cubic-bezier(.16,1,.3,1);
+        }
+        .draw-sequence-overlay {
+          position: fixed;
+          inset: 0;
+          z-index: 55;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: rgba(26, 34, 54, 0.84);
+          backdrop-filter: blur(16px);
+        }
+        .draw-sequence-card {
+          position: relative;
+          min-width: min(430px, calc(100vw - 48px));
+          overflow: hidden;
+          border-radius: 18px;
+          background: #fff;
+          padding: 40px 76px;
+          text-align: center;
+          box-shadow: 0 20px 60px rgba(15, 32, 64, 0.2);
+          animation: reveal-rise .38s cubic-bezier(.16,1,.3,1);
+        }
+        .draw-sequence-card::before {
+          content: "";
+          position: absolute;
+          inset: 0 0 auto 0;
+          height: 5px;
+          background: linear-gradient(135deg, #1a3a6e, #2856a0 48%, #c22832, #d93440);
+        }
+        .draw-sequence-number {
+          min-height: 84px;
+          color: #204585;
+          font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+          font-size: 76px;
+          font-weight: 900;
+          line-height: 1;
+        }
+        .draw-sequence-number.rolling {
+          animation: draw-roll .38s steps(5, end) infinite;
+        }
+        .draw-overlay-card {
+          animation: draw-settle 0.72s cubic-bezier(.16,1,.3,1);
+        }
+        .draw-roll-number {
+          animation: draw-roll 1.2s steps(8, end);
+        }
+        .screen-full-countdown {
+          position: fixed;
+          inset: 0;
+          z-index: 40;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          overflow: hidden;
+          background: linear-gradient(160deg, #0f1f40 0%, #1a3a70 35%, #2856a0 62%, #1a3a70 100%);
+        }
+        .screen-full-countdown::before {
+          content: "";
+          position: absolute;
+          inset: 0;
+          background:
+            radial-gradient(ellipse 60% 50% at 50% 38%, rgba(255,255,255,0.08), transparent 70%),
+            linear-gradient(rgba(255,255,255,0.018) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(255,255,255,0.018) 1px, transparent 1px);
+          background-size: auto, 80px 80px, 80px 80px;
+        }
+        .countdown-number {
+          font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+          font-size: clamp(108px, 15vw, 200px);
+          line-height: 1;
+          font-weight: 900;
+          letter-spacing: 8px;
+          text-shadow: 0 0 80px rgba(90, 154, 239, 0.32);
+        }
+        .countdown-number.normal { color: #fff; }
+        .countdown-number.warn { color: #fbbf24; text-shadow: 0 0 80px rgba(251, 191, 36, 0.35); }
+        .countdown-number.danger {
+          color: #f43f5e;
+          text-shadow: 0 0 80px rgba(244, 63, 94, 0.35);
+          animation: pulse-timer 0.8s ease infinite;
+        }
+        .score-reveal-overlay {
+          position: fixed;
+          inset: 0;
+          z-index: 50;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: rgba(26, 34, 54, 0.84);
+          backdrop-filter: blur(16px);
+        }
+        .score-reveal-card {
+          position: relative;
+          min-width: min(560px, calc(100vw - 48px));
+          overflow: hidden;
+          border-radius: 18px;
+          background: #fff;
+          padding: 48px 64px;
+          text-align: center;
+          box-shadow: 0 20px 60px rgba(15, 32, 64, 0.2);
+          animation: reveal-rise 0.5s cubic-bezier(.16,1,.3,1);
+        }
+        .score-reveal-card::before {
+          content: "";
+          position: absolute;
+          inset: 0 0 auto 0;
+          height: 5px;
+          background: linear-gradient(135deg, #1a3a6e, #2856a0 48%, #c22832, #d93440);
+        }
+        .score-reveal-score {
+          font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+          font-size: clamp(76px, 8vw, 112px);
+          font-weight: 900;
+          line-height: 1;
+          background: linear-gradient(135deg, #1a3a6e 0%, #2856a0 45%, #c22832 80%, #d93440 100%);
+          -webkit-background-clip: text;
+          background-clip: text;
+          color: transparent;
+        }
+        .expert-seat {
+          position: relative;
+          overflow: hidden;
+          border: 2px solid #e2e8f0;
+          border-radius: 14px;
+          background: #fff;
+          transition: border-color .35s, background .35s, box-shadow .35s, transform .35s;
+        }
+        .expert-seat::before {
+          content: "";
+          position: absolute;
+          inset: 0 0 auto 0;
+          height: 3px;
+          background: #e2e8f0;
+          transition: background .35s;
+        }
+        .expert-seat.submitted {
+          border-color: rgba(34, 197, 94, 0.32);
+          background: #f0fdf4;
+          box-shadow: 0 4px 18px rgba(34, 197, 94, 0.1);
+        }
+        .expert-seat.submitted::before { background: #22c55e; }
+        .seat-avatar {
+          width: 52px;
+          height: 52px;
+          border-radius: 999px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          font-size: 18px;
+          font-weight: 900;
+          position: relative;
+        }
+        .seat-avatar.pending {
+          border: 2px solid #dce8f8;
+          background: linear-gradient(135deg, #edf3fc, #dce8f8);
+          color: #2856a0;
+        }
+        .seat-avatar.submitted {
+          border: 2px solid rgba(34, 197, 94, 0.24);
+          background: linear-gradient(135deg, #dcfce7, #f0fdf4);
+          color: #16a34a;
+        }
+        .seat-avatar.submitted::after {
+          content: "✓";
+          position: absolute;
+          right: -2px;
+          bottom: -2px;
+          width: 18px;
+          height: 18px;
+          border: 2px solid #f0fdf4;
+          border-radius: 999px;
+          background: #22c55e;
+          color: white;
+          font-size: 10px;
+          font-weight: 900;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+        }
+        .waiting-dots {
+          display: inline-flex;
+          gap: 3px;
+          align-items: center;
+        }
+        .waiting-dots i {
+          display: block;
+          width: 4px;
+          height: 4px;
+          border-radius: 999px;
+          background: #94a3b8;
+          animation: dot-breathe 1.4s ease infinite;
+        }
+        .waiting-dots i:nth-child(2) { animation-delay: .2s; }
+        .waiting-dots i:nth-child(3) { animation-delay: .4s; }
+        .seat-pop { animation: seat-pop .5s ease; }
+        .rank-badge {
+          display: inline-flex;
+          width: 30px;
+          height: 30px;
+          border-radius: 999px;
+          align-items: center;
+          justify-content: center;
+          font-size: 13px;
+          font-weight: 900;
+        }
+        .rank-badge.gold { background: linear-gradient(135deg, #fcd34d, #f59e0b); color: #78350f; box-shadow: 0 2px 8px rgba(245,158,11,0.3); }
+        .rank-badge.silver { background: linear-gradient(135deg, #e2e8f0, #cbd5e1); color: #334155; }
+        .rank-badge.bronze { background: linear-gradient(135deg, #fed7aa, #fb923c); color: #7c2d12; }
+        .rank-badge.plain { background: #f0f4f9; color: #94a3b8; }
+        @keyframes dot-breathe {
+          0%, 80%, 100% { opacity: .32; transform: scale(.8); }
+          40% { opacity: 1; transform: scale(1.3); }
+        }
+        @keyframes seat-pop {
+          0% { transform: scale(1); }
+          30% { transform: scale(1.06); }
+          60% { transform: scale(.97); }
+          100% { transform: scale(1); }
+        }
+        @keyframes pulse-timer {
+          0%, 100% { opacity: 1; transform: scale(1); }
+          50% { opacity: .58; transform: scale(.985); }
+        }
+        @keyframes reveal-rise {
+          from { transform: translateY(18px) scale(.98); opacity: 0; }
+          to { transform: translateY(0) scale(1); opacity: 1; }
+        }
+        @keyframes draw-roll {
+          from { filter: blur(4px); transform: translateY(-6px); }
+          to { filter: blur(0); transform: translateY(0); }
+        }
+        @keyframes draw-settle {
+          from { transform: translateY(10px); opacity: .4; }
+          to { transform: translateY(0); opacity: 1; }
+        }
+        @keyframes panel-in {
+          from { transform: translateY(8px); opacity: .2; }
+          to { transform: translateY(0); opacity: 1; }
+        }
+      `}</style>
 
-        {errorMessage ? (
-          <div className="mt-5 rounded-xl border border-rose-200 bg-rose-50 px-6 py-4 text-sm font-semibold text-rose-700">
-            {errorMessage}
+      <header className="screen-banner screen-hero-gradient flex items-center justify-between px-11 text-white">
+        <div className="relative z-10 flex items-center gap-4">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl border-2 border-white/25 bg-white/15 text-lg font-black">
+            创
           </div>
+          <div>
+            <h1 className="text-lg font-black tracking-[1.5px]">中国国际大学生创新大赛</h1>
+            <p className="mt-0.5 text-xs font-medium tracking-[1px] text-white/70">{title} · 路演答辩评审投屏</p>
+          </div>
+        </div>
+        <div className="relative z-10 flex items-center gap-5">
+          <span className="rounded-lg border border-white/20 bg-white/12 px-5 py-2 text-sm font-bold tracking-wide">
+            {getPhaseLabel(phase)}
+          </span>
+          <span className="font-mono text-[26px] font-black tracking-[2px]">{timeText}</span>
+        </div>
+      </header>
+
+      <nav className="screen-tabs flex px-11">
+        {[
+          ["draw", "抽签分组"],
+          ["score", "评审打分"],
+          ["rank", "实时排名"],
+        ].map(([key, label]) => (
+          <span className={`screen-tab ${activeTab === key ? "active" : ""}`} key={key}>
+            {label}
+          </span>
+        ))}
+      </nav>
+
+      {errorMessage ? (
+        <div className="mx-11 mt-5 rounded-xl border border-rose-200 bg-rose-50 px-6 py-4 text-sm font-bold text-rose-700">
+          {errorMessage}
+        </div>
+      ) : null}
+
+      <section className="phase-panel flex h-[calc(100vh-118px)] flex-col gap-5 overflow-hidden px-11 py-6">
+        {activeTab === "draw" ? (
+          <>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-black tracking-[2px] text-[#c22832]">ROADSHOW DRAW</p>
+                <h2 className="mt-1 text-2xl font-black text-[#0f2040]">路演顺序抽签</h2>
+              </div>
+              <div className="rounded-full border border-blue-100 bg-white px-4 py-2 text-sm font-bold text-blue-700 shadow-sm">
+                共 {projectOrder.length || totalCount || 0} 个项目
+              </div>
+            </div>
+
+            <div className="grid flex-1 auto-rows-min grid-cols-[repeat(auto-fit,minmax(320px,1fr))] gap-4 overflow-y-auto">
+              {drawGroups.length ? (
+                drawGroups.map((group) => (
+                <article className="contest-card draw-overlay-card overflow-hidden" key={group.name}>
+                  <div className="flex items-center justify-between border-b border-slate-200 bg-[linear-gradient(135deg,rgba(26,58,110,0.06),rgba(194,40,50,0.04))] px-5 py-4">
+                    <h3 className="text-sm font-black text-[#1a3a6e]">{group.name}</h3>
+                    <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-slate-400">{group.projects.length} 个项目</span>
+                  </div>
+                  <div className="p-3">
+                    {group.projects.map((item) => (
+                      <div className="flex items-center gap-3 rounded-xl px-4 py-3 transition-colors odd:bg-slate-50" key={item.packageId}>
+                        <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full screen-hero-gradient text-xs font-black text-white ${item.orderIndex === currentIndex ? "draw-roll-number" : ""}`}>
+                          {item.orderIndex + 1}
+                        </span>
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-bold text-slate-900">{item.targetName}</p>
+                          <p className="mt-0.5 truncate text-xs text-slate-400">{item.roundLabel || "项目路演"}</p>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </article>
+                ))
+              ) : (
+                <div className="contest-card col-span-full flex min-h-[420px] flex-col items-center justify-center text-center text-slate-400">
+                  <ShieldCheck className="h-14 w-14 text-blue-200" />
+                  <p className="mt-4 text-base font-black text-slate-500">等待管理员生成路演顺序</p>
+                  <p className="mt-1 text-sm">生成后将按抽签或配置顺序同步到投屏</p>
+                </div>
+              )}
+            </div>
+          </>
         ) : null}
 
-        {/* Phase content */}
-        <section className="mt-5 grid flex-1 grid-cols-[minmax(0,1fr)_380px] gap-5">
-          {/* Left column */}
-          <div className="flex flex-col gap-5">
-            {/* DRAW phase */}
-            {phase === "draw" ? (
-              <div className="flex-1 rounded-2xl border border-blue-100 bg-white p-8 shadow-sm">
-                <p className="text-sm font-semibold text-blue-600">抽签排序</p>
-                <h2 className="mt-2 text-3xl font-black text-slate-900">本轮出场顺序</h2>
-                <div className="mt-6 grid gap-3 md:grid-cols-2">
-                  {projectOrder.map((item, idx) => (
-                    <div
-                      key={item.packageId}
-                      className={`flex items-center gap-4 rounded-xl border p-4 ${
-                        idx === currentIndex ? "border-blue-300 bg-blue-50" : "border-slate-100 bg-slate-50"
-                      }`}
-                    >
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-blue-600 text-base font-bold text-white">
-                        {idx + 1}
-                      </div>
-                      <div className="min-w-0">
-                        <p className="truncate text-base font-bold text-slate-900">{item.targetName}</p>
-                        <p className="text-xs text-slate-500">{item.roundLabel}</p>
-                      </div>
-                    </div>
-                  ))}
-                  {projectOrder.length === 0 ? (
-                    <p className="col-span-2 text-center text-sm text-slate-400 py-12">等待管理员生成抽签顺序</p>
-                  ) : null}
-                </div>
+        {activeTab === "score" ? (
+          <>
+            <div className="contest-card flex shrink-0 items-center gap-4 px-6 py-4">
+              <div className={`flex h-11 w-11 items-center justify-center rounded-xl ${phase === "scoring" ? "bg-rose-50 text-[#c22832]" : "bg-blue-50 text-blue-600"}`}>
+                <Clock className="h-5 w-5" />
               </div>
-            ) : null}
-
-            {/* PRESENTATION / QA phase - big countdown */}
-            {(phase === "presentation" || phase === "qa") ? (
-              <div className="flex flex-1 flex-col items-center justify-center rounded-2xl border border-blue-100 bg-white p-10 shadow-sm">
-                <p className="text-lg font-bold text-blue-600">
-                  {phase === "presentation" ? "路演展示" : "答辩提问"}
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-bold text-slate-400">评分倒计时</p>
+                <p className={`mt-0.5 font-mono text-3xl font-black tracking-[2px] ${countdownTone === "danger" ? "text-rose-600 animate-pulse" : countdownTone === "warn" ? "text-amber-600" : "text-blue-700"}`}>
+                  {formatSeconds(phase === "scoring" ? phaseRemaining : payload?.session.scoringSeconds ?? 60)}
                 </p>
-                <h2 className="mt-4 text-6xl font-black text-slate-900">{targetName}</h2>
-                <div className={`mt-10 rounded-3xl border px-16 py-10 text-center ${countdownBorder}`}>
-                  <p className="text-sm font-semibold text-slate-500">剩余时间</p>
-                  <p className={`mt-3 text-8xl font-black tabular-nums tracking-tight ${countdownColor}`}>
-                    {formatSeconds(phaseRemaining)}
+              </div>
+              <span className={`rounded-full px-4 py-2 text-xs font-bold ${phase === "scoring" ? "bg-rose-50 text-[#c22832]" : phase === "reveal" || phase === "finished" ? "bg-emerald-50 text-emerald-700" : "bg-blue-50 text-blue-600"}`}>
+                {phase === "scoring" ? "评分中" : phase === "reveal" || phase === "finished" ? "已截止" : "等待开始"}
+              </span>
+            </div>
+
+            <div className="grid shrink-0 grid-cols-[minmax(0,1fr)_190px] gap-4">
+              <article className="contest-card flex items-center gap-5 px-7 py-6">
+                <div className="flex h-[58px] w-[58px] shrink-0 items-center justify-center rounded-[14px] screen-hero-gradient font-mono text-2xl font-black text-white shadow-[0_4px_14px_rgba(26,58,110,0.2)]">
+                  {String(orderNumber).padStart(2, "0")}
+                </div>
+                <div className="min-w-0">
+                  <p className="text-xs font-black tracking-[2px] text-blue-600">当前评审项目</p>
+                  <h2 className="mt-1 truncate text-3xl font-black text-[#0f2040]">{targetName}</h2>
+                  <p className="mt-2 truncate text-sm font-semibold text-slate-500">
+                    {payload?.reviewPackage.roundLabel || "项目路演评审"} · 路演顺序 {orderNumber}/{Math.max(totalCount, projectOrder.length, 1)}
                   </p>
                 </div>
-                {phaseRemaining === 0 ? (
-                  <p className="mt-6 text-lg font-bold text-amber-600">时间到，请进入下一阶段</p>
-                ) : null}
-              </div>
-            ) : null}
+              </article>
 
-            {/* SCORING phase - seats + countdown */}
-            {phase === "scoring" ? (
-              <>
-                <div className="rounded-2xl border border-blue-100 bg-white p-8 shadow-sm">
-                  <div className="flex items-start justify-between gap-6">
-                    <div className="flex-1">
-                      <p className="text-sm font-semibold text-blue-600">当前评审项目</p>
-                      <h2 className="mt-3 text-4xl font-black tracking-tight text-slate-900">{targetName}</h2>
-                      <p className="mt-4 max-w-3xl text-base leading-7 text-slate-500">
-                        {payload?.reviewPackage.overview || "评审过程实时同步专家席位状态，全部有效席位提交后生成最终得分。"}
-                      </p>
+              <aside className="contest-card flex flex-col items-center justify-center gap-2 px-6 py-5">
+                <div className="relative h-[72px] w-[72px]">
+                  <svg className="-rotate-90" viewBox="0 0 68 68">
+                    <circle cx="34" cy="34" fill="none" r="30" stroke="#f0f4f9" strokeWidth="5" />
+                    <circle
+                      cx="34"
+                      cy="34"
+                      fill="none"
+                      r="30"
+                      stroke="#22c55e"
+                      strokeDasharray="188"
+                      strokeDashoffset={progressOffset}
+                      strokeLinecap="round"
+                      strokeWidth="5"
+                    />
+                  </svg>
+                  <span className="absolute inset-0 flex items-center justify-center font-mono text-base font-black">{progressText}</span>
+                </div>
+                <p className="text-xs font-bold text-slate-400">提交进度</p>
+              </aside>
+            </div>
+
+            <div className="grid flex-1 auto-rows-fr grid-cols-[repeat(auto-fit,minmax(156px,1fr))] gap-3 overflow-y-auto">
+              {seats.map((seat) => {
+                const isSubmitted = seat.status === "submitted";
+                const isVoided = seat.status === "voided";
+                return (
+                  <article
+                    className={`expert-seat flex flex-col items-center justify-center gap-3 p-5 text-center ${isSubmitted ? "submitted" : ""} ${isSubmitted && seatPulse ? "seat-pop" : ""} ${isVoided ? "opacity-45 grayscale" : ""}`}
+                    key={seat.assignmentId}
+                  >
+                    <div className={`seat-avatar ${isSubmitted ? "submitted" : "pending"}`}>{seat.seatNo}</div>
+                    <div>
+                      <p className="text-sm font-black text-slate-900">{seat.displayName}</p>
+                      <p className="mt-1 text-xs font-semibold text-slate-400">匿名专家席位状态</p>
                     </div>
-                    <div className="flex flex-col gap-3">
-                      <div className="shrink-0 rounded-2xl bg-slate-900 px-8 py-5 text-center text-white shadow-lg">
-                        <p className="text-xs font-semibold text-slate-300">提交进度</p>
-                        <p className="mt-2 text-5xl font-black tabular-nums">{progressText}</p>
-                      </div>
-                      <div className={`shrink-0 rounded-2xl border px-6 py-4 text-center ${countdownBorder}`}>
-                        <p className="text-xs font-semibold text-slate-500">评分倒计时</p>
-                        <p className={`mt-1 text-3xl font-black tabular-nums ${countdownColor}`}>
-                          {formatSeconds(phaseRemaining)}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                </div>
+                    <span className={`inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-bold ${isSubmitted ? "bg-emerald-50 text-emerald-700" : isVoided ? "bg-slate-100 text-slate-500" : "bg-slate-100 text-slate-400"}`}>
+                      {isSubmitted ? (
+                        <>
+                          <CheckCircle2 className="h-3.5 w-3.5" />
+                          已提交
+                        </>
+                      ) : isVoided ? (
+                        "已排除"
+                      ) : (
+                        <>
+                          <span className="waiting-dots"><i /><i /><i /></span>
+                          等待中
+                        </>
+                      )}
+                    </span>
+                  </article>
+                );
+              })}
+            </div>
 
-                <div className="flex-1 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-                  <p className="mb-5 text-sm font-semibold text-slate-500">匿名专家席位状态</p>
-                  <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-4">
-                    {seats.map((seat) => {
-                      const isSubmitted = seat.status === "submitted";
-                      const isVoided = seat.status === "voided";
-                      return (
-                        <article
-                          className={`flex flex-col justify-between rounded-xl border p-5 transition-all duration-500 ${
-                            isVoided
-                              ? "border-slate-200 bg-slate-50 text-slate-400"
-                              : isSubmitted
-                                ? "border-emerald-200 bg-emerald-50 text-emerald-900 shadow-sm"
-                                : "border-blue-100 bg-blue-50/50 text-slate-900 shadow-sm"
-                          } ${isSubmitted && pulseAll ? "animate-pulse" : ""}`}
-                          key={seat.assignmentId}
-                        >
-                          <div className="flex items-center justify-between">
-                            <div className="flex items-center gap-3">
-                              <div
-                                className={`flex h-11 w-11 items-center justify-center rounded-lg text-base font-black ${
-                                  isSubmitted ? "bg-emerald-600 text-white" : isVoided ? "bg-slate-200 text-slate-500" : "bg-blue-600 text-white"
-                                }`}
-                              >
-                                {seat.avatarText}
-                              </div>
-                              <div>
-                                <p className="text-base font-bold">{seat.displayName}</p>
-                                <p className="text-[11px] text-slate-400">匿名席位</p>
-                              </div>
-                            </div>
-                            {isSubmitted ? <CheckCircle2 className="h-5 w-5 text-emerald-600" /> : null}
-                          </div>
-                          <div className="mt-4">
-                            <p className="text-xs font-semibold text-slate-400">当前状态</p>
-                            <p className="mt-1 text-3xl font-black tabular-nums">
-                              {isSubmitted ? seat.scoreText : isVoided ? "作废" : "待提交"}
-                            </p>
-                          </div>
-                        </article>
-                      );
-                    })}
-                  </div>
-                </div>
-              </>
-            ) : null}
-
-            {/* REVEAL phase */}
-            {phase === "reveal" ? (
-              <div className="flex flex-1 flex-col items-center justify-center rounded-2xl border border-blue-100 bg-white p-10 shadow-sm">
-                <p className="text-lg font-bold text-blue-600">最终评审得分</p>
-                <h2 className="mt-4 text-4xl font-black text-slate-900">{targetName}</h2>
-                <div className="mt-10 rounded-3xl bg-gradient-to-br from-blue-600 to-blue-700 px-20 py-14 text-center text-white shadow-xl">
-                  <p className="text-9xl font-black tabular-nums tracking-tight">
-                    {revealAnimatedScore}
-                  </p>
-                  <p className="mt-4 text-sm font-semibold text-blue-100">
-                    {activeFinalScore?.ready
-                      ? `有效席位 ${activeFinalScore.effectiveSeatCount} · 已提交 ${activeFinalScore.submittedSeatCount}`
-                      : "计算中..."}
-                  </p>
-                </div>
-                {activeFinalScore?.ready && revealProgress >= 1 ? (
-                  <p className="mt-6 text-lg font-bold text-emerald-600">
-                    最终得分 {activeFinalScore.finalScoreText} 分
-                  </p>
-                ) : null}
-              </div>
-            ) : null}
-
-            {/* FINISHED phase - ranking */}
-            {phase === "finished" ? (
-              <div className="flex-1 rounded-2xl border border-blue-100 bg-white p-8 shadow-sm">
-                <div className="flex items-center gap-3">
-                  <Trophy className="h-6 w-6 text-amber-500" />
-                  <h2 className="text-3xl font-black text-slate-900">本轮排名</h2>
-                </div>
-                <div className="mt-6 space-y-3">
-                  {projectResults
-                    .filter((p) => p.finalScore.ready)
-                    .sort((a, b) => {
-                      const as = Number.parseFloat(a.finalScore.finalScoreText ?? "0");
-                      const bs = Number.parseFloat(b.finalScore.finalScoreText ?? "0");
-                      return bs - as;
-                    })
-                    .map((project, idx) => (
-                      <div
-                        key={project.reviewPackage.id}
-                        className={`flex items-center gap-4 rounded-xl border p-4 ${
-                          idx === 0
-                            ? "border-amber-200 bg-amber-50"
-                            : idx === 1
-                              ? "border-slate-200 bg-slate-100"
-                              : idx === 2
-                                ? "border-orange-200 bg-orange-50"
-                                : "border-slate-100 bg-white"
-                        }`}
-                      >
-                        <div
-                          className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg text-base font-bold ${
-                            idx === 0
-                              ? "bg-amber-500 text-white"
-                              : idx === 1
-                                ? "bg-slate-500 text-white"
-                                : idx === 2
-                                  ? "bg-orange-500 text-white"
-                                  : "bg-slate-200 text-slate-600"
-                          }`}
-                        >
-                          {idx + 1}
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-base font-bold text-slate-900">{project.reviewPackage.targetName}</p>
-                          <p className="text-xs text-slate-500">{project.reviewPackage.roundLabel}</p>
-                        </div>
-                        <p className="text-2xl font-black text-blue-700">{project.finalScore.finalScoreText}</p>
-                      </div>
-                    ))}
-                  {projectResults.filter((p) => p.finalScore.ready).length === 0 ? (
-                    <p className="text-center text-sm text-slate-400 py-12">暂无已揭晓的得分</p>
-                  ) : null}
-                  {projectResults
-                    .filter((p) => !p.finalScore.ready)
-                    .map((project) => (
-                      <div
-                        key={project.reviewPackage.id}
-                        className="flex items-center gap-4 rounded-xl border border-slate-100 bg-slate-50 p-4 opacity-60"
-                      >
-                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-slate-200 text-base font-bold text-slate-400">
-                          -
-                        </div>
-                        <div className="min-w-0 flex-1">
-                          <p className="truncate text-base font-bold text-slate-500">{project.reviewPackage.targetName}</p>
-                          <p className="text-xs text-slate-400">{project.reviewPackage.roundLabel}</p>
-                        </div>
-                        <p className="text-lg font-bold text-slate-400">待揭晓</p>
-                      </div>
-                    ))}
-                </div>
-              </div>
-            ) : null}
-          </div>
-
-          {/* Right column */}
-          <aside className="flex flex-col gap-5">
-            {/* Info panel for presentation / qa / scoring - no final score until reveal */}
-            {phase === "presentation" || phase === "qa" || phase === "scoring" ? (
-              <section className="rounded-2xl border border-blue-100 bg-white p-6 shadow-sm">
-                <p className="text-sm font-semibold text-blue-600">提交进度</p>
-                <div className="mt-4 rounded-xl bg-slate-900 px-6 py-8 text-center text-white shadow-lg">
-                  <p className="text-6xl font-black tabular-nums tracking-tight">{progressText}</p>
-                  <p className="mt-3 text-xs font-semibold text-slate-300">等待全部有效席位提交</p>
-                </div>
-                <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
-                  <div className="rounded-xl bg-slate-50 px-4 py-3 text-center border border-slate-100">
-                    <p className="text-xs text-slate-400">有效席位</p>
-                    <p className="mt-1 text-2xl font-black text-slate-900">{effectiveCount}</p>
-                  </div>
-                  <div className="rounded-xl bg-slate-50 px-4 py-3 text-center border border-slate-100">
-                    <p className="text-xs text-slate-400">已提交</p>
-                    <p className="mt-1 text-2xl font-black text-slate-900">{submittedCount}</p>
-                  </div>
-                </div>
-              </section>
-            ) : null}
-
-            {/* Reveal phase - show final score */}
-            {phase === "reveal" ? (
-              <section className="rounded-2xl border border-blue-100 bg-white p-6 shadow-sm">
-                <p className="text-sm font-semibold text-blue-600">最终得分</p>
-                <div className="mt-4 rounded-xl bg-gradient-to-br from-blue-600 to-blue-700 px-6 py-8 text-center text-white shadow-lg">
-                  <p className="text-6xl font-black tabular-nums tracking-tight">
-                    {revealAnimatedScore}
-                  </p>
-                  <p className="mt-3 text-xs font-semibold text-blue-100">按管理员设置规则计算</p>
-                </div>
-                <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
-                  <div className="rounded-xl bg-slate-50 px-4 py-3 text-center border border-slate-100">
-                    <p className="text-xs text-slate-400">有效席位</p>
-                    <p className="mt-1 text-2xl font-black text-slate-900">{effectiveCount}</p>
-                  </div>
-                  <div className="rounded-xl bg-slate-50 px-4 py-3 text-center border border-slate-100">
-                    <p className="text-xs text-slate-400">已提交</p>
-                    <p className="mt-1 text-2xl font-black text-slate-900">{submittedCount}</p>
-                  </div>
-                </div>
-              </section>
-            ) : null}
-
-            {/* Project list / order summary */}
             {projectOrder.length > 1 ? (
-              <section className="flex-1 rounded-2xl border border-slate-200 bg-white p-6 shadow-sm overflow-hidden flex flex-col">
-                <h3 className="text-base font-bold text-slate-900">
-                  {phase === "finished" ? "本轮排名" : "本轮项目"}
-                </h3>
-                <div className="mt-4 space-y-2 overflow-y-auto">
-                  {projectOrder.map((project) => {
-                    const result = projectResults.find((p) => p.reviewPackage.id === project.packageId);
+              <div className="flex shrink-0 items-center justify-between border-t border-slate-200 pt-3">
+                <div className="flex flex-wrap gap-1.5">
+                  {projectOrder.map((project, index) => {
+                    const result = projectResults.find((item) => item.reviewPackage.id === project.packageId);
+                    const isDone = Boolean(project.revealedAt || result?.finalScore.ready);
                     const isCurrent = project.packageId === payload?.session.currentPackageId;
-                    const isRevealed = Boolean(project.revealedAt);
-                    const scoreText = isRevealed ? (result?.finalScore.finalScoreText ?? "--") : "待揭晓";
                     return (
-                      <div
-                        className={`rounded-xl border px-4 py-3 ${
-                          isCurrent ? "border-blue-200 bg-blue-50" : "border-slate-100 bg-slate-50"
+                      <span
+                        className={`flex h-8 w-8 items-center justify-center rounded-[10px] border text-xs font-black ${
+                          isCurrent
+                            ? "border-[#1a3a6e] bg-[#1a3a6e] text-white shadow-[0_2px_8px_rgba(26,58,110,0.25)]"
+                            : isDone
+                              ? "border-emerald-200 bg-emerald-50 text-emerald-600"
+                              : "border-slate-200 bg-white text-slate-500"
                         }`}
                         key={project.packageId}
                       >
-                        <div className="flex items-center justify-between gap-3">
-                          <p className="truncate text-sm font-bold text-slate-900">{project.targetName}</p>
-                          <span className={`shrink-0 text-base font-black ${isRevealed ? "text-blue-700" : "text-slate-400"}`}>
-                            {scoreText}
-                          </span>
-                        </div>
-                        <p className="mt-1 text-xs text-slate-500">
-                          {result?.finalScore.submittedSeatCount ?? 0}/{result?.finalScore.effectiveSeatCount ?? 0} 位专家已提交
-                        </p>
-                      </div>
+                        {index + 1}
+                      </span>
                     );
                   })}
                 </div>
-              </section>
-            ) : null}
-
-            {/* Info panel */}
-            <section className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
-              <div className="flex items-center gap-2">
-                <Clock className="h-4 w-4 text-blue-600" />
-                <h3 className="text-sm font-bold text-slate-900">现场说明</h3>
+                <p className="text-xs font-bold text-slate-400">项目导航 · 当前蓝色高亮 · 已完成绿色</p>
               </div>
-              <p className="mt-3 text-sm leading-6 text-slate-500">
-                分数实时读取专家提交状态。倒计时结束后不会自动归零，也不会提前计算，需等待全部有效专家席位提交。
-              </p>
-            </section>
+            ) : null}
+          </>
+        ) : null}
+
+        {activeTab === "rank" ? (
+          <>
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-xs font-black tracking-[2px] text-[#c22832]">LIVE RANKING</p>
+                <h2 className="mt-1 text-2xl font-black text-[#0f2040]">本轮排名</h2>
+              </div>
+              <div className="flex items-center gap-2 text-sm font-bold text-[#d93440]">
+                <span className="h-2 w-2 animate-pulse rounded-full bg-[#d93440]" />
+                实时刷新中
+              </div>
+            </div>
+
+            <div className="contest-card flex-1 overflow-hidden">
+              <table className="h-full w-full border-collapse text-sm">
+                <thead className="bg-[#1a3a6e] text-white">
+                  <tr>
+                    <th className="w-20 px-5 py-4 text-center text-xs font-bold tracking-wide">排名</th>
+                    <th className="px-5 py-4 text-left text-xs font-bold tracking-wide">项目名称</th>
+                    <th className="w-28 px-5 py-4 text-center text-xs font-bold tracking-wide">路演顺序</th>
+                    <th className="px-5 py-4 text-left text-xs font-bold tracking-wide">赛道</th>
+                    <th className="w-32 px-5 py-4 text-center text-xs font-bold tracking-wide">得分</th>
+                    <th className="w-28 px-5 py-4 text-center text-xs font-bold tracking-wide">状态</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {rankingRows.length ? (
+                    rankingRows.map((row, index) => (
+                      <tr className={`border-b border-slate-100 transition-colors ${row.isCurrent ? "bg-blue-50" : "bg-white"}`} key={row.project.reviewPackage.id}>
+                        <td className="px-5 py-4 text-center">
+                          <span className={getRankingBadgeClassName(index + 1)}>{index + 1}</span>
+                        </td>
+                        <td className="px-5 py-4 font-bold text-slate-900">{row.project.reviewPackage.targetName}</td>
+                        <td className="px-5 py-4 text-center font-mono font-black text-slate-700">{row.roadshowOrder || "-"}</td>
+                        <td className="px-5 py-4 text-slate-500">{row.project.reviewPackage.roundLabel || "项目路演评审"}</td>
+                        <td className="px-5 py-4 text-center font-mono text-lg font-black text-[#c22832]">
+                          {row.score === null ? "--" : row.score.toFixed(2)}
+                        </td>
+                        <td className="px-5 py-4 text-center">
+                          <span className={`rounded-full px-3 py-1.5 text-xs font-bold ${row.isFinished ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-600"}`}>
+                            {row.isFinished ? "已完成" : "评审中"}
+                          </span>
+                        </td>
+                      </tr>
+                    ))
+                  ) : (
+                    <tr>
+                      <td className="px-5 py-20 text-center text-slate-400" colSpan={6}>暂无评审数据</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </>
+        ) : null}
+      </section>
+
+      {phase === "presentation" || phase === "qa" ? (
+        <section className="screen-full-countdown">
+          <div className="relative z-10 text-center">
+            <p className="text-lg font-black tracking-[4px] text-white/50">{phase === "presentation" ? "路演展示" : "答辩提问"}</p>
+            <h2 className="mt-2 max-w-[980px] truncate text-2xl font-black text-white/85">{targetName}</h2>
+            <p className={`countdown-number mt-8 ${countdownTone}`}>{formatSeconds(phaseRemaining)}</p>
+            <p className="mt-7 text-sm font-semibold text-white/45">
+              {phase === "presentation" ? "路演展示时间" : "专家提问时间"}
+            </p>
+          </div>
+          <aside className="absolute right-[60px] top-1/2 z-10 -translate-y-1/2 text-center">
+            <p className="mb-3 text-xs font-bold tracking-[1px] text-white/45">提交进度</p>
+            <p className="font-mono text-[44px] font-black text-white">{progressText}</p>
+            <p className="mt-1 text-xs text-white/35">等待全部有效席位提交</p>
           </aside>
         </section>
-      </div>
+      ) : null}
 
+      {drawOverlayActive && drawOverlayItem ? (
+        <section className="draw-sequence-overlay">
+          <div className="draw-sequence-card">
+            <p className="text-sm font-black tracking-[2px] text-slate-400">抽签进行中</p>
+            <p className={`draw-sequence-number mt-5 ${drawOverlayRolling ? "rolling" : ""}`}>
+              {String(drawOverlayRolling ? drawRollingNumber : drawOverlayIndex + 1).padStart(2, "0")}
+            </p>
+            <p className="mt-4 min-h-7 max-w-[520px] truncate text-lg font-black text-slate-900">
+              {drawOverlayRolling ? projectOrder[drawRollingNumber - 1]?.targetName : drawOverlayItem.targetName}
+            </p>
+            <p className="mt-2 min-h-6 text-sm font-bold text-blue-500">
+              {drawOverlayRolling ? "" : `→ ${drawOverlayItem.groupName || "第一组"}`}
+            </p>
+          </div>
+        </section>
+      ) : null}
+
+      {phase === "reveal" ? (
+        <section className="score-reveal-overlay">
+          <div className="score-reveal-card">
+            <p className="text-sm font-black tracking-[3px] text-slate-400">最终得分 · 最终评审得分</p>
+            <h2 className="mt-3 text-xl font-black text-slate-900">{targetName}</h2>
+            <p className="score-reveal-score mt-8">{revealAnimatedScore}</p>
+            <p className="mt-4 text-sm font-semibold text-slate-400">
+              评分规则：去掉最高分和最低分，取平均值
+            </p>
+            <div className="mt-6 flex justify-center gap-3 text-xs font-bold text-slate-400">
+              <span>有效席位 {activeFinalScore?.effectiveSeatCount ?? effectiveCount}</span>
+              <span>已提交 {activeFinalScore?.submittedSeatCount ?? submittedCount}</span>
+            </div>
+          </div>
+        </section>
+      ) : null}
     </main>
   );
 }

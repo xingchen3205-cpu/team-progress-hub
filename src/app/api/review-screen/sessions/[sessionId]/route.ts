@@ -68,6 +68,9 @@ export async function GET(
         select: {
           packageId: true,
           orderIndex: true,
+          groupName: true,
+          groupIndex: true,
+          groupSlotIndex: true,
           revealedAt: true,
           reviewPackage: {
             select: {
@@ -308,6 +311,9 @@ export async function GET(
       packageId: projectPackage.id,
       targetName: projectPackage.targetName ?? "",
       roundLabel: projectPackage.roundLabel ?? "",
+      groupName: order?.groupName ?? "第一组",
+      groupIndex: order?.groupIndex ?? 0,
+      groupSlotIndex: order?.groupSlotIndex ?? index,
       revealedAt: order?.revealedAt?.toISOString() ?? null,
     };
   });

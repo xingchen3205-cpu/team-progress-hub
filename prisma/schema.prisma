@@ -500,20 +500,20 @@ model ProjectMaterialSubmission {
 }
 
 model ExpertReviewPackage {
-  id                   String                  @id @default(cuid())
+  id                   String                      @id @default(cuid())
   targetName           String
   roundLabel           String?
   overview             String?
-  status               ExpertReviewPackageStatus @default(configured)
+  status               ExpertReviewPackageStatus   @default(configured)
   startAt              DateTime?
   deadline             DateTime?
   createdById          String
   teamGroupId          String?
   projectReviewStageId String?
-  createdAt            DateTime                @default(now())
-  creator              User                    @relation("ExpertReviewPackageCreator", fields: [createdById], references: [id])
-  teamGroup            TeamGroup?              @relation(fields: [teamGroupId], references: [id], onDelete: SetNull)
-  projectReviewStage   ProjectReviewStage?     @relation(fields: [projectReviewStageId], references: [id], onDelete: SetNull)
+  createdAt            DateTime                    @default(now())
+  creator              User                        @relation("ExpertReviewPackageCreator", fields: [createdById], references: [id])
+  teamGroup            TeamGroup?                  @relation(fields: [teamGroupId], references: [id], onDelete: SetNull)
+  projectReviewStage   ProjectReviewStage?         @relation(fields: [projectReviewStageId], references: [id], onDelete: SetNull)
   materials            ExpertReviewMaterial[]
   assignments          ExpertReviewAssignment[]
   displaySessions      ReviewDisplaySession[]
@@ -574,29 +574,29 @@ model ExpertReviewScore {
 }
 
 model ReviewDisplaySession {
-  id                  String                     @id @default(cuid())
+  id                  String                      @id @default(cuid())
   packageId           String
-  tokenHash           String                     @unique
+  tokenHash           String                      @unique
   startsAt            DateTime?
   tokenExpiresAt      DateTime
-  countdownSeconds    Int                        @default(60)
-  dropHighestCount    Int                        @default(1)
-  dropLowestCount     Int                        @default(1)
-  status              ReviewDisplaySessionStatus @default(waiting)
+  countdownSeconds    Int                         @default(60)
+  dropHighestCount    Int                         @default(1)
+  dropLowestCount     Int                         @default(1)
+  status              ReviewDisplaySessionStatus  @default(waiting)
   startedAt           DateTime?
   endedAt             DateTime?
-  screenPhase         ReviewDisplayScreenPhase   @default(draw)
+  screenPhase         ReviewDisplayScreenPhase    @default(draw)
   currentPackageId    String?
-  presentationSeconds Int                        @default(480)
-  qaSeconds           Int                        @default(420)
-  scoringSeconds      Int                        @default(60)
+  presentationSeconds Int                         @default(480)
+  qaSeconds           Int                         @default(420)
+  scoringSeconds      Int                         @default(60)
   phaseStartedAt      DateTime?
   revealStartedAt     DateTime?
   createdById         String
-  createdAt           DateTime                   @default(now())
-  updatedAt           DateTime                   @updatedAt
-  reviewPackage       ExpertReviewPackage        @relation(fields: [packageId], references: [id], onDelete: Cascade)
-  creator             User                       @relation("ReviewDisplaySessionCreator", fields: [createdById], references: [id])
+  createdAt           DateTime                    @default(now())
+  updatedAt           DateTime                    @updatedAt
+  reviewPackage       ExpertReviewPackage         @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  creator             User                        @relation("ReviewDisplaySessionCreator", fields: [createdById], references: [id])
   seats               ReviewDisplaySeat[]
   projectOrders       ReviewDisplayProjectOrder[]
 
@@ -628,14 +628,17 @@ model ReviewDisplaySeat {
 }
 
 model ReviewDisplayProjectOrder {
-  id            String              @id @default(cuid())
-  sessionId     String
-  packageId     String
-  orderIndex    Int
-  revealedAt    DateTime?
-  createdAt     DateTime            @default(now())
-  session       ReviewDisplaySession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  reviewPackage ExpertReviewPackage @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  id             String               @id @default(cuid())
+  sessionId      String
+  packageId      String
+  orderIndex     Int
+  groupName      String?
+  groupIndex     Int                  @default(0)
+  groupSlotIndex Int                  @default(0)
+  revealedAt     DateTime?
+  createdAt      DateTime             @default(now())
+  session        ReviewDisplaySession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  reviewPackage  ExpertReviewPackage  @relation(fields: [packageId], references: [id], onDelete: Cascade)
 
   @@unique([sessionId, packageId])
   @@index([sessionId, orderIndex])

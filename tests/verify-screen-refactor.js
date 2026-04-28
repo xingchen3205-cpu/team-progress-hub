@@ -10,26 +10,41 @@ const readSource = (filePath) =>
 {
   const screenPageSource = readSource("src/app/review-screen/session/[sessionId]/page.tsx");
 
-  // Blue-white theme
-  assert.match(screenPageSource, /bg-gradient-to-br from-blue-50 via-white to-slate-50/);
+  // Blue-white base with official red-blue banner treatment
+  assert.match(screenPageSource, /screen-banner/);
+  assert.match(screenPageSource, /screen-hero-gradient/);
+  assert.match(screenPageSource, /中国国际大学生创新大赛/);
   assert.match(screenPageSource, /text-slate-900/);
   assert.doesNotMatch(screenPageSource, /bg-slate-950/);
 
   // Current time
   assert.match(screenPageSource, /useCurrentTime/);
   assert.match(screenPageSource, /new Date\(\)/);
-  assert.match(screenPageSource, /现场路演评审投屏/);
+  assert.match(screenPageSource, /路演答辩评审投屏/);
 
   // No admin buttons - the screen can show voided status text, but should not have clickable admin actions
   assert.doesNotMatch(screenPageSource, /onClick/);
   assert.doesNotMatch(screenPageSource, /type="button"/);
 
   // Key copy
+  assert.match(screenPageSource, /抽签分组/);
+  assert.match(screenPageSource, /评审打分/);
+  assert.match(screenPageSource, /实时排名/);
+  assert.match(screenPageSource, /路演顺序/);
   assert.match(screenPageSource, /当前评审项目/);
   assert.match(screenPageSource, /匿名专家席位状态/);
   assert.match(screenPageSource, /最终得分/);
   assert.match(screenPageSource, /提交进度/);
-  assert.match(screenPageSource, /现场说明/);
+  assert.match(screenPageSource, /评分倒计时/);
+  assert.match(screenPageSource, /screen-full-countdown/);
+  assert.match(screenPageSource, /draw-sequence-overlay/);
+  assert.match(screenPageSource, /phase-panel/);
+  assert.match(screenPageSource, /drawOverlayActive/);
+  assert.match(screenPageSource, /score-reveal-overlay/);
+  assert.match(screenPageSource, /waiting-dots/);
+  assert.match(screenPageSource, /seat-pop/);
+  assert.doesNotMatch(screenPageSource, /现场说明/);
+  assert.doesNotMatch(screenPageSource, /grid-cols-\[minmax\(0,1fr\)_380px\]/);
   assert.match(screenPageSource, /本轮排名/);
   assert.match(screenPageSource, /专家 1/);
   assert.match(screenPageSource, /专家 2/);
@@ -38,12 +53,18 @@ const readSource = (filePath) =>
   // Anonymous protection still in lib
   const libSource = readSource("src/lib/review-screen-session.ts");
   assert.match(libSource, /displayName:\s*`专家 \${index \+ 1}`/);
+  const schemaSource = readSource("prisma/schema.prisma");
+  assert.match(schemaSource, /groupName\s+String\?/);
+  assert.match(schemaSource, /groupIndex\s+Int\s+@default\(0\)/);
+  assert.match(schemaSource, /groupSlotIndex\s+Int\s+@default\(0\)/);
 
   // APIs still present
   const sessionRouteSource = readSource("src/app/api/review-screen/sessions/route.ts");
   const publicRouteSource = readSource("src/app/api/review-screen/sessions/[sessionId]/route.ts");
   assert.match(sessionRouteSource, /stageReviewPackages/);
   assert.match(sessionRouteSource, /projectReviewStageId/);
+  assert.match(sessionRouteSource, /roadshowGroupSizes/);
+  assert.match(sessionRouteSource, /buildRoadshowProjectOrderRows/);
   assert.match(publicRouteSource, /projectResults/);
 
   // Admin tab still has controls
@@ -56,6 +77,9 @@ const readSource = (filePath) =>
   assert.match(adminTabSource, /打开大屏/);
   assert.match(adminTabSource, /开始评分/);
   assert.match(adminTabSource, /生成并复制链接/);
+  assert.match(adminTabSource, /路演分组容量/);
+  assert.match(adminTabSource, /getRoadshowGroupSizesPayload/);
+  assert.doesNotMatch(adminTabSource, /disabled=\{Boolean\(screenSession\)\}/);
 }
 
 // expert-review-v2.test.ts spot-checks (string-based only)

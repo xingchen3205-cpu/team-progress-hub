@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { assertRole } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import { buildRoadshowProjectOrderRows } from "@/lib/roadshow-screen-groups";
 import { buildReviewDisplaySeatSeeds, createReviewScreenToken } from "@/lib/review-screen-session";
 
 const clampInteger = (value: unknown, fallback: number, min: number, max: number) => {
@@ -99,6 +100,7 @@ export async function POST(request: NextRequest) {
         presentationSeconds?: number;
         qaSeconds?: number;
         scoringSeconds?: number;
+        roadshowGroupSizes?: number[];
       }
     | null;
   const packageId = body?.packageId?.trim();
@@ -218,10 +220,19 @@ export async function POST(request: NextRequest) {
   const presentationSeconds = clampInteger(body?.presentationSeconds, 480, 60, 1800);
   const qaSeconds = clampInteger(body?.qaSeconds, 420, 60, 1800);
   const scoringSeconds = clampInteger(body?.scoringSeconds, 60, 10, 600);
+  let projectOrderRows: ReturnType<typeof buildRoadshowProjectOrderRows<typeof stageReviewPackages[number]>>;
+  try {
+    projectOrderRows = buildRoadshowProjectOrderRows(stageReviewPackages, body?.roadshowGroupSizes);
+  } catch (error) {
+    return NextResponse.json(
+      { message: error instanceof Error ? error.message : "路演分组设置无效" },
+      { status: 400 },
+    );
+  }
   const { token, tokenHash } = createReviewScreenToken();
 
   const { session, seats } = await prisma.$transaction(async (tx) => {
-    const firstPackageId = stageReviewPackages[0]?.id ?? reviewPackage.id;
+    const firstPackageId = projectOrderRows[0]?.project.id ?? stageReviewPackages[0]?.id ?? reviewPackage.id;
     const createdSession = await tx.reviewDisplaySession.create({
       data: {
         packageId: reviewPackage.id,
@@ -255,10 +266,13 @@ export async function POST(request: NextRequest) {
     });
 
     await tx.reviewDisplayProjectOrder.createMany({
-      data: stageReviewPackages.map((stagePackage, index) => ({
+      data: projectOrderRows.map((row) => ({
         sessionId: createdSession.id,
-        packageId: stagePackage.id,
-        orderIndex: index,
+        packageId: row.project.id,
+        orderIndex: row.orderIndex,
+        groupName: row.groupName,
+        groupIndex: row.groupIndex,
+        groupSlotIndex: row.groupSlotIndex,
       })),
     });
 
@@ -305,11 +319,14 @@ export async function POST(request: NextRequest) {
       })),
       screenUrl: screenUrl.toString(),
       packageIds: stageReviewPackages.map((stagePackage) => stagePackage.id),
-      projectOrder: stageReviewPackages.map((stagePackage, index) => ({
-        orderIndex: index,
-        packageId: stagePackage.id,
-        targetName: stagePackage.targetName,
-        roundLabel: stagePackage.roundLabel ?? "",
+      projectOrder: projectOrderRows.map((row) => ({
+        orderIndex: row.orderIndex,
+        packageId: row.project.id,
+        targetName: row.project.targetName,
+        roundLabel: row.project.roundLabel ?? "",
+        groupName: row.groupName,
+        groupIndex: row.groupIndex,
+        groupSlotIndex: row.groupSlotIndex,
         revealedAt: null,
       })),
       projectReviewStageId: reviewPackage.projectReviewStageId,

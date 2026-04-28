@@ -119,6 +119,9 @@ describe("roadshow review screen session", () => {
 
     assert.match(schemaSource, /model ReviewDisplaySession/);
     assert.match(schemaSource, /model ReviewDisplaySeat/);
+    assert.match(schemaSource, /groupName\s+String\?/);
+    assert.match(schemaSource, /groupIndex\s+Int\s+@default\(0\)/);
+    assert.match(schemaSource, /groupSlotIndex\s+Int\s+@default\(0\)/);
     assert.match(schemaSource, /tokenHash\s+String\s+@unique/);
     assert.match(schemaSource, /dropHighestCount\s+Int\s+@default\(1\)/);
     assert.match(schemaSource, /dropLowestCount\s+Int\s+@default\(1\)/);
@@ -160,12 +163,15 @@ describe("roadshow review screen session", () => {
     assert.match(sessionRouteSource, /packageIds/);
     assert.match(sessionRouteSource, /buildReviewDisplaySeatSeeds/);
     assert.match(sessionRouteSource, /reviewDisplayProjectOrder\.createMany/);
+    assert.match(sessionRouteSource, /buildRoadshowProjectOrderRows/);
+    assert.match(sessionRouteSource, /roadshowGroupSizes/);
     assert.match(sessionRouteSource, /reviewPackage\.projectReviewStageId/);
     assert.match(publicRouteSource, /projectResults/);
     assert.match(publicRouteSource, /projectOrderPackages/);
     assert.match(publicRouteSource, /assignmentsByExpertId/);
     assert.doesNotMatch(publicRouteSource, /seat\.assignment\.reviewPackage/);
     assert.match(orderRouteSource, /packageIds/);
+    assert.match(orderRouteSource, /roadshowGroupSizes/);
     assert.match(orderRouteSource, /本轮已开始，不能调整路演顺序/);
     assert.match(nextProjectRouteSource, /projectOrders/);
     assert.match(adminTabSource, /packageIds/);
@@ -178,6 +184,9 @@ describe("roadshow review screen session", () => {
     assert.match(adminTabSource, /路演时长/);
     assert.match(adminTabSource, /答辩时长/);
     assert.match(adminTabSource, /评分时长/);
+    assert.match(adminTabSource, /路演分组容量/);
+    assert.match(adminTabSource, /getRoadshowGroupSizesPayload/);
+    assert.doesNotMatch(adminTabSource, /disabled=\{Boolean\(screenSession\)\}/);
     assert.doesNotMatch(adminTabSource, /启动计时/);
     assert.match(screenPageSource, /projectResults/);
   });
@@ -196,7 +205,9 @@ describe("roadshow review screen session", () => {
   it("renders the review screen page in a blue-white theme suitable for large-screen projection", () => {
     const screenPageSource = readSource("src/app/review-screen/session/[sessionId]/page.tsx");
 
-    assert.match(screenPageSource, /bg-gradient-to-br from-blue-50 via-white to-slate-50/);
+    assert.match(screenPageSource, /screen-banner/);
+    assert.match(screenPageSource, /screen-hero-gradient/);
+    assert.match(screenPageSource, /中国国际大学生创新大赛/);
     assert.match(screenPageSource, /text-slate-900/);
     assert.doesNotMatch(screenPageSource, /bg-slate-950/);
   });
@@ -206,7 +217,7 @@ describe("roadshow review screen session", () => {
 
     assert.match(screenPageSource, /useCurrentTime/);
     assert.match(screenPageSource, /new Date\(\)/);
-    assert.match(screenPageSource, /现场路演评审投屏/);
+    assert.match(screenPageSource, /路演答辩评审投屏/);
     assert.match(screenPageSource, /currentTime/);
   });
 
@@ -225,11 +236,26 @@ describe("roadshow review screen session", () => {
   it("includes large-screen key copy and anonymous seat status on the projection screen", () => {
     const screenPageSource = readSource("src/app/review-screen/session/[sessionId]/page.tsx");
 
+    assert.match(screenPageSource, /抽签分组/);
+    assert.match(screenPageSource, /评审打分/);
+    assert.match(screenPageSource, /实时排名/);
+    assert.match(screenPageSource, /路演顺序/);
+    assert.match(screenPageSource, /drawGroups/);
+    assert.match(screenPageSource, /groupName/);
     assert.match(screenPageSource, /当前评审项目/);
     assert.match(screenPageSource, /匿名专家席位状态/);
     assert.match(screenPageSource, /最终得分/);
     assert.match(screenPageSource, /提交进度/);
-    assert.match(screenPageSource, /现场说明/);
+    assert.match(screenPageSource, /评分倒计时/);
+    assert.match(screenPageSource, /screen-full-countdown/);
+    assert.match(screenPageSource, /draw-sequence-overlay/);
+    assert.match(screenPageSource, /phase-panel/);
+    assert.match(screenPageSource, /drawOverlayActive/);
+    assert.match(screenPageSource, /score-reveal-overlay/);
+    assert.match(screenPageSource, /waiting-dots/);
+    assert.match(screenPageSource, /seat-pop/);
+    assert.doesNotMatch(screenPageSource, /现场说明/);
+    assert.doesNotMatch(screenPageSource, /grid-cols-\[minmax\(0,1fr\)_380px\]/);
     assert.match(screenPageSource, /本轮排名/);
     assert.match(screenPageSource, /专家 1/);
     assert.match(screenPageSource, /专家 2/);

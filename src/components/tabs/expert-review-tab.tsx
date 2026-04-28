@@ -59,6 +59,9 @@ type ReviewScreenProjectOrderItem = {
   packageId: string;
   targetName: string;
   roundLabel: string;
+  groupName: string | null;
+  groupIndex: number;
+  groupSlotIndex: number;
   revealedAt: string | null;
 };
 
@@ -327,6 +330,7 @@ export default function ExpertReviewTab() {
   const [screenTimingDrafts, setScreenTimingDrafts] = useState<
     Record<string, ReturnType<typeof getDefaultScreenTimingDraft>>
   >({});
+  const [screenGroupDrafts, setScreenGroupDrafts] = useState<Record<string, string>>({});
   const [screenLiveData, setScreenLiveData] = useState<
     Record<
       string,
@@ -547,6 +551,39 @@ export default function ExpertReviewTab() {
     };
   };
 
+  const getRoadshowProjectCount = (group: ReviewGroup) => {
+    if (!group.projectReviewStageId) {
+      return 1;
+    }
+    return groupedAssignments.filter((candidate) => candidate.projectReviewStageId === group.projectReviewStageId).length;
+  };
+
+  const updateScreenGroupDraft = (groupKey: string, value: string) => {
+    setScreenGroupDrafts((current) => ({
+      ...current,
+      [groupKey]: value.replace(/[^\d/，,、\s]/g, "").slice(0, 24),
+    }));
+  };
+
+  const getRoadshowGroupSizesPayload = (group: ReviewGroup) => {
+    const projectCount = getRoadshowProjectCount(group);
+    const draft = screenGroupDrafts[group.key]?.trim();
+    if (!draft) {
+      return [projectCount];
+    }
+    const sizes = draft
+      .split(/[\/，,、\s]+/)
+      .map((value) => Number(value))
+      .filter((value) => Number.isFinite(value))
+      .map((value) => Math.trunc(value))
+      .filter((value) => value > 0);
+    const total = sizes.reduce((sum, size) => sum + size, 0);
+    if (sizes.length === 0 || total !== projectCount) {
+      throw new Error(`路演分组容量之和需等于项目数量（当前 ${total}/${projectCount}）`);
+    }
+    return sizes;
+  };
+
   const createReviewScreenSession = async (group: ReviewGroup) => {
     if (!group.items.some((assignment) => isRoadshowAssignment(assignment))) {
       setLoadError("只有项目路演评审可以生成现场大屏链接");
@@ -555,6 +592,7 @@ export default function ExpertReviewTab() {
 
     setReviewScreenActionKey(group.key);
     try {
+      const roadshowGroupSizes = getRoadshowGroupSizesPayload(group);
       const payload = await requestJson<{
         session: {
           id: string;
@@ -574,6 +612,7 @@ export default function ExpertReviewTab() {
           dropHighestCount: 1,
           dropLowestCount: 1,
           ...getReviewScreenTimingPayload(group.key),
+          roadshowGroupSizes,
         }),
       });
 
@@ -672,11 +711,13 @@ export default function ExpertReviewTab() {
     }
     setReviewScreenActionKey(`${group.key}:draw`);
     try {
+      const roadshowGroupSizes = getRoadshowGroupSizesPayload(group);
       const payload = await requestJson<{
         projectOrder: ReviewScreenProjectOrderItem[];
         session: { currentPackageId: string | null };
       }>(`/api/review-screen/sessions/${screenSession.sessionId}/draw`, {
         method: "POST",
+        body: JSON.stringify({ roadshowGroupSizes }),
       });
       setReviewScreenSessions((current) => {
         const next = { ...current };
@@ -717,12 +758,13 @@ export default function ExpertReviewTab() {
 
     setReviewScreenActionKey(`${group.key}:order`);
     try {
+      const roadshowGroupSizes = getRoadshowGroupSizesPayload(group);
       const payload = await requestJson<{
         projectOrder: ReviewScreenProjectOrderItem[];
         session: { currentPackageId: string | null };
       }>(`/api/review-screen/sessions/${screenSession.sessionId}/order`, {
         method: "POST",
-        body: JSON.stringify({ packageIds }),
+        body: JSON.stringify({ packageIds, roadshowGroupSizes }),
       });
       setReviewScreenSessions((current) => {
         const next = { ...current };
@@ -1014,6 +1056,8 @@ export default function ExpertReviewTab() {
     const liveData = screenLiveData[group.key];
     const consoleSeats = liveData?.seats ?? screenSession?.seats ?? [];
     const timingDraft = screenTimingDrafts[group.key] ?? getDefaultScreenTimingDraft();
+    const groupDraft = screenGroupDrafts[group.key] ?? "";
+    const roadshowProjectCount = getRoadshowProjectCount(group);
     const projectOrder = liveData?.projectOrder ?? [];
     const currentPhase = liveData?.screenPhase ?? "draw";
     const canAdjustOrder = currentPhase === "draw";
@@ -1040,13 +1084,12 @@ export default function ExpertReviewTab() {
           </span>
         </div>
 
-        <div className="mt-5 grid gap-3 md:grid-cols-3">
+        <div className="mt-5 grid gap-3 md:grid-cols-4">
           <label className="rounded-2xl border border-blue-100 bg-white px-4 py-3">
             <span className="text-xs font-bold text-slate-600">路演时长</span>
             <div className="mt-2 flex items-center gap-2">
               <input
                 className="h-9 min-w-0 flex-1 rounded-xl border border-slate-200 px-3 text-sm font-bold text-slate-900 outline-none transition focus:border-blue-300 focus:ring-2 focus:ring-blue-100 disabled:bg-slate-50 disabled:text-slate-400"
-                disabled={Boolean(screenSession)}
                 inputMode="numeric"
                 onChange={(event) => updateScreenTimingDraft(group.key, "presentationMinutes", event.target.value)}
                 value={timingDraft.presentationMinutes}
@@ -1059,7 +1102,6 @@ export default function ExpertReviewTab() {
             <div className="mt-2 flex items-center gap-2">
               <input
                 className="h-9 min-w-0 flex-1 rounded-xl border border-slate-200 px-3 text-sm font-bold text-slate-900 outline-none transition focus:border-blue-300 focus:ring-2 focus:ring-blue-100 disabled:bg-slate-50 disabled:text-slate-400"
-                disabled={Boolean(screenSession)}
                 inputMode="numeric"
                 onChange={(event) => updateScreenTimingDraft(group.key, "qaMinutes", event.target.value)}
                 value={timingDraft.qaMinutes}
@@ -1072,13 +1114,26 @@ export default function ExpertReviewTab() {
             <div className="mt-2 flex items-center gap-2">
               <input
                 className="h-9 min-w-0 flex-1 rounded-xl border border-slate-200 px-3 text-sm font-bold text-slate-900 outline-none transition focus:border-blue-300 focus:ring-2 focus:ring-blue-100 disabled:bg-slate-50 disabled:text-slate-400"
-                disabled={Boolean(screenSession)}
                 inputMode="numeric"
                 onChange={(event) => updateScreenTimingDraft(group.key, "scoringSeconds", event.target.value)}
                 value={timingDraft.scoringSeconds}
               />
               <span className="text-xs font-semibold text-slate-400">秒</span>
             </div>
+          </label>
+          <label className="rounded-2xl border border-blue-100 bg-white px-4 py-3">
+            <span className="text-xs font-bold text-slate-600">路演分组容量</span>
+            <div className="mt-2 flex items-center gap-2">
+              <input
+                className="h-9 min-w-0 flex-1 rounded-xl border border-slate-200 px-3 text-sm font-bold text-slate-900 outline-none transition focus:border-blue-300 focus:ring-2 focus:ring-blue-100 disabled:bg-slate-50 disabled:text-slate-400"
+                inputMode="text"
+                onChange={(event) => updateScreenGroupDraft(group.key, event.target.value)}
+                placeholder={`${roadshowProjectCount}`}
+                value={groupDraft}
+              />
+              <span className="text-xs font-semibold text-slate-400">项</span>
+            </div>
+            <p className="mt-1 text-[11px] text-slate-400">如 3/3/4；留空为一组</p>
           </label>
         </div>
 
@@ -1191,7 +1246,9 @@ export default function ExpertReviewTab() {
                           </span>
                           <p className="truncate text-xs font-bold text-slate-800">{project.targetName}</p>
                         </div>
-                        <p className="mt-1 truncate pl-8 text-[11px] text-slate-400">{project.roundLabel || "项目路演"}</p>
+                        <p className="mt-1 truncate pl-8 text-[11px] text-slate-400">
+                          {project.groupName ? `${project.groupName} · ` : ""}{project.roundLabel || "项目路演"}
+                        </p>
                       </div>
                       <div className="flex shrink-0 items-center gap-1">
                         <button
