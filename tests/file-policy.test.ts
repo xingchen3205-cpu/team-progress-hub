@@ -70,4 +70,24 @@ describe("file upload policy", () => {
       "文件大小不能超过 100MB",
     );
   });
+
+  it("rejects explicit mime types that conflict with the file extension", () => {
+    assert.equal(
+      validateUploadMeta({
+        fileName: "项目材料.pdf",
+        fileSize: 1024,
+        mimeType: "image/png",
+      }),
+      "文件类型与扩展名不匹配",
+    );
+
+    assert.equal(
+      validateDocumentCenterUploadMeta({
+        fileName: "项目资料.zip",
+        fileSize: 1024,
+        mimeType: "application/zip",
+      }),
+      null,
+    );
+  });
 });

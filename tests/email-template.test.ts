@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
 
-import { renderSystemEmail } from "../src/lib/email";
+import { renderSystemEmail, systemEmailProductName } from "../src/lib/email";
 
 describe("system email template", () => {
   it("renders a formal work reminder slip with recipient, type, title, requirement, link, and sent time", () => {
@@ -15,7 +15,7 @@ describe("system email template", () => {
       sentAt: new Date("2026-04-08T14:39:00.000Z"),
     });
 
-    assert.match(html, /南京铁道职业技术学院大赛管理系统/);
+    assert.match(html, new RegExp(systemEmailProductName));
     assert.match(html, /系统工作提醒单/);
     assert.match(html, /收件人/);
     assert.match(html, /张星云/);
@@ -30,6 +30,6 @@ describe("system email template", () => {
     assert.match(html, /https:\/\/xingchencxcy\.com\/workspace\?tab=documents/);
     assert.match(html, /发送时间/);
     assert.match(html, /2026年4月8日 22:39/);
-    assert.match(html, /本邮件由南京铁道职业技术学院大赛管理系统自动发送，请勿直接回复/);
+    assert.match(html, new RegExp(`本邮件由${systemEmailProductName}自动发送，请勿直接回复`));
   });
 });

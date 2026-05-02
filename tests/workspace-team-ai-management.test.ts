@@ -44,6 +44,49 @@ test("team account action buttons use visible semantic button styles", () => {
   assert.match(teamSource, /className="team-icon-button danger"/);
 });
 
+test("team account delete controls are hidden unless the current role can delete accounts", () => {
+  const contextSource = readFileSync(
+    path.join(process.cwd(), "src/components/workspace-context.tsx"),
+    "utf8",
+  );
+  const apiSource = readFileSync(
+    path.join(process.cwd(), "src/app/api/team/[id]/route.ts"),
+    "utf8",
+  );
+
+  assert.match(contextSource, /canDeleteMemberAccount/);
+  assert.match(teamSource, /canDeleteMemberAccount\(member\)\s*\?/);
+  assert.doesNotMatch(teamSource, /permissions\.canManageTeam\s*\?\s*\(\s*<button[\s\S]*title="删除账号"/);
+  assert.match(apiSource, /canDeleteUser\(user\.role,\s*target\.role\)/);
+  assert.doesNotMatch(apiSource, /if \(!canManageUser\(user\.role,\s*target\.role\)\)[\s\S]*export async function DELETE/);
+});
+
+test("team account password reset controls are reserved to administrator roles", () => {
+  const contextSource = readFileSync(
+    path.join(process.cwd(), "src/components/workspace-context.tsx"),
+    "utf8",
+  );
+  const apiSource = readFileSync(
+    path.join(process.cwd(), "src/app/api/team/[id]/route.ts"),
+    "utf8",
+  );
+
+  const teacherBlock = contextSource.match(/teacher:\s*\{[\s\S]*?\n  leader:/)?.[0] ?? "";
+  const leaderBlock = contextSource.match(/leader:\s*\{[\s\S]*?\n  member:/)?.[0] ?? "";
+  const resetPasswordBlock =
+    contextSource.match(/const canResetMemberPassword = \(member: TeamMember\) => \{[\s\S]*?\n  \};\n\n  const canApprovePendingMember/)?.[0] ?? "";
+
+  assert.match(teacherBlock, /canResetPassword:\s*false/);
+  assert.match(leaderBlock, /canResetPassword:\s*false/);
+  assert.match(resetPasswordBlock, /isSystemAdmin/);
+  assert.match(resetPasswordBlock, /isSchoolAdmin/);
+  assert.match(resetPasswordBlock, /return false/);
+  assert.match(teamSource, /canResetMemberPassword\(member\)\s*\?/);
+  assert.doesNotMatch(teamSource, /permissions\.canResetPassword\s*\?/);
+  assert.match(apiSource, /canResetUserPassword\(user\.role,\s*target\.role\)/);
+  assert.match(apiSource, /仅管理员可以重置账号密码/);
+});
+
 test("team management adopts the refined card and table visual system", () => {
   assert.match(teamSource, /team-page-shell/);
   assert.match(teamSource, /team-management-card/);

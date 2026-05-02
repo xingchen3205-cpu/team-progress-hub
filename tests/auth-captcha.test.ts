@@ -58,3 +58,32 @@ test("login screen renders captcha input and refreshes the svg image", () => {
   assert.match(source, /请输入验证码/);
   assert.match(source, /刷新验证码/);
 });
+
+test("login screen uses native img element for captcha, not next/image", () => {
+  const source = readFileSync(
+    path.join(process.cwd(), "src/components/login-screen.tsx"),
+    "utf8",
+  );
+
+  // Must use native img tag for captcha
+  assert.match(source, /<img\n?\s+alt="验证码"/);
+  assert.match(source, /loading="eager"/);
+  assert.match(source, /draggable=\{false\}/);
+  // Should not use next/image unoptimized prop in captcha area
+  const captchaBlock = source.match(/captchaVersion[\s\S]{0,800}/)?.[0] ?? "";
+  assert.doesNotMatch(captchaBlock, /unoptimized/);
+});
+
+test("login screen has captcha error fallback and fixed dimensions", () => {
+  const source = readFileSync(
+    path.join(process.cwd(), "src/components/login-screen.tsx"),
+    "utf8",
+  );
+
+  assert.match(source, /captchaError/);
+  assert.match(source, /setCaptchaError\(true\)/);
+  assert.match(source, /验证码加载失败，点击刷新/);
+  assert.match(source, /h-\[54px\]/);
+  assert.match(source, /w-\[140px\]/);
+  assert.match(source, /h-11\s+w-\[132px\]/);
+});

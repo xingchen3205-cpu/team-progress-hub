@@ -60,6 +60,32 @@ type ChartTooltipProps = {
   }>;
 };
 
+const getTrendAxisTickIndexes = (total: number, todayIndex: number) => {
+  if (total <= 0) {
+    return [];
+  }
+
+  const maxTicks = 7;
+  if (total <= maxTicks) {
+    return Array.from({ length: total }, (_, i) => i);
+  }
+
+  const safeTodayIndex = todayIndex >= 0 && todayIndex < total ? todayIndex : total - 1;
+  const indexes = new Set<number>([0, safeTodayIndex, total - 1]);
+  const candidateIndexes = Array.from({ length: total - 2 }, (_, i) => i + 1).filter(
+    (index) => !indexes.has(index),
+  );
+  const remainingSlots = Math.max(0, maxTicks - indexes.size);
+
+  for (let slot = 1; slot <= remainingSlots && candidateIndexes.length > 0; slot += 1) {
+    const candidateOffset = Math.round((slot * (candidateIndexes.length + 1)) / (remainingSlots + 1)) - 1;
+    const safeOffset = Math.min(candidateIndexes.length - 1, Math.max(0, candidateOffset));
+    indexes.add(candidateIndexes[safeOffset]);
+  }
+
+  return Array.from(indexes).sort((a, b) => a - b);
+};
+
 const getEffectiveDays = (series: TrendAnalysisPoint[]) =>
   series.filter((point) => typeof point.submitRate === "number").length;
 
@@ -165,6 +191,7 @@ export default function TrendAnalysis({
   const effectiveDays = getEffectiveDays(series);
   const shouldShowAccumulating = effectiveDays < 3;
   const shouldShowFlatState = !shouldShowAccumulating && !hasSubmitRateVariance(series);
+  const tickIndexes = getTrendAxisTickIndexes(chartData.length, chartData.length - 1);
 
   return (
     <section className="w-full">
@@ -271,6 +298,7 @@ export default function TrendAnalysis({
                   dy={10}
                   tick={{ fontSize: 12, fill: "#94a3b8" }}
                   tickLine={false}
+                  ticks={tickIndexes.map((i) => chartData[i]?.date).filter(Boolean)}
                 />
                 <YAxis
                   axisLine={false}

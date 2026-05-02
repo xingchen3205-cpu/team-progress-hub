@@ -14,6 +14,7 @@ import {
   type ProjectMaterialRequirementKey,
 } from "@/lib/project-materials";
 import { prisma } from "@/lib/prisma";
+import { normalizeReviewScoreRuleCount, validateReviewScoreRule } from "@/lib/review-score-rules";
 import { buildExpertReviewAssignmentVisibilityWhere } from "@/lib/team-scope";
 
 const assignmentInclude = {
@@ -34,6 +35,8 @@ const assignmentInclude = {
       status: true,
       startAt: true,
       deadline: true,
+      dropHighestCount: true,
+      dropLowestCount: true,
       projectReviewStage: {
         select: {
           id: true,
@@ -134,6 +137,8 @@ export async function POST(request: NextRequest) {
         overview?: string;
         startAt?: string;
         deadline?: string;
+        dropHighestCount?: number;
+        dropLowestCount?: number;
       }
     | null;
 
@@ -171,6 +176,8 @@ export async function POST(request: NextRequest) {
   const overview = body?.overview?.trim() || null;
   const startAt = body?.startAt ? new Date(body.startAt) : null;
   const deadline = body?.deadline ? new Date(body.deadline) : null;
+  const dropHighestCount = normalizeReviewScoreRuleCount(body?.dropHighestCount, 1);
+  const dropLowestCount = normalizeReviewScoreRuleCount(body?.dropLowestCount, 1);
 
   if (startAt && Number.isNaN(startAt.getTime())) {
     return NextResponse.json({ message: "评审开始时间格式无效" }, { status: 400 });
@@ -212,6 +219,15 @@ export async function POST(request: NextRequest) {
 
     if (expertCount !== expertUserIds.length) {
       return NextResponse.json({ message: "请选择有效的评审专家账号" }, { status: 400 });
+    }
+
+    const scoreRuleError = validateReviewScoreRule({
+      expertCount: expertUserIds.length,
+      dropHighestCount,
+      dropLowestCount,
+    });
+    if (scoreRuleError) {
+      return NextResponse.json({ message: scoreRuleError }, { status: 400 });
     }
 
     const stageMeta = parseProjectStageDescription(projectReviewStage.description, projectReviewStage.type);
@@ -375,6 +391,8 @@ export async function POST(request: NextRequest) {
                 status: "configured",
                 startAt: effectiveStartAt,
                 deadline: effectiveDeadline,
+                dropHighestCount,
+                dropLowestCount,
                 createdById: user.id,
               },
               select: { id: true },
@@ -387,6 +405,8 @@ export async function POST(request: NextRequest) {
                 status: "configured",
                 startAt: effectiveStartAt,
                 deadline: effectiveDeadline,
+                dropHighestCount,
+                dropLowestCount,
                 createdById: user.id,
                 teamGroupId: target.teamGroupId,
                 projectReviewStageId: projectReviewStage.id,
@@ -463,6 +483,15 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: "请选择有效的评审专家账号" }, { status: 400 });
   }
 
+  const singleScoreRuleError = validateReviewScoreRule({
+    expertCount: 1,
+    dropHighestCount,
+    dropLowestCount,
+  });
+  if (singleScoreRuleError) {
+    return NextResponse.json({ message: singleScoreRuleError }, { status: 400 });
+  }
+
   const assignment = await prisma.$transaction(async (tx) => {
     const reviewPackage = await tx.expertReviewPackage.create({
       data: {
@@ -472,6 +501,8 @@ export async function POST(request: NextRequest) {
         status: "configured",
         startAt,
         deadline,
+        dropHighestCount,
+        dropLowestCount,
         createdById: user.id,
         teamGroupId: hasGlobalAdminPrivileges(user.role) ? null : user.teamGroupId,
       },

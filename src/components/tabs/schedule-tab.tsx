@@ -510,6 +510,32 @@ const getPreviousTrendDateKeys = (reportDateOptions: string[], currentDateKeys: 
   return reportDateOptions.filter((date) => date < oldestCurrentDate).slice(0, currentDateKeys.length);
 };
 
+const getTrendAxisTickIndexes = (total: number, todayIndex: number) => {
+  if (total <= 0) {
+    return [];
+  }
+
+  const maxTicks = 7;
+  if (total <= maxTicks) {
+    return Array.from({ length: total }, (_, i) => i);
+  }
+
+  const safeTodayIndex = todayIndex >= 0 && todayIndex < total ? todayIndex : total - 1;
+  const indexes = new Set<number>([0, safeTodayIndex, total - 1]);
+  const candidateIndexes = Array.from({ length: total - 2 }, (_, i) => i + 1).filter(
+    (index) => !indexes.has(index),
+  );
+  const remainingSlots = Math.max(0, maxTicks - indexes.size);
+
+  for (let slot = 1; slot <= remainingSlots && candidateIndexes.length > 0; slot += 1) {
+    const candidateOffset = Math.round((slot * (candidateIndexes.length + 1)) / (remainingSlots + 1)) - 1;
+    const safeOffset = Math.min(candidateIndexes.length - 1, Math.max(0, candidateOffset));
+    indexes.add(candidateIndexes[safeOffset]);
+  }
+
+  return Array.from(indexes).sort((a, b) => a - b);
+};
+
 const TrendDeltaIndicator = ({ delta, unit }: { delta: number; unit: string }) => {
   const isUp = delta > 0;
   const isFlat = delta === 0;
@@ -567,46 +593,65 @@ const MainTrendChart = ({
   }
 
   const chartWidth = 480;
-  const chartHeight = 180;
+  const chartHeight = 210;
   const plotLeft = 40;
   const plotRight = 460;
   const plotTop = 20;
-  const plotBottom = 160;
+  const plotBottom = 175;
   const plotWidth = plotRight - plotLeft;
   const plotHeight = plotBottom - plotTop;
   const yForValue = (value: number) =>
     Number((plotTop + (1 - Math.min(100, Math.max(0, value)) / 100) * plotHeight).toFixed(2));
-  const lastKnownValue =
-    [...series]
-      .reverse()
-      .find((point) => typeof point.submitRate === "number")?.submitRate ?? 0;
   const chartPoints = series.map((point, index) => {
     const isToday = point.date === todayDateKey || index === series.length - 1;
     const value = point.submitRate;
-    const fallbackValue = typeof value === "number" ? value : lastKnownValue;
     const x = Number((series.length === 1 ? (plotLeft + plotRight) / 2 : plotLeft + (index / (series.length - 1)) * plotWidth).toFixed(2));
-    const y = yForValue(fallbackValue);
+    const y = typeof value === "number" ? yForValue(value) : null;
 
     return {
       ...point,
-      displayLabel: isToday ? "今日" : point.label,
+      displayLabel: point.label,
       isToday,
       isAbnormal: typeof value === "number" && value < 70,
       tooltipX: x > 400 ? x - 72 : x < 88 ? x + 8 : x - 32,
-      tooltipY: Math.max(8, y - 48),
+      tooltipY: typeof y === "number" ? Math.max(8, y - 48) : plotTop + 8,
       x,
       y,
       value,
     };
   });
-  const linePath = chartPoints
-    .map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`)
-    .join(" ");
-  const areaPath = `${linePath} L ${plotRight} ${plotBottom} L ${plotLeft} ${plotBottom} Z`;
+  const lineSegments: string[] = [];
+  const areaSegments: string[] = [];
+  let currentSegment: typeof chartPoints = [];
+  const pushCurrentSegment = () => {
+    if (currentSegment.length === 0) {
+      return;
+    }
+
+    const linePath = currentSegment
+      .map((point, index) => `${index === 0 ? "M" : "L"} ${point.x} ${point.y}`)
+      .join(" ");
+    const firstPoint = currentSegment[0];
+    const lastPoint = currentSegment[currentSegment.length - 1];
+    lineSegments.push(linePath);
+    areaSegments.push(`${linePath} L ${lastPoint.x} ${plotBottom} L ${firstPoint.x} ${plotBottom} Z`);
+    currentSegment = [];
+  };
+
+  chartPoints.forEach((point) => {
+    if (typeof point.value === "number" && typeof point.y === "number") {
+      currentSegment.push(point);
+    } else {
+      pushCurrentSegment();
+    }
+  });
+  pushCurrentSegment();
+  const todayIndex = chartPoints.findIndex((p) => p.isToday);
+  const tickIndexes = getTrendAxisTickIndexes(chartPoints.length, todayIndex);
 
   return (
     <svg
-      className="h-[180px] w-full overflow-visible"
+      className="h-[210px] w-full overflow-visible"
       role="img"
       viewBox={`0 0 ${chartWidth} ${chartHeight}`}
     >
@@ -637,22 +682,35 @@ const MainTrendChart = ({
           </g>
         );
       })}
-      <path d={areaPath} fill="url(#teacherTrendAreaGradient)" fillOpacity="0.15" stroke="none" />
-      <path
-        d={linePath}
-        fill="none"
-        stroke="#3b82f6"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-        strokeWidth="2.5"
-        vectorEffect="non-scaling-stroke"
-      />
+      {areaSegments.map((segment, i) => (
+        <path
+          key={`area-${i}`}
+          d={segment}
+          fill="url(#teacherTrendAreaGradient)"
+          fillOpacity="0.15"
+          stroke="none"
+        />
+      ))}
+      {lineSegments.map((segment, i) => (
+        <path
+          key={`segment-${i}`}
+          d={segment}
+          fill="none"
+          stroke="#3b82f6"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+          strokeWidth="2.5"
+          vectorEffect="non-scaling-stroke"
+        />
+      ))}
       {chartPoints
         .filter((point) => point.isAbnormal)
-        .map((point) => (
-          <circle cx={point.x} cy={point.y} fill="rgba(245, 158, 11, 0.15)" key={`${point.date}-halo`} r="14" />
-        ))}
-      {chartPoints.map((point) => (
+        .map((point) =>
+          typeof point.y === "number" ? (
+            <circle cx={point.x} cy={point.y} fill="rgba(245, 158, 11, 0.15)" key={`${point.date}-halo`} r="14" />
+          ) : null,
+        )}
+      {chartPoints.map((point, index) => (
         <g className="group cursor-default" key={point.date}>
           <line
             className="teacher-trend-hover-line opacity-0 transition-opacity group-hover:opacity-100"
@@ -663,24 +721,26 @@ const MainTrendChart = ({
             x1={point.x}
             x2={point.x}
             y1={plotTop}
-            y2="140"
+            y2={plotBottom}
           />
-          <circle
-            cx={point.x}
-            cy={point.y}
-            data-tooltip={`${point.label}: ${point.value}%`}
-            fill={point.isAbnormal ? "#f59e0b" : "#3b82f6"}
-            r={point.isAbnormal ? 6 : 4}
-            stroke="#ffffff"
-            strokeWidth={point.isAbnormal ? 3 : 2.5}
-            vectorEffect="non-scaling-stroke"
-          >
-            <title>
-              {typeof point.value === "number"
-                ? `${point.label}: ${point.value}%`
-                : `${point.label} · 数据待更新`}
-            </title>
-          </circle>
+          {typeof point.y === "number" ? (
+            <circle
+              cx={point.x}
+              cy={point.y}
+              data-tooltip={`${point.label}: ${point.value}%`}
+              fill={point.isAbnormal ? "#f59e0b" : "#3b82f6"}
+              r={point.isAbnormal ? 6 : 4}
+              stroke="#ffffff"
+              strokeWidth={point.isAbnormal ? 3 : 2.5}
+              vectorEffect="non-scaling-stroke"
+            >
+              <title>
+                {typeof point.value === "number"
+                  ? `${point.label}: ${point.value}%`
+                  : `${point.label} · 数据待更新`}
+              </title>
+            </circle>
+          ) : null}
           <g className="teacher-trend-tooltip opacity-0 transition-opacity group-hover:opacity-100">
             <rect
               fill="rgba(17, 24, 39, 0.9)"
@@ -698,12 +758,14 @@ const MainTrendChart = ({
               fill="rgba(17, 24, 39, 0.9)"
             />
           </g>
-          <text fill="#9ca3af" fontSize="11" textAnchor="middle" x={point.x} y="165">
-            {point.isToday ? point.label : point.displayLabel}
-          </text>
+          {tickIndexes.includes(index) ? (
+            <text fill="#9ca3af" fontSize="11" textAnchor="middle" x={point.x} y="192">
+              {point.displayLabel}
+            </text>
+          ) : null}
           {point.isToday ? (
-            <text fill="#9ca3af" fontSize="10" textAnchor="middle" x={point.x} y="177">
-              今日
+            <text fill="#9ca3af" fontSize="10" textAnchor="middle" x={point.x} y="205">
+              {typeof point.value === "number" ? "今日" : "今日待统计"}
             </text>
           ) : null}
         </g>

@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { getSessionUser } from "@/lib/auth";
 import { parseLocalDateTime } from "@/lib/date";
-import { assertMainWorkspaceRole, hasGlobalAdminPrivileges } from "@/lib/permissions";
+import { assertMainWorkspaceRole, assertRole } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { serializeEvent } from "@/lib/api-serializers";
 import { canAccessTeamScopedResource } from "@/lib/team-scope";
@@ -22,7 +22,9 @@ export async function PATCH(
     return NextResponse.json({ message: "无权限" }, { status: 403 });
   }
 
-  if (user.role !== "teacher" && !hasGlobalAdminPrivileges(user.role)) {
+  try {
+    assertRole(user.role, ["admin", "school_admin"]);
+  } catch {
     return NextResponse.json({ message: "无权限" }, { status: 403 });
   }
 

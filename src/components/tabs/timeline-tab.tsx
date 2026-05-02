@@ -63,15 +63,16 @@ export default function TimelineTab() {
             <span className="timeline-tag">{dateLabel}</span>
             <span className="timeline-tag">{timeLabel}</span>
           </div>
-          <button
-            className="timeline-edit-button"
-            disabled={!permissions.canEditTimeline}
-            onClick={() => openEventModal(item)}
-            title={permissions.canEditTimeline ? "编辑节点" : "无权限"}
-            type="button"
-          >
-            <Pencil className="h-4 w-4" />
-          </button>
+          {permissions.canEditTimeline ? (
+            <button
+              className="timeline-edit-button"
+              onClick={() => openEventModal(item)}
+              title="编辑节点"
+              type="button"
+            >
+              <Pencil className="h-4 w-4" />
+            </button>
+          ) : null}
         </div>
         <h3 className="mt-4 text-base font-semibold text-slate-900">{item.title}</h3>
         <p className={`mt-3 flex-1 text-sm leading-7 ${item.description.trim().length > 2 ? "text-slate-500" : "text-slate-400"}`}>
@@ -136,7 +137,7 @@ export default function TimelineTab() {
       <section className={surfaceCardClassName}>
         {events.length === 0 ? (
           <div className="rounded-2xl border border-dashed border-slate-200 bg-slate-50/70 px-5 py-8 text-center text-sm text-slate-500">
-            当前还没有时间节点，请先新增比赛关键节点。
+            {permissions.canEditTimeline ? "当前还没有时间节点，请先新增比赛关键节点。" : "当前还没有时间节点。"}
           </div>
         ) : null}
 

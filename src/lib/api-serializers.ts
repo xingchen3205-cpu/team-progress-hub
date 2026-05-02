@@ -100,6 +100,11 @@ export const serializeUser = (
     | "approvedAt"
   > & {
     avatarImagePath?: string | null;
+    emailVerifiedAt?: Date | null;
+    college?: string | null;
+    className?: string | null;
+    studentId?: string | null;
+    employeeId?: string | null;
     teamGroupId?: string | null;
     approvedBy?: Pick<User, "id" | "name" | "role"> | null;
     teamGroup?: { id: string; name: string } | null;
@@ -119,6 +124,11 @@ export const serializeUser = (
   approvalStatus: user.approvalStatus,
   approvalStatusLabel: approvalStatusLabels[user.approvalStatus],
   approvedAt: user.approvedAt?.toISOString() ?? null,
+  emailVerifiedAt: user.emailVerifiedAt?.toISOString() ?? null,
+  college: user.college ?? "",
+  className: user.className ?? "",
+  studentId: user.studentId ?? "",
+  employeeId: user.employeeId ?? "",
   approvedBy: user.approvedBy
     ? {
         id: user.approvedBy.id,

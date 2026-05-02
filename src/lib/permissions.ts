@@ -52,11 +52,9 @@ export const selfRegisterableRoles: Role[] = ["teacher", "leader", "member"];
 export const getRegistrationApproverRoles = (role: Role): Role[] | null => {
   switch (role) {
     case "teacher":
-      return ["school_admin", "admin"];
     case "leader":
-      return ["teacher", "school_admin", "admin"];
     case "member":
-      return ["leader", "teacher", "school_admin", "admin"];
+      return ["school_admin", "admin"];
     default:
       return null;
   }
@@ -140,4 +138,36 @@ export const canManageUser = (
   }
 
   return true;
+};
+
+export const canDeleteUser = (actorRole: Role, targetRole: Role) => {
+  if (targetRole === "admin") {
+    return false;
+  }
+
+  if (actorRole === "admin") {
+    return true;
+  }
+
+  if (actorRole === "school_admin") {
+    return targetRole !== "school_admin";
+  }
+
+  return false;
+};
+
+export const canResetUserPassword = (actorRole: Role, targetRole: Role) => {
+  if (targetRole === "admin") {
+    return false;
+  }
+
+  if (actorRole === "admin") {
+    return true;
+  }
+
+  if (actorRole === "school_admin") {
+    return targetRole !== "school_admin";
+  }
+
+  return false;
 };

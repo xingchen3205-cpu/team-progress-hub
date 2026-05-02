@@ -6,10 +6,7 @@ import { parseLocalDateTime } from "@/lib/date";
 import { createNotifications } from "@/lib/notifications";
 import { assertMainWorkspaceRole, hasGlobalAdminPrivileges } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
-import {
-  serializeTask,
-  taskPriorityValueToDb,
-} from "@/lib/api-serializers";
+import { serializeTask } from "@/lib/api-serializers";
 import { canAssignTaskToUser, getTaskVisibilityWhere } from "@/lib/task-access";
 import { inferTaskTeamGroupId } from "@/lib/task-team-group";
 import { deriveTaskStatusFromAssignments, pickTaskDispatchRecipientIds } from "@/lib/task-workflow";
@@ -141,7 +138,6 @@ export async function POST(request: NextRequest) {
         assigneeIds?: string[];
         teamGroupId?: string;
         dueDate?: string;
-        priority?: "高优先级" | "中优先级" | "低优先级";
         notifyAssignee?: boolean;
       }
     | null;
@@ -149,11 +145,10 @@ export async function POST(request: NextRequest) {
   const title = body?.title?.trim();
   const assigneeIds = normalizeAssigneeIds(body);
   const dueDate = body?.dueDate ? parseLocalDateTime(body.dueDate) : null;
-  const priority = body?.priority ? taskPriorityValueToDb[body.priority] : null;
   const notifyAssignee = Boolean(body?.notifyAssignee);
   const requestedTeamGroupId = body?.teamGroupId?.trim() || null;
 
-  if (!title || !dueDate || !priority) {
+  if (!title || !dueDate) {
     return NextResponse.json({ message: "工单信息不完整" }, { status: 400 });
   }
 
@@ -215,7 +210,7 @@ export async function POST(request: NextRequest) {
       reviewerId,
       teamGroupId,
       dueDate,
-      priority,
+      priority: "medium",
       status: derivedStatus,
       acceptedAt: autoAcceptedIds.size > 0 ? now : null,
       assignments:

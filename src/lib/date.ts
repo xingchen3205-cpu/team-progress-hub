@@ -90,9 +90,24 @@ export const formatBeijingDateTimeInput = (value: Date | string) => {
   return `${year}-${month}-${day}T${hour}:${minute}`;
 };
 
+export const getBeijingDateInputMin = (now = new Date()) => toIsoDateKey(now);
+
+export const getBeijingDateTimeInputMin = (now = new Date()) => formatBeijingDateTimeInput(now);
+
 export const getBeijingDateTimeInputAtHour = (now = new Date(), hour = 18) => {
   const { year, month, day } = getBeijingParts(now);
   return `${year}-${month}-${day}T${String(hour).padStart(2, "0")}:00`;
+};
+
+export const getBeijingFutureDateTimeInputAtHour = (now = new Date(), hour = 18) => {
+  const target = getBeijingDateTimeInputAtHour(now, hour);
+  const targetDate = parseLocalDateTime(target);
+
+  if (targetDate && targetDate.getTime() > now.getTime()) {
+    return target;
+  }
+
+  return formatBeijingDateTimeInput(new Date(now.getTime() + 60 * 60 * 1000));
 };
 
 export const formatBeijingFriendlyDate = (value: Date | string) => {

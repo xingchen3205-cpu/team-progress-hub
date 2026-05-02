@@ -28,6 +28,8 @@ export type ReviewScreenFinalScoreOptions = {
   dropLowestCount: number;
 };
 
+export type ReviewScreenDroppedSeatReason = "highest" | "lowest" | "voided";
+
 export type ReviewScreenPhaseConfig = {
   presentationSeconds: number;
   qaSeconds: number;
@@ -89,6 +91,10 @@ export const calculateReviewScreenFinalScore = (
   const voidedSeatNos = seats
     .filter((seat) => seat.status === "voided")
     .map((seat) => seat.seatNo);
+  const voidedSeatReasons = voidedSeatNos.map((seatNo) => ({
+    seatNo,
+    reason: "voided" as ReviewScreenDroppedSeatReason,
+  }));
   const effectiveSeats = seats.filter((seat) => seat.status !== "voided");
   const waitingSeatNos = effectiveSeats
     .filter((seat) => seat.status !== "submitted" || typeof seat.totalScoreCents !== "number")
@@ -101,6 +107,8 @@ export const calculateReviewScreenFinalScore = (
       submittedSeatCount: effectiveSeats.length - waitingSeatNos.length,
       waitingSeatNos,
       droppedSeatNos: voidedSeatNos.sort((a, b) => a - b),
+      droppedSeatReasons: voidedSeatReasons.sort((a, b) => a.seatNo - b.seatNo),
+      validScoreTexts: [] as string[],
       finalScoreText: null,
       finalScoreCents: null,
     };
@@ -116,7 +124,7 @@ export const calculateReviewScreenFinalScore = (
   const requestedLowDropCount = Math.max(0, options.dropLowestCount);
   const requestedHighDropCount = Math.max(0, options.dropHighestCount);
   const requestedDropCount = requestedLowDropCount + requestedHighDropCount;
-  const canApplyDropRule = requestedDropCount > 0 && scoreRows.length > requestedDropCount;
+  const canApplyDropRule = requestedDropCount > 0 && scoreRows.length - requestedDropCount >= 2;
   const lowDropCount = canApplyDropRule ? requestedLowDropCount : 0;
   const highDropCount = canApplyDropRule ? requestedHighDropCount : 0;
   const lowDropped = scoreRows.slice(0, lowDropCount);
@@ -130,6 +138,17 @@ export const calculateReviewScreenFinalScore = (
     ...lowDropped.map((row) => row.seatNo),
     ...highDropped.map((row) => row.seatNo),
   ].sort((a, b) => a - b);
+  const droppedSeatReasons = [
+    ...voidedSeatReasons,
+    ...lowDropped.map((row) => ({
+      seatNo: row.seatNo,
+      reason: "lowest" as ReviewScreenDroppedSeatReason,
+    })),
+    ...highDropped.map((row) => ({
+      seatNo: row.seatNo,
+      reason: "highest" as ReviewScreenDroppedSeatReason,
+    })),
+  ].sort((a, b) => a.seatNo - b.seatNo);
 
   return {
     ready: true,
@@ -137,6 +156,8 @@ export const calculateReviewScreenFinalScore = (
     submittedSeatCount: effectiveSeats.length,
     waitingSeatNos: [] as number[],
     droppedSeatNos,
+    droppedSeatReasons,
+    validScoreTexts: keptRows.map((row) => formatScoreCents(row.scoreCents) ?? "0.00"),
     finalScoreText: formatScoreCents(finalScoreCents),
     finalScoreCents,
   };

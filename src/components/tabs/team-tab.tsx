@@ -12,6 +12,8 @@ export default function TeamTab() {
     setTeamRoleFilter,
     teamGroupFilter,
     setTeamGroupFilter,
+    approvalGroupDrafts,
+    setApprovalGroupDrafts,
     teamAiFilter,
     setTeamAiFilter,
     teamAccountView,
@@ -49,6 +51,7 @@ export default function TeamTab() {
     confirmBatchAiPermissionUpdate,
     canManageMember,
     canResetMemberPassword,
+    canDeleteMemberAccount,
     availableRoleOptions,
     canViewExpertAccounts,
     canViewTeamAccountIdentifiers,
@@ -190,6 +193,44 @@ const renderTeam = () => (
                         <p className="text-xs text-slate-400">账号状态</p>
                         <p className="mt-1 text-sm font-medium text-amber-700">{member.approvalStatusLabel}</p>
                       </div>
+                      <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
+                        <p className="text-xs text-slate-400">学院 / 部门</p>
+                        <p className="mt-1 text-sm font-medium text-slate-700">{member.college || "未填写"}</p>
+                      </div>
+                      <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-3">
+                        <p className="text-xs text-slate-400">{member.systemRole === "指导教师" ? "工号" : "班级 / 学号"}</p>
+                        <p className="mt-1 text-sm font-medium text-slate-700">
+                          {member.systemRole === "指导教师"
+                            ? member.employeeId || "未填写"
+                            : [member.className, member.studentId].filter(Boolean).join(" / ") || "未填写"}
+                        </p>
+                      </div>
+                      <div className="rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-3">
+                        <p className="text-xs text-emerald-600">邮箱验证</p>
+                        <p className="mt-1 text-sm font-medium text-emerald-700">
+                          {member.emailVerifiedAt ? "邮箱已验证" : "邮箱未验证"}
+                        </p>
+                      </div>
+                      <label className="rounded-lg border border-blue-100 bg-blue-50 px-3 py-3 text-sm text-slate-600">
+                        审核分组
+                        <select
+                          className="mt-2 w-full rounded-lg border border-blue-200 bg-white px-3 py-2 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                          value={approvalGroupDrafts[member.id] ?? ""}
+                          onChange={(event) =>
+                            setApprovalGroupDrafts((current) => ({
+                              ...current,
+                              [member.id]: event.target.value,
+                            }))
+                          }
+                        >
+                          <option value="">请选择项目组</option>
+                          {teamGroups.map((group) => (
+                            <option key={group.id} value={group.id}>
+                              {group.name}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
                     </div>
 
                     <div className="mt-4 flex flex-wrap gap-3">
@@ -777,10 +818,9 @@ const renderTeam = () => (
                                     <BellPlus className="h-3.5 w-3.5" />
                                   </button>
                                 ) : null}
-                                {permissions.canResetPassword ? (
+                                {canResetMemberPassword(member) ? (
                                   <button
                                     className="team-icon-button muted"
-                                    disabled={!canResetMemberPassword(member)}
                                     onClick={() => openPasswordModal(member)}
                                     title="重置密码"
                                     type="button"
@@ -788,10 +828,9 @@ const renderTeam = () => (
                                     <RotateCcw className="h-3.5 w-3.5" />
                                   </button>
                                 ) : null}
-                                {permissions.canManageTeam ? (
+                                {canDeleteMemberAccount(member) ? (
                                   <button
                                     className="team-icon-button danger"
-                                    disabled={!editable || protectedGlobalAccount}
                                     onClick={() => removeMember(member.id, member.name)}
                                     title="删除账号"
                                     type="button"
@@ -991,21 +1030,19 @@ const renderTeam = () => (
                               发送提醒
                             </ActionButton>
                           ) : null}
-                          {permissions.canResetPassword ? (
+                          {canResetMemberPassword(member) ? (
                             <ActionButton
-                              disabled={!canResetMemberPassword(member)}
                               onClick={() => openPasswordModal(member)}
-                              title="无权限"
+                              title="重置密码"
                             >
                               重置密码
                             </ActionButton>
                           ) : null}
-                          {permissions.canManageTeam ? (
+                          {canDeleteMemberAccount(member) ? (
                             <ActionButton
                               className="team-delete-button"
-                              disabled={!editable || protectedGlobalAccount}
                               onClick={() => removeMember(member.id, member.name)}
-                              title="无权限"
+                              title="删除账号"
                             >
                               删除账号
                             </ActionButton>

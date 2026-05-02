@@ -126,6 +126,14 @@ test("project material visibility where clauses are scoped", () => {
 test("project material validation rejects unsafe uploads", () => {
   assert.equal(validateProjectMaterialUploadMeta({ fileName: "deck.pdf", fileSize: 1024 }), null);
   assert.equal(
+    validateProjectMaterialUploadMeta({
+      fileName: "deck.pdf",
+      fileSize: 1024,
+      mimeType: "image/png",
+    }),
+    "项目材料文件类型与扩展名不匹配",
+  );
+  assert.equal(
     validateProjectMaterialUploadMeta({ fileName: "deck.exe", fileSize: 1024 }),
     "项目材料不支持该文件格式",
   );
@@ -468,6 +476,27 @@ test("project material approval routes preserve action-specific auth boundaries"
   assert.match(rejectRoute, /targetTab:\s*"project"/);
 });
 
+test("approved project materials can only be returned before expert assignment and upload deadline", () => {
+  const rejectRoute = readFileSync(
+    path.join(process.cwd(), "src/app/api/project-materials/[submissionId]/reject/route.ts"),
+    "utf8",
+  );
+  const projectTabSource = readFileSync(
+    path.join(process.cwd(), "src/components/tabs/project-tab.tsx"),
+    "utf8",
+  );
+
+  assert.match(rejectRoute, /submission\.status === "approved"/);
+  assert.match(rejectRoute, /hasGlobalAdminPrivileges\(user\.role\)/);
+  assert.match(rejectRoute, /上传截止时间已结束，不能退回已通过材料/);
+  assert.match(rejectRoute, /prisma\.expertReviewPackage\.findFirst/);
+  assert.match(rejectRoute, /assignments:\s*\{\s*some:\s*\{\}\s*\}/);
+  assert.match(rejectRoute, /评审已分配专家，不能退回已通过材料/);
+  assert.match(projectTabSource, /const canReturnApprovedMaterial =/);
+  assert.match(projectTabSource, /material\.status === "approved"/);
+  assert.match(projectTabSource, /退回重传/);
+});
+
 test("project material listing and submission route enforces visibility upload and notification rules", () => {
   const materialRoute = readFileSync(
     path.join(process.cwd(), "src/app/api/project-materials/route.ts"),
@@ -679,7 +708,7 @@ test("project material upload validates the selected required material kind", ()
   );
 
   assert.match(uploadRoute, /materialKind/);
-  assert.match(uploadRoute, /validateProjectMaterialUploadMeta\(\{ fileName, fileSize, materialKind \}\)/);
+  assert.match(uploadRoute, /validateProjectMaterialUploadMeta\(\{ fileName, fileSize, materialKind, mimeType \}\)/);
   assert.match(uploadRoute, /requiredMaterials/);
   assert.match(materialRoute, /materialKind/);
   assert.match(materialRoute, /payload\.materialKind === submission\.materialKind/);

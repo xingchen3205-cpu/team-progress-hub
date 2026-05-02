@@ -124,6 +124,11 @@ model User {
   approvedAt                DateTime?
   approvedById              String?
   teamGroupId               String?
+  emailVerifiedAt           DateTime?
+  college                   String?
+  className                 String?
+  studentId                 String?
+  employeeId                String?
   avatar                    String
   avatarImagePath           String?
   responsibility            String?
@@ -161,6 +166,21 @@ model User {
   projectMaterialsSubmitted ProjectMaterialSubmission[] @relation("ProjectMaterialSubmitter")
   projectMaterialsApproved  ProjectMaterialSubmission[] @relation("ProjectMaterialApprover")
   projectMaterialsRejected  ProjectMaterialSubmission[] @relation("ProjectMaterialRejecter")
+}
+
+model EmailVerificationCode {
+  id         String    @id @default(cuid())
+  email      String
+  purpose    String
+  codeHash   String
+  attempts   Int       @default(0)
+  expiresAt  DateTime
+  consumedAt DateTime?
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([email, purpose, createdAt])
+  @@index([expiresAt])
 }
 
 model AiPermission {
@@ -507,6 +527,8 @@ model ExpertReviewPackage {
   status               ExpertReviewPackageStatus   @default(configured)
   startAt              DateTime?
   deadline             DateTime?
+  dropHighestCount     Int                         @default(1)
+  dropLowestCount      Int                         @default(1)
   createdById          String
   teamGroupId          String?
   projectReviewStageId String?
@@ -628,17 +650,25 @@ model ReviewDisplaySeat {
 }
 
 model ReviewDisplayProjectOrder {
-  id             String               @id @default(cuid())
-  sessionId      String
-  packageId      String
-  orderIndex     Int
-  groupName      String?
-  groupIndex     Int                  @default(0)
-  groupSlotIndex Int                  @default(0)
-  revealedAt     DateTime?
-  createdAt      DateTime             @default(now())
-  session        ReviewDisplaySession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
-  reviewPackage  ExpertReviewPackage  @relation(fields: [packageId], references: [id], onDelete: Cascade)
+  id                 String               @id @default(cuid())
+  sessionId          String
+  packageId          String
+  orderIndex         Int
+  groupName          String?
+  groupIndex         Int                  @default(0)
+  groupSlotIndex     Int                  @default(0)
+  revealedAt         DateTime?
+  finalScoreCents    Int?
+  finalScoreText     String?
+  effectiveSeatCount Int?
+  submittedSeatCount Int?
+  droppedSeatNos     String?
+  dropHighestCount   Int?
+  dropLowestCount    Int?
+  scoreLockedAt      DateTime?
+  createdAt          DateTime             @default(now())
+  session            ReviewDisplaySession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  reviewPackage      ExpertReviewPackage  @relation(fields: [packageId], references: [id], onDelete: Cascade)
 
   @@unique([sessionId, packageId])
   @@index([sessionId, orderIndex])

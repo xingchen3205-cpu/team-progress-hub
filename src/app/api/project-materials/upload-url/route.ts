@@ -129,7 +129,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: "无权限上传项目材料" }, { status: 403 });
   }
 
-  const validationError = validateProjectMaterialUploadMeta({ fileName, fileSize, materialKind });
+  const validationError = validateProjectMaterialUploadMeta({ fileName, fileSize, materialKind, mimeType });
   if (validationError) {
     return NextResponse.json({ message: validationError }, { status: 400 });
   }

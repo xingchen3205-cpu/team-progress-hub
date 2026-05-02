@@ -1,5 +1,7 @@
 const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://xingchencxcy.com";
 
+export const systemEmailProductName = "南京铁道职业技术学院中国国际大学生创新大赛管理系统";
+
 export const buildAppUrl = (path = "/") => {
   if (/^https?:\/\//.test(path)) {
     return path;
@@ -74,7 +76,7 @@ export const renderSystemEmail = ({
           <tr>
             <td style="background:#1a3a6b;padding:20px 32px;">
               <div style="color:#ffffff;font-size:18px;font-weight:bold;letter-spacing:1px;">
-                南京铁道职业技术学院大赛管理系统
+                ${escapeHtml(systemEmailProductName)}
               </div>
               <div style="color:#a8c4e8;font-size:13px;margin-top:4px;">
                 系统工作提醒单
@@ -115,7 +117,7 @@ export const renderSystemEmail = ({
           </tr>
           <tr>
             <td style="background:#f8f9fb;border-top:1px solid #eef0f3;padding:16px 32px;text-align:center;color:#aaa;font-size:12px;">
-              本邮件由南京铁道职业技术学院大赛管理系统自动发送，请勿直接回复。
+              本邮件由${escapeHtml(systemEmailProductName)}自动发送，请勿直接回复。
             </td>
           </tr>
         </table>

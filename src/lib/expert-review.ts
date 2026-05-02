@@ -13,6 +13,7 @@ import type {
 } from "@prisma/client";
 import path from "node:path";
 
+import { isMimeTypeAllowedForFileName } from "@/lib/file-policy";
 import { roleLabels } from "@/lib/permissions";
 
 export const expertReviewCategoryCaps = {
@@ -115,14 +116,20 @@ export const validateExpertReviewMaterial = ({
   kind,
   fileName,
   fileSize,
+  mimeType,
 }: {
   kind: ExpertReviewMaterialKind;
   fileName: string;
   fileSize: number;
+  mimeType?: string | null;
 }) => {
   const extension = path.extname(fileName).toLowerCase();
   if (!expertReviewMaterialAllowedExtensions[kind].includes(extension)) {
     return `${expertReviewMaterialLabels[kind]}不支持该文件格式`;
+  }
+
+  if (!isMimeTypeAllowedForFileName(fileName, mimeType)) {
+    return `${expertReviewMaterialLabels[kind]}文件类型与扩展名不匹配`;
   }
 
   if (fileSize > expertReviewMaterialMaxSize) {
@@ -267,7 +274,7 @@ export const validateExpertReviewScores = (payload: Record<ExpertReviewScoreFiel
 export const serializeExpertReviewAssignment = (
   assignment: ExpertReviewAssignment & {
     expertUser: Pick<User, "id" | "name" | "avatar" | "role">;
-    reviewPackage: Pick<ExpertReviewPackage, "id" | "targetName" | "roundLabel" | "overview" | "status" | "startAt" | "deadline"> & {
+    reviewPackage: Pick<ExpertReviewPackage, "id" | "targetName" | "roundLabel" | "overview" | "status" | "startAt" | "deadline" | "dropHighestCount" | "dropLowestCount"> & {
       projectReviewStage?: Pick<ProjectReviewStage, "id" | "type"> | null;
       materials: Array<
         Pick<
@@ -339,6 +346,8 @@ export const serializeExpertReviewAssignment = (
     targetName: assignment.reviewPackage.targetName,
     roundLabel: assignment.reviewPackage.roundLabel ?? "当前轮次",
     overview: assignment.reviewPackage.overview ?? "",
+    dropHighestCount: assignment.reviewPackage.dropHighestCount,
+    dropLowestCount: assignment.reviewPackage.dropLowestCount,
     reviewMode,
     roadshowScreenStarted,
     startAt: assignment.reviewPackage.startAt?.toISOString() ?? null,

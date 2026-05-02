@@ -148,32 +148,35 @@ test("monthly submit rate uses actual eligible group days and rounds to integer 
 });
 
 test("student ranking follows the weighted score and last submit tiebreaker", () => {
-  const ranking = buildStudentRanking([
-    {
-      userId: "leader-1",
-      submittedDateKeys: ["2026-04-22", "2026-04-21", "2026-04-20", "2026-04-19"],
-      praiseCount: 4,
-      continuousSubmitDays: 4,
-      eligibleDaysInMonth: 4,
-      lastSubmittedAt: "2026-04-22T08:10:00+08:00",
-    },
-    {
-      userId: "member-1",
-      submittedDateKeys: ["2026-04-22", "2026-04-21", "2026-04-20"],
-      praiseCount: 4,
-      continuousSubmitDays: 3,
-      eligibleDaysInMonth: 4,
-      lastSubmittedAt: "2026-04-22T08:30:00+08:00",
-    },
-    {
-      userId: "member-2",
-      submittedDateKeys: ["2026-04-22", "2026-04-21", "2026-04-20"],
-      praiseCount: 4,
-      continuousSubmitDays: 3,
-      eligibleDaysInMonth: 4,
-      lastSubmittedAt: "2026-04-22T09:10:00+08:00",
-    },
-  ]);
+  const ranking = buildStudentRanking(
+    [
+      {
+        userId: "leader-1",
+        submittedDateKeys: ["2026-04-22", "2026-04-21", "2026-04-20", "2026-04-19"],
+        praiseCount: 4,
+        continuousSubmitDays: 4,
+        eligibleDaysInMonth: 4,
+        lastSubmittedAt: "2026-04-22T08:10:00+08:00",
+      },
+      {
+        userId: "member-1",
+        submittedDateKeys: ["2026-04-22", "2026-04-21", "2026-04-20"],
+        praiseCount: 4,
+        continuousSubmitDays: 3,
+        eligibleDaysInMonth: 4,
+        lastSubmittedAt: "2026-04-22T08:30:00+08:00",
+      },
+      {
+        userId: "member-2",
+        submittedDateKeys: ["2026-04-22", "2026-04-21", "2026-04-20"],
+        praiseCount: 4,
+        continuousSubmitDays: 3,
+        eligibleDaysInMonth: 4,
+        lastSubmittedAt: "2026-04-22T09:10:00+08:00",
+      },
+    ],
+    "2026-04",
+  );
 
   assert.deepEqual(
     ranking.map((item) => item.userId),
@@ -182,16 +185,19 @@ test("student ranking follows the weighted score and last submit tiebreaker", ()
 });
 
 test("student ranking score uses the documented raw weight formula", () => {
-  const [entry] = buildStudentRanking([
-    {
-      userId: "member-1",
-      submittedDateKeys: ["2026-04-22", "2026-04-21", "2026-04-20", "2026-04-19"],
-      praiseCount: 2,
-      continuousSubmitDays: 3,
-      eligibleDaysInMonth: 4,
-      lastSubmittedAt: "2026-04-22T08:30:00+08:00",
-    },
-  ]);
+  const [entry] = buildStudentRanking(
+    [
+      {
+        userId: "member-1",
+        submittedDateKeys: ["2026-04-22", "2026-04-21", "2026-04-20", "2026-04-19"],
+        praiseCount: 2,
+        continuousSubmitDays: 3,
+        eligibleDaysInMonth: 4,
+        lastSubmittedAt: "2026-04-22T08:30:00+08:00",
+      },
+    ],
+    "2026-04",
+  );
 
   assert.equal(entry.monthlySubmitRate, 100);
   assert.equal(entry.score, 41.4);

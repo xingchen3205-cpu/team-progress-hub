@@ -4,7 +4,9 @@ import { describe, it } from "node:test";
 import {
   assertMainWorkspaceRole,
   canApproveRegistration,
+  canDeleteUser,
   canManageUser,
+  canResetUserPassword,
   canViewTeamMember,
   roleLabels,
 } from "../src/lib/permissions";
@@ -39,6 +41,53 @@ describe("school admin permissions", () => {
     assert.equal(canApproveRegistration("school_admin", "leader"), true);
     assert.equal(canApproveRegistration("school_admin", "member"), true);
     assert.equal(canApproveRegistration("school_admin", "expert"), false);
+  });
+
+  it("keeps registration approval reserved to system and school administrators", () => {
+    assert.equal(canApproveRegistration("admin", "teacher"), true);
+    assert.equal(canApproveRegistration("admin", "leader"), true);
+    assert.equal(canApproveRegistration("admin", "member"), true);
+    assert.equal(canApproveRegistration("teacher", "leader"), false);
+    assert.equal(canApproveRegistration("teacher", "member"), false);
+    assert.equal(canApproveRegistration("leader", "member"), false);
+    assert.equal(canApproveRegistration("member", "member"), false);
+  });
+
+  it("keeps account deletion reserved to system and school administrators", () => {
+    assert.equal(canDeleteUser("admin", "school_admin"), true);
+    assert.equal(canDeleteUser("admin", "teacher"), true);
+    assert.equal(canDeleteUser("admin", "leader"), true);
+    assert.equal(canDeleteUser("admin", "member"), true);
+    assert.equal(canDeleteUser("admin", "expert"), true);
+    assert.equal(canDeleteUser("school_admin", "teacher"), true);
+    assert.equal(canDeleteUser("school_admin", "leader"), true);
+    assert.equal(canDeleteUser("school_admin", "member"), true);
+    assert.equal(canDeleteUser("school_admin", "expert"), true);
+    assert.equal(canDeleteUser("school_admin", "admin"), false);
+    assert.equal(canDeleteUser("school_admin", "school_admin"), false);
+    assert.equal(canDeleteUser("teacher", "leader"), false);
+    assert.equal(canDeleteUser("teacher", "member"), false);
+    assert.equal(canDeleteUser("leader", "member"), false);
+    assert.equal(canDeleteUser("member", "member"), false);
+  });
+
+  it("keeps account password resets reserved to system and school administrators", () => {
+    assert.equal(canResetUserPassword("admin", "school_admin"), true);
+    assert.equal(canResetUserPassword("admin", "teacher"), true);
+    assert.equal(canResetUserPassword("admin", "leader"), true);
+    assert.equal(canResetUserPassword("admin", "member"), true);
+    assert.equal(canResetUserPassword("admin", "expert"), true);
+    assert.equal(canResetUserPassword("admin", "admin"), false);
+    assert.equal(canResetUserPassword("school_admin", "teacher"), true);
+    assert.equal(canResetUserPassword("school_admin", "leader"), true);
+    assert.equal(canResetUserPassword("school_admin", "member"), true);
+    assert.equal(canResetUserPassword("school_admin", "expert"), true);
+    assert.equal(canResetUserPassword("school_admin", "admin"), false);
+    assert.equal(canResetUserPassword("school_admin", "school_admin"), false);
+    assert.equal(canResetUserPassword("teacher", "leader"), false);
+    assert.equal(canResetUserPassword("teacher", "member"), false);
+    assert.equal(canResetUserPassword("leader", "member"), false);
+    assert.equal(canResetUserPassword("member", "member"), false);
   });
 
   it("lets school administrators view approved team members globally", () => {

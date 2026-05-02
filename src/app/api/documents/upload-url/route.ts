@@ -45,6 +45,7 @@ export async function POST(request: NextRequest) {
   const validationError = validateDocumentCenterUploadMeta({
     fileName,
     fileSize,
+    mimeType,
   });
   if (validationError) {
     return NextResponse.json({ message: validationError }, { status: 400 });

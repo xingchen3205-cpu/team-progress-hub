@@ -4,6 +4,7 @@ import { getSessionUser } from "@/lib/auth";
 import { assertRole } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { calculateReviewScreenFinalScore } from "@/lib/review-screen-session";
+import { validateReviewScoreRule } from "@/lib/review-score-rules";
 
 export async function POST(
   request: NextRequest,
@@ -50,15 +51,25 @@ export async function POST(
   }
 
   const currentPackageId = session.currentPackageId ?? session.packageId;
-  const currentAssignments = await prisma.expertReviewAssignment.findMany({
-    where: { packageId: currentPackageId },
+  const currentReviewPackage = await prisma.expertReviewPackage.findUnique({
+    where: { id: currentPackageId },
     select: {
-      expertUserId: true,
-      score: { select: { totalScore: true } },
+      id: true,
+      dropHighestCount: true,
+      dropLowestCount: true,
+      assignments: {
+        select: {
+          expertUserId: true,
+          score: { select: { totalScore: true } },
+        },
+      },
     },
   });
+  if (!currentReviewPackage) {
+    return NextResponse.json({ message: "当前路演项目不存在" }, { status: 404 });
+  }
   const assignmentsByExpertId = new Map(
-    currentAssignments.map((assignment) => [assignment.expertUserId, assignment]),
+    currentReviewPackage.assignments.map((assignment) => [assignment.expertUserId, assignment]),
   );
   const currentSeats = session.seats.flatMap((seat) => {
     const assignment = assignmentsByExpertId.get(seat.expertUserId);
@@ -87,8 +98,8 @@ export async function POST(
       totalScoreCents: seat.totalScoreCents,
     })),
     {
-      dropHighestCount: session.dropHighestCount,
-      dropLowestCount: session.dropLowestCount,
+      dropHighestCount: currentReviewPackage.dropHighestCount,
+      dropLowestCount: currentReviewPackage.dropLowestCount,
     },
   );
 
@@ -99,18 +110,38 @@ export async function POST(
     );
   }
 
+  const scoreRuleError = validateReviewScoreRule({
+    expertCount: finalScore.effectiveSeatCount,
+    dropHighestCount: currentReviewPackage.dropHighestCount,
+    dropLowestCount: currentReviewPackage.dropLowestCount,
+  });
+  if (scoreRuleError) {
+    return NextResponse.json({ message: scoreRuleError }, { status: 409 });
+  }
+
   const updated = await prisma.$transaction(async (tx) => {
+    const lockedAt = new Date();
     await tx.reviewDisplayProjectOrder.updateMany({
       where: { sessionId, packageId: currentPackageId },
-      data: { revealedAt: new Date() },
+      data: {
+        revealedAt: lockedAt,
+        finalScoreCents: finalScore.finalScoreCents,
+        finalScoreText: finalScore.finalScoreText,
+        effectiveSeatCount: finalScore.effectiveSeatCount,
+        submittedSeatCount: finalScore.submittedSeatCount,
+        droppedSeatNos: JSON.stringify(finalScore.droppedSeatReasons ?? []),
+        dropHighestCount: currentReviewPackage.dropHighestCount,
+        dropLowestCount: currentReviewPackage.dropLowestCount,
+        scoreLockedAt: lockedAt,
+      },
     });
 
     return tx.reviewDisplaySession.update({
       where: { id: sessionId },
       data: {
         screenPhase: "reveal",
-        phaseStartedAt: new Date(),
-        revealStartedAt: new Date(),
+        phaseStartedAt: lockedAt,
+        revealStartedAt: lockedAt,
         status: "revealed",
       },
       select: {
@@ -131,9 +162,14 @@ export async function POST(
     },
     finalScore: {
       finalScoreText: finalScore.finalScoreText,
+      finalScoreCents: finalScore.finalScoreCents,
       effectiveSeatCount: finalScore.effectiveSeatCount,
       submittedSeatCount: finalScore.submittedSeatCount,
       droppedSeatNos: finalScore.droppedSeatNos,
+      droppedSeatReasons: finalScore.droppedSeatReasons ?? [],
+      validScoreTexts: finalScore.validScoreTexts ?? [],
+      dropHighestCount: currentReviewPackage.dropHighestCount,
+      dropLowestCount: currentReviewPackage.dropLowestCount,
     },
   });
 }

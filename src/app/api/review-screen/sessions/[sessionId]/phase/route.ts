@@ -10,6 +10,14 @@ type ValidPhase = typeof validPhases[number];
 const isValidPhase = (phase?: string): phase is ValidPhase =>
   Boolean(phase && validPhases.includes(phase as ValidPhase));
 
+const normalizeSeconds = (value: unknown, fallback: number, min: number, max: number) => {
+  const seconds = Number(value);
+  if (!Number.isFinite(seconds)) {
+    return fallback;
+  }
+  return Math.min(max, Math.max(min, Math.trunc(seconds)));
+};
+
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ sessionId: string }> },
@@ -26,7 +34,14 @@ export async function POST(
   }
 
   const { sessionId } = await params;
-  const body = (await request.json().catch(() => null)) as { phase?: string } | null;
+  const body = (await request.json().catch(() => null)) as
+    | {
+        phase?: string;
+        presentationSeconds?: unknown;
+        qaSeconds?: unknown;
+        scoringSeconds?: unknown;
+      }
+    | null;
   const phase = body?.phase?.trim();
 
   if (!isValidPhase(phase)) {
@@ -41,6 +56,9 @@ export async function POST(
       currentPackageId: true,
       packageId: true,
       screenPhase: true,
+      presentationSeconds: true,
+      qaSeconds: true,
+      scoringSeconds: true,
     },
   });
 
@@ -69,6 +87,9 @@ export async function POST(
     data: {
       screenPhase: phase,
       phaseStartedAt: new Date(),
+      presentationSeconds: normalizeSeconds(body?.presentationSeconds, session.presentationSeconds ?? 480, 60, 1800),
+      qaSeconds: normalizeSeconds(body?.qaSeconds, session.qaSeconds ?? 420, 60, 1800),
+      scoringSeconds: normalizeSeconds(body?.scoringSeconds, session.scoringSeconds ?? 60, 10, 600),
       ...(phase === "scoring" ? { status: "scoring", startedAt: new Date() } : {}),
       ...(phase === "finished" ? { status: "closed", endedAt: new Date() } : {}),
     },

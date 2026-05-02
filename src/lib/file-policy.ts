@@ -54,13 +54,49 @@ export const isDocumentArchiveExtension = (fileName: string) =>
     getFileExtension(fileName) as (typeof documentArchiveExtensions)[number],
   );
 
+const allowedMimeTypesByExtension: Record<string, string[]> = {
+  ".doc": ["application/msword"],
+  ".docx": ["application/vnd.openxmlformats-officedocument.wordprocessingml.document"],
+  ".pdf": ["application/pdf"],
+  ".xls": ["application/vnd.ms-excel"],
+  ".xlsx": ["application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"],
+  ".txt": ["text/plain"],
+  ".jpg": ["image/jpeg"],
+  ".jpeg": ["image/jpeg"],
+  ".png": ["image/png"],
+  ".zip": ["application/zip", "application/x-zip-compressed"],
+  ".rar": ["application/vnd.rar", "application/x-rar", "application/x-rar-compressed"],
+  ".7z": ["application/x-7z-compressed"],
+  ".mp4": ["video/mp4"],
+  ".mov": ["video/quicktime"],
+  ".avi": ["video/x-msvideo", "video/avi"],
+};
+
+const browserFallbackMimeTypes = new Set(["", "application/octet-stream"]);
+
+export const isMimeTypeAllowedForFileName = (fileName: string, mimeType?: string | null) => {
+  const normalizedMimeType = mimeType?.split(";")[0]?.trim().toLowerCase() ?? "";
+  if (browserFallbackMimeTypes.has(normalizedMimeType)) {
+    return true;
+  }
+
+  const allowedMimeTypes = allowedMimeTypesByExtension[getFileExtension(fileName)];
+  if (!allowedMimeTypes) {
+    return true;
+  }
+
+  return allowedMimeTypes.includes(normalizedMimeType);
+};
+
 export const validateUploadMeta = (
   {
     fileName,
     fileSize,
+    mimeType,
   }: {
     fileName: string;
     fileSize: number;
+    mimeType?: string | null;
   },
   options: {
     allowArchives?: boolean;
@@ -80,6 +116,10 @@ export const validateUploadMeta = (
     return "不支持该文件格式";
   }
 
+  if (!isMimeTypeAllowedForFileName(fileName, mimeType)) {
+    return "文件类型与扩展名不匹配";
+  }
+
   if (fileSize > maxSizeBytes) {
     return `文件大小不能超过 ${maxSizeLabel}`;
   }
@@ -87,7 +127,11 @@ export const validateUploadMeta = (
   return null;
 };
 
-export const validateDocumentCenterUploadMeta = (meta: { fileName: string; fileSize: number }) =>
+export const validateDocumentCenterUploadMeta = (meta: {
+  fileName: string;
+  fileSize: number;
+  mimeType?: string | null;
+}) =>
   validateUploadMeta(meta, {
     allowArchives: true,
     maxSizeBytes: MAX_DOCUMENT_CENTER_UPLOAD_SIZE,

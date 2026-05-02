@@ -20,6 +20,8 @@ export async function POST(
   }
 
   const { sessionId } = await params;
+  const body = (await request.json().catch(() => null)) as { packageId?: string } | null;
+  const targetPackageId = body?.packageId?.trim() || null;
   const session = await prisma.reviewDisplaySession.findUnique({
     where: { id: sessionId },
     include: {
@@ -59,9 +61,15 @@ export async function POST(
   const currentIndex = session.projectOrders.findIndex(
     (o: { packageId: string }) => o.packageId === session.currentPackageId,
   );
-  const nextIndex = currentIndex + 1;
+  const targetIndex = targetPackageId
+    ? session.projectOrders.findIndex((o: { packageId: string }) => o.packageId === targetPackageId)
+    : currentIndex + 1;
 
-  if (nextIndex >= session.projectOrders.length) {
+  if (targetPackageId && targetIndex < 0) {
+    return NextResponse.json({ message: "项目不在本轮路演顺序中" }, { status: 400 });
+  }
+
+  if (targetIndex >= session.projectOrders.length) {
     const updated = await prisma.reviewDisplaySession.update({
       where: { id: sessionId },
       data: {
@@ -86,7 +94,7 @@ export async function POST(
     });
   }
 
-  const nextPackage = session.projectOrders[nextIndex];
+  const nextPackage = session.projectOrders[targetIndex];
 
   const updated = await prisma.$transaction(async (tx) => {
     const assignmentByExpertId = new Map(

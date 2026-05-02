@@ -5,6 +5,7 @@ import { signAuthToken, setAuthCookie } from "@/lib/auth";
 import { CAPTCHA_COOKIE_NAME, clearCaptchaCookie, verifyCaptchaChallenge } from "@/lib/captcha";
 import { prisma } from "@/lib/prisma";
 import { serializeUser } from "@/lib/api-serializers";
+import { applyRateLimitHeaders, authRateLimits, checkRateLimit } from "@/lib/security";
 
 const jsonWithClearedCaptcha = (body: unknown, init?: ResponseInit) => {
   const response = NextResponse.json(body, init);
@@ -13,6 +14,16 @@ const jsonWithClearedCaptcha = (body: unknown, init?: ResponseInit) => {
 };
 
 export async function POST(request: NextRequest) {
+  const ipLimit = checkRateLimit(request, authRateLimits.loginIp);
+  if (!ipLimit.allowed) {
+    const response = applyRateLimitHeaders(
+      NextResponse.json({ message: "登录尝试过于频繁，请稍后再试" }, { status: 429 }),
+      ipLimit,
+    );
+    clearCaptchaCookie(response);
+    return response;
+  }
+
   const body = (await request.json().catch(() => null)) as
     | {
         email?: string;
@@ -25,6 +36,18 @@ export async function POST(request: NextRequest) {
   const account = body?.email?.trim() || body?.username?.trim();
   const password = body?.password?.trim();
   const captcha = body?.captcha?.trim();
+
+  if (account) {
+    const accountLimit = checkRateLimit(request, authRateLimits.loginAccount, account);
+    if (!accountLimit.allowed) {
+      const response = applyRateLimitHeaders(
+        NextResponse.json({ message: "该账号登录尝试过于频繁，请稍后再试" }, { status: 429 }),
+        accountLimit,
+      );
+      clearCaptchaCookie(response);
+      return response;
+    }
+  }
 
   if (!account || !password || !captcha) {
     return jsonWithClearedCaptcha(

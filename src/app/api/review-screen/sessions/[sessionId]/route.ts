@@ -4,6 +4,7 @@ import { prisma } from "@/lib/prisma";
 import {
   buildAnonymousReviewScreenSeats,
   calculateReviewScreenFinalScore,
+  formatScoreCents,
   getPhaseLabel,
   getPhaseRemainingSeconds,
   getReviewScreenTimelineState,
@@ -11,6 +12,21 @@ import {
   type ReviewScreenPhase,
   type ReviewScreenSeatStatus,
 } from "@/lib/review-screen-session";
+
+const parseDroppedSeatReasons = (value?: string | null): Array<{ seatNo: number; reason: string }> => {
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value) as Array<{ seatNo?: unknown; reason?: unknown }>;
+    if (!Array.isArray(parsed)) return [];
+    return parsed.flatMap((item) =>
+      typeof item.seatNo === "number" && typeof item.reason === "string"
+        ? [{ seatNo: item.seatNo, reason: item.reason }]
+        : [],
+    );
+  } catch {
+    return [];
+  }
+};
 
 export async function GET(
   request: NextRequest,
@@ -36,6 +52,8 @@ export async function GET(
           status: true,
           startAt: true,
           deadline: true,
+          dropHighestCount: true,
+          dropLowestCount: true,
           assignments: {
             orderBy: [{ createdAt: "asc" }, { id: "asc" }],
             select: {
@@ -72,6 +90,14 @@ export async function GET(
           groupIndex: true,
           groupSlotIndex: true,
           revealedAt: true,
+          finalScoreCents: true,
+          finalScoreText: true,
+          effectiveSeatCount: true,
+          submittedSeatCount: true,
+          droppedSeatNos: true,
+          dropHighestCount: true,
+          dropLowestCount: true,
+          scoreLockedAt: true,
           reviewPackage: {
             select: {
               id: true,
@@ -82,6 +108,8 @@ export async function GET(
               status: true,
               startAt: true,
               deadline: true,
+              dropHighestCount: true,
+              dropLowestCount: true,
               assignments: {
                 orderBy: [{ createdAt: "asc" }, { id: "asc" }],
                 select: {
@@ -143,6 +171,8 @@ export async function GET(
             status: true,
             startAt: true,
             deadline: true,
+            dropHighestCount: true,
+            dropLowestCount: true,
             assignments: {
               orderBy: [{ createdAt: "asc" }, { id: "asc" }],
               select: {
@@ -157,8 +187,12 @@ export async function GET(
               },
             },
           },
-        })
+      })
       : [session.reviewPackage];
+
+  const projectOrderRowsByPackageId = new Map(
+    (session.projectOrders ?? []).map((order) => [order.packageId, order]),
+  );
 
   const projectResults = projectOrderPackages.map((projectPackage) => {
     const assignmentsByExpertId = new Map(
@@ -188,17 +222,46 @@ export async function GET(
       ];
     });
 
-    const finalScore = calculateReviewScreenFinalScore(
+    const liveFinalScore = calculateReviewScreenFinalScore(
       projectSeats.map((seat, index: number) => ({
         seatNo: index + 1,
         status: seat.status,
         totalScoreCents: seat.totalScoreCents,
       })),
       {
-        dropHighestCount: session.dropHighestCount,
-        dropLowestCount: session.dropLowestCount,
+        dropHighestCount: projectPackage.dropHighestCount,
+        dropLowestCount: projectPackage.dropLowestCount,
       },
     );
+    const lockedOrder = projectOrderRowsByPackageId.get(projectPackage.id);
+    const droppedSeatReasons = parseDroppedSeatReasons(lockedOrder?.droppedSeatNos);
+    const lockedFinalScore =
+      typeof lockedOrder?.finalScoreCents === "number" && lockedOrder.scoreLockedAt
+        ? {
+            ready: true,
+            effectiveSeatCount: lockedOrder.effectiveSeatCount ?? liveFinalScore.effectiveSeatCount,
+            submittedSeatCount: lockedOrder.submittedSeatCount ?? liveFinalScore.submittedSeatCount,
+            waitingSeatNos: [] as number[],
+            droppedSeatNos: droppedSeatReasons.length
+              ? droppedSeatReasons.map((item) => item.seatNo).sort((a, b) => a - b)
+              : liveFinalScore.droppedSeatNos,
+            droppedSeatReasons,
+            validScoreTexts: liveFinalScore.validScoreTexts ?? [],
+            finalScoreText: lockedOrder.finalScoreText ?? formatScoreCents(lockedOrder.finalScoreCents),
+            finalScoreCents: lockedOrder.finalScoreCents,
+            dropHighestCount: lockedOrder.dropHighestCount ?? projectPackage.dropHighestCount,
+            dropLowestCount: lockedOrder.dropLowestCount ?? projectPackage.dropLowestCount,
+            scoreLockedAt: lockedOrder.scoreLockedAt.toISOString(),
+          }
+        : {
+            ...liveFinalScore,
+            ready: false,
+            finalScoreText: null,
+            finalScoreCents: null,
+            dropHighestCount: projectPackage.dropHighestCount,
+            dropLowestCount: projectPackage.dropLowestCount,
+            scoreLockedAt: null,
+          };
 
     return {
       reviewPackage: {
@@ -217,7 +280,7 @@ export async function GET(
           totalScoreCents: seat.totalScoreCents,
         })),
       ),
-      finalScore,
+      finalScore: lockedFinalScore,
     };
   });
 
@@ -236,8 +299,8 @@ export async function GET(
     calculateReviewScreenFinalScore(
       [],
       {
-        dropHighestCount: session.dropHighestCount,
-        dropLowestCount: session.dropLowestCount,
+        dropHighestCount: session.reviewPackage.dropHighestCount,
+        dropLowestCount: session.reviewPackage.dropLowestCount,
       },
     );
 
@@ -284,6 +347,11 @@ export async function GET(
         submittedSeatCount: project.finalScore.submittedSeatCount,
         waitingSeatNos: project.finalScore.waitingSeatNos,
         droppedSeatNos: project.finalScore.droppedSeatNos,
+        droppedSeatReasons: project.finalScore.droppedSeatReasons ?? [],
+        validScoreTexts: project.finalScore.validScoreTexts ?? [],
+        dropHighestCount: project.finalScore.dropHighestCount,
+        dropLowestCount: project.finalScore.dropLowestCount,
+        scoreLockedAt: null,
       },
     };
   });
@@ -296,14 +364,10 @@ export async function GET(
     calculateReviewScreenFinalScore(
       [],
       {
-        dropHighestCount: session.dropHighestCount,
-        dropLowestCount: session.dropLowestCount,
+        dropHighestCount: session.reviewPackage.dropHighestCount,
+        dropLowestCount: session.reviewPackage.dropLowestCount,
       },
     );
-
-  const projectOrderRowsByPackageId = new Map(
-    (session.projectOrders ?? []).map((order) => [order.packageId, order]),
-  );
   const projectOrder = projectOrderPackages.map((projectPackage, index) => {
     const order = projectOrderRowsByPackageId.get(projectPackage.id);
     return {
@@ -333,8 +397,8 @@ export async function GET(
       presentationSeconds: session.presentationSeconds ?? 480,
       qaSeconds: session.qaSeconds ?? 420,
       scoringSeconds: session.scoringSeconds ?? session.countdownSeconds ?? 60,
-      dropHighestCount: session.dropHighestCount,
-      dropLowestCount: session.dropLowestCount,
+      dropHighestCount: session.reviewPackage.dropHighestCount,
+      dropLowestCount: session.reviewPackage.dropLowestCount,
       startedAt: session.startedAt?.toISOString() ?? null,
       phaseStartedAt: session.phaseStartedAt?.toISOString() ?? null,
       revealStartedAt: session.revealStartedAt?.toISOString() ?? null,

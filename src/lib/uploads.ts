@@ -99,11 +99,12 @@ export async function saveUploadedFile({
   file: File;
   category?: DocumentCategory;
   folder?: string;
-  validator?: (meta: { fileName: string; fileSize: number }) => string | null;
+  validator?: (meta: { fileName: string; fileSize: number; mimeType?: string | null }) => string | null;
 }) {
   const validationError = (validator ?? validateUploadMeta)({
     fileName: file.name,
     fileSize: file.size,
+    mimeType: file.type || "application/octet-stream",
   });
 
   if (validationError) {

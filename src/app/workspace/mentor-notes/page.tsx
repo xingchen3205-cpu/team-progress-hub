@@ -1,6 +1,9 @@
 import Link from "next/link";
+import { toIsoDateKey } from "@/lib/date";
 
 export default function MentorNotesPage() {
+  const today = toIsoDateKey(new Date());
+
   return (
     <main className="min-h-screen bg-[linear-gradient(180deg,#ebf0f6_0%,#f5f8fb_24%,#eef3f8_100%)] px-4 py-4 md:px-6 md:py-6">
       <div className="mx-auto max-w-5xl space-y-4">
@@ -28,7 +31,9 @@ export default function MentorNotesPage() {
                 <span className="text-sm font-medium text-[var(--color-muted)]">会议日期</span>
                 <input
                   className="mt-2 h-13 w-full rounded-[18px] border border-[var(--color-line)] bg-white px-4 outline-none"
-                  defaultValue="2026-03-28"
+                  defaultValue={today}
+                  min={today}
+                  type="date"
                   readOnly
                 />
               </label>

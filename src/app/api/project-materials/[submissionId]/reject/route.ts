@@ -4,6 +4,7 @@ import { getSessionUser } from "@/lib/auth";
 import { serializeProjectMaterialSubmission } from "@/lib/api-serializers";
 import { createNotifications } from "@/lib/notifications";
 import { canReviewProjectMaterial } from "@/lib/project-materials";
+import { hasGlobalAdminPrivileges } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
 export const runtime = "nodejs";
@@ -75,17 +76,39 @@ export async function POST(
     return NextResponse.json({ message: "项目材料不存在" }, { status: 404 });
   }
 
-  if (
-    !canReviewProjectMaterial({
-      role: user.role,
-      actorTeamGroupId: user.teamGroupId,
-      materialTeamGroupId: submission.teamGroupId,
-    })
-  ) {
-    return NextResponse.json({ message: "无权限驳回项目材料" }, { status: 403 });
-  }
+  if (submission.status === "pending") {
+    if (
+      !canReviewProjectMaterial({
+        role: user.role,
+        actorTeamGroupId: user.teamGroupId,
+        materialTeamGroupId: submission.teamGroupId,
+      })
+    ) {
+      return NextResponse.json({ message: "无权限驳回项目材料" }, { status: 403 });
+    }
+  } else if (submission.status === "approved") {
+    if (!hasGlobalAdminPrivileges(user.role)) {
+      return NextResponse.json({ message: "仅管理员可以退回已通过材料" }, { status: 403 });
+    }
 
-  if (submission.status !== "pending") {
+    if (submission.stage.deadline && submission.stage.deadline.getTime() < Date.now()) {
+      return NextResponse.json({ message: "上传截止时间已结束，不能退回已通过材料" }, { status: 409 });
+    }
+
+    const assignedReviewPackage = await prisma.expertReviewPackage.findFirst({
+      where: {
+        projectReviewStageId: submission.stageId,
+        teamGroupId: submission.teamGroupId,
+        status: { in: ["configured", "archived"] },
+        assignments: { some: {} },
+      },
+      select: { id: true },
+    });
+
+    if (assignedReviewPackage) {
+      return NextResponse.json({ message: "评审已分配专家，不能退回已通过材料" }, { status: 409 });
+    }
+  } else {
     return NextResponse.json({ message: "该材料已处理，不能重复驳回" }, { status: 409 });
   }
 

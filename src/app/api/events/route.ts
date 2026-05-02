@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    assertRole(user.role, ["admin", "school_admin", "teacher"]);
+    assertRole(user.role, ["admin", "school_admin"]);
   } catch {
     return NextResponse.json({ message: "无权限" }, { status: 403 });
   }

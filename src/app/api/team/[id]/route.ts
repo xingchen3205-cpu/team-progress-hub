@@ -3,9 +3,18 @@ import { NextRequest, NextResponse } from "next/server";
 import { validateUsername } from "@/lib/account-policy";
 import { getSessionUser } from "@/lib/auth";
 import {
+  buildAppUrl,
+  isEmailConfigured,
+  renderSystemEmail,
+  sendEmail,
+  systemEmailProductName,
+} from "@/lib/email";
+import {
   assertMainWorkspaceRole,
   canApproveRegistration,
+  canDeleteUser,
   canManageUser,
+  canResetUserPassword,
   hasGlobalAdminPrivileges,
 } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
@@ -80,10 +89,27 @@ export async function PATCH(
       return NextResponse.json({ message: "无权限审核该账号" }, { status: 403 });
     }
 
+    const approvalTeamGroupId = body?.teamGroupId?.trim();
+    if (teamGroupAssignableRoles.has(target.role) && !approvalTeamGroupId) {
+      return NextResponse.json({ message: "审核通过前请选择项目组" }, { status: 400 });
+    }
+
+    const approvalTeamGroup = approvalTeamGroupId
+      ? await prisma.teamGroup.findUnique({
+          where: { id: approvalTeamGroupId },
+          select: { id: true },
+        })
+      : null;
+
+    if (approvalTeamGroupId && !approvalTeamGroup) {
+      return NextResponse.json({ message: "分组不存在" }, { status: 404 });
+    }
+
     const member = await prisma.user.update({
       where: { id },
       data: {
         approvalStatus: "approved",
+        teamGroupId: teamGroupAssignableRoles.has(target.role) ? approvalTeamGroup?.id : null,
         approvedAt: new Date(),
         approvedById: user.id,
       },
@@ -98,6 +124,11 @@ export async function PATCH(
         responsibility: true,
         approvalStatus: true,
         approvedAt: true,
+        emailVerifiedAt: true,
+        college: true,
+        className: true,
+        studentId: true,
+        employeeId: true,
         createdAt: true,
         teamGroup: {
           select: {
@@ -108,11 +139,34 @@ export async function PATCH(
       },
     });
 
+    if (member.email && isEmailConfigured()) {
+      try {
+        await sendEmail({
+          to: member.email,
+          subject: "账号审核已通过",
+          html: renderSystemEmail({
+            title: "账号审核已通过",
+            detail: `你的账号注册申请已审核通过，现可使用账号名和密码登录${systemEmailProductName}。`,
+            actionUrl: buildAppUrl("/login"),
+            actionLabel: "立即登录",
+            recipientName: member.name,
+            noticeType: "注册账号",
+          }),
+        });
+      } catch (error) {
+        console.error("Registration approval email failed", error);
+      }
+    }
+
     return NextResponse.json({ member: serializeUser(member) });
   }
 
   if (target.approvalStatus === "pending") {
     return NextResponse.json({ message: "待审核账号请先审核通过或删除" }, { status: 400 });
+  }
+
+  if (body?.password?.trim() && !canResetUserPassword(user.role, target.role)) {
+    return NextResponse.json({ message: "仅管理员可以重置账号密码" }, { status: 403 });
   }
 
   if (target.role === "admin" && nextRole !== "admin") {
@@ -210,6 +264,11 @@ export async function PATCH(
       responsibility: true,
       approvalStatus: true,
       approvedAt: true,
+      emailVerifiedAt: true,
+      college: true,
+      className: true,
+      studentId: true,
+      employeeId: true,
       createdAt: true,
       teamGroup: {
         select: {
@@ -244,15 +303,11 @@ export async function DELETE(
     return NextResponse.json({ message: "成员不存在" }, { status: 404 });
   }
 
-  if (!canManageUser(user.role, target.role)) {
-    return NextResponse.json({ message: "无权限" }, { status: 403 });
+  if (!canDeleteUser(user.role, target.role)) {
+    return NextResponse.json({ message: "无权限删除该账号" }, { status: 403 });
   }
 
   if (target.approvalStatus === "pending") {
-    if (!canApproveRegistration(user.role, target.role)) {
-      return NextResponse.json({ message: "无权限删除该待审核账号" }, { status: 403 });
-    }
-
     await prisma.user.delete({
       where: {
         id: target.id,

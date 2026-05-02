@@ -28,6 +28,8 @@ const assignmentInclude = {
       status: true,
       startAt: true,
       deadline: true,
+      dropHighestCount: true,
+      dropLowestCount: true,
       projectReviewStage: {
         select: {
           id: true,

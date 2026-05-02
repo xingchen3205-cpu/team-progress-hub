@@ -7,6 +7,7 @@ import {
 } from "@/lib/expert-review";
 import { assertRole } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import { normalizeReviewScoreRuleCount, validateReviewScoreRule } from "@/lib/review-score-rules";
 import { canAccessTeamScopedResource } from "@/lib/team-scope";
 
 const assignmentInclude = {
@@ -27,6 +28,8 @@ const assignmentInclude = {
       status: true,
       startAt: true,
       deadline: true,
+      dropHighestCount: true,
+      dropLowestCount: true,
       projectReviewStage: {
         select: {
           id: true,
@@ -101,6 +104,8 @@ export async function PATCH(
         overview?: string;
         startAt?: string | null;
         deadline?: string | null;
+        dropHighestCount?: number;
+        dropLowestCount?: number;
       }
     | null;
 
@@ -199,6 +204,23 @@ export async function PATCH(
     return NextResponse.json({ message: "请选择有效的评审专家账号" }, { status: 400 });
   }
 
+  const dropHighestCount = normalizeReviewScoreRuleCount(
+    body?.dropHighestCount,
+    assignment.reviewPackage.dropHighestCount,
+  );
+  const dropLowestCount = normalizeReviewScoreRuleCount(
+    body?.dropLowestCount,
+    assignment.reviewPackage.dropLowestCount,
+  );
+  const scoreRuleError = validateReviewScoreRule({
+    expertCount: expertUserIds.length,
+    dropHighestCount,
+    dropLowestCount,
+  });
+  if (scoreRuleError) {
+    return NextResponse.json({ message: scoreRuleError }, { status: 400 });
+  }
+
   const assignmentsToRemove = assignment.reviewPackage.assignments.filter(
     (item) => !expertUserIds.includes(item.expertUserId),
   );
@@ -218,6 +240,8 @@ export async function PATCH(
         roundLabel: body?.roundLabel?.trim() || null,
         overview: body?.overview?.trim() || null,
         status: "configured",
+        dropHighestCount,
+        dropLowestCount,
         ...(parsedStartAt !== undefined ? { startAt: parsedStartAt } : {}),
         ...(parsedDeadline !== undefined ? { deadline: parsedDeadline } : {}),
       },

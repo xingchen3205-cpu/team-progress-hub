@@ -33,7 +33,11 @@ const initialRegisterValues = {
   name: "",
   username: "",
   email: "",
+  emailCode: "",
   password: "",
+  college: "",
+  className: "",
+  studentId: "",
 };
 
 const initialForgotValues = {
@@ -76,9 +80,10 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
   const [registerValues, setRegisterValues] = useState(initialRegisterValues);
   const [forgotValues, setForgotValues] = useState(initialForgotValues);
   const [resetValues, setResetValues] = useState(initialResetValues);
-  const [isCheckingSession, setIsCheckingSession] = useState(true);
+  const [sessionCheckPending, setSessionCheckPending] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [captchaVersion, setCaptchaVersion] = useState(() => Date.now());
+  const [captchaError, setCaptchaError] = useState(false);
   const [loginErrors, setLoginErrors] = useState<{
     username?: string;
     password?: string;
@@ -90,7 +95,11 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
     name?: string;
     username?: string;
     email?: string;
+    emailCode?: string;
     password?: string;
+    college?: string;
+    className?: string;
+    studentId?: string;
     submit?: string;
   }>({});
   const [forgotErrors, setForgotErrors] = useState<{
@@ -104,6 +113,9 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
   }>({});
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSendingRegisterEmailCode, setIsSendingRegisterEmailCode] = useState(false);
+
+  const isStudentRegisterRole = registerValues.role === "项目负责人" || registerValues.role === "团队成员";
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -124,12 +136,22 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
 
   useEffect(() => {
     let isMounted = true;
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
 
     const checkSession = async () => {
+      if (!isMounted) return;
+      setSessionCheckPending(true);
+
       try {
+        const controller = new AbortController();
+        timeoutId = setTimeout(() => controller.abort(), 1200);
+
         const response = await fetch("/api/auth/me", {
           cache: "no-store",
+          signal: controller.signal,
         });
+
+        clearTimeout(timeoutId);
 
         if (response.ok && isMounted) {
           router.replace("/workspace");
@@ -139,7 +161,10 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
         // Ignore bootstrap check failures and keep user on login page.
       } finally {
         if (isMounted) {
-          setIsCheckingSession(false);
+          setSessionCheckPending(false);
+        }
+        if (timeoutId) {
+          clearTimeout(timeoutId);
         }
       }
     };
@@ -148,6 +173,9 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
 
     return () => {
       isMounted = false;
+      if (timeoutId) {
+        clearTimeout(timeoutId);
+      }
     };
   }, [router]);
 
@@ -181,6 +209,7 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
 
   const refreshCaptcha = () => {
     setCaptchaVersion(Date.now());
+    setCaptchaError(false);
     setLoginValues((current) => ({ ...current, captcha: "" }));
   };
 
@@ -304,25 +333,78 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
     }
   };
 
+  const sendRegisterEmailCode = async () => {
+    const email = registerValues.email.trim();
+    const emailError = validateRequiredEmail(email) ?? undefined;
+    if (emailError) {
+      setRegisterErrors((current) => ({ ...current, email: emailError, submit: undefined }));
+      return;
+    }
+
+    setIsSendingRegisterEmailCode(true);
+    setRegisterErrors((current) => ({ ...current, email: undefined, submit: undefined }));
+    try {
+      const response = await fetch("/api/auth/register/email-code", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email }),
+      });
+      const payload = (await response.json().catch(() => null)) as { message?: string } | null;
+      if (!response.ok) {
+        setRegisterErrors((current) => ({
+          ...current,
+          email: payload?.message || "验证码发送失败，请稍后重试。",
+        }));
+        return;
+      }
+
+      setSuccessMessage(payload?.message || "验证码已发送，请前往邮箱查收。");
+    } catch {
+      setRegisterErrors((current) => ({
+        ...current,
+        email: "验证码发送失败，请稍后重试。",
+      }));
+    } finally {
+      setIsSendingRegisterEmailCode(false);
+    }
+  };
+
   const handleRegisterSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    const studentRole = registerValues.role === "项目负责人" || registerValues.role === "团队成员";
 
     const nextErrors = {
       role: registerValues.role ? undefined : "请选择身份",
       name: registerValues.name.trim() ? undefined : "请输入姓名",
       username: validateUsername(registerValues.username.trim()) ?? undefined,
       email: validateRequiredEmail(registerValues.email.trim()) ?? undefined,
+      emailCode: registerValues.emailCode.trim() ? undefined : "请输入邮箱验证码",
       password: registerValues.password.trim()
         ? registerValues.password.trim().length >= 6
           ? undefined
           : "密码至少需要 6 位"
         : "请输入密码",
+      college: registerValues.college.trim() ? undefined : "请输入所属学院或部门",
+      className: studentRole && !registerValues.className.trim() ? "请输入专业班级" : undefined,
+      studentId: studentRole && !registerValues.studentId.trim() ? "请输入学号" : undefined,
       submit: undefined,
     };
 
     setRegisterErrors(nextErrors);
 
-    if (nextErrors.role || nextErrors.name || nextErrors.username || nextErrors.email || nextErrors.password) {
+    if (
+      nextErrors.role ||
+      nextErrors.name ||
+      nextErrors.username ||
+      nextErrors.email ||
+      nextErrors.emailCode ||
+      nextErrors.password ||
+      nextErrors.college ||
+      nextErrors.className ||
+      nextErrors.studentId
+    ) {
       return;
     }
 
@@ -338,7 +420,11 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
           name: registerValues.name.trim(),
           username: registerValues.username.trim(),
           email: registerValues.email.trim(),
+          emailCode: registerValues.emailCode.trim(),
           password: registerValues.password.trim(),
+          college: registerValues.college.trim(),
+          className: registerValues.className.trim(),
+          studentId: registerValues.studentId.trim(),
         }),
       });
 
@@ -432,29 +518,14 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
 
   const currentCopy = modeCopy[mode];
 
-  if (isCheckingSession) {
-    return (
-      <main className="flex min-h-screen items-center justify-center bg-[#f3f6fb] px-4 py-6">
-        <div className="w-full max-w-md rounded-[24px] bg-white px-6 py-7 text-center shadow-[0_10px_30px_rgba(20,55,120,0.08)]">
-          <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl bg-[#eef4ff] text-[#1d5cff]">
-            <Loader2 className="h-6 w-6 animate-spin" />
-          </div>
-          <p className="mt-4 text-base font-semibold text-[#16305c]">正在进入系统</p>
-          <p className="mt-2 text-sm leading-6 text-[#8a96a8]">正在检查登录状态，请稍候片刻。</p>
-        </div>
-      </main>
-    );
-  }
-
   return (
     <main className="min-h-screen bg-white text-[#16305c]">
-      <div className="login-shell min-h-screen overflow-hidden bg-white shadow-[0_18px_60px_rgba(15,23,42,0.08)] lg:grid lg:grid-cols-[55fr_45fr]">
+      <div className="login-shell min-h-screen overflow-hidden bg-white shadow-[0_18px_60px_rgba(15,23,42,0.08)] lg:grid lg:min-w-[1200px] lg:grid-cols-[55fr_45fr]">
         <section className="login-visual-panel relative min-h-[46vh] overflow-hidden lg:min-h-screen">
           <Image
             alt="南京铁道职业技术学院校园背景"
             className="object-cover object-center"
             fill
-            priority
             sizes="(min-width: 1024px) 55vw, 100vw"
             src="/login-campus.jpg"
           />
@@ -467,7 +538,7 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
           <div className="absolute inset-x-0 bottom-[14%] h-px rotate-[-8deg] bg-[linear-gradient(100deg,transparent_0%,rgba(255,255,255,0.14)_36%,rgba(96,211,255,0.46)_55%,transparent_76%)]" />
           <div className="absolute right-[17%] bottom-[10%] h-2 w-2 rounded-full bg-cyan-100 shadow-[0_0_30px_12px_rgba(96,211,255,0.46)]" />
 
-          <div className="relative z-10 flex min-h-[46vh] flex-col px-8 py-8 sm:px-12 lg:min-h-screen lg:px-16 lg:py-12 xl:px-20">
+          <div className="relative z-10 flex min-h-[46vh] flex-col px-5 py-8 sm:px-12 lg:min-h-screen lg:px-16 lg:py-12 xl:px-20">
             <div className="flex items-center">
               <Image
                 alt="南京铁道职业技术学院"
@@ -483,22 +554,22 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
             </div>
 
             <div className="flex flex-1 items-center justify-center text-center">
-              <div className="mx-auto max-w-[48rem] pb-8 pt-12 lg:pb-0 lg:pt-0">
-                <h1 className="text-[2.35rem] font-extrabold leading-[1.18] tracking-[0.025em] text-white drop-shadow-[0_16px_34px_rgba(0,0,0,0.34)] sm:text-[3.25rem] xl:text-[4.05rem]">
-                  <span className="block">南京铁道职业技术学院</span>
-                  <span className="mt-2 block">大赛管理系统</span>
+              <div className="mx-auto max-w-[48rem] pb-8 pt-12 lg:min-w-[540px] lg:max-w-none lg:pb-0 lg:pt-0">
+                <h1 className="text-[1.9rem] font-extrabold leading-[1.18] tracking-normal text-white drop-shadow-[0_16px_34px_rgba(0,0,0,0.34)] sm:text-[3.25rem] sm:tracking-[0.025em] lg:text-[3.2rem] xl:text-[3.8rem] 2xl:text-[4.1rem]">
+                  <span className="block whitespace-nowrap">南京铁道职业技术学院</span>
+                  <span className="mt-2 block whitespace-nowrap">大赛管理系统</span>
                 </h1>
                 <div className="mx-auto mt-7 h-px w-[28rem] max-w-full bg-gradient-to-r from-transparent via-white/75 to-transparent" />
                 <p
                   aria-label="以赛促学 · 以赛促教 · 以赛促创 · 以赛促用"
-                  className="mt-6 flex flex-wrap items-center justify-center gap-x-7 gap-y-2 text-base font-semibold tracking-[0.18em] text-white sm:text-xl"
+                  className="mx-auto mt-6 grid max-w-[18rem] grid-cols-2 items-center justify-items-center gap-x-9 gap-y-3 text-[0.98rem] font-semibold tracking-[0.08em] text-white sm:flex sm:max-w-none sm:flex-wrap sm:justify-center sm:gap-x-7 sm:gap-y-2 sm:text-xl sm:tracking-[0.18em] lg:flex-nowrap lg:whitespace-nowrap"
                 >
                   <span>以赛促学</span>
-                  <span className="text-white/70">·</span>
+                  <span className="hidden text-white/70 sm:inline">·</span>
                   <span>以赛促教</span>
-                  <span className="text-white/70">·</span>
+                  <span className="hidden text-white/70 sm:inline">·</span>
                   <span>以赛促创</span>
-                  <span className="text-white/70">·</span>
+                  <span className="hidden text-white/70 sm:inline">·</span>
                   <span>以赛促用</span>
                 </p>
               </div>
@@ -507,22 +578,29 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
         </section>
 
         <section className="login-function-panel flex min-h-screen flex-col bg-[#f3f6fb] px-6 py-8 sm:px-10 lg:px-12 xl:px-16">
+          {sessionCheckPending ? (
+            <div className="mx-auto mb-3 flex w-full max-w-[560px] items-center justify-center gap-2 rounded-xl bg-white px-4 py-2 text-xs font-medium text-[#1d5cff] shadow-sm">
+              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+              正在检查登录状态…
+            </div>
+          ) : null}
+
           <div className="flex flex-1 items-center justify-center">
             <div className="w-full max-w-[560px]">
               <div className="rounded-[24px] bg-white px-7 py-8 shadow-[0_10px_30px_rgba(20,55,120,0.08)] sm:px-9 sm:py-10">
                 <div className="text-center">
-                  <div className="inline-flex items-center justify-center gap-5">
+                  <div className="flex flex-col items-center justify-center gap-3 sm:inline-flex sm:flex-row sm:gap-5">
                     <div className="flex h-12 w-12 items-center justify-center rounded-[18px] bg-[linear-gradient(180deg,#2F74FF_0%,#1857F2_100%)] text-white shadow-[0_12px_26px_rgba(29,92,255,0.22)]">
                       <ShieldUser className="h-6 w-6" />
                     </div>
-                    <h2 className="text-[2rem] font-extrabold tracking-[0.08em] text-[#16305c]">
+                    <h2 className="text-center text-[2rem] font-extrabold tracking-normal text-[#16305c] sm:tracking-[0.04em]">
                       {currentCopy.title}
                     </h2>
                   </div>
-                  <div className="mt-5 flex items-center justify-center gap-4 text-xs font-semibold tracking-[0.48em] text-[#8a96a8]">
-                    <span className="h-px w-16 bg-[#e6ebf2]" />
+                  <div className="mt-5 flex items-center justify-center gap-4 text-xs font-semibold tracking-[0.2em] text-[#8a96a8] sm:tracking-[0.48em]">
+                    <span className="h-px w-12 bg-[#e6ebf2] sm:w-16" />
                     <span>{currentCopy.subtitle}</span>
-                    <span className="h-px w-16 bg-[#e6ebf2]" />
+                    <span className="h-px w-12 bg-[#e6ebf2] sm:w-16" />
                   </div>
                   {mode !== "login" ? (
                     <p className="mt-3 text-sm leading-6 text-[#8a96a8]">{currentCopy.lead}</p>
@@ -643,18 +721,29 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
                         </div>
                         <button
                           aria-label="刷新验证码"
-                          className="flex h-[56px] items-center justify-center overflow-hidden rounded-[14px] border border-[#d8e2f1] bg-[#f8fbff] px-3 transition hover:border-[#1d5cff] hover:bg-white focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#1d5cff]/10"
+                          className="relative flex h-[54px] w-[140px] shrink-0 items-center justify-center overflow-hidden rounded-[14px] border border-[#d8e2f1] bg-[#f8fbff] transition hover:border-[#1d5cff] hover:bg-white focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#1d5cff]/10"
                           onClick={refreshCaptcha}
                           type="button"
                         >
-                          <Image
-                            alt="刷新验证码"
-                            className="h-12 w-[132px] rounded-[12px] object-cover"
-                            height={48}
-                            src={`/api/auth/captcha?v=${captchaVersion}`}
-                            unoptimized
-                            width={132}
-                          />
+                          {captchaError ? (
+                            <span className="px-2 text-xs font-medium text-[#ef4444]">
+                              验证码加载失败，点击刷新
+                            </span>
+                          ) : (
+                            <>
+                              {/* eslint-disable-next-line @next/next/no-img-element */}
+                              <img
+                                alt="验证码"
+                                className="h-11 w-[132px] rounded-[12px] object-cover"
+                                draggable={false}
+                                height={44}
+                                loading="eager"
+                                src={`/api/auth/captcha?v=${captchaVersion}`}
+                                width={132}
+                                onError={() => setCaptchaError(true)}
+                              />
+                            </>
+                          )}
                         </button>
                       </div>
                       {loginErrors.captcha ? (
@@ -694,12 +783,12 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
                       ) : null}
 
                       <button
-                        className="flex h-[58px] w-full items-center justify-center rounded-[14px] bg-[linear-gradient(180deg,#2F74FF_0%,#1857F2_100%)] text-lg font-semibold tracking-[0.12em] text-white shadow-[0_16px_28px_rgba(29,92,255,0.22)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_18px_34px_rgba(29,92,255,0.28)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#1d5cff]/20 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:translate-y-0"
+                        className="inline-flex h-[58px] w-full items-center justify-center rounded-[14px] bg-[linear-gradient(180deg,#2F74FF_0%,#1857F2_100%)] text-lg font-semibold tracking-normal text-white shadow-[0_16px_28px_rgba(29,92,255,0.22)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_18px_34px_rgba(29,92,255,0.28)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#1d5cff]/20 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:translate-y-0 sm:tracking-[0.04em]"
                         disabled={isSubmitting}
                         type="submit"
                       >
                         {isSubmitting ? (
-                          <span className="flex items-center gap-2">
+                          <span className="inline-flex items-center justify-center gap-2">
                             <Loader2 className="h-5 w-5 animate-spin" />
                             登录中...
                           </span>
@@ -914,10 +1003,15 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
                           type="email"
                           value={registerValues.email}
                           onChange={(event) => {
-                            setRegisterValues((current) => ({ ...current, email: event.target.value }));
+                            setRegisterValues((current) => ({
+                              ...current,
+                              email: event.target.value,
+                              emailCode: "",
+                            }));
                             setRegisterErrors((current) => ({
                               ...current,
                               email: undefined,
+                              emailCode: undefined,
                               submit: undefined,
                             }));
                           }}
@@ -928,6 +1022,119 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
                           <span className="mt-1 block text-xs leading-6 text-[#8a96a8]">{EMAIL_RULE_HINT}</span>
                         )}
                       </label>
+
+                      <label className="block text-sm leading-6 text-[#6b7280]">
+                        邮箱验证码 <span className="text-[#ef4444]">*</span>
+                        <div className="mt-1 flex gap-2">
+                          <input
+                            className={`h-12 min-w-0 flex-1 rounded-[14px] border bg-white px-3 text-base text-[#16305c] outline-none placeholder:text-[#9aa6b6] focus:border-[#1d5cff] focus:ring-4 focus:ring-[#1d5cff]/10 ${
+                              registerErrors.emailCode ? "border-[#ef4444]" : "border-[#e6ebf2]"
+                            }`}
+                            inputMode="numeric"
+                            maxLength={6}
+                            placeholder="请输入验证码"
+                            type="text"
+                            value={registerValues.emailCode}
+                            onChange={(event) => {
+                              setRegisterValues((current) => ({
+                                ...current,
+                                emailCode: event.target.value.replace(/\D/g, "").slice(0, 6),
+                              }));
+                              setRegisterErrors((current) => ({
+                                ...current,
+                                emailCode: undefined,
+                                submit: undefined,
+                              }));
+                            }}
+                          />
+                          <button
+                            className="h-12 shrink-0 rounded-[14px] border border-[#bfdbfe] bg-[#eff6ff] px-4 text-sm font-semibold text-[#1d5cff] transition hover:bg-[#dbeafe] disabled:cursor-not-allowed disabled:opacity-60"
+                            disabled={isSendingRegisterEmailCode}
+                            onClick={sendRegisterEmailCode}
+                            type="button"
+                          >
+                            {isSendingRegisterEmailCode ? "发送中" : "获取验证码"}
+                          </button>
+                        </div>
+                        {registerErrors.emailCode ? (
+                          <span className="mt-1 block text-sm text-[#ef4444]">{registerErrors.emailCode}</span>
+                        ) : (
+                          <span className="mt-1 block text-xs leading-6 text-[#8a96a8]">验证码 10 分钟内有效。</span>
+                        )}
+                      </label>
+
+                      <label className="block text-sm leading-6 text-[#6b7280]">
+                        {registerValues.role === "指导教师" ? "所属学院 / 部门" : "所属学院 / 院系"}{" "}
+                        <span className="text-[#ef4444]">*</span>
+                        <input
+                          className={`mt-1 h-12 w-full rounded-[14px] border bg-white px-3 text-base text-[#16305c] outline-none placeholder:text-[#9aa6b6] focus:border-[#1d5cff] focus:ring-4 focus:ring-[#1d5cff]/10 ${
+                            registerErrors.college ? "border-[#ef4444]" : "border-[#e6ebf2]"
+                          }`}
+                          placeholder={registerValues.role === "指导教师" ? "请输入所属学院或部门" : "请输入所属学院或院系"}
+                          type="text"
+                          value={registerValues.college}
+                          onChange={(event) => {
+                            setRegisterValues((current) => ({ ...current, college: event.target.value }));
+                            setRegisterErrors((current) => ({
+                              ...current,
+                              college: undefined,
+                              submit: undefined,
+                            }));
+                          }}
+                        />
+                        {registerErrors.college ? (
+                          <span className="mt-1 block text-sm text-[#ef4444]">{registerErrors.college}</span>
+                        ) : null}
+                      </label>
+
+                      {isStudentRegisterRole && (
+                        <div className="grid gap-4 sm:grid-cols-2">
+                          <label className="block text-sm leading-6 text-[#6b7280]">
+                            专业班级 <span className="text-[#ef4444]">*</span>
+                            <input
+                              className={`mt-1 h-12 w-full rounded-[14px] border bg-white px-3 text-base text-[#16305c] outline-none placeholder:text-[#9aa6b6] focus:border-[#1d5cff] focus:ring-4 focus:ring-[#1d5cff]/10 ${
+                                registerErrors.className ? "border-[#ef4444]" : "border-[#e6ebf2]"
+                              }`}
+                              placeholder="例如：23软件1班"
+                              type="text"
+                              value={registerValues.className}
+                              onChange={(event) => {
+                                setRegisterValues((current) => ({ ...current, className: event.target.value }));
+                                setRegisterErrors((current) => ({
+                                  ...current,
+                                  className: undefined,
+                                  submit: undefined,
+                                }));
+                              }}
+                            />
+                            {registerErrors.className ? (
+                              <span className="mt-1 block text-sm text-[#ef4444]">{registerErrors.className}</span>
+                            ) : null}
+                          </label>
+                          <label className="block text-sm leading-6 text-[#6b7280]">
+                            学号 <span className="text-[#ef4444]">*</span>
+                            <input
+                              className={`mt-1 h-12 w-full rounded-[14px] border bg-white px-3 text-base text-[#16305c] outline-none placeholder:text-[#9aa6b6] focus:border-[#1d5cff] focus:ring-4 focus:ring-[#1d5cff]/10 ${
+                                registerErrors.studentId ? "border-[#ef4444]" : "border-[#e6ebf2]"
+                              }`}
+                              placeholder="请输入学号"
+                              type="text"
+                              value={registerValues.studentId}
+                              onChange={(event) => {
+                                setRegisterValues((current) => ({ ...current, studentId: event.target.value }));
+                                setRegisterErrors((current) => ({
+                                  ...current,
+                                  studentId: undefined,
+                                  submit: undefined,
+                                }));
+                              }}
+                            />
+                            {registerErrors.studentId ? (
+                              <span className="mt-1 block text-sm text-[#ef4444]">{registerErrors.studentId}</span>
+                            ) : null}
+                          </label>
+                        </div>
+                      )}
 
                       <label className="block text-sm leading-6 text-[#6b7280]">
                         密码 <span className="text-[#ef4444]">*</span>

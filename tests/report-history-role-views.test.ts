@@ -561,10 +561,10 @@ test("teacher trend chart uses thin SVG strokes and subtle fill", () => {
   );
 
   assert.match(scheduleSource, /const chartWidth = 480/);
-  assert.match(scheduleSource, /const chartHeight = 180/);
+  assert.match(scheduleSource, /const chartHeight = 210/);
   assert.match(scheduleSource, /const plotLeft = 40/);
   assert.match(scheduleSource, /const plotRight = 460/);
-  assert.match(scheduleSource, /const plotBottom = 160/);
+  assert.match(scheduleSource, /const plotBottom = 175/);
   assert.match(scheduleSource, /id="teacherTrendAreaGradient"/);
   assert.match(scheduleSource, /stopColor="#3b82f6" stopOpacity="0\.3"/);
   assert.match(scheduleSource, /fillOpacity="0\.15"/);
@@ -579,7 +579,7 @@ test("teacher trend chart marks today and exposes point tooltips", () => {
     "utf8",
   );
 
-  assert.match(scheduleSource, /displayLabel: isToday \? "今日" : point\.label/);
+  assert.match(scheduleSource, /displayLabel: point\.label/);
   assert.match(scheduleSource, /fill=\{point\.isAbnormal \? "#f59e0b" : "#3b82f6"\}/);
   assert.match(scheduleSource, /data-tooltip=\{`\$\{point\.label\}: \$\{point\.value\}%`\}/);
   assert.match(scheduleSource, /teacher-trend-tooltip/);

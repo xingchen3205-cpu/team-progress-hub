@@ -4,7 +4,7 @@ import Image from "next/image";
 import Link from "next/link";
 import dynamic from "next/dynamic";
 import { useEffect, useState, type ReactNode } from "react";
-import type { TeamRoleLabel, TaskDraft, DocumentDraft } from "@/components/workspace-context";
+import type { TeamRoleLabel, DocumentDraft } from "@/components/workspace-context";
 import * as Workspace from "@/components/workspace-context";
 
 const PdfPreview = dynamic(() => import("@/components/pdf-preview").then((mod) => mod.PdfPreview), {
@@ -229,6 +229,8 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
     textareaClassName,
     formatShortDate,
     formatFriendlyDate,
+    getBeijingDateInputMin,
+    getBeijingDateTimeInputMin,
     emailReminderSettingItems,
     defaultExpertDraft,
     defaultExpertDraftErrors,
@@ -248,6 +250,14 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
 
   const selectedReviewStage = projectStages.find((stage) => stage.id === reviewAssignmentDraft.stageId) ?? null;
   const isEditingReviewAssignment = Boolean(reviewAssignmentEditAssignmentId);
+  const selectedReviewExpertCount = reviewAssignmentDraft.expertUserIds.length;
+  const dropHighestCount = Number(reviewAssignmentDraft.dropHighestCount || 0);
+  const dropLowestCount = Number(reviewAssignmentDraft.dropLowestCount || 0);
+  const remainingReviewScoreCount = Math.max(
+    0,
+    selectedReviewExpertCount - Math.max(0, dropHighestCount) - Math.max(0, dropLowestCount),
+  );
+  const reviewScoreRuleInvalid = remainingReviewScoreCount < 2;
   const closeReviewAssignmentModal = () => {
     setReviewAssignmentModalOpen(false);
     setReviewAssignmentEditAssignmentId(null);
@@ -1012,36 +1022,18 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                 </p>
               )
             ) : null}
-            <div className="grid gap-4 md:grid-cols-2">
-              <label className="block text-sm text-slate-500">
-                截止时间
-                <input
-                  className={fieldClassName}
-                  type="datetime-local"
-                  value={taskDraft.dueDate}
-                  onChange={(event) =>
-                    setTaskDraft((current) => ({ ...current, dueDate: event.target.value }))
-                  }
-                />
-              </label>
-              <label className="block text-sm text-slate-500">
-                优先级
-                <select
-                  className={fieldClassName}
-                  value={taskDraft.priority}
-                  onChange={(event) =>
-                    setTaskDraft((current) => ({
-                      ...current,
-                      priority: event.target.value as TaskDraft["priority"],
-                    }))
-                  }
-                >
-                  <option value="高优先级">高优先级</option>
-                  <option value="中优先级">中优先级</option>
-                  <option value="低优先级">低优先级</option>
-                </select>
-              </label>
-            </div>
+            <label className="block text-sm text-slate-500">
+              截止时间
+              <input
+                className={fieldClassName}
+                min={getBeijingDateTimeInputMin()}
+                type="datetime-local"
+                value={taskDraft.dueDate}
+                onChange={(event) =>
+                  setTaskDraft((current) => ({ ...current, dueDate: event.target.value }))
+                }
+              />
+            </label>
             {!editingTaskId ? (
               <label className="flex items-start gap-3 rounded-lg border border-blue-100 bg-blue-50/60 px-4 py-3 text-sm text-slate-600">
                 <input
@@ -1303,6 +1295,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                 时间
                 <input
                   className={fieldClassName}
+                  min={getBeijingDateTimeInputMin()}
                   type="datetime-local"
                   value={eventDraft.dateTime}
                   onChange={(event) =>
@@ -1365,6 +1358,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                 日期 <span className="text-red-500">*</span>
                 <input
                   className={expertDraftErrors.date ? fieldErrorClassName : fieldClassName}
+                  min={getBeijingDateInputMin()}
                   type="date"
                   value={expertDraft.date}
                   onChange={(event) => {
@@ -1608,6 +1602,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                 评审开始时间
                 <input
                   className={fieldClassName}
+                  min={getBeijingDateTimeInputMin()}
                   type="datetime-local"
                   value={reviewAssignmentDraft.startAt}
                   onChange={(event) =>
@@ -1619,6 +1614,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                 评审截止时间
                 <input
                   className={fieldClassName}
+                  min={reviewAssignmentDraft.startAt || getBeijingDateTimeInputMin()}
                   type="datetime-local"
                   value={reviewAssignmentDraft.deadline}
                   onChange={(event) =>
@@ -1756,6 +1752,64 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
               </div>
             </div>
 
+            <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-4">
+              <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-slate-800">最终得分计算规则</p>
+                  <p className="mt-1 text-xs text-slate-500">规则保存在评审包内，后续投屏、后台和导出统一读取。</p>
+                </div>
+                <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-blue-700">
+                  当前有效专家 {selectedReviewExpertCount} 位
+                </span>
+              </div>
+              <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                <label className="block text-sm text-slate-500">
+                  去最高分
+                  <input
+                    className={fieldClassName}
+                    inputMode="numeric"
+                    max={5}
+                    min={0}
+                    type="number"
+                    value={reviewAssignmentDraft.dropHighestCount}
+                    onChange={(event) =>
+                      setReviewAssignmentDraft((current) => ({
+                        ...current,
+                        dropHighestCount: event.target.value.replace(/[^\d]/g, "").slice(0, 1),
+                      }))
+                    }
+                  />
+                </label>
+                <label className="block text-sm text-slate-500">
+                  去最低分
+                  <input
+                    className={fieldClassName}
+                    inputMode="numeric"
+                    max={5}
+                    min={0}
+                    type="number"
+                    value={reviewAssignmentDraft.dropLowestCount}
+                    onChange={(event) =>
+                      setReviewAssignmentDraft((current) => ({
+                        ...current,
+                        dropLowestCount: event.target.value.replace(/[^\d]/g, "").slice(0, 1),
+                      }))
+                    }
+                  />
+                </label>
+              </div>
+              <p
+                className={`mt-3 rounded-xl border px-3 py-2 text-xs font-semibold ${
+                  reviewScoreRuleInvalid
+                    ? "border-rose-200 bg-rose-50 text-rose-700"
+                    : "border-emerald-100 bg-emerald-50 text-emerald-700"
+                }`}
+              >
+                当前有效专家 {selectedReviewExpertCount} 位，去掉后剩余 {remainingReviewScoreCount} 个有效评分
+                {reviewScoreRuleInvalid ? "；剩余有效评分不得少于 2 个" : ""}
+              </p>
+            </div>
+
             <label className="block text-sm text-slate-500">
               任务说明
               <textarea
@@ -1774,6 +1828,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                 取消
               </ActionButton>
               <ActionButton
+                disabled={reviewScoreRuleInvalid}
                 loading={isSaving}
                 loadingLabel="保存中..."
                 onClick={saveReviewAssignment}
@@ -2004,7 +2059,6 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                   onChange={(event) =>
                     setBugFeedbackDraft((current) => ({ ...current, title: event.target.value }))
                   }
-                  placeholder="例如：教师账号显示了发布公告按钮"
                   type="text"
                   value={bugFeedbackDraft.title}
                 />

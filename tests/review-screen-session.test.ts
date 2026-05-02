@@ -98,6 +98,23 @@ describe("roadshow review screen session", () => {
     assert.equal(result.finalScoreText, "84.20");
   });
 
+  it("validates review package score trimming rules and keeps at least two valid scores", async () => {
+    const { getRemainingReviewScoreCount, validateReviewScoreRule } = await import("../src/lib/review-score-rules");
+
+    assert.equal(
+      getRemainingReviewScoreCount({ expertCount: 7, dropHighestCount: 1, dropLowestCount: 1 }),
+      5,
+    );
+    assert.equal(
+      validateReviewScoreRule({ expertCount: 7, dropHighestCount: 1, dropLowestCount: 1 }),
+      null,
+    );
+    assert.match(
+      validateReviewScoreRule({ expertCount: 7, dropHighestCount: 3, dropLowestCount: 3 }) ?? "",
+      /至少保留 2 个有效评分/,
+    );
+  });
+
   it("keeps the countdown in waiting mode after time expires until all valid seats submit", async () => {
     const { getReviewScreenTimelineState } = await import("../src/lib/review-screen-session");
 
@@ -123,15 +140,53 @@ describe("roadshow review screen session", () => {
     assert.match(schemaSource, /groupIndex\s+Int\s+@default\(0\)/);
     assert.match(schemaSource, /groupSlotIndex\s+Int\s+@default\(0\)/);
     assert.match(schemaSource, /tokenHash\s+String\s+@unique/);
-    assert.match(schemaSource, /dropHighestCount\s+Int\s+@default\(1\)/);
-    assert.match(schemaSource, /dropLowestCount\s+Int\s+@default\(1\)/);
+    assert.match(schemaSource, /model ExpertReviewPackage[\s\S]*dropHighestCount\s+Int\s+@default\(1\)/);
+    assert.match(schemaSource, /model ExpertReviewPackage[\s\S]*dropLowestCount\s+Int\s+@default\(1\)/);
+    assert.match(schemaSource, /model ReviewDisplayProjectOrder[\s\S]*finalScoreCents\s+Int\?/);
+    assert.match(schemaSource, /model ReviewDisplayProjectOrder[\s\S]*finalScoreText\s+String\?/);
+    assert.match(schemaSource, /model ReviewDisplayProjectOrder[\s\S]*scoreLockedAt\s+DateTime\?/);
+    assert.match(schemaSource, /model ReviewDisplayProjectOrder[\s\S]*droppedSeatNos\s+String\?/);
     assert.match(schemaSource, /@@unique\(\[sessionId,\s*seatNo\]\)/);
+  });
+
+  it("stores score rules on review packages and locks final scores in the backend reveal route", () => {
+    const sessionRouteSource = readSource("src/app/api/review-screen/sessions/route.ts");
+    const publicRouteSource = readSource("src/app/api/review-screen/sessions/[sessionId]/route.ts");
+    const revealRouteSource = readSource("src/app/api/review-screen/sessions/[sessionId]/reveal/route.ts");
+    const assignmentRouteSource = readSource("src/app/api/expert-reviews/assignments/route.ts");
+    const assignmentItemRouteSource = readSource("src/app/api/expert-reviews/assignments/[id]/route.ts");
+    const contextSource = readSource("src/components/workspace-context.tsx");
+    const shellSource = readSource("src/components/workspace-shell.tsx");
+
+    assert.match(assignmentRouteSource, /dropHighestCount/);
+    assert.match(assignmentRouteSource, /dropLowestCount/);
+    assert.match(assignmentRouteSource, /validateReviewScoreRule/);
+    assert.match(assignmentItemRouteSource, /validateReviewScoreRule/);
+    assert.match(contextSource, /dropHighestCount/);
+    assert.match(contextSource, /dropLowestCount/);
+    assert.match(shellSource, /最终得分计算规则/);
+    assert.match(shellSource, /当前有效专家/);
+    assert.match(shellSource, /去掉后剩余/);
+    assert.match(shellSource, /reviewScoreRuleInvalid/);
+    assert.match(sessionRouteSource, /dropHighestCount:\s*reviewPackage\.dropHighestCount/);
+    assert.match(sessionRouteSource, /dropLowestCount:\s*reviewPackage\.dropLowestCount/);
+    assert.match(revealRouteSource, /dropHighestCount:\s*currentReviewPackage\.dropHighestCount/);
+    assert.match(revealRouteSource, /dropLowestCount:\s*currentReviewPackage\.dropLowestCount/);
+    assert.match(revealRouteSource, /validateReviewScoreRule/);
+    assert.match(revealRouteSource, /finalScoreCents/);
+    assert.match(revealRouteSource, /finalScoreText/);
+    assert.match(revealRouteSource, /scoreLockedAt/);
+    assert.match(revealRouteSource, /droppedSeatNos/);
+    assert.doesNotMatch(revealRouteSource, /dropHighestCount:\s*session\.dropHighestCount/);
+    assert.match(publicRouteSource, /formatScoreCents/);
+    assert.match(publicRouteSource, /scoreLockedAt/);
+    assert.doesNotMatch(publicRouteSource, /dropHighestCount:\s*session\.dropHighestCount/);
   });
 
   it("adds token-protected screen APIs and a standalone full-screen display page", () => {
     const sessionRouteSource = readSource("src/app/api/review-screen/sessions/route.ts");
     const publicRouteSource = readSource("src/app/api/review-screen/sessions/[sessionId]/route.ts");
-    const adminTabSource = readSource("src/components/tabs/expert-review-tab.tsx");
+    const adminTabSource = readSource("src/components/tabs/expert-review-tab-content.tsx");
     const screenPageSource = readSource("src/app/review-screen/session/[sessionId]/page.tsx");
 
     assert.match(sessionRouteSource, /assertRole\(user\.role,\s*\["admin",\s*"school_admin"\]\)/);
@@ -156,7 +211,9 @@ describe("roadshow review screen session", () => {
     const orderRouteSource = readSource("src/app/api/review-screen/sessions/[sessionId]/order/route.ts");
     const nextProjectRouteSource = readSource("src/app/api/review-screen/sessions/[sessionId]/next-project/route.ts");
     const phaseRouteSource = readSource("src/app/api/review-screen/sessions/[sessionId]/phase/route.ts");
-    const adminTabSource = readSource("src/components/tabs/expert-review-tab.tsx");
+    const settingsRouteSource = readSource("src/app/api/review-screen/sessions/[sessionId]/settings/route.ts");
+    const restoreSeatRouteSource = readSource("src/app/api/review-screen/sessions/[sessionId]/restore-seat/route.ts");
+    const adminTabSource = readSource("src/components/tabs/expert-review-tab-content.tsx");
     const screenPageSource = readSource("src/app/review-screen/session/[sessionId]/page.tsx");
 
     assert.match(sessionRouteSource, /stageReviewPackages/);
@@ -175,31 +232,58 @@ describe("roadshow review screen session", () => {
     assert.match(orderRouteSource, /roadshowGroupSizes/);
     assert.match(orderRouteSource, /本轮已开始，不能调整路演顺序/);
     assert.match(nextProjectRouteSource, /projectOrders/);
+    assert.match(nextProjectRouteSource, /packageId/);
+    assert.match(nextProjectRouteSource, /targetPackageId/);
+    assert.match(nextProjectRouteSource, /项目不在本轮路演顺序中/);
     assert.match(adminTabSource, /packageIds/);
     assert.match(adminTabSource, /stageGroupKeys/);
     assert.match(adminTabSource, /现场大屏控制台/);
-    assert.match(adminTabSource, /lg:grid-cols-\[minmax\(0,1fr\)_280px\]/);
+    assert.match(adminTabSource, /review-admin-control-shell/);
+    assert.match(adminTabSource, /xl:grid-cols-\[minmax\(0,1fr\)_340px\]/);
+    assert.match(adminTabSource, /投屏同步中/);
+    assert.match(adminTabSource, /phase-control-bar/);
+    assert.match(adminTabSource, /当前项目最终得分/);
+    assert.match(adminTabSource, /expert-seat-row/);
+    assert.match(adminTabSource, /确认提交分数？将按规则计算最终得分并推送到投屏播放揭晓动画。/);
+    assert.match(adminTabSource, /确认结束本轮？投屏将显示最终排名。/);
     assert.match(adminTabSource, /路演顺序/);
     assert.match(adminTabSource, /上移/);
     assert.match(adminTabSource, /下移/);
     assert.match(adminTabSource, /路演时长/);
     assert.match(adminTabSource, /答辩时长/);
     assert.match(adminTabSource, /评分时长/);
+    assert.match(adminTabSource, /评分规则（来自评审包）/);
     assert.match(adminTabSource, /去最高分/);
     assert.match(adminTabSource, /去最低分/);
+    assert.doesNotMatch(adminTabSource, /updateScreenTimingDraft\(group\.key,\s*"dropHighestCount"/);
+    assert.doesNotMatch(adminTabSource, /updateScreenTimingDraft\(group\.key,\s*"dropLowestCount"/);
     assert.match(adminTabSource, /路演分组容量/);
     assert.match(adminTabSource, /getRoadshowGroupSizesPayload/);
     assert.match(adminTabSource, /uniqueSessionEntries/);
     assert.match(adminTabSource, /projectResults/);
     assert.match(adminTabSource, /getLiveAssignmentScoreText/);
     assert.match(adminTabSource, /activeGroupFinalScoreText/);
-    assert.match(adminTabSource, /提交分数/);
+    assert.match(adminTabSource, /确认并计算最终得分/);
     assert.doesNotMatch(adminTabSource, /disabled=\{Boolean\(screenSession\)\}/);
     assert.match(adminTabSource, /mergeConsoleSeats/);
+    assert.match(adminTabSource, /restoreReviewScreenSeat/);
+    assert.match(adminTabSource, /restore-seat/);
+    assert.match(adminTabSource, /copyReviewScreenUrl/);
+    assert.match(adminTabSource, /已复制/);
+    assert.match(adminTabSource, /排除该专家后，其席位将不参与评分计算。确定排除？/);
+    assert.match(adminTabSource, /saveReviewScreenTiming/);
+    assert.match(adminTabSource, /settings/);
+    assert.match(adminTabSource, /switchReviewScreenProject/);
     assert.match(adminTabSource, /结束本轮/);
     assert.match(adminTabSource, /changeReviewScreenPhase\(group, "finished"\)/);
     assert.match(adminTabSource, /currentPhase === "finished"/);
     assert.match(adminTabSource, /getReviewScreenPhaseActionLabel/);
+    assert.match(restoreSeatRouteSource, /status:\s*"pending"/);
+    assert.match(restoreSeatRouteSource, /voidedAt:\s*null/);
+    assert.match(restoreSeatRouteSource, /voidReason:\s*null/);
+    assert.match(settingsRouteSource, /presentationSeconds/);
+    assert.match(settingsRouteSource, /qaSeconds/);
+    assert.match(settingsRouteSource, /scoringSeconds/);
     assert.doesNotMatch(adminTabSource, /阶段已切换为：\$\{phase\}/);
     assert.doesNotMatch(adminTabSource, /启动计时/);
     assert.match(phaseRouteSource, /reveal: \["finished"\]/);
@@ -210,6 +294,14 @@ describe("roadshow review screen session", () => {
     assert.doesNotMatch(screenPageSource, /等待全部有效席位提交/);
     assert.match(screenPageSource, /seat-score-ticker/);
     assert.match(screenPageSource, /scoreText/);
+    assert.match(screenPageSource, /useRevealAnimationFrame/);
+    assert.match(screenPageSource, /window\.requestAnimationFrame/);
+    assert.match(screenPageSource, /revealFrameTime/);
+    assert.match(screenPageSource, /revealStep/);
+    assert.match(screenPageSource, /valid-score-strip/);
+    assert.match(screenPageSource, /dropReason/);
+    assert.match(screenPageSource, /score-strike/);
+    assert.match(screenPageSource, /最终评审得分/);
     assert.doesNotMatch(screenPageSource, /评分规则：去掉最高分和最低分，取平均值/);
   });
 
@@ -269,6 +361,8 @@ describe("roadshow review screen session", () => {
     assert.match(screenPageSource, /最终得分/);
     assert.match(screenPageSource, /提交进度/);
     assert.match(screenPageSource, /评分倒计时/);
+    assert.match(screenPageSource, /本轮评审最终排名/);
+    assert.match(screenPageSource, /LIVE RANKING/);
     assert.match(screenPageSource, /screen-full-countdown/);
     assert.match(screenPageSource, /draw-sequence-overlay/);
     assert.match(screenPageSource, /phase-panel/);

@@ -59,6 +59,11 @@ const buildTeamMemberPayload = (
     responsibility: string | null;
     approvalStatus: "pending" | "approved";
     approvedAt: Date | null;
+    emailVerifiedAt: Date | null;
+    college: string | null;
+    className: string | null;
+    studentId: string | null;
+    employeeId: string | null;
     teamGroup?: { id: string; name: string } | null;
   },
   tasks: Array<{ assigneeId: string | null; status: "todo" | "doing" | "review" | "archived" | "done" }>,
@@ -112,6 +117,11 @@ export async function GET(request: NextRequest) {
       responsibility: true,
       approvalStatus: true,
       approvedAt: true,
+      emailVerifiedAt: true,
+      college: true,
+      className: true,
+      studentId: true,
+      employeeId: true,
       createdAt: true,
       teamGroup: {
         select: {
@@ -328,6 +338,11 @@ export async function POST(request: NextRequest) {
         responsibility: true,
         approvalStatus: true,
         approvedAt: true,
+        emailVerifiedAt: true,
+        college: true,
+        className: true,
+        studentId: true,
+        employeeId: true,
         createdAt: true,
         teamGroup: {
           select: {

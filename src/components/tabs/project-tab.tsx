@@ -190,6 +190,15 @@ export default function ProjectTab() {
   const canReviewMaterials =
     hasGlobalAdminRole || (currentRole === "teacher" && Boolean(currentUser?.teamGroupId));
   const canPreviewAllMaterials = hasGlobalAdminRole;
+  const canReturnApprovedMaterial = (material: Workspace.ProjectMaterialSubmissionItem) => {
+    if (!hasGlobalAdminRole || material.status !== "approved") {
+      return false;
+    }
+
+    const stage = projectStages.find((item) => item.id === material.stageId);
+    const deadline = stage?.deadline ? new Date(stage.deadline) : null;
+    return !deadline || Number.isNaN(deadline.getTime()) || deadline.getTime() >= Date.now();
+  };
 
   const openStagesForUpload = useMemo(
     () =>
@@ -576,6 +585,7 @@ export default function ProjectTab() {
                 <div className="date-row">
                   <input
                     className={projectInputClassName}
+                    min={Workspace.getBeijingDateTimeInputMin()}
                     onChange={(event) => setStageDraft((current) => ({ ...current, startAt: event.target.value }))}
                     type="datetime-local"
                     value={stageDraft.startAt}
@@ -583,6 +593,7 @@ export default function ProjectTab() {
                   <span className="arrow">→</span>
                   <input
                     className={projectInputClassName}
+                    min={stageDraft.startAt || Workspace.getBeijingDateTimeInputMin()}
                     onChange={(event) => setStageDraft((current) => ({ ...current, deadline: event.target.value }))}
                     type="datetime-local"
                     value={stageDraft.deadline}
@@ -826,6 +837,7 @@ export default function ProjectTab() {
                 开始时间
                 <input
                   className={projectInputClassName}
+                  min={Workspace.getBeijingDateTimeInputMin()}
                   onChange={(event) => setStageDraft((current) => ({ ...current, startAt: event.target.value }))}
                   type="datetime-local"
                   value={stageDraft.startAt}
@@ -835,6 +847,7 @@ export default function ProjectTab() {
                 截止时间
                 <input
                   className={projectInputClassName}
+                  min={stageDraft.startAt || Workspace.getBeijingDateTimeInputMin()}
                   onChange={(event) => setStageDraft((current) => ({ ...current, deadline: event.target.value }))}
                   type="datetime-local"
                   value={stageDraft.deadline}
@@ -1225,7 +1238,7 @@ export default function ProjectTab() {
                     </div>
                   ) : null}
 
-                  {canReviewMaterials && material.status === "pending" ? (
+                  {canReviewMaterials && (material.status === "pending" || canReturnApprovedMaterial(material)) ? (
                     <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
                       <div className="grid gap-3 lg:grid-cols-[1fr_auto_auto] lg:items-center">
                         <input
@@ -1236,22 +1249,24 @@ export default function ProjectTab() {
                               [material.id]: event.target.value,
                             }))
                           }
-                          placeholder="如需驳回，请填写修改原因"
+                          placeholder={material.status === "approved" ? "如需退回重传，请填写退回原因" : "如需驳回，请填写修改原因"}
                           value={rejectReasons[material.id] ?? ""}
                         />
-                        <ActionButton disabled={isSaving} onClick={() => void approveMaterial(material)} variant="primary">
-                          <span className="inline-flex items-center gap-2">
-                            <FileCheck className="h-4 w-4" />
-                            <span>审批通过</span>
-                          </span>
-                        </ActionButton>
+                        {material.status === "pending" ? (
+                          <ActionButton disabled={isSaving} onClick={() => void approveMaterial(material)} variant="primary">
+                            <span className="inline-flex items-center gap-2">
+                              <FileCheck className="h-4 w-4" />
+                              <span>审批通过</span>
+                            </span>
+                          </ActionButton>
+                        ) : null}
                         <ActionButton
                           className="border border-rose-200 bg-white text-rose-600 hover:bg-rose-50"
                           disabled={isSaving}
                           onClick={() => void rejectMaterial(material)}
                           variant="secondary"
                         >
-                          驳回修改
+                          {material.status === "approved" ? "退回重传" : "驳回修改"}
                         </ActionButton>
                       </div>
                     </div>

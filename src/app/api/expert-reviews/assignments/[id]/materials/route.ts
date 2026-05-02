@@ -31,6 +31,8 @@ const assignmentInclude = {
       status: true,
       startAt: true,
       deadline: true,
+      dropHighestCount: true,
+      dropLowestCount: true,
       projectReviewStage: {
         select: {
           id: true,
@@ -164,6 +166,7 @@ export async function POST(
       kind,
       fileName,
       fileSize,
+      mimeType,
     });
     if (validationError) {
       return NextResponse.json({ message: validationError }, { status: 400 });
@@ -256,6 +259,7 @@ export async function POST(
     kind,
     fileName: file.name,
     fileSize: file.size,
+    mimeType: file.type,
   });
   if (validationError) {
     return NextResponse.json({ message: validationError }, { status: 400 });
@@ -277,6 +281,7 @@ export async function POST(
           kind,
           fileName: meta.fileName,
           fileSize: meta.fileSize,
+          mimeType: meta.mimeType,
         }),
     });
 

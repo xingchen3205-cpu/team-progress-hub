@@ -81,6 +81,7 @@ export async function POST(
     kind,
     fileName,
     fileSize,
+    mimeType,
   });
   if (validationError) {
     return NextResponse.json({ message: validationError }, { status: 400 });

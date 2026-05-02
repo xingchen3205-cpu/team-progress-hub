@@ -1,5 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
+import { readFileSync } from "node:fs";
+import path from "node:path";
 
 import { filterNotificationEmailRecipients } from "../src/lib/notification-email-scope";
 
@@ -78,5 +80,15 @@ describe("notification email recipient filtering", () => {
         { email: "member-b@example.com", name: "成员B" },
       ],
     );
+  });
+
+  it("does not apply team group email filtering to direct manual reminders", () => {
+    const route = readFileSync(
+      path.join(process.cwd(), "src/app/api/notifications/route.ts"),
+      "utf8",
+    );
+
+    assert.match(route, /createNotifications\(\{[\s\S]*email:\s*true/);
+    assert.doesNotMatch(route, /emailTeamGroupId:\s*targetUser\.teamGroupId\s*\?\?\s*null/);
   });
 });

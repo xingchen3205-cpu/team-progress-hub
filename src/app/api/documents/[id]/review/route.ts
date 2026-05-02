@@ -150,7 +150,7 @@ export async function PATCH(
           teamGroupId: documentTeamGroupId,
           sourceDocumentId: document.id,
           dueDate: getDocumentReworkDueDate(),
-          priority: "high",
+          priority: "medium",
           status: getDocumentReworkInitialStatus(document.owner.role),
           acceptedAt: document.owner.role === "leader" ? new Date() : null,
         },

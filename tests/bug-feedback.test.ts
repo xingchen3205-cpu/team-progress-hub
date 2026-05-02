@@ -26,6 +26,7 @@ test("topbar feedback panel submits bug feedback instead of showing shortcut act
   assert.match(shellSource, /Bug 标题/);
   assert.match(shellSource, /问题描述/);
   assert.match(shellSource, /提交反馈/);
+  assert.doesNotMatch(shellSource, /placeholder="例如：教师账号显示了发布公告按钮"/);
   assert.doesNotMatch(shellSource, /校级管理员不会收到该类 Bug 反馈/);
   assert.doesNotMatch(shellSource, /<span>待办与消息<\/span>/);
   assert.doesNotMatch(shellSource, /<span>个人资料<\/span>/);

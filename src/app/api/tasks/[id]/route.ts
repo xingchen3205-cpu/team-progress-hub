@@ -6,7 +6,7 @@ import { parseLocalDateTime } from "@/lib/date";
 import { createNotifications } from "@/lib/notifications";
 import { assertMainWorkspaceRole, hasGlobalAdminPrivileges } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
-import { serializeTask, taskPriorityValueToDb } from "@/lib/api-serializers";
+import { serializeTask } from "@/lib/api-serializers";
 import { canAccessTask, canAssignTaskToUser, canReviewTask } from "@/lib/task-access";
 import { inferTaskTeamGroupId } from "@/lib/task-team-group";
 import { deriveTaskStatusFromAssignments, pickTaskDispatchRecipientIds } from "@/lib/task-workflow";
@@ -257,7 +257,6 @@ export async function PATCH(
         assigneeIds?: string[] | null;
         teamGroupId?: string | null;
         dueDate?: string;
-        priority?: "高优先级" | "中优先级" | "低优先级";
         status?: "todo" | "doing" | "review" | "archived" | "done";
         completionNote?: string;
         rejectionReason?: string;
@@ -531,7 +530,7 @@ export async function PATCH(
 
   const hasAssigneeChange = body.assigneeId !== undefined || body.assigneeIds !== undefined;
   const nextAssigneeIds = hasAssigneeChange ? normalizeAssigneeIds(body) : currentTask.assignments.map((assignment) => assignment.assigneeId);
-  const hasContentChanges = Boolean(body.title?.trim() || body.dueDate || body.priority || body.status || hasAssigneeChange);
+  const hasContentChanges = Boolean(body.title?.trim() || body.dueDate || body.status || hasAssigneeChange);
 
   if (!hasContentChanges) {
     return NextResponse.json({ message: "没有需要更新的内容" }, { status: 400 });
@@ -547,7 +546,6 @@ export async function PATCH(
     reviewerId?: string | null;
     teamGroupId?: string | null;
     dueDate?: Date;
-    priority?: "high" | "medium" | "low";
     status?: TaskStatus;
     acceptedAt?: Date | null;
     submittedAt?: Date | null;
@@ -564,10 +562,6 @@ export async function PATCH(
       return NextResponse.json({ message: "截止时间格式不正确" }, { status: 400 });
     }
     data.dueDate = dueDate;
-  }
-
-  if (body.priority) {
-    data.priority = taskPriorityValueToDb[body.priority];
   }
 
   if (hasAssigneeChange) {

@@ -21,6 +21,11 @@ export type TeamMember = {
   approvalStatus?: ApprovalStatusKey;
   approvalStatusLabel?: "待审核" | "已通过";
   pendingApproverLabel?: string | null;
+  emailVerifiedAt?: string | null;
+  college?: string;
+  className?: string;
+  studentId?: string;
+  employeeId?: string;
   canBeManagedByLeader: boolean;
   todayFocus: string;
   completed: string;
@@ -244,6 +249,8 @@ export type ExpertReviewAssignmentItem = {
   targetName: string;
   roundLabel: string;
   overview: string;
+  dropHighestCount?: number;
+  dropLowestCount?: number;
   reviewMode?: "network" | "roadshow";
   roadshowScreenStarted?: boolean | null;
   startAt: string | null;

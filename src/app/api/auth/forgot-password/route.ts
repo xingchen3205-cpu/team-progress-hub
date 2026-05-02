@@ -3,10 +3,16 @@ import { NextResponse } from "next/server";
 import { buildAppUrl, renderSystemEmail, sendEmail } from "@/lib/email";
 import { createPasswordResetToken } from "@/lib/password-reset";
 import { prisma } from "@/lib/prisma";
+import { authRateLimits, checkRateLimit, rateLimitExceededResponse } from "@/lib/security";
 
 const successMessage = "如账号存在且已绑定邮箱，系统已发送密码重置邮件，请注意查收。";
 
 export async function POST(request: Request) {
+  const rateLimit = checkRateLimit(request, authRateLimits.passwordResetIp);
+  if (!rateLimit.allowed) {
+    return rateLimitExceededResponse(rateLimit, "找回密码请求过于频繁，请稍后再试");
+  }
+
   const body = (await request.json().catch(() => null)) as { account?: string } | null;
   const account = body?.account?.trim();
 

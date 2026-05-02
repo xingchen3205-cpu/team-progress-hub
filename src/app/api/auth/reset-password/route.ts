@@ -3,8 +3,14 @@ import { NextResponse } from "next/server";
 
 import { hashPasswordResetToken } from "@/lib/password-reset";
 import { prisma } from "@/lib/prisma";
+import { authRateLimits, checkRateLimit, rateLimitExceededResponse } from "@/lib/security";
 
 export async function POST(request: Request) {
+  const rateLimit = checkRateLimit(request, authRateLimits.passwordResetIp);
+  if (!rateLimit.allowed) {
+    return rateLimitExceededResponse(rateLimit, "重置密码请求过于频繁，请稍后再试");
+  }
+
   const body = (await request.json().catch(() => null)) as
     | {
         token?: string;

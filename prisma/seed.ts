@@ -40,13 +40,13 @@ const roleMap = {
 } as const satisfies Record<string, Role>;
 
 const taskPriorityMap = {
-  高优先级: TaskPriority.high,
+  高优先级: TaskPriority.medium,
   中优先级: TaskPriority.medium,
-  低优先级: TaskPriority.low,
-  进行中: TaskPriority.high,
-  已完成: TaskPriority.high,
-  待验收: TaskPriority.high,
-  已归档: TaskPriority.high,
+  低优先级: TaskPriority.medium,
+  进行中: TaskPriority.medium,
+  已完成: TaskPriority.medium,
+  待验收: TaskPriority.medium,
+  已归档: TaskPriority.medium,
 } as const satisfies Record<string, TaskPriority>;
 
 const documentCategoryMap = {

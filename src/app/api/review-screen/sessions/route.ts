@@ -59,6 +59,8 @@ export async function GET(request: NextRequest) {
           roundLabel: true,
           status: true,
           deadline: true,
+          dropHighestCount: true,
+          dropLowestCount: true,
         },
       },
     },
@@ -95,8 +97,6 @@ export async function POST(request: NextRequest) {
     | {
         packageId?: string;
         countdownSeconds?: number;
-        dropHighestCount?: number;
-        dropLowestCount?: number;
         presentationSeconds?: number;
         qaSeconds?: number;
         scoringSeconds?: number;
@@ -215,8 +215,6 @@ export async function POST(request: NextRequest) {
       : defaultTokenExpiresAt;
 
   const countdownSeconds = clampInteger(body?.countdownSeconds, 60, 10, 600);
-  const dropHighestCount = clampInteger(body?.dropHighestCount, 1, 0, 5);
-  const dropLowestCount = clampInteger(body?.dropLowestCount, 1, 0, 5);
   const presentationSeconds = clampInteger(body?.presentationSeconds, 480, 60, 1800);
   const qaSeconds = clampInteger(body?.qaSeconds, 420, 60, 1800);
   const scoringSeconds = clampInteger(body?.scoringSeconds, 60, 10, 600);
@@ -241,8 +239,8 @@ export async function POST(request: NextRequest) {
         startsAt,
         tokenExpiresAt,
         countdownSeconds,
-        dropHighestCount,
-        dropLowestCount,
+        dropHighestCount: reviewPackage.dropHighestCount,
+        dropLowestCount: reviewPackage.dropLowestCount,
         presentationSeconds,
         qaSeconds,
         scoringSeconds,

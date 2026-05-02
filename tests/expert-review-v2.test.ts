@@ -3,7 +3,11 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, it } from "node:test";
 
-import { getExpertReviewMode, getExpertReviewWindowState } from "@/lib/expert-review";
+import {
+  getExpertReviewMode,
+  getExpertReviewWindowState,
+  validateExpertReviewMaterial,
+} from "@/lib/expert-review";
 
 const readSource = (filePath: string) =>
   readFileSync(path.join(process.cwd(), filePath), "utf8");
@@ -35,9 +39,21 @@ describe("expert review v2 constraints", () => {
     assert.match(routeSource, /Number\.isInteger\(roadshowScore \* 100\)/);
   });
 
+  it("rejects expert review uploads when mime type conflicts with extension", () => {
+    assert.equal(
+      validateExpertReviewMaterial({
+        kind: "plan",
+        fileName: "计划书.pdf",
+        fileSize: 1024,
+        mimeType: "image/png",
+      }),
+      "计划书文件类型与扩展名不匹配",
+    );
+  });
+
   it("blocks roadshow score submission until the administrator starts the screen session", () => {
     const routeSource = readSource("src/app/api/expert-reviews/scores/route.ts");
-    const tabSource = readSource("src/components/tabs/expert-review-tab.tsx");
+    const tabSource = readSource("src/components/tabs/expert-review-tab-content.tsx");
     const serializerSource = readSource("src/lib/expert-review.ts");
 
     assert.match(routeSource, /reviewDisplaySeat\.findFirst/);
@@ -97,7 +113,7 @@ describe("expert review v2 constraints", () => {
   });
 
   it("replaces the old four-category expert scoring UI with v2 expert review panels", () => {
-    const tabSource = readSource("src/components/tabs/expert-review-tab.tsx");
+    const tabSource = readSource("src/components/tabs/expert-review-tab-content.tsx");
 
     assert.match(tabSource, /项目网络评审/);
     assert.match(tabSource, /项目路演评审/);
@@ -128,7 +144,7 @@ describe("expert review v2 constraints", () => {
   });
 
   it("keeps expert-facing review copy clean and uses a centered completion modal", () => {
-    const tabSource = readSource("src/components/tabs/expert-review-tab.tsx");
+    const tabSource = readSource("src/components/tabs/expert-review-tab-content.tsx");
     const shellSource = readSource("src/components/workspace-shell.tsx");
 
     assert.match(tabSource, /ExpertScoreSuccessModal/);
@@ -143,7 +159,7 @@ describe("expert review v2 constraints", () => {
 
   it("renders expert accounts in a standalone review portal shell", () => {
     const shellSource = readSource("src/components/workspace-shell.tsx");
-    const tabSource = readSource("src/components/tabs/expert-review-tab.tsx");
+    const tabSource = readSource("src/components/tabs/expert-review-tab-content.tsx");
 
     assert.match(shellSource, /currentRole === "expert"/);
     assert.match(shellSource, /EXPERT REVIEW PORTAL/);
@@ -158,7 +174,7 @@ describe("expert review v2 constraints", () => {
   });
 
   it("uses the polished expert review flow layout for task entry, list, and scoring", () => {
-    const tabSource = readSource("src/components/tabs/expert-review-tab.tsx");
+    const tabSource = readSource("src/components/tabs/expert-review-tab-content.tsx");
 
     assert.match(tabSource, /expert-status-bar/);
     assert.match(tabSource, /expert-task-card/);
@@ -200,7 +216,7 @@ describe("expert review v2 constraints", () => {
     const workspaceSource = readSource("src/components/workspace-context.tsx");
     const shellSource = readSource("src/components/workspace-shell.tsx");
     const routeSource = readSource("src/app/api/expert-reviews/assignments/route.ts");
-    const tabSource = readSource("src/components/tabs/expert-review-tab.tsx");
+    const tabSource = readSource("src/components/tabs/expert-review-tab-content.tsx");
 
     assert.match(workspaceSource, /key:\s*"project"[\s\S]*?key:\s*"review"/);
     assert.match(routeSource, /stageId/);
@@ -244,7 +260,7 @@ describe("expert review v2 constraints", () => {
   it("blocks expert entry and scoring outside the configured review window", () => {
     const scoreRouteSource = readSource("src/app/api/expert-reviews/scores/route.ts");
     const materialRouteSource = readSource("src/app/api/expert-reviews/assignments/[id]/materials/[kind]/route.ts");
-    const tabSource = readSource("src/components/tabs/expert-review-tab.tsx");
+    const tabSource = readSource("src/components/tabs/expert-review-tab-content.tsx");
 
     assert.equal(
       getExpertReviewWindowState({
@@ -281,7 +297,7 @@ describe("expert review v2 constraints", () => {
   it("allows administrators to edit review packages without deleting submitted expert scores", () => {
     const routeSource = readSource("src/app/api/expert-reviews/assignments/[id]/route.ts");
     const contextSource = readSource("src/components/workspace-context.tsx");
-    const tabSource = readSource("src/components/tabs/expert-review-tab.tsx");
+    const tabSource = readSource("src/components/tabs/expert-review-tab-content.tsx");
 
     assert.match(routeSource, /export async function PATCH/);
     assert.match(routeSource, /已有评分的专家不能从本轮移除/);
@@ -296,7 +312,7 @@ describe("expert review v2 constraints", () => {
     const assignmentRouteSource = readSource("src/app/api/expert-reviews/assignments/route.ts");
     const assignmentItemRouteSource = readSource("src/app/api/expert-reviews/assignments/[id]/route.ts");
     const teamScopeSource = readSource("src/lib/team-scope.ts");
-    const tabSource = readSource("src/components/tabs/expert-review-tab.tsx");
+    const tabSource = readSource("src/components/tabs/expert-review-tab-content.tsx");
 
     assert.match(schemaSource, /enum ExpertReviewPackageStatus/);
     assert.match(schemaSource, /configured/);
@@ -324,7 +340,7 @@ describe("expert review v2 constraints", () => {
     const stageDeleteRouteSource = readSource("src/app/api/project-stages/[stageId]/route.ts");
     const contextSource = readSource("src/components/workspace-context.tsx");
     const projectTabSource = readSource("src/components/tabs/project-tab.tsx");
-    const expertReviewTabSource = readSource("src/components/tabs/expert-review-tab.tsx");
+    const expertReviewTabSource = readSource("src/components/tabs/expert-review-tab-content.tsx");
 
     assert.match(assignmentItemRouteSource, /const confirm = request\.nextUrl\.searchParams\.get\("confirm"\)/);
     assert.match(assignmentItemRouteSource, /confirm\s*!==\s*"permanent"/);

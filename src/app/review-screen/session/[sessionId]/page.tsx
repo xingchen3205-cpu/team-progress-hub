@@ -16,10 +16,16 @@ type ScreenSeat = {
 type ScreenFinalScore = {
   ready: boolean;
   finalScoreText: string | null;
+  finalScoreCents?: number | null;
   effectiveSeatCount: number;
   submittedSeatCount: number;
   waitingSeatNos: number[];
   droppedSeatNos: number[];
+  droppedSeatReasons?: Array<{ seatNo: number; reason: "highest" | "lowest" | "voided" | string }>;
+  validScoreTexts?: string[];
+  dropHighestCount?: number;
+  dropLowestCount?: number;
+  scoreLockedAt?: string | null;
 };
 
 type ScreenPhase = "draw" | "presentation" | "qa" | "scoring" | "reveal" | "finished";
@@ -93,6 +99,8 @@ type RankingRow = {
   isFinished: boolean;
 };
 
+const screenStateLabels = ["抽签分组", "评审打分", "实时排名", "本轮排名"] as const;
+
 const fallbackSeats: ScreenSeat[] = [
   { assignmentId: "fallback-1", seatNo: 1, displayName: "专家 1", avatarText: "1", status: "pending", scoreText: null },
   { assignmentId: "fallback-2", seatNo: 2, displayName: "专家 2", avatarText: "2", status: "pending", scoreText: null },
@@ -113,6 +121,35 @@ const useCurrentTime = () => {
     return () => window.clearInterval(timer);
   }, []);
   return time;
+};
+
+const useRevealAnimationFrame = (revealStartedAt?: string | null, active = false) => {
+  const [revealFrameTime, setRevealFrameTime] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (!active || !revealStartedAt) {
+      return;
+    }
+
+    const startedTime = new Date(revealStartedAt).getTime();
+    if (Number.isNaN(startedTime)) {
+      return;
+    }
+
+    let animationFrameId = 0;
+    const tick = () => {
+      const now = Date.now();
+      setRevealFrameTime(now);
+      if (now - startedTime < 15000) {
+        animationFrameId = window.requestAnimationFrame(tick);
+      }
+    };
+
+    animationFrameId = window.requestAnimationFrame(tick);
+    return () => window.cancelAnimationFrame(animationFrameId);
+  }, [active, revealStartedAt]);
+
+  return revealFrameTime;
 };
 
 const usePulseKey = (key: string) => {
@@ -141,6 +178,13 @@ const getTabState = (phase: ScreenPhase) => {
   if (phase === "draw") return "draw";
   if (phase === "finished") return "rank";
   return "score";
+};
+
+const getDropReasonLabel = (reason?: string) => {
+  if (reason === "highest") return "去最高分";
+  if (reason === "lowest") return "去最低分";
+  if (reason === "voided") return "已排除";
+  return "";
 };
 
 const getCountdownTone = (seconds: number) => {
@@ -264,6 +308,19 @@ export default function ReviewScreenSessionPage() {
   const orderNumber = getOrderIndex(projectOrder, payload?.session.currentPackageId ?? "") || currentIndex + 1;
   const seatPulse = usePulseKey(seats.map((seat) => `${seat.assignmentId}:${seat.status}:${seat.scoreText}`).join("|"));
   const revealStartedAt = payload?.session.revealStartedAt;
+  const revealFrameTime = useRevealAnimationFrame(revealStartedAt, phase === "reveal");
+  const droppedSeatReasonByNo = useMemo(() => {
+    const map = new Map<number, string>();
+    for (const item of activeFinalScore?.droppedSeatReasons ?? []) {
+      map.set(item.seatNo, item.reason);
+    }
+    return map;
+  }, [activeFinalScore?.droppedSeatReasons]);
+  const validScoreTexts = activeFinalScore?.validScoreTexts?.length
+    ? activeFinalScore.validScoreTexts
+    : seats
+        .filter((seat) => seat.status === "submitted" && seat.scoreText && !droppedSeatReasonByNo.has(seat.seatNo))
+        .map((seat) => seat.scoreText ?? "0.00");
 
   useEffect(() => {
     if (phase === "draw" && hasDrawStarted && projectOrder.length > 0) {
@@ -295,12 +352,22 @@ export default function ReviewScreenSessionPage() {
     [currentTime],
   );
 
-  const revealProgress = useMemo(() => {
+  const revealElapsedMs = useMemo(() => {
     if (!revealStartedAt) return 0;
     const started = new Date(revealStartedAt).getTime();
     if (Number.isNaN(started)) return 0;
-    return Math.min(1, Math.max(0, (currentTime.getTime() - started) / 2200));
-  }, [currentTime, revealStartedAt]);
+    return Math.max(0, revealFrameTime - started);
+  }, [revealFrameTime, revealStartedAt]);
+  const revealStep = revealElapsedMs < 3000
+    ? "scores"
+    : revealElapsedMs < 5000
+      ? "pause"
+      : revealElapsedMs < 8500
+        ? "drop"
+        : revealElapsedMs < 11500
+          ? "summary"
+          : "final";
+  const revealProgress = Math.min(1, Math.max(0, (revealElapsedMs - 11500) / 1800));
 
   const revealAnimatedScore = useMemo(() => {
     if (!activeFinalScore?.ready || !activeFinalScore.finalScoreText) return "0.00";
@@ -369,27 +436,6 @@ export default function ReviewScreenSessionPage() {
           height: 420px;
           border-radius: 999px;
           background: radial-gradient(circle, rgba(255,255,255,0.12), transparent 70%);
-        }
-        .screen-tabs {
-          height: 50px;
-          background: #fff;
-          border-bottom: 1px solid #e2e8f0;
-          box-shadow: 0 1px 4px rgba(15, 32, 64, 0.05);
-        }
-        .screen-tab {
-          height: 50px;
-          display: inline-flex;
-          align-items: center;
-          border-bottom: 3px solid transparent;
-          padding: 0 28px;
-          font-size: 14px;
-          font-weight: 700;
-          color: #94a3b8;
-          letter-spacing: 0.5px;
-        }
-        .screen-tab.active {
-          color: #c22832;
-          border-bottom-color: #c22832;
         }
         .contest-card {
           border: 1px solid #e2e8f0;
@@ -484,14 +530,23 @@ export default function ReviewScreenSessionPage() {
           position: fixed;
           inset: 0;
           z-index: 50;
-          display: flex;
-          align-items: center;
-          justify-content: center;
+          display: grid;
+          grid-template-rows: minmax(0, 1fr) auto;
+          gap: 18px;
+          padding: 86px 58px 48px;
           background: rgba(26, 34, 54, 0.84);
           backdrop-filter: blur(16px);
         }
+        .reveal-score-grid {
+          display: grid;
+          grid-template-columns: repeat(auto-fit, minmax(155px, 1fr));
+          align-content: center;
+          gap: 14px;
+          min-height: 0;
+        }
         .score-reveal-card {
           position: relative;
+          margin: 0 auto;
           min-width: min(560px, calc(100vw - 48px));
           overflow: hidden;
           border-radius: 18px;
@@ -500,6 +555,7 @@ export default function ReviewScreenSessionPage() {
           text-align: center;
           box-shadow: 0 20px 60px rgba(15, 32, 64, 0.2);
           animation: reveal-rise 0.5s cubic-bezier(.16,1,.3,1);
+          will-change: transform, opacity;
         }
         .score-reveal-card::before {
           content: "";
@@ -517,6 +573,8 @@ export default function ReviewScreenSessionPage() {
           -webkit-background-clip: text;
           background-clip: text;
           color: transparent;
+          font-variant-numeric: tabular-nums;
+          will-change: contents;
         }
         .expert-seat {
           position: relative;
@@ -540,6 +598,57 @@ export default function ReviewScreenSessionPage() {
           box-shadow: 0 4px 18px rgba(34, 197, 94, 0.1);
         }
         .expert-seat.submitted::before { background: #22c55e; }
+        .expert-seat.dropped {
+          border-color: #e2e8f0;
+          background: #f8f9fa;
+          opacity: .52;
+          transform: scale(.92);
+          filter: grayscale(1);
+        }
+        .expert-seat.dropped::before { background: #cbd5e1; }
+        .drop-reason-tag {
+          position: absolute;
+          top: 9px;
+          left: 50%;
+          transform: translateX(-50%);
+          border-radius: 999px;
+          background: #fff1f2;
+          padding: 3px 8px;
+          color: #e11d48;
+          font-size: 11px;
+          font-weight: 900;
+          animation: reveal-rise .38s cubic-bezier(.16,1,.3,1);
+        }
+        .score-strike {
+          position: relative;
+          display: inline-block;
+          color: #94a3b8;
+        }
+        .score-strike::after {
+          content: "";
+          position: absolute;
+          left: -4px;
+          right: -4px;
+          top: 50%;
+          height: 3px;
+          border-radius: 999px;
+          background: #e11d48;
+          animation: strike-line .42s cubic-bezier(.16,1,.3,1);
+        }
+        .valid-score-strip {
+          margin: 0 auto;
+          max-width: min(960px, calc(100vw - 96px));
+          border-radius: 18px;
+          border: 1px solid rgba(255,255,255,0.38);
+          background: rgba(255,255,255,0.94);
+          padding: 14px 20px;
+          color: #1a3a6e;
+          font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+          font-size: 16px;
+          font-weight: 900;
+          box-shadow: 0 12px 36px rgba(15,32,64,.18);
+          animation: strip-slide .5s cubic-bezier(.16,1,.3,1);
+        }
         .seat-avatar {
           width: 52px;
           height: 52px;
@@ -630,6 +739,14 @@ export default function ReviewScreenSessionPage() {
           from { transform: translateY(8px) scale(.92); opacity: 0; filter: blur(4px); }
           to { transform: translateY(0) scale(1); opacity: 1; filter: blur(0); }
         }
+        @keyframes strike-line {
+          from { transform: scaleX(0); transform-origin: left center; }
+          to { transform: scaleX(1); transform-origin: left center; }
+        }
+        @keyframes strip-slide {
+          from { transform: translateY(24px); opacity: 0; }
+          to { transform: translateY(0); opacity: 1; }
+        }
         @keyframes pulse-timer {
           0%, 100% { opacity: 1; transform: scale(1); }
           50% { opacity: .58; transform: scale(.985); }
@@ -670,17 +787,7 @@ export default function ReviewScreenSessionPage() {
         </div>
       </header>
 
-      <nav className="screen-tabs flex px-11">
-        {[
-          ["draw", "抽签分组"],
-          ["score", "评审打分"],
-          ["rank", "实时排名"],
-        ].map(([key, label]) => (
-          <span className={`screen-tab ${activeTab === key ? "active" : ""}`} key={key}>
-            {label}
-          </span>
-        ))}
-      </nav>
+      <div className="sr-only">{screenStateLabels.join(" / ")}</div>
 
       {errorMessage ? (
         <div className="mx-11 mt-5 rounded-xl border border-rose-200 bg-rose-50 px-6 py-4 text-sm font-bold text-rose-700">
@@ -688,7 +795,7 @@ export default function ReviewScreenSessionPage() {
         </div>
       ) : null}
 
-      <section className="phase-panel flex h-[calc(100vh-118px)] flex-col gap-5 overflow-hidden px-11 py-6">
+      <section className="phase-panel flex h-[calc(100vh-68px)] flex-col gap-5 overflow-hidden px-11 py-6">
         {activeTab === "draw" ? (
           <>
             <div className="flex items-center justify-between">
@@ -792,18 +899,21 @@ export default function ReviewScreenSessionPage() {
               {seats.map((seat) => {
                 const isSubmitted = seat.status === "submitted";
                 const isVoided = seat.status === "voided";
+                const dropReason = droppedSeatReasonByNo.get(seat.seatNo);
+                const isDropped = phase === "reveal" && Boolean(dropReason);
                 return (
                   <article
-                    className={`expert-seat flex flex-col items-center justify-center gap-3 p-5 text-center ${isSubmitted ? "submitted" : ""} ${isSubmitted && seatPulse ? "seat-pop" : ""} ${isVoided ? "opacity-45 grayscale" : ""}`}
+                    className={`expert-seat flex flex-col items-center justify-center gap-3 p-5 text-center ${isSubmitted ? "submitted" : ""} ${isSubmitted && seatPulse ? "seat-pop" : ""} ${isVoided ? "opacity-45 grayscale" : ""} ${isDropped ? "dropped" : ""}`}
                     key={seat.assignmentId}
                   >
+                    {isDropped ? <span className="drop-reason-tag">{getDropReasonLabel(dropReason)}</span> : null}
                     <div className={`seat-avatar ${isSubmitted ? "submitted" : "pending"}`}>{seat.seatNo}</div>
                     <div>
                       <p className="text-sm font-black text-slate-900">{seat.displayName}</p>
                       <p className="mt-1 text-xs font-semibold text-slate-400">匿名专家席位状态</p>
                     </div>
                     {isSubmitted && seat.scoreText ? (
-                      <p className="seat-score-ticker">{seat.scoreText}</p>
+                      <p className={`seat-score-ticker ${isDropped ? "score-strike" : ""}`}>{seat.scoreText}</p>
                     ) : null}
                     <span className={`inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-bold ${isSubmitted ? "bg-emerald-50 text-emerald-700" : isVoided ? "bg-slate-100 text-slate-500" : "bg-slate-100 text-slate-400"}`}>
                       {isSubmitted ? (
@@ -859,7 +969,7 @@ export default function ReviewScreenSessionPage() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="text-xs font-black tracking-[2px] text-[#c22832]">LIVE RANKING</p>
-                <h2 className="mt-1 text-2xl font-black text-[#0f2040]">本轮排名</h2>
+                <h2 className="mt-1 text-2xl font-black text-[#0f2040]">本轮评审最终排名</h2>
               </div>
               <div className="flex items-center gap-2 text-sm font-bold text-[#d93440]">
                 <span className="h-2 w-2 animate-pulse rounded-full bg-[#d93440]" />
@@ -871,18 +981,17 @@ export default function ReviewScreenSessionPage() {
               <table className="h-full w-full border-collapse text-sm">
                 <thead className="bg-[#1a3a6e] text-white">
                   <tr>
-                    <th className="w-20 px-5 py-4 text-center text-xs font-bold tracking-wide">排名</th>
-                    <th className="px-5 py-4 text-left text-xs font-bold tracking-wide">项目名称</th>
-                    <th className="w-28 px-5 py-4 text-center text-xs font-bold tracking-wide">路演顺序</th>
-                    <th className="px-5 py-4 text-left text-xs font-bold tracking-wide">赛道</th>
-                    <th className="w-32 px-5 py-4 text-center text-xs font-bold tracking-wide">得分</th>
-                    <th className="w-28 px-5 py-4 text-center text-xs font-bold tracking-wide">状态</th>
+                    <th className="w-[8%] px-5 py-4 text-center text-xs font-bold tracking-wide">排名</th>
+                    <th className="w-[38%] px-5 py-4 text-left text-xs font-bold tracking-wide">项目名称</th>
+                    <th className="w-[10%] px-5 py-4 text-center text-xs font-bold tracking-wide">路演顺序</th>
+                    <th className="w-[24%] px-5 py-4 text-left text-xs font-bold tracking-wide">赛道</th>
+                    <th className="w-[20%] px-5 py-4 text-center text-xs font-bold tracking-wide">得分</th>
                   </tr>
                 </thead>
                 <tbody>
                   {rankingRows.length ? (
                     rankingRows.map((row, index) => (
-                      <tr className={`border-b border-slate-100 transition-colors ${row.isCurrent ? "bg-blue-50" : "bg-white"}`} key={row.project.reviewPackage.id}>
+                      <tr className={`border-b border-slate-100 transition-colors odd:bg-slate-50 ${row.isCurrent ? "!bg-blue-50" : ""}`} key={row.project.reviewPackage.id}>
                         <td className="px-5 py-4 text-center">
                           <span className={getRankingBadgeClassName(index + 1)}>{index + 1}</span>
                         </td>
@@ -892,16 +1001,11 @@ export default function ReviewScreenSessionPage() {
                         <td className="px-5 py-4 text-center font-mono text-lg font-black text-[#c22832]">
                           {row.score === null ? "--" : row.score.toFixed(2)}
                         </td>
-                        <td className="px-5 py-4 text-center">
-                          <span className={`rounded-full px-3 py-1.5 text-xs font-bold ${row.isFinished ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-600"}`}>
-                            {row.isFinished ? "已完成" : "评审中"}
-                          </span>
-                        </td>
                       </tr>
                     ))
                   ) : (
                     <tr>
-                      <td className="px-5 py-20 text-center text-slate-400" colSpan={6}>暂无评审数据</td>
+                      <td className="px-5 py-20 text-center text-slate-400" colSpan={5}>暂无评审数据</td>
                     </tr>
                   )}
                 </tbody>
@@ -943,15 +1047,49 @@ export default function ReviewScreenSessionPage() {
 
       {phase === "reveal" ? (
         <section className="score-reveal-overlay">
-          <div className="score-reveal-card">
-            <p className="text-sm font-black tracking-[3px] text-slate-400">最终得分 · 最终评审得分</p>
-            <h2 className="mt-3 text-xl font-black text-slate-900">{targetName}</h2>
-            <p className="score-reveal-score mt-8">{revealAnimatedScore}</p>
-            <div className="mt-6 flex justify-center gap-3 text-xs font-bold text-slate-400">
-              <span>有效席位 {activeFinalScore?.effectiveSeatCount ?? effectiveCount}</span>
-              <span>已提交 {activeFinalScore?.submittedSeatCount ?? submittedCount}</span>
-            </div>
+          <div className="reveal-score-grid">
+            {seats.map((seat) => {
+              const dropReason = droppedSeatReasonByNo.get(seat.seatNo);
+              const isDropped = Boolean(dropReason) && (revealStep === "drop" || revealStep === "summary" || revealStep === "final");
+              const revealScoreVisible = revealElapsedMs >= seat.seatNo * 340 || revealStep !== "scores";
+              return (
+                <article
+                  className={`expert-seat flex min-h-[154px] flex-col items-center justify-center gap-3 p-5 text-center ${seat.status === "submitted" ? "submitted" : ""} ${isDropped ? "dropped" : ""}`}
+                  key={`reveal-${seat.assignmentId}`}
+                >
+                  {isDropped ? <span className="drop-reason-tag">{getDropReasonLabel(dropReason)}</span> : null}
+                  <div className={`seat-avatar ${seat.status === "submitted" ? "submitted" : "pending"}`}>{seat.seatNo}</div>
+                  <p className="text-sm font-black text-slate-900">{seat.displayName}</p>
+                  {seat.status === "submitted" && seat.scoreText && revealScoreVisible ? (
+                    <p className={`seat-score-ticker ${isDropped ? "score-strike" : ""}`}>{seat.scoreText}</p>
+                  ) : (
+                    <span className="waiting-dots"><i /><i /><i /></span>
+                  )}
+                </article>
+              );
+            })}
           </div>
+
+          {revealStep === "summary" || revealStep === "final" ? (
+            <div className="valid-score-strip">
+              有效评分：{validScoreTexts.length ? validScoreTexts.join(" + ") : "--"}
+            </div>
+          ) : null}
+
+          {revealStep === "final" ? (
+            <div className="score-reveal-card">
+              <p className="text-sm font-black tracking-[3px] text-slate-400">最终得分 · 最终评审得分</p>
+              <h2 className="mt-3 text-xl font-black text-slate-900">{targetName}</h2>
+              <p className="score-reveal-score mt-8">{revealAnimatedScore}</p>
+              <p className="mt-5 text-xs font-semibold text-slate-400">
+                评分规则：去掉 {activeFinalScore?.dropHighestCount ?? 0} 个最高分和 {activeFinalScore?.dropLowestCount ?? 0} 个最低分，取平均值
+              </p>
+              <div className="mt-4 flex justify-center gap-3 text-xs font-bold text-slate-400">
+                <span>有效席位 {activeFinalScore?.effectiveSeatCount ?? effectiveCount}</span>
+                <span>已提交 {activeFinalScore?.submittedSeatCount ?? submittedCount}</span>
+              </div>
+            </div>
+          ) : null}
         </section>
       ) : null}
     </main>

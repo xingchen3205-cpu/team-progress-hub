@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 
-import type { BoardStatus, BoardStatusFilter, TaskDraft, PreviewAsset } from "@/components/workspace-context";
+import type { BoardStatus, BoardStatusFilter, PreviewAsset } from "@/components/workspace-context";
 import * as Workspace from "@/components/workspace-context";
 
 export default function TasksTab() {
@@ -55,7 +55,6 @@ export default function TasksTab() {
     boardStatusMeta,
     boardStatusOrder,
     getBoardStatusLabel,
-    taskPriorityStyles,
     taskWorkflowDotClassNames,
     getAssetExtension,
     isImageAsset,
@@ -116,7 +115,6 @@ const renderBoard = () => {
 
         return [
           task.title,
-          task.priority,
           getTaskAssigneeName(task),
           task.reviewer?.name,
           task.teamGroupName,
@@ -329,15 +327,6 @@ const renderBoard = () => {
                             className={`rounded-lg border px-2.5 py-1 text-xs font-semibold ${statusMeta.badgeClassName}`}
                           >
                             {getBoardStatusLabel(task)}
-                          </span>
-                          <span
-                            className={`rounded-lg border px-2.5 py-1 text-xs font-medium ${
-                              task.priority in taskPriorityStyles
-                                ? taskPriorityStyles[task.priority as TaskDraft["priority"]]
-                                : "border-slate-200 bg-slate-50 text-slate-600"
-                            }`}
-                          >
-                            {task.priority}
                           </span>
                           {attachmentCount > 0 ? (
                             <span className="rounded-lg border border-slate-200 bg-slate-50 px-2.5 py-1 text-xs text-slate-500">

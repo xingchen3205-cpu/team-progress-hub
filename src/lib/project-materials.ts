@@ -2,6 +2,7 @@ import path from "node:path";
 
 import type { ProjectMaterialStatus, Role } from "@prisma/client";
 
+import { isMimeTypeAllowedForFileName } from "@/lib/file-policy";
 import { hasGlobalAdminPrivileges } from "@/lib/permissions";
 
 export const projectMaterialAllowedExtensions = [
@@ -205,10 +206,12 @@ export const validateProjectMaterialUploadMeta = ({
   fileName,
   fileSize,
   materialKind,
+  mimeType,
 }: {
   fileName: string;
   fileSize: number;
   materialKind?: ProjectMaterialRequirementKey;
+  mimeType?: string | null;
 }) => {
   const extension = path.extname(fileName).toLowerCase();
   if (!projectMaterialAllowedExtensions.includes(extension as ProjectMaterialAllowedExtension)) {
@@ -217,6 +220,10 @@ export const validateProjectMaterialUploadMeta = ({
 
   if (!Number.isFinite(fileSize) || fileSize <= 0) {
     return "项目材料文件大小无效";
+  }
+
+  if (!isMimeTypeAllowedForFileName(fileName, mimeType)) {
+    return "项目材料文件类型与扩展名不匹配";
   }
 
   if (materialKind === "plan_pdf" && extension !== ".pdf") {

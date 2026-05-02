@@ -76,6 +76,8 @@ import {
   formatBeijingDateTimeShort,
   formatBeijingFriendlyDate,
   getBeijingDateTimeInputAtHour,
+  getBeijingFutureDateTimeInputAtHour,
+  parseLocalDateTime,
   toIsoDateKey,
 } from "@/lib/date";
 import {
@@ -177,7 +179,6 @@ export type TaskDraft = {
   assigneeIds: string[];
   teamGroupId: string;
   dueDate: string;
-  priority: "高优先级" | "中优先级" | "低优先级";
   notifyAssignee: boolean;
 };
 
@@ -306,6 +307,8 @@ export type ExpertReviewAssignmentDraft = {
   overview: string;
   startAt: string;
   deadline: string;
+  dropHighestCount: string;
+  dropLowestCount: string;
 };
 
 export type ExpertReviewMaterialDraft = {
@@ -870,12 +873,6 @@ export const getDocumentStepCaption = (stepState: DocumentStepState) => {
   }
 };
 
-export const taskPriorityStyles: Record<TaskDraft["priority"], string> = {
-  高优先级: "depth-emphasis text-[#1a6fd4]",
-  中优先级: "depth-emphasis text-[#1a6fd4]/80",
-  低优先级: "depth-emphasis text-[#1a6fd4]/65",
-};
-
 export const taskWorkflowDotClassNames: Record<"done" | "current" | "pending", string> = {
   done: "bg-[#1a6fd4] text-white shadow-[0_12px_28px_rgba(26,111,212,0.22)]",
   current: "bg-white text-[#1a6fd4] ring-1 ring-white shadow-[0_14px_30px_rgba(31,38,135,0.16)]",
@@ -975,8 +972,8 @@ export const rolePermissions = {
     canDeleteAnyDocument: true,
     canManageTeam: true,
     canManageTeacherAccount: true,
-    canEditTimeline: true,
-    canResetPassword: true,
+    canEditTimeline: false,
+    canResetPassword: false,
   },
   leader: {
     visibleTabs: ["overview", "timeline", "board", "training", "reports", "experts", "documents", "project", "team", "assistant", "profile"] as TabKey[],
@@ -1346,12 +1343,13 @@ export const getNearestUpcomingIndex = (events: EventItem[]) => {
   return nextIndex === -1 ? events.length - 1 : nextIndex;
 };
 
+export const getDefaultTaskDueDate = () => getBeijingFutureDateTimeInputAtHour(new Date(), 18);
+
 export const defaultTaskDraft = (assigneeIds: string[] = [], teamGroupId = ""): TaskDraft => ({
   title: "",
   assigneeIds,
   teamGroupId,
-  dueDate: "2026-04-08T18:00",
-  priority: "高优先级",
+  dueDate: getDefaultTaskDueDate(),
   notifyAssignee: true,
 });
 
@@ -1427,22 +1425,26 @@ export const emailReminderSettingItems: Array<{
   },
 ];
 
-export const defaultEventDraft: EventDraft = {
+export const getDefaultEventDateTime = () => getBeijingFutureDateTimeInputAtHour(new Date(), 18);
+
+export const defaultEventDraft = (): EventDraft => ({
   title: "",
-  dateTime: "2026-04-15T18:00",
+  dateTime: getDefaultEventDateTime(),
   type: "节点",
   description: "",
-};
+});
 
-export const defaultExpertDraft: ExpertDraft = {
-  date: toDateInputValue("2026-04-05"),
+export const getDefaultExpertDate = () => toIsoDateKey(new Date());
+
+export const defaultExpertDraft = (): ExpertDraft => ({
+  date: getDefaultExpertDate(),
   expert: "",
   topic: "",
   format: "线上点评",
   teamGroupId: "",
   summary: "",
   nextAction: "",
-};
+});
 
 export const defaultExpertDraftErrors = (): ExpertDraftErrors => ({});
 
@@ -1481,21 +1483,40 @@ export const defaultReportDraft: ReportDraft = {
 
 export const defaultExpertReviewAssignmentDraft = (
   expertUserId = "",
-): ExpertReviewAssignmentDraft => ({
-  expertUserId,
-  expertUserIds: expertUserId ? [expertUserId] : [],
-  targetName: "",
-  stageId: "",
-  materialSubmissionIds: [],
-  teamGroupIds: [],
-  roundLabel: "校内专家预审",
-  overview: "",
-  startAt: getDefaultReviewAssignmentStartAt(),
-  deadline: getDefaultReviewAssignmentDeadline(),
-});
+): ExpertReviewAssignmentDraft => {
+  const reviewWindow = getDefaultReviewAssignmentWindow();
 
-export const getDefaultReviewAssignmentStartAt = () => getBeijingDateTimeInputAtHour(new Date(), 9);
-export const getDefaultReviewAssignmentDeadline = () => getBeijingDateTimeInputAtHour(new Date(), 18);
+  return {
+    expertUserId,
+    expertUserIds: expertUserId ? [expertUserId] : [],
+    targetName: "",
+    stageId: "",
+    materialSubmissionIds: [],
+    teamGroupIds: [],
+    roundLabel: "校内专家预审",
+    overview: "",
+    startAt: reviewWindow.startAt,
+    deadline: reviewWindow.deadline,
+    dropHighestCount: "1",
+    dropLowestCount: "1",
+  };
+};
+
+export const getDefaultReviewAssignmentWindow = (now = new Date()) => {
+  const startAt = getBeijingFutureDateTimeInputAtHour(now, 9);
+  const sameDayDeadline = getBeijingDateTimeInputAtHour(now, 18);
+  const startDate = parseLocalDateTime(startAt);
+  const deadlineDate = parseLocalDateTime(sameDayDeadline);
+  const deadline =
+    startDate && deadlineDate && deadlineDate.getTime() > startDate.getTime()
+      ? sameDayDeadline
+      : formatBeijingDateTimeInput(new Date((startDate ?? now).getTime() + 9 * 60 * 60 * 1000));
+
+  return { startAt, deadline };
+};
+
+export const getDefaultReviewAssignmentStartAt = () => getDefaultReviewAssignmentWindow().startAt;
+export const getDefaultReviewAssignmentDeadline = () => getDefaultReviewAssignmentWindow().deadline;
 
 export const defaultExpertReviewMaterialDraft = (): ExpertReviewMaterialDraft => ({
   kind: "plan",
@@ -1956,6 +1977,7 @@ function useWorkspaceController({
   const [teamSearch, setTeamSearch] = useState("");
   const [teamRoleFilter, setTeamRoleFilter] = useState<"全部" | TeamRoleLabel>("全部");
   const [teamGroupFilter, setTeamGroupFilter] = useState("全部");
+  const [approvalGroupDrafts, setApprovalGroupDrafts] = useState<Record<string, string>>({});
   const [teamAiFilter, setTeamAiFilter] = useState<"全部" | "已开启" | "已关闭">("全部");
   const [teamAccountView, setTeamAccountView] = useState<"team" | "experts">("team");
   const [teamAiSelectedIds, setTeamAiSelectedIds] = useState<string[]>([]);
@@ -3218,11 +3240,7 @@ function useWorkspaceController({
       );
     }
 
-    return (
-      member.systemRole === "项目负责人" ||
-      member.systemRole === "团队成员" ||
-      member.systemRole === "评审专家"
-    );
+    return false;
   };
 
   const canApprovePendingMember = (member: TeamMember) => {
@@ -3231,18 +3249,26 @@ function useWorkspaceController({
     }
 
     if (isSystemAdmin || isSchoolAdmin) {
-      return ["指导教师", "项目负责人", "团队成员", "评审专家"].includes(member.systemRole);
-    }
-
-    if (currentRole === "teacher") {
-      return member.systemRole === "项目负责人" || member.systemRole === "团队成员" || member.systemRole === "评审专家";
-    }
-
-    if (currentRole === "leader") {
-      return member.systemRole === "团队成员";
+      return ["指导教师", "项目负责人", "团队成员"].includes(member.systemRole);
     }
 
     return false;
+  };
+
+  const canDeleteMemberAccount = (member: TeamMember) => {
+    if (!isSystemAdmin && !isSchoolAdmin) {
+      return false;
+    }
+
+    if (member.id === currentMemberId || member.systemRole === "系统管理员") {
+      return false;
+    }
+
+    if (member.systemRole === "校级管理员") {
+      return isSystemAdmin;
+    }
+
+    return ["指导教师", "项目负责人", "团队成员", "评审专家"].includes(member.systemRole);
   };
 
   const availableRoleOptions: TeamRoleLabel[] =
@@ -3828,6 +3854,7 @@ function useWorkspaceController({
       {
         fileName: file.name,
         fileSize: file.size,
+        mimeType: file.type,
       },
       options,
     );
@@ -4066,10 +4093,6 @@ function useWorkspaceController({
           : task.assignments?.map((assignment) => assignment.assigneeId) ?? (task.assigneeId ? [task.assigneeId] : []),
       teamGroupId: task.teamGroupId ?? currentUser?.teamGroupId ?? "",
       dueDate: toDateTimeInputValue(task.dueDate),
-      priority:
-        task.priority === "进行中" || task.priority === "待验收" || task.priority === "已归档"
-          ? "高优先级"
-          : task.priority,
       notifyAssignee: false,
     });
     setTaskModalOpen(true);
@@ -5342,6 +5365,8 @@ function useWorkspaceController({
         deadline: firstAssignment.deadline
           ? formatBeijingDateTimeInput(firstAssignment.deadline)
           : getDefaultReviewAssignmentDeadline(),
+        dropHighestCount: String(firstAssignment.dropHighestCount ?? 1),
+        dropLowestCount: String(firstAssignment.dropLowestCount ?? 1),
       });
       setReviewAssignmentModalOpen(true);
       return;
@@ -5359,6 +5384,21 @@ function useWorkspaceController({
   };
 
   const saveReviewAssignment = async () => {
+    const normalizeScoreRuleCount = (value: string) => {
+      const numericValue = Number(value);
+      return Number.isFinite(numericValue) ? Math.min(5, Math.max(0, Math.trunc(numericValue))) : 0;
+    };
+    const dropHighestCount = normalizeScoreRuleCount(reviewAssignmentDraft.dropHighestCount);
+    const dropLowestCount = normalizeScoreRuleCount(reviewAssignmentDraft.dropLowestCount);
+    const remainingReviewScoreCount =
+      reviewAssignmentDraft.expertUserIds.length - dropHighestCount - dropLowestCount;
+    if (remainingReviewScoreCount < 2) {
+      setLoadError(
+        `当前有效专家 ${reviewAssignmentDraft.expertUserIds.length} 位，去掉后剩余 ${Math.max(0, remainingReviewScoreCount)} 个有效评分；至少保留 2 个有效评分`,
+      );
+      return;
+    }
+
     if (reviewAssignmentEditAssignmentId) {
       if (reviewAssignmentDraft.expertUserIds.length === 0) {
         setLoadError("请至少保留一位评审专家");
@@ -5399,6 +5439,8 @@ function useWorkspaceController({
             deadline: reviewAssignmentDraft.deadline
               ? new Date(reviewAssignmentDraft.deadline).toISOString()
               : null,
+            dropHighestCount,
+            dropLowestCount,
           }),
         });
 
@@ -5472,6 +5514,8 @@ function useWorkspaceController({
           deadline: reviewAssignmentDraft.deadline
             ? new Date(reviewAssignmentDraft.deadline).toISOString()
             : undefined,
+          dropHighestCount,
+          dropLowestCount,
         }),
       });
 
@@ -6064,15 +6108,26 @@ function useWorkspaceController({
     }
   };
 
-  const approveMemberRegistrationRequest = async (memberId: string) => {
+  const approveMemberRegistrationRequest = async (memberId: string, teamGroupId: string) => {
     await requestJson(`/api/team/${memberId}`, {
       method: "PATCH",
-      body: JSON.stringify({ action: "approve" }),
+      body: JSON.stringify({ action: "approve", teamGroupId }),
+    });
+    setApprovalGroupDrafts((current) => {
+      const next = { ...current };
+      delete next[memberId];
+      return next;
     });
     refreshWorkspace("team");
   };
 
   const confirmApproveMemberRegistration = (member: TeamMember) => {
+    const teamGroupId = approvalGroupDrafts[member.id]?.trim();
+    if (!teamGroupId) {
+      setLoadError("审核通过前请选择项目组");
+      return;
+    }
+
     const copy = buildTeamManagementConfirmation({
       type: "approveRegistration",
       memberName: member.name,
@@ -6082,7 +6137,7 @@ function useWorkspaceController({
     setConfirmDialog({
       open: true,
       ...copy,
-      onConfirm: () => approveMemberRegistrationRequest(member.id),
+      onConfirm: () => approveMemberRegistrationRequest(member.id, teamGroupId),
     });
   };
 
@@ -6313,6 +6368,8 @@ function useWorkspaceController({
     setTeamRoleFilter,
     teamGroupFilter,
     setTeamGroupFilter,
+    approvalGroupDrafts,
+    setApprovalGroupDrafts,
     teamAiFilter,
     setTeamAiFilter,
     teamAccountView,
@@ -6599,6 +6656,7 @@ function useWorkspaceController({
     canManageMember,
     canResetMemberPassword,
     canApprovePendingMember,
+    canDeleteMemberAccount,
     availableRoleOptions,
     canViewExpertAccounts,
     canViewTeamAccountIdentifiers,
