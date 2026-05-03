@@ -1,13 +1,13 @@
 {
-  "version": "1.0.11",
-  "buildName": "1.0.11",
-  "buildNumber": 22,
-  "apkUrl": "https://xingchencxcy.com/updates/team-progress-hub-1.0.11.apk",
+  "version": "1.0.12",
+  "buildName": "1.0.12",
+  "buildNumber": 23,
+  "apkUrl": "https://xingchencxcy.com/updates/team-progress-hub-1.0.12.apk",
   "notes": [
-    "新增移动端 AI 助手入口和基础对话能力",
-    "同步网页端任务工单和时间节点权限规则",
-    "启用强制更新流程，确保移动端版本保持一致"
+    "AI 助手加入底部导航，入口更容易找到",
+    "优化 AI 助手发送、超时和失败重试流程",
+    "修复 AI 助手异常时按钮卡住和页面无法恢复的问题"
   ],
   "force": true,
-  "publishedAt": "2026-05-03T11:40:00+08:00"
+  "publishedAt": "2026-05-03T17:05:54+08:00"
 }
