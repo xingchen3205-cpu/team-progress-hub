@@ -1,0 +1,13 @@
+{
+  "version": "1.0.10",
+  "buildName": "1.0.10",
+  "buildNumber": 21,
+  "apkUrl": "https://xingchencxcy.com/updates/team-progress-hub-1.0.10.apk",
+  "notes": [
+    "修复移动端登录与网页端验证码策略不一致导致无法登录的问题",
+    "登录页新增验证码显示、刷新和失败后自动换码",
+    "恢复 App 更新清单和 APK 下载地址"
+  ],
+  "force": false,
+  "publishedAt": "2026-05-03T09:45:00+08:00"
+}
