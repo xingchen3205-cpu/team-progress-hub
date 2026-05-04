@@ -126,3 +126,16 @@ test("team account list excludes system admins and experts from project groups",
   assert.match(shellSource, /getSidebarUserMeta/);
   assert.doesNotMatch(shellSource, />智在必行</);
 });
+
+test("school administrator role is treated as a global account without team group selector", () => {
+  const contextSource = readFileSync(
+    path.join(process.cwd(), "src/components/workspace-context.tsx"),
+    "utf8",
+  );
+
+  assert.match(contextSource, /teamGroupAssignableRoleLabels/);
+  assert.match(contextSource, /isEditingRoleTeamGroupAssignable/);
+  assert.match(contextSource, /nextTeamGroupId = isEditingRoleTeamGroupAssignable \? editingTeamRowGroupId : ""/);
+  assert.match(teamSource, /!isEditingRoleTeamGroupAssignable\(member\) \?/);
+  assert.match(teamSource, /全局角色不分配项目组/);
+});

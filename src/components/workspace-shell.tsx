@@ -115,6 +115,11 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
     setBatchExpertModalOpen,
     batchExpertDraft,
     setBatchExpertDraft,
+    expertProfileModalOpen,
+    closeExpertProfileModal,
+    expertProfileDraft,
+    setExpertProfileDraft,
+    editingExpertProfileId,
     profileMenuRef,
     passwordModalOpen,
     setPasswordModalOpen,
@@ -191,6 +196,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
     saveReviewMaterial,
     saveTeamMember,
     saveBatchExperts,
+    saveExpertProfile,
     openProfilePage,
     resetMemberPassword,
     handleConfirmDialog,
@@ -2774,6 +2780,132 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                 variant="primary"
               >
                 批量创建
+              </ActionButton>
+            </ModalActions>
+          </div>
+        </Modal>
+      ) : null}
+
+      {expertProfileModalOpen ? (
+        <Modal
+          title={editingExpertProfileId ? "编辑专家档案" : "录入专家档案"}
+          onClose={closeExpertProfileModal}
+        >
+          <div className="space-y-4">
+            <div className="rounded-lg bg-slate-50 px-4 py-3 text-sm leading-7 text-slate-500">
+              专家库只保存专家资料，不代表账号已开通；需要参与评审时可在专家库中点击“开通账号”。
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <label className="block text-sm text-slate-500">
+                专家姓名
+                <input
+                  className={fieldClassName}
+                  value={expertProfileDraft.name}
+                  onChange={(event) =>
+                    setExpertProfileDraft((current) => ({ ...current, name: event.target.value }))
+                  }
+                />
+              </label>
+              <label className="block text-sm text-slate-500">
+                手机号
+                <input
+                  className={fieldClassName}
+                  value={expertProfileDraft.phone}
+                  onChange={(event) =>
+                    setExpertProfileDraft((current) => ({ ...current, phone: event.target.value }))
+                  }
+                />
+              </label>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <label className="block text-sm text-slate-500">
+                邮箱
+                <input
+                  className={fieldClassName}
+                  value={expertProfileDraft.email}
+                  onChange={(event) =>
+                    setExpertProfileDraft((current) => ({ ...current, email: event.target.value }))
+                  }
+                />
+              </label>
+              <label className="block text-sm text-slate-500">
+                工作单位
+                <input
+                  className={fieldClassName}
+                  value={expertProfileDraft.organization}
+                  onChange={(event) =>
+                    setExpertProfileDraft((current) => ({ ...current, organization: event.target.value }))
+                  }
+                />
+              </label>
+            </div>
+            <div className="grid gap-4 md:grid-cols-2">
+              <label className="block text-sm text-slate-500">
+                职务
+                <input
+                  className={fieldClassName}
+                  placeholder="例如：教授 / 投资人 / 财务负责人"
+                  value={expertProfileDraft.title}
+                  onChange={(event) =>
+                    setExpertProfileDraft((current) => ({ ...current, title: event.target.value }))
+                  }
+                />
+              </label>
+              <label className="block text-sm text-slate-500">
+                擅长赛道
+                <input
+                  className={fieldClassName}
+                  placeholder="例如：高教主赛道，职教赛道，红旅赛道"
+                  value={expertProfileDraft.specialtyTracks}
+                  onChange={(event) =>
+                    setExpertProfileDraft((current) => ({ ...current, specialtyTracks: event.target.value }))
+                  }
+                />
+              </label>
+            </div>
+            <label className="block text-sm text-slate-500">
+              专业领域
+              <input
+                className={fieldClassName}
+                placeholder="例如：财务测算，商业模式，项目整体逻辑，路演表达"
+                value={expertProfileDraft.specialtyTags}
+                onChange={(event) =>
+                  setExpertProfileDraft((current) => ({ ...current, specialtyTags: event.target.value }))
+                }
+              />
+              <span className="mt-1 block text-xs leading-6 text-slate-400">多个领域或赛道可用逗号分隔。</span>
+            </label>
+            <label className="block text-sm text-slate-500">
+              专长说明
+              <textarea
+                className={`${textareaClassName} min-h-[88px]`}
+                placeholder="可补充专家擅长的评审角度、行业经验或适合安排的项目类型。"
+                value={expertProfileDraft.specialtyText}
+                onChange={(event) =>
+                  setExpertProfileDraft((current) => ({ ...current, specialtyText: event.target.value }))
+                }
+              />
+            </label>
+            <label className="block text-sm text-slate-500">
+              备注
+              <textarea
+                className={`${textareaClassName} min-h-[72px]`}
+                placeholder="内部备注，可记录邀请状态、时间偏好等。"
+                value={expertProfileDraft.notes}
+                onChange={(event) =>
+                  setExpertProfileDraft((current) => ({ ...current, notes: event.target.value }))
+                }
+              />
+            </label>
+            <ModalActions>
+              <ActionButton disabled={isSaving} onClick={closeExpertProfileModal}>取消</ActionButton>
+              <ActionButton
+                loading={isSaving}
+                loadingLabel="保存中..."
+                onClick={() => void saveExpertProfile()}
+                variant="primary"
+              >
+                保存专家档案
               </ActionButton>
             </ModalActions>
           </div>

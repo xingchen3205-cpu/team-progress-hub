@@ -60,6 +60,7 @@ export default function TeamTab() {
     visibleExpertAccountMembers,
     activeTeamMembers,
     canUseTeamGroups,
+    isEditingRoleTeamGroupAssignable,
     showTeamActions,
     teamListGridClassName,
     teamFilterOptions,
@@ -68,6 +69,8 @@ export default function TeamTab() {
     allVisibleAiSelected,
     teamAiStats,
     canBatchCreateExperts,
+    canManageExpertProfiles,
+    expertProfiles,
     pendingApprovalMembers,
     canSendDirectiveToMember,
     openReminderModal,
@@ -84,6 +87,9 @@ export default function TeamTab() {
     openPasswordModal,
     removeMember,
     rejectMemberRegistration,
+    openExpertProfileModal,
+    deleteExpertProfile,
+    openExpertProfileAccount,
   } = Workspace.useWorkspaceContext();
 
   const {
@@ -343,6 +349,112 @@ const renderTeam = () => (
           ) : (
             <div className="team-empty-inline">
               暂无分组。可以先按学校或项目组创建，再在账号列表里分配成员。
+            </div>
+          )}
+        </section>
+      ) : null}
+
+      {canManageExpertProfiles && isExpertAccountView ? (
+        <section className="team-management-card">
+          <div className="team-card-head">
+            <div>
+              <h3 className="team-section-title">专家库</h3>
+              <p className="team-card-desc">
+                先沉淀专家姓名、单位、职务、专业领域和擅长赛道；需要参与评审时再开通专家账号。
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <span className="team-card-count">{expertProfiles.length} 位专家</span>
+              <ActionButton onClick={() => openExpertProfileModal()} variant="primary">
+                <span className="inline-flex items-center gap-2">
+                  <Plus className="h-4 w-4" />
+                  <span>录入专家</span>
+                </span>
+              </ActionButton>
+            </div>
+          </div>
+
+          {expertProfiles.length > 0 ? (
+            <div className="grid gap-3 xl:grid-cols-2">
+              {expertProfiles.map((profile) => (
+                <article className="rounded-2xl border border-slate-200 bg-white p-4" key={profile.id}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h4 className="truncate text-base font-semibold text-slate-900">{profile.name}</h4>
+                        <span className={`rounded-full px-2 py-0.5 text-xs ${
+                          profile.linkedUserId ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"
+                        }`}>
+                          {profile.accountStatus}
+                        </span>
+                      </div>
+                      <p className="mt-2 text-sm text-slate-500">
+                        {[profile.organization, profile.title].filter(Boolean).join(" · ") || "单位和职务待补充"}
+                      </p>
+                    </div>
+                    <div className="flex shrink-0 gap-2">
+                      <button
+                        className="team-icon-button primary"
+                        onClick={() => openExpertProfileModal(profile)}
+                        title="编辑专家档案"
+                        type="button"
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </button>
+                      {!profile.linkedUserId ? (
+                        <button
+                          className="team-icon-button danger"
+                          onClick={() => deleteExpertProfile(profile)}
+                          title="删除专家档案"
+                          type="button"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </button>
+                      ) : null}
+                    </div>
+                  </div>
+
+                  <div className="mt-4 grid gap-3 md:grid-cols-2">
+                    <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-3">
+                      <p className="text-xs text-slate-400">专业领域</p>
+                      <p className="mt-1 text-sm text-slate-700">
+                        {profile.specialtyTags.length > 0 ? profile.specialtyTags.join("、") : "待补充"}
+                      </p>
+                    </div>
+                    <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-3">
+                      <p className="text-xs text-slate-400">擅长赛道</p>
+                      <p className="mt-1 text-sm text-slate-700">
+                        {profile.specialtyTracks.length > 0 ? profile.specialtyTracks.join("、") : "待补充"}
+                      </p>
+                    </div>
+                  </div>
+
+                  {profile.specialtyText ? (
+                    <p className="mt-3 rounded-xl bg-blue-50 px-3 py-2 text-sm leading-6 text-blue-700">
+                      {profile.specialtyText}
+                    </p>
+                  ) : null}
+
+                  <div className="mt-4 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500">
+                    <span>
+                      {profile.email || profile.phone
+                        ? [profile.email, profile.phone].filter(Boolean).join(" · ")
+                        : "联系方式待补充"}
+                    </span>
+                    {profile.linkedUser ? (
+                      <span>账号：{profile.linkedUser.username}</span>
+                    ) : (
+                      <ActionButton disabled={isSaving} onClick={() => void openExpertProfileAccount(profile)}>
+                        开通账号
+                      </ActionButton>
+                    )}
+                  </div>
+                </article>
+              ))}
+            </div>
+          ) : (
+            <div className="team-empty-inline">
+              暂无专家档案。建议先录入专家资料，后续评审前再按需开通账号。
             </div>
           )}
         </section>
@@ -692,9 +804,9 @@ const renderTeam = () => (
                                           </option>
                                         ))}
                                       </select>
-                                      {member.systemRole === "评审专家" ? (
+                                      {!isEditingRoleTeamGroupAssignable(member) ? (
                                         <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm text-slate-500">
-                                          专家账号不分配项目组
+                                          全局角色不分配项目组
                                         </div>
                                       ) : (
                                         <select
@@ -965,7 +1077,9 @@ const renderTeam = () => (
                       {!isExpertAccountView && canUseTeamGroups ? (
                         <div>
                           <p className="mb-2 text-xs text-slate-400 lg:hidden">分组</p>
-                          {editingTeamRowId === member.id && !groupAssignmentLocked ? (
+                          {editingTeamRowId === member.id && !isEditingRoleTeamGroupAssignable(member) ? (
+                            <span className="team-inline-value">全局角色不分配项目组</span>
+                          ) : editingTeamRowId === member.id && !groupAssignmentLocked ? (
                             <select
                               className="w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
                               value={editingTeamRowGroupId}

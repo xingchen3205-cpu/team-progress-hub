@@ -277,6 +277,41 @@ export type BatchExpertDraft = {
   rows: string;
 };
 
+export type ExpertProfileItem = {
+  id: string;
+  name: string;
+  phone: string;
+  email: string;
+  organization: string;
+  title: string;
+  specialtyTags: string[];
+  specialtyTracks: string[];
+  specialtyText: string;
+  notes: string;
+  linkedUserId: string | null;
+  linkedUser: {
+    id: string;
+    name: string;
+    username: string;
+    email: string;
+  } | null;
+  accountStatus: "未开通账号" | "已开通账号";
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type ExpertProfileDraft = {
+  name: string;
+  phone: string;
+  email: string;
+  organization: string;
+  title: string;
+  specialtyTags: string;
+  specialtyTracks: string;
+  specialtyText: string;
+  notes: string;
+};
+
 export type TeamGroupDraft = {
   name: string;
   description: string;
@@ -1067,6 +1102,8 @@ export const teamRoleTagClassNames: Record<TeamRoleLabel, string> = {
   评审专家: "bg-rose-50 text-rose-700 border-rose-200",
 };
 
+export const teamGroupAssignableRoleLabels = new Set<TeamRoleLabel>(["指导教师", "项目负责人", "团队成员"]);
+
 export const formatDateTime = (value: string) => formatBeijingDateTimeShort(value);
 
 export const formatShortDate = (value: string) => {
@@ -1460,6 +1497,18 @@ export const defaultTeamDraft: TeamDraft = {
 
 export const defaultBatchExpertDraft: BatchExpertDraft = {
   rows: "",
+};
+
+export const defaultExpertProfileDraft: ExpertProfileDraft = {
+  name: "",
+  phone: "",
+  email: "",
+  organization: "",
+  title: "",
+  specialtyTags: "",
+  specialtyTracks: "",
+  specialtyText: "",
+  notes: "",
 };
 
 export const defaultTeamGroupDraft: TeamGroupDraft = {
@@ -2085,6 +2134,10 @@ function useWorkspaceController({
   const [editingTeamGroupId, setEditingTeamGroupId] = useState<string | null>(null);
   const [batchExpertModalOpen, setBatchExpertModalOpen] = useState(false);
   const [batchExpertDraft, setBatchExpertDraft] = useState<BatchExpertDraft>(defaultBatchExpertDraft);
+  const [expertProfiles, setExpertProfiles] = useState<ExpertProfileItem[]>([]);
+  const [expertProfileModalOpen, setExpertProfileModalOpen] = useState(false);
+  const [expertProfileDraft, setExpertProfileDraft] = useState<ExpertProfileDraft>(defaultExpertProfileDraft);
+  const [editingExpertProfileId, setEditingExpertProfileId] = useState<string | null>(null);
   const [profileDraft, setProfileDraft] = useState<ProfileDraft>(defaultProfileDraft());
   const [profileMessage, setProfileMessage] = useState<string | null>(null);
   const [isAvatarUploading, setIsAvatarUploading] = useState(false);
@@ -2165,6 +2218,7 @@ function useWorkspaceController({
     reviewMaterialModalOpen ||
     teamModalOpen ||
     batchExpertModalOpen ||
+    expertProfileModalOpen ||
     passwordModalOpen ||
     reportModalOpen ||
     documentModalOpen ||
@@ -2507,6 +2561,7 @@ function useWorkspaceController({
     setMembers([]);
     setPendingTeamMembers([]);
     setTeamGroups([]);
+    setExpertProfiles([]);
     setReviewAssignmentDraft(defaultExpertReviewAssignmentDraft(""));
     applyReportsPayload({
       dates: [getDefaultDateKey()],
@@ -2625,6 +2680,14 @@ function useWorkspaceController({
             groups?: TeamGroupItem[];
           }>("/api/team");
           applyTeamPayload(payload);
+          if (role === "admin" || role === "school_admin") {
+            const expertProfilePayload = await requestJson<{ expertProfiles: ExpertProfileItem[] }>(
+              "/api/team/expert-profiles",
+            );
+            setExpertProfiles(expertProfilePayload.expertProfiles);
+          } else {
+            setExpertProfiles([]);
+          }
           return;
         }
         case "trainingQuestions": {
@@ -3294,12 +3357,18 @@ function useWorkspaceController({
     [aiPermissionItems],
   );
 
-  const teamAccountRoleLabels = new Set<TeamRoleLabel>(["指导教师", "项目负责人", "团队成员"]);
+  const teamAccountRoleLabels = teamGroupAssignableRoleLabels;
   const visibleCoreTeamMembers = visibleTeamMembers.filter((member) => teamAccountRoleLabels.has(member.systemRole));
   const visibleExpertAccountMembers = visibleTeamMembers.filter((member) => member.systemRole === "评审专家");
   const activeTeamMembers =
     teamAccountView === "experts" ? visibleExpertAccountMembers : visibleCoreTeamMembers;
   const canUseTeamGroups = hasGlobalAdminRole && teamAccountView === "team";
+  const isEditingRoleTeamGroupAssignable = (member: TeamMember) => {
+    const currentEditingRole =
+      editingTeamRowId === member.id ? (editingTeamRowRole ?? member.systemRole) : member.systemRole;
+
+    return teamGroupAssignableRoleLabels.has(currentEditingRole);
+  };
   const showTeamActions = permissions.canManageTeam || permissions.canSendDirective || permissions.canResetPassword;
   const teamListGridClassName = canUseTeamGroups
     ? "lg:grid-cols-[minmax(0,1.3fr)_160px_180px_120px_minmax(260px,1fr)]"
@@ -3388,7 +3457,8 @@ function useWorkspaceController({
       quotaTotal,
     };
   }, [activeTeamMembers, aiPermissionMap]);
-  const canBatchCreateExperts = hasGlobalAdminRole || currentRole === "teacher";
+  const canBatchCreateExperts = hasGlobalAdminRole;
+  const canManageExpertProfiles = hasGlobalAdminRole;
 
   useEffect(() => {
     if (!canViewExpertAccounts && teamAccountView === "experts") {
@@ -5812,6 +5882,151 @@ function useWorkspaceController({
     });
   };
 
+  const parseExpertProfileList = (value: string) =>
+    Array.from(
+      new Set(
+        value
+          .split(/[，,\n]/)
+          .map((item) => item.trim())
+          .filter(Boolean),
+      ),
+    );
+
+  const createExpertProfileDraftFromItem = (profile: ExpertProfileItem): ExpertProfileDraft => ({
+    name: profile.name,
+    phone: profile.phone,
+    email: profile.email,
+    organization: profile.organization,
+    title: profile.title,
+    specialtyTags: profile.specialtyTags.join("，"),
+    specialtyTracks: profile.specialtyTracks.join("，"),
+    specialtyText: profile.specialtyText,
+    notes: profile.notes,
+  });
+
+  const openExpertProfileModal = (profile?: ExpertProfileItem) => {
+    if (!hasGlobalAdminRole) {
+      setLoadError("无权限管理专家库");
+      return;
+    }
+
+    setEditingExpertProfileId(profile?.id ?? null);
+    setExpertProfileDraft(profile ? createExpertProfileDraftFromItem(profile) : defaultExpertProfileDraft);
+    setExpertProfileModalOpen(true);
+  };
+
+  const closeExpertProfileModal = () => {
+    setExpertProfileModalOpen(false);
+    setEditingExpertProfileId(null);
+    setExpertProfileDraft(defaultExpertProfileDraft);
+  };
+
+  const saveExpertProfile = async () => {
+    if (!expertProfileDraft.name.trim()) {
+      setLoadError("请填写专家姓名");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      await requestJson(
+        editingExpertProfileId
+          ? `/api/team/expert-profiles/${editingExpertProfileId}`
+          : "/api/team/expert-profiles",
+        {
+          method: editingExpertProfileId ? "PATCH" : "POST",
+          body: JSON.stringify({
+            name: expertProfileDraft.name,
+            phone: expertProfileDraft.phone,
+            email: expertProfileDraft.email,
+            organization: expertProfileDraft.organization,
+            title: expertProfileDraft.title,
+            specialtyTags: parseExpertProfileList(expertProfileDraft.specialtyTags),
+            specialtyTracks: parseExpertProfileList(expertProfileDraft.specialtyTracks),
+            specialtyText: expertProfileDraft.specialtyText,
+            notes: expertProfileDraft.notes,
+          }),
+        },
+      );
+      closeExpertProfileModal();
+      showSuccessToast(
+        editingExpertProfileId ? "专家档案已更新" : "专家已录入专家库",
+        "专业领域、擅长赛道和联系方式已经保存。",
+      );
+      refreshWorkspace("team");
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "专家档案保存失败");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const deleteExpertProfileRequest = async (profileId: string) => {
+    await requestJson(`/api/team/expert-profiles/${profileId}`, {
+      method: "DELETE",
+    });
+    refreshWorkspace("team");
+  };
+
+  const deleteExpertProfile = (profile: ExpertProfileItem) => {
+    setConfirmDialog({
+      open: true,
+      title: "删除专家档案",
+      message: `确认删除专家库中的「${profile.name}」？已开通账号的专家档案不会被删除。`,
+      confirmLabel: "确认删除",
+      confirmVariant: "danger",
+      successTitle: "专家档案已删除",
+      successDetail: "该专家档案已从专家库移除。",
+      onConfirm: () => deleteExpertProfileRequest(profile.id),
+    });
+  };
+
+  const buildExpertProfileUsername = (profile: ExpertProfileItem) => {
+    const emailPrefix = profile.email.split("@")[0]?.replace(/[^A-Za-z0-9]/g, "").slice(0, 14);
+    if (emailPrefix && emailPrefix.length >= 4) {
+      return emailPrefix;
+    }
+    return `expert${String(Date.now()).slice(-8)}`;
+  };
+
+  const openExpertProfileAccount = async (profile: ExpertProfileItem) => {
+    if (profile.linkedUserId) {
+      setLoadError("该专家已开通账号");
+      return;
+    }
+
+    const username = window.prompt(
+      `请输入「${profile.name}」的专家登录账号名（4-20 位英文字母或数字）`,
+      buildExpertProfileUsername(profile),
+    );
+    if (username == null) {
+      return;
+    }
+
+    const password = window.prompt("请输入初始密码，留空默认 123456", "123456");
+    if (password == null) {
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      await requestJson(`/api/team/expert-profiles/${profile.id}/account`, {
+        method: "POST",
+        body: JSON.stringify({
+          username: username.trim(),
+          password: password.trim() || "123456",
+        }),
+      });
+      setTeamAccountView("experts");
+      showSuccessToast("专家账号已开通", `「${profile.name}」现在可以用专家账号登录系统。`);
+      refreshWorkspace("team");
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "专家账号开通失败");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const saveTeamMember = async () => {
     if (!teamDraft.name.trim() || !teamDraft.username.trim()) {
       return;
@@ -6163,7 +6378,8 @@ function useWorkspaceController({
 
   const saveTeamRowEditor = (member: TeamMember) => {
     const nextRole = editingTeamRowRole ?? member.systemRole;
-    const nextTeamGroupId = editingTeamRowGroupId;
+    const isEditingRoleTeamGroupAssignable = teamGroupAssignableRoleLabels.has(nextRole);
+    const nextTeamGroupId = isEditingRoleTeamGroupAssignable ? editingTeamRowGroupId : "";
     const roleChanged = nextRole !== member.systemRole;
     const groupChanged = (member.teamGroupId ?? "") !== nextTeamGroupId;
 
@@ -6516,6 +6732,14 @@ function useWorkspaceController({
     setBatchExpertModalOpen,
     batchExpertDraft,
     setBatchExpertDraft,
+    expertProfiles,
+    setExpertProfiles,
+    expertProfileModalOpen,
+    setExpertProfileModalOpen,
+    expertProfileDraft,
+    setExpertProfileDraft,
+    editingExpertProfileId,
+    setEditingExpertProfileId,
     profileDraft,
     setProfileDraft,
     profileMessage,
@@ -6666,6 +6890,7 @@ function useWorkspaceController({
     visibleExpertAccountMembers,
     activeTeamMembers,
     canUseTeamGroups,
+    isEditingRoleTeamGroupAssignable,
     showTeamActions,
     teamListGridClassName,
     teamFilterOptions,
@@ -6678,6 +6903,7 @@ function useWorkspaceController({
     allVisibleAiSelected,
     teamAiStats,
     canBatchCreateExperts,
+    canManageExpertProfiles,
     pendingApprovalMembers,
     unreadTodoNotifications,
     roleTodoItems,
@@ -6810,6 +7036,11 @@ function useWorkspaceController({
     deleteTeamGroupRequest,
     deleteTeamGroup,
     saveBatchExperts,
+    openExpertProfileModal,
+    closeExpertProfileModal,
+    saveExpertProfile,
+    deleteExpertProfile,
+    openExpertProfileAccount,
     openProfilePage,
     openOverviewTarget,
     applyUpdatedCurrentUser,

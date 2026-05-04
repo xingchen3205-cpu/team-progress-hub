@@ -152,6 +152,8 @@ model User {
   aiPermission              AiPermission?
   aiConversations           AiConversation[]
   pushDevices               PushDevice[]
+  expertProfilesCreated     ExpertProfile[]             @relation("ExpertProfileCreator")
+  expertProfile             ExpertProfile?              @relation("ExpertProfileAccount")
   expertReviewPackages      ExpertReviewPackage[]       @relation("ExpertReviewPackageCreator")
   expertAssignments         ExpertReviewAssignment[]    @relation("ExpertAssignmentUser")
   expertScores              ExpertReviewScore[]         @relation("ExpertScoreReviewer")
@@ -222,6 +224,28 @@ model PushDevice {
   createdAt  DateTime @default(now())
   updatedAt  DateTime @updatedAt
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model ExpertProfile {
+  id              String   @id @default(cuid())
+  name            String
+  phone           String?
+  email           String?
+  organization    String?
+  title           String?
+  specialtyTags   String   @default("[]")
+  specialtyTracks String   @default("[]")
+  specialtyText   String?
+  notes           String?
+  linkedUserId    String?  @unique
+  createdById     String
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  linkedUser      User?    @relation("ExpertProfileAccount", fields: [linkedUserId], references: [id], onDelete: SetNull)
+  createdBy       User     @relation("ExpertProfileCreator", fields: [createdById], references: [id])
+
+  @@index([name, organization])
+  @@index([createdAt])
 }
 
 model TeamGroup {
