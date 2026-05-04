@@ -28,6 +28,10 @@ const canViewApprovedMember = (
   viewer: { id: string; role: TeamViewerRole; teamGroupId?: string | null },
   member: { id: string; role: TeamMemberRole; teamGroup?: { id: string } | null },
 ) => {
+  if (viewer.role === "school_admin" && member.role === "admin") {
+    return false;
+  }
+
   if (hasGlobalAdminPrivileges(viewer.role)) {
     return true;
   }

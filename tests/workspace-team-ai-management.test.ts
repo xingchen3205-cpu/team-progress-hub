@@ -120,9 +120,9 @@ test("team account list excludes system admins and experts from project groups",
     "utf8",
   );
 
-  assert.match(contextSource, /teamAccountRoleLabels/);
+  assert.match(contextSource, /teamAccountVisibleRoleLabels/);
   assert.match(contextSource, /visibleCoreTeamMembers = visibleTeamMembers\.filter/);
-  assert.match(contextSource, /teamAccountRoleLabels\.has\(member\.systemRole\)/);
+  assert.match(contextSource, /teamAccountVisibleRoleLabels\.has\(member\.systemRole\)/);
   assert.match(shellSource, /getSidebarUserMeta/);
   assert.doesNotMatch(shellSource, />智在必行</);
 });
@@ -138,4 +138,16 @@ test("school administrator role is treated as a global account without team grou
   assert.match(contextSource, /nextTeamGroupId = isEditingRoleTeamGroupAssignable \? editingTeamRowGroupId : ""/);
   assert.match(teamSource, /!isEditingRoleTeamGroupAssignable\(member\) \?/);
   assert.match(teamSource, /全局角色不分配项目组/);
+});
+
+test("system administrator can still see school administrator accounts in team management", () => {
+  const contextSource = readFileSync(
+    path.join(process.cwd(), "src/components/workspace-context.tsx"),
+    "utf8",
+  );
+
+  assert.match(contextSource, /teamAccountVisibleRoleLabels/);
+  assert.match(contextSource, /teamAccountVisibleRoleLabels\.has\(member\.systemRole\)/);
+  assert.match(contextSource, /"校级管理员"/);
+  assert.doesNotMatch(contextSource, /teamAccountVisibleRoleLabels = teamGroupAssignableRoleLabels/);
 });

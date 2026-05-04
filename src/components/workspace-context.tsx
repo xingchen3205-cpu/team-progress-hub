@@ -1103,6 +1103,12 @@ export const teamRoleTagClassNames: Record<TeamRoleLabel, string> = {
 };
 
 export const teamGroupAssignableRoleLabels = new Set<TeamRoleLabel>(["指导教师", "项目负责人", "团队成员"]);
+export const teamAccountVisibleRoleLabels = new Set<TeamRoleLabel>([
+  "校级管理员",
+  "指导教师",
+  "项目负责人",
+  "团队成员",
+]);
 
 export const formatDateTime = (value: string) => formatBeijingDateTimeShort(value);
 
@@ -3357,8 +3363,9 @@ function useWorkspaceController({
     [aiPermissionItems],
   );
 
-  const teamAccountRoleLabels = teamGroupAssignableRoleLabels;
-  const visibleCoreTeamMembers = visibleTeamMembers.filter((member) => teamAccountRoleLabels.has(member.systemRole));
+  const visibleCoreTeamMembers = visibleTeamMembers.filter((member) =>
+    teamAccountVisibleRoleLabels.has(member.systemRole),
+  );
   const visibleExpertAccountMembers = visibleTeamMembers.filter((member) => member.systemRole === "评审专家");
   const activeTeamMembers =
     teamAccountView === "experts" ? visibleExpertAccountMembers : visibleCoreTeamMembers;

@@ -86,3 +86,13 @@ test("team group management api excludes admins and experts from member counts",
   assert.match(groupItemSource, /teamAccountRoles/);
   assert.match(groupItemSource, /role:\s*\{\s*in:\s*teamAccountRoles/);
 });
+
+test("school administrators cannot see system administrator accounts", () => {
+  const source = readFileSync(
+    path.join(process.cwd(), "src/app/api/team/route.ts"),
+    "utf8",
+  );
+
+  assert.match(source, /if \(viewer\.role === "school_admin" && member\.role === "admin"\)/);
+  assert.match(source, /return false/);
+});
