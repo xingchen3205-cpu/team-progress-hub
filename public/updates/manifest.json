@@ -1,13 +1,15 @@
 {
-  "version": "1.0.12",
-  "buildName": "1.0.12",
-  "buildNumber": 23,
-  "apkUrl": "https://xingchencxcy.com/updates/team-progress-hub-1.0.12.apk",
+  "version": "1.0.16",
+  "buildName": "1.0.16",
+  "buildNumber": 27,
+  "apkUrl": "https://xingchencxcy.com/updates/team-progress-hub-1.0.16.apk",
   "notes": [
-    "AI 助手加入底部导航，入口更容易找到",
-    "优化 AI 助手发送、超时和失败重试流程",
-    "修复 AI 助手异常时按钮卡住和页面无法恢复的问题"
+    "移除个人信息页版本卡片中的手机推送状态栏目",
+    "修复管理员发布的全局公告在移动端不可见的问题",
+    "优化首页时间节点同步逻辑，优先展示当前之后的最近节点",
+    "保持版本号显示为 1.0.16 这类干净格式",
+    "保留并验证启动后强制更新弹窗的自动弹出逻辑"
   ],
   "force": true,
-  "publishedAt": "2026-05-03T17:05:54+08:00"
+  "publishedAt": "2026-05-04T15:10:00+08:00"
 }

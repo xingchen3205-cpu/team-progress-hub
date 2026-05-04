@@ -48,6 +48,16 @@ test("announcement create and delete routes reject teacher and leader roles", ()
   assert.doesNotMatch(createRoute, /user\.role === "teacher"/);
 });
 
+test("announcement list includes global announcements for grouped users", () => {
+  const createRoute = readSource("src/app/api/announcements/route.ts");
+  const getBlock = createRoute.slice(
+    createRoute.indexOf("export async function GET"),
+    createRoute.indexOf("export async function POST"),
+  );
+
+  assert.match(getBlock, /buildTeamScopedResourceWhere\(\{[\s\S]*?includeUnassignedForGroupedUsers:\s*true/);
+});
+
 test("seed and demo copy no longer describes teachers as announcement publishers", () => {
   const demoData = readSource("src/data/demo-data.ts");
   const seed = readSource("prisma/seed.ts");
