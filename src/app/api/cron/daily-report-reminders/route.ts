@@ -11,7 +11,11 @@ export async function GET(request: NextRequest) {
   const cronSecret = process.env.CRON_SECRET;
   const authorization = request.headers.get("authorization");
 
-  if (cronSecret && authorization !== `Bearer ${cronSecret}`) {
+  if (process.env.NODE_ENV === "production" && !cronSecret) {
+    return NextResponse.json({ message: "CRON_SECRET 未配置" }, { status: 500 });
+  }
+
+  if (!cronSecret || authorization !== `Bearer ${cronSecret}`) {
     return NextResponse.json({ message: "无权限" }, { status: 401 });
   }
 

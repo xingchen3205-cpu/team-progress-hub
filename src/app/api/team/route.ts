@@ -14,8 +14,8 @@ import {
 } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { serializeUser } from "@/lib/api-serializers";
+import { generateTemporaryPassword } from "@/lib/passwords";
 
-const defaultPassword = "123456";
 type TeamMemberRole = "admin" | "school_admin" | "teacher" | "leader" | "member" | "expert";
 type TeamViewerRole = TeamMemberRole;
 const teamAccountRoles: TeamMemberRole[] = ["teacher", "leader", "member"];
@@ -313,7 +313,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: "用户名或邮箱已存在，请更换后再试" }, { status: 409 });
   }
 
-  const passwordHash = await bcrypt.hash(body?.password?.trim() || defaultPassword, 10);
+  const providedPassword = body?.password?.trim();
+  const temporaryPassword = providedPassword ? null : generateTemporaryPassword();
+  const passwordHash = await bcrypt.hash(providedPassword || temporaryPassword || generateTemporaryPassword(), 10);
 
   try {
     const member = await prisma.user.create({
@@ -357,7 +359,13 @@ export async function POST(request: NextRequest) {
       },
     });
 
-    return NextResponse.json({ member: serializeUser(member) }, { status: 201 });
+    return NextResponse.json(
+      {
+        member: serializeUser(member),
+        temporaryPassword,
+      },
+      { status: 201 },
+    );
   } catch (error) {
     if (
       (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") ||

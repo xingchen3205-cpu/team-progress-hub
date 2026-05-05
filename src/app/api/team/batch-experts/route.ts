@@ -5,9 +5,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { validateUsername } from "@/lib/account-policy";
 import { getSessionUser } from "@/lib/auth";
 import { canManageUser } from "@/lib/permissions";
+import { generateTemporaryPassword } from "@/lib/passwords";
 import { prisma } from "@/lib/prisma";
-
-const defaultExpertPassword = "123456";
 
 type BatchExpertInput = {
   name?: string;
@@ -45,7 +44,8 @@ export async function POST(request: NextRequest) {
     lineNumber: index + 1,
     name: expert.name?.trim() ?? "",
     username: expert.username?.trim() ?? "",
-    password: expert.password?.trim() || defaultExpertPassword,
+    password: expert.password?.trim() || generateTemporaryPassword(),
+    generatedPassword: !expert.password?.trim(),
     email: expert.email?.trim() || null,
   }));
 
@@ -129,12 +129,20 @@ export async function POST(request: NextRequest) {
             avatarImagePath: null,
             responsibility: "职教赛道创业组专家评审",
           },
-          select: { id: true },
+          select: { id: true, username: true },
         }),
       ),
     );
 
-    return NextResponse.json({ createdCount: createdExperts.length }, { status: 201 });
+    return NextResponse.json(
+      {
+        createdCount: createdExperts.length,
+        generatedPasswords: normalizedExperts
+          .filter((expert) => expert.generatedPassword)
+          .map((expert) => ({ username: expert.username, password: expert.password })),
+      },
+      { status: 201 },
+    );
   } catch (error) {
     if (
       (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") ||

@@ -2686,9 +2686,10 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                 />
               </label>
               <label className="block text-sm text-slate-500">
-                初始密码
+                初始密码（留空自动生成）
                 <input
                   className={fieldClassName}
+                  placeholder="系统自动生成临时密码"
                   value={teamDraft.password}
                   onChange={(event) => setTeamDraft((current) => ({ ...current, password: event.target.value }))}
                 />
@@ -2749,13 +2750,13 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
             <div className="rounded-lg bg-slate-50 px-4 py-3 text-sm leading-7 text-slate-500">
               每行填写一个专家账号，格式为：
               <span className="mx-1 font-medium text-slate-700">姓名，账号名，初始密码，邮箱</span>
-              。初始密码和邮箱可不填，未填写密码时默认使用 123456。
+              。初始密码和邮箱可不填，未填写密码时系统会自动生成临时密码。
             </div>
             <label className="block text-sm text-slate-500">
               专家账号数据
               <textarea
                 className={`${textareaClassName} min-h-[180px] font-mono text-sm`}
-                placeholder={"王老师,expertwang,123456,wang@example.com\n李老师,expertli,123456,li@example.com"}
+                placeholder={"王老师,expertwang,,wang@example.com\n李老师,expertli,,li@example.com"}
                 value={batchExpertDraft.rows}
                 onChange={(event) => setBatchExpertDraft({ rows: event.target.value })}
               />

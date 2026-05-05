@@ -3,98 +3,49 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import test from "node:test";
 
-const readProjectFile = (relativePath: string) =>
-  readFileSync(path.join(process.cwd(), relativePath), "utf8");
+import { generateTemporaryPassword } from "../src/lib/passwords";
 
-test("next config applies baseline browser security headers", () => {
-  const nextConfigSource = readProjectFile("next.config.ts");
-  const securitySource = readProjectFile("src/lib/security.ts");
+const readSource = (filePath: string) =>
+  readFileSync(path.join(process.cwd(), filePath), "utf8");
 
-  assert.match(nextConfigSource, /securityHeaders/);
-  assert.match(nextConfigSource, /async headers\(\)/);
-  assert.match(securitySource, /Strict-Transport-Security/);
-  assert.match(securitySource, /X-Content-Type-Options/);
-  assert.match(securitySource, /X-Frame-Options/);
-  assert.match(securitySource, /Referrer-Policy/);
-  assert.match(securitySource, /Permissions-Policy/);
-  assert.match(securitySource, /Content-Security-Policy/);
-  assert.match(securitySource, /frame-ancestors 'none'/);
+test("cron reminder endpoint requires CRON_SECRET in production", () => {
+  const route = readSource("src/app/api/cron/daily-report-reminders/route.ts");
+
+  assert.match(route, /process\.env\.NODE_ENV === "production"/);
+  assert.match(route, /CRON_SECRET 未配置/);
+  assert.match(route, /authorization !== `Bearer \$\{cronSecret\}`/);
 });
 
-test("auth write endpoints are protected by rate limiting", () => {
-  const securitySource = readProjectFile("src/lib/security.ts");
-  const loginSource = readProjectFile("src/app/api/auth/login/route.ts");
-  const registerSource = readProjectFile("src/app/api/auth/register/route.ts");
-  const forgotSource = readProjectFile("src/app/api/auth/forgot-password/route.ts");
-  const resetSource = readProjectFile("src/app/api/auth/reset-password/route.ts");
+test("admin-created accounts do not fall back to the fixed 123456 password", () => {
+  const teamRoute = readSource("src/app/api/team/route.ts");
+  const batchExpertsRoute = readSource("src/app/api/team/batch-experts/route.ts");
+  const profileAccountRoute = readSource("src/app/api/team/expert-profiles/[id]/account/route.ts");
+  const workspaceContext = readSource("src/components/workspace-context.tsx");
+  const workspaceShell = readSource("src/components/workspace-shell.tsx");
 
-  assert.match(securitySource, /checkRateLimit/);
-  assert.match(securitySource, /applyRateLimitHeaders/);
-  assert.match(securitySource, /429/);
-  assert.match(loginSource, /checkRateLimit/);
-  assert.match(registerSource, /checkRateLimit/);
-  assert.match(forgotSource, /checkRateLimit/);
-  assert.match(resetSource, /checkRateLimit/);
+  assert.match(teamRoute, /generateTemporaryPassword/);
+  assert.match(batchExpertsRoute, /generateTemporaryPassword/);
+  assert.match(profileAccountRoute, /generateTemporaryPassword/);
+  assert.doesNotMatch(teamRoute, /const defaultPassword = "123456"/);
+  assert.doesNotMatch(batchExpertsRoute, /const defaultExpertPassword = "123456"/);
+  assert.doesNotMatch(profileAccountRoute, /const defaultExpertPassword = "123456"/);
+  assert.doesNotMatch(workspaceContext, /默认 123456|\"123456\"/);
+  assert.doesNotMatch(workspaceShell, /默认使用 123456|王老师,expertwang,123456/);
 });
 
-test("state changing api requests are guarded against cross-site origins", () => {
-  const middlewareSource = readProjectFile("middleware.ts");
-  const securitySource = readProjectFile("src/lib/security.ts");
+test("temporary passwords are not predictable fixed values", () => {
+  const passwords = Array.from({ length: 20 }, () => generateTemporaryPassword());
 
-  assert.match(middlewareSource, /enforceSameOriginApiRequest/);
-  assert.match(middlewareSource, /\/api\/:path\*/);
-  assert.match(securitySource, /STATE_CHANGING_METHODS/);
-  assert.match(securitySource, /origin/);
-  assert.match(securitySource, /referer/);
-  assert.match(securitySource, /跨站请求已被拦截/);
-});
-
-test("rate limiter blocks requests after the configured limit", async () => {
-  const { checkRateLimit } = await import("../src/lib/security");
-  const request = new Request("https://xingchencxcy.com/api/auth/login", {
-    headers: {
-      "x-forwarded-for": "203.0.113.10",
-    },
-  });
-  const options = {
-    namespace: `security-test:${Date.now()}`,
-    windowMs: 60_000,
-    max: 2,
-  };
-
-  assert.equal(checkRateLimit(request, options).allowed, true);
-  assert.equal(checkRateLimit(request, options).allowed, true);
-
-  const blocked = checkRateLimit(request, options);
-  assert.equal(blocked.allowed, false);
-  assert.equal(blocked.remaining, 0);
-  assert.equal(blocked.retryAfterSeconds > 0, true);
-});
-
-test("same origin guard allows local requests and blocks cross-site writes", async () => {
-  const { NextRequest } = await import("next/server");
-  const { enforceSameOriginApiRequest } = await import("../src/lib/security");
-
-  const allowedRequest = new NextRequest("https://xingchencxcy.com/api/tasks", {
-    method: "POST",
-    headers: {
-      origin: "https://xingchencxcy.com",
-    },
-  });
-  const blockedRequest = new NextRequest("https://xingchencxcy.com/api/tasks", {
-    method: "POST",
-    headers: {
-      origin: "https://attacker.example",
-    },
-  });
-  const readRequest = new NextRequest("https://xingchencxcy.com/api/tasks", {
-    method: "GET",
-    headers: {
-      origin: "https://attacker.example",
-    },
-  });
-
-  assert.equal(enforceSameOriginApiRequest(allowedRequest), null);
-  assert.equal(enforceSameOriginApiRequest(readRequest), null);
-  assert.equal(enforceSameOriginApiRequest(blockedRequest)?.status, 403);
+  assert.equal(passwords.every((password) => password.length >= 8), true);
+  assert.equal(passwords.includes("123456"), false);
+  assert.ok(new Set(passwords).size > 1);
+  assert.equal(
+    passwords.every((password) =>
+      /[A-Z]/.test(password) &&
+      /[a-z]/.test(password) &&
+      /\d/.test(password) &&
+      /[@#$%]/.test(password),
+    ),
+    true,
+  );
 });

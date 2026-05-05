@@ -6,13 +6,12 @@ import { validateUsername } from "@/lib/account-policy";
 import { getSessionUser } from "@/lib/auth";
 import { parseJsonList, serializeExpertProfile } from "@/lib/expert-profiles";
 import { assertRole } from "@/lib/permissions";
+import { generateTemporaryPassword } from "@/lib/passwords";
 import { prisma } from "@/lib/prisma";
 
 type RouteContext = {
   params: Promise<{ id: string }>;
 };
-
-const defaultExpertPassword = "123456";
 
 const buildResponsibility = (profile: {
   title: string | null;
@@ -53,7 +52,9 @@ export async function POST(request: NextRequest, context: RouteContext) {
     | null;
 
   const username = body?.username?.trim() ?? "";
-  const password = body?.password?.trim() || defaultExpertPassword;
+  const providedPassword = body?.password?.trim();
+  const temporaryPassword = providedPassword ? null : generateTemporaryPassword();
+  const password = providedPassword || temporaryPassword || generateTemporaryPassword();
   const usernameError = validateUsername(username);
   if (usernameError) {
     return NextResponse.json({ message: usernameError }, { status: 400 });
@@ -137,7 +138,13 @@ export async function POST(request: NextRequest, context: RouteContext) {
       });
     });
 
-    return NextResponse.json({ expertProfile: serializeExpertProfile(updatedProfile) }, { status: 201 });
+    return NextResponse.json(
+      {
+        expertProfile: serializeExpertProfile(updatedProfile),
+        temporaryPassword,
+      },
+      { status: 201 },
+    );
   } catch (error) {
     if (
       (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") ||

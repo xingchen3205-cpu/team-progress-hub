@@ -1495,7 +1495,7 @@ export const defaultTeamDraft: TeamDraft = {
   name: "",
   username: "",
   email: "",
-  password: "123456",
+  password: "",
   role: "团队成员",
   responsibility: "",
   teamGroupId: "",
@@ -6010,22 +6010,27 @@ function useWorkspaceController({
       return;
     }
 
-    const password = window.prompt("请输入初始密码，留空默认 123456", "123456");
+    const password = window.prompt("请输入初始密码，留空将由系统自动生成临时密码", "");
     if (password == null) {
       return;
     }
 
     setIsSaving(true);
     try {
-      await requestJson(`/api/team/expert-profiles/${profile.id}/account`, {
+      const payload = await requestJson<{ temporaryPassword?: string | null }>(`/api/team/expert-profiles/${profile.id}/account`, {
         method: "POST",
         body: JSON.stringify({
           username: username.trim(),
-          password: password.trim() || "123456",
+          password: password.trim(),
         }),
       });
       setTeamAccountView("experts");
-      showSuccessToast("专家账号已开通", `「${profile.name}」现在可以用专家账号登录系统。`);
+      showSuccessToast(
+        "专家账号已开通",
+        payload.temporaryPassword
+          ? `「${profile.name}」临时密码：${payload.temporaryPassword}，请提醒首次登录后修改。`
+          : `「${profile.name}」现在可以用专家账号登录系统。`,
+      );
       refreshWorkspace("team");
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "专家账号开通失败");
@@ -6047,13 +6052,13 @@ function useWorkspaceController({
 
     setIsSaving(true);
     try {
-      await requestJson("/api/team", {
+      const payload = await requestJson<{ temporaryPassword?: string | null }>("/api/team", {
         method: "POST",
         body: JSON.stringify({
           name: teamDraft.name,
           username: teamDraft.username,
           email: teamDraft.email,
-          password: teamDraft.password || "123456",
+          password: teamDraft.password,
           role: teamDraft.role,
           responsibility: teamDraft.responsibility,
           teamGroupId: teamDraft.role === "评审专家" ? null : teamDraft.teamGroupId || null,
@@ -6061,7 +6066,12 @@ function useWorkspaceController({
       });
       setTeamDraft(defaultTeamDraft);
       setTeamModalOpen(false);
-      showSuccessToast("账号已创建", "新的下级账号已经可以进入系统。");
+      showSuccessToast(
+        "账号已创建",
+        payload.temporaryPassword
+          ? `系统已生成临时密码：${payload.temporaryPassword}，请提醒首次登录后修改。`
+          : "新的下级账号已经可以进入系统。",
+      );
       refreshWorkspace("team");
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "成员创建失败");
@@ -6182,14 +6192,23 @@ function useWorkspaceController({
 
     setIsSaving(true);
     try {
-      const payload = await requestJson<{ createdCount: number }>("/api/team/batch-experts", {
+      const payload = await requestJson<{
+        createdCount: number;
+        generatedPasswords?: Array<{ username: string; password: string }>;
+      }>("/api/team/batch-experts", {
         method: "POST",
         body: JSON.stringify({ experts }),
       });
       setBatchExpertDraft(defaultBatchExpertDraft);
       setBatchExpertModalOpen(false);
       setTeamAccountView("experts");
-      showSuccessToast("专家账号已批量创建", `已新增 ${payload.createdCount} 个评审专家账号。`);
+      const generatedPasswordText =
+        payload.generatedPasswords && payload.generatedPasswords.length > 0
+          ? `自动生成临时密码：${payload.generatedPasswords
+              .map((item) => `${item.username}：${item.password}`)
+              .join("；")}`
+          : `已新增 ${payload.createdCount} 个评审专家账号。`;
+      showSuccessToast("专家账号已批量创建", generatedPasswordText);
       refreshWorkspace("team");
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "批量添加专家失败");
