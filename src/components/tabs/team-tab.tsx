@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
 import type { TeamRoleLabel } from "@/components/workspace-context";
 import * as Workspace from "@/components/workspace-context";
 
@@ -110,6 +110,32 @@ export default function TeamTab() {
   } = Workspace;
 
   const isExpertAccountView = teamAccountView === "experts";
+  const [expertProfileSearch, setExpertProfileSearch] = useState("");
+  const expertProfileSearchText = (isExpertAccountView ? expertProfileSearch : "").trim().toLowerCase();
+  const filteredExpertProfiles = useMemo(() => {
+    if (!expertProfileSearchText) {
+      return expertProfiles;
+    }
+
+    return expertProfiles.filter((profile) =>
+      [
+        profile.name,
+        profile.phone,
+        profile.email,
+        profile.organization,
+        profile.title,
+        profile.specialtyText,
+        profile.notes,
+        profile.linkedUser?.username,
+        ...profile.specialtyTags,
+        ...profile.specialtyTracks,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .toLowerCase()
+        .includes(expertProfileSearchText),
+    );
+  }, [expertProfileSearchText, expertProfiles]);
 
   useEffect(() => {
     setTeamSearch("");
@@ -364,7 +390,11 @@ const renderTeam = () => (
               </p>
             </div>
             <div className="flex flex-wrap gap-2">
-              <span className="team-card-count">{expertProfiles.length} 位专家</span>
+              <span className="team-card-count">
+                {expertProfileSearchText
+                  ? `${filteredExpertProfiles.length} / ${expertProfiles.length} 位专家`
+                  : `${expertProfiles.length} 位专家`}
+              </span>
               <ActionButton onClick={() => openExpertProfileModal()} variant="primary">
                 <span className="inline-flex items-center gap-2">
                   <Plus className="h-4 w-4" />
@@ -375,8 +405,23 @@ const renderTeam = () => (
           </div>
 
           {expertProfiles.length > 0 ? (
-            <div className="grid gap-3 xl:grid-cols-2">
-              {expertProfiles.map((profile) => (
+            <div className="mt-4">
+              <label className="sr-only" htmlFor="expert-profile-search">搜索专家库</label>
+              <input
+                className="w-full rounded-2xl border border-slate-200 bg-slate-50 px-4 py-3 text-sm text-slate-700 outline-none transition focus:border-blue-400 focus:bg-white focus:ring-4 focus:ring-blue-100"
+                id="expert-profile-search"
+                onChange={(event) => setExpertProfileSearch(event.target.value)}
+                placeholder="搜索姓名、单位、领域或赛道"
+                type="search"
+                value={expertProfileSearch}
+              />
+            </div>
+          ) : null}
+
+          {expertProfiles.length > 0 ? (
+            filteredExpertProfiles.length > 0 ? (
+            <div className="mt-4 grid gap-3 xl:grid-cols-2">
+              {filteredExpertProfiles.map((profile) => (
                 <article className="rounded-2xl border border-slate-200 bg-white p-4" key={profile.id}>
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
@@ -452,6 +497,11 @@ const renderTeam = () => (
                 </article>
               ))}
             </div>
+            ) : (
+              <div className="team-empty-inline mt-4">
+                未找到匹配专家。可以按姓名、单位、专业领域或擅长赛道继续搜索。
+              </div>
+            )
           ) : (
             <div className="team-empty-inline">
               暂无专家档案。建议先录入专家资料，后续评审前再按需开通账号。

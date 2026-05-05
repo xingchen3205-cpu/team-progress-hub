@@ -48,3 +48,14 @@ test("team management exposes expert library fields and account opening action",
   assert.match(shellSource, /擅长赛道/);
   assert.match(shellSource, /专业领域/);
 });
+
+test("expert profile library supports fast filtering by profile metadata", () => {
+  const teamTabSource = readSource("src/components/tabs/team-tab.tsx");
+
+  assert.match(teamTabSource, /expertProfileSearch/);
+  assert.match(teamTabSource, /filteredExpertProfiles/);
+  assert.match(teamTabSource, /搜索姓名、单位、领域或赛道/);
+  assert.match(teamTabSource, /profile\.specialtyTags/);
+  assert.match(teamTabSource, /profile\.specialtyTracks/);
+  assert.match(teamTabSource, /未找到匹配专家/);
+});

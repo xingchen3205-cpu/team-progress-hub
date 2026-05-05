@@ -170,7 +170,7 @@ describe("expert review v2 constraints", () => {
     );
     assert.match(tabSource, /请选择本轮评审任务/);
     assert.match(tabSource, /系统仅展示管理员已分配给您的评审任务/);
-    assert.match(tabSource, /bg-gradient-to-br from-white to-blue-50\/55/);
+    assert.match(tabSource, /expert-mobile-shell/);
   });
 
   it("uses the polished expert review flow layout for task entry, list, and scoring", () => {
@@ -185,6 +185,19 @@ describe("expert review v2 constraints", () => {
     assert.match(tabSource, /score-range/);
     assert.match(tabSource, /审阅计划书、PPT、PDF 和视频材料/);
     assert.match(tabSource, /评分范围为 0\.00-100\.00/);
+  });
+
+  it("optimizes the expert mobile web review flow for clear touch scoring", () => {
+    const tabSource = readSource("src/components/tabs/expert-review-tab-content.tsx");
+
+    assert.match(tabSource, /expert-mobile-shell/);
+    assert.match(tabSource, /expert-mobile-score-panel/);
+    assert.match(tabSource, /expert-score-submit-bar/);
+    assert.match(tabSource, /touch-manipulation/);
+    assert.match(tabSource, /aria-live="polite"/);
+    assert.match(tabSource, /submittingAssignmentId === activeRoadshowAssignment\.id/);
+    assert.doesNotMatch(tabSource, /hover:-translate-y-1/);
+    assert.doesNotMatch(tabSource, /hover:shadow-\[/);
   });
 
   it("keeps expert review navigation limited to admins and expert accounts", () => {

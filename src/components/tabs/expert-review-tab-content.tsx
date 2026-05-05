@@ -270,8 +270,12 @@ function ConfirmModal({
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/35 px-4">
-      <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-[0_24px_70px_rgba(15,23,42,0.24)]">
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/35 px-3 pb-3 sm:items-center sm:px-4 sm:pb-0">
+      <div
+        aria-live="polite"
+        className="w-full max-w-md rounded-t-[28px] bg-white p-5 shadow-[0_24px_70px_rgba(15,23,42,0.24)] sm:rounded-3xl sm:p-6"
+        role="dialog"
+      >
         <p className="text-sm font-semibold text-blue-600">确认提交</p>
         <h3 className="mt-2 text-xl font-bold text-slate-950">
           {pendingSubmission.kind === "roadshow" ? "确认提交路演评分？" : "确认提交网评分数？"}
@@ -290,9 +294,9 @@ function ConfirmModal({
         <p className="mt-4 text-sm leading-6 text-slate-500">
           提交后不可修改，请确认分数无误。
         </p>
-        <div className="mt-6 flex justify-end gap-3">
+        <div className="mt-6 grid grid-cols-2 gap-3 sm:flex sm:justify-end">
           <button
-            className="rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+            className="touch-manipulation rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-600 transition active:scale-[0.98] hover:bg-slate-50 sm:py-2.5"
             disabled={isSubmitting}
             onClick={onCancel}
             type="button"
@@ -300,7 +304,7 @@ function ConfirmModal({
             返回修改
           </button>
           <button
-            className="rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(37,99,235,0.22)] transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
+            className="touch-manipulation rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(37,99,235,0.22)] transition active:scale-[0.98] hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60 sm:py-2.5"
             disabled={isSubmitting}
             onClick={onConfirm}
             type="button"
@@ -1729,47 +1733,47 @@ export default function ExpertReviewTab() {
           </div>
 
           {expertMode === "home" ? (
-            <section className="border-t border-slate-100 px-6 py-9 md:px-8 md:py-11">
+            <section className="expert-mobile-shell border-t border-slate-100 px-4 py-6 sm:px-6 sm:py-9 md:px-8 md:py-11">
               <div className="mx-auto max-w-5xl">
-                <div className="text-center">
+                <div className="text-left sm:text-center">
                   <p className="text-sm font-semibold text-blue-600">您好，{currentUser?.name || "评审专家"}</p>
-                  <h1 className="mt-2 text-3xl font-bold tracking-tight text-slate-950">请选择本轮评审任务</h1>
+                  <h1 className="mt-2 text-2xl font-bold tracking-tight text-slate-950 sm:text-3xl">请选择本轮评审任务</h1>
                   <p className="mt-3 text-sm text-slate-500">
                     系统仅展示管理员已分配给您的评审任务，提交后评分将锁定。
                   </p>
                 </div>
-                <div className="mt-10 grid gap-5 md:grid-cols-2">
+                <div className="mt-7 grid gap-3 sm:mt-10 md:grid-cols-2 md:gap-5">
                   <button
-                    className="expert-task-card group relative overflow-hidden rounded-[22px] border border-blue-100 bg-gradient-to-br from-white to-blue-50/55 px-8 py-8 text-left transition hover:-translate-y-1 hover:border-blue-200 hover:shadow-[0_18px_42px_rgba(37,99,235,0.13)]"
+                    className="expert-task-card group relative overflow-hidden rounded-[20px] border border-blue-100 bg-white px-5 py-5 text-left transition active:scale-[0.99] hover:border-blue-200 hover:bg-blue-50/45 sm:rounded-[22px] sm:px-8 sm:py-8 touch-manipulation"
                     onClick={() => setExpertMode("network-list")}
                     type="button"
                   >
-                    <div aria-hidden className="absolute -right-12 -top-12 h-40 w-40 rounded-full bg-blue-100/60 transition group-hover:scale-110" />
+                    <div aria-hidden className="absolute -right-16 -top-16 h-40 w-40 rounded-full bg-blue-50 transition group-hover:scale-105" />
                     <div className="relative">
-                      <div className="flex h-16 w-16 items-center justify-center rounded-3xl bg-blue-600 text-white shadow-[0_18px_34px_rgba(37,99,235,0.22)]">
-                        <Monitor className="h-8 w-8" />
+                      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-blue-600 text-white sm:h-16 sm:w-16 sm:rounded-3xl">
+                        <Monitor className="h-6 w-6 sm:h-8 sm:w-8" />
                       </div>
-                      <h3 className="mt-7 text-2xl font-bold tracking-tight text-slate-950">项目网络评审</h3>
+                      <h3 className="mt-5 text-xl font-bold tracking-tight text-slate-950 sm:mt-7 sm:text-2xl">项目网络评审</h3>
                       <p className="mt-3 text-sm leading-6 text-slate-500">审阅计划书、PPT、PDF 和视频材料，完成在线评分。</p>
-                      <div className="mt-7 flex items-center gap-3">
+                      <div className="mt-5 flex items-center gap-2 sm:mt-7 sm:gap-3">
                         <span className="rounded-full bg-blue-600 px-4 py-2 text-sm font-semibold text-white">待评 {pendingNetworkCount}</span>
                         <span className="rounded-full border border-blue-100 bg-white px-4 py-2 text-sm font-semibold text-blue-700">已评 {finishedNetworkCount}</span>
                       </div>
                     </div>
                   </button>
                   <button
-                    className="expert-task-card group relative overflow-hidden rounded-[22px] border border-emerald-100 bg-gradient-to-br from-white to-emerald-50/55 px-8 py-8 text-left transition hover:-translate-y-1 hover:border-emerald-200 hover:shadow-[0_18px_42px_rgba(16,185,129,0.12)]"
+                    className="expert-task-card group relative overflow-hidden rounded-[20px] border border-emerald-100 bg-white px-5 py-5 text-left transition active:scale-[0.99] hover:border-emerald-200 hover:bg-emerald-50/45 sm:rounded-[22px] sm:px-8 sm:py-8 touch-manipulation"
                     onClick={startRoadshowReview}
                     type="button"
                   >
-                    <div aria-hidden className="absolute -right-12 -top-12 h-40 w-40 rounded-full bg-emerald-100/60 transition group-hover:scale-110" />
+                    <div aria-hidden className="absolute -right-16 -top-16 h-40 w-40 rounded-full bg-emerald-50 transition group-hover:scale-105" />
                     <div className="relative">
-                      <div className="flex h-16 w-16 items-center justify-center rounded-3xl bg-emerald-600 text-white shadow-[0_18px_34px_rgba(16,185,129,0.20)]">
-                        <Users className="h-8 w-8" />
+                      <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-emerald-600 text-white sm:h-16 sm:w-16 sm:rounded-3xl">
+                        <Users className="h-6 w-6 sm:h-8 sm:w-8" />
                       </div>
-                      <h3 className="mt-7 text-2xl font-bold tracking-tight text-slate-950">项目路演评审</h3>
+                      <h3 className="mt-5 text-xl font-bold tracking-tight text-slate-950 sm:mt-7 sm:text-2xl">项目路演评审</h3>
                       <p className="mt-3 text-sm leading-6 text-slate-500">根据现场展示和答辩表现，提交最终路演分数。</p>
-                      <div className="mt-7 flex items-center gap-3">
+                      <div className="mt-5 flex items-center gap-2 sm:mt-7 sm:gap-3">
                         <span className="rounded-full bg-emerald-600 px-4 py-2 text-sm font-semibold text-white">待评 {pendingRoadshowCount}</span>
                         <span className="rounded-full border border-emerald-100 bg-white px-4 py-2 text-sm font-semibold text-emerald-700">已评 {finishedRoadshowCount}</span>
                       </div>
@@ -1785,20 +1789,20 @@ export default function ExpertReviewTab() {
         </div>
 
         {expertMode === "network-list" ? (
-          <section className="py-6">
-            <div className="mb-5 flex items-center justify-between">
+          <section className="expert-mobile-shell px-4 py-5 sm:px-0 sm:py-6">
+            <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
                 <h3 className="text-xl font-bold text-slate-950">项目网络评审</h3>
                 <p className="mt-1 text-sm text-slate-500">请逐项查看材料并提交 0.00-100.00 分评分。</p>
               </div>
-              <button className="text-sm font-semibold text-blue-600 hover:text-blue-700" onClick={() => setExpertMode("home")} type="button">
+              <button className="w-fit touch-manipulation text-sm font-semibold text-blue-600 hover:text-blue-700" onClick={() => setExpertMode("home")} type="button">
                 返回任务选择
               </button>
             </div>
             <div className="grid gap-4">
               {networkAssignments.map((assignment) => (
                 <button
-                  className="flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-5 text-left shadow-[0_1px_2px_rgba(15,23,42,0.04)] transition hover:-translate-y-0.5 hover:border-blue-200 hover:bg-blue-50/35 hover:shadow-[0_8px_24px_rgba(15,23,42,0.06)]"
+                  className="touch-manipulation flex items-center justify-between rounded-2xl border border-slate-200 bg-white p-4 text-left transition active:scale-[0.99] hover:border-blue-200 hover:bg-blue-50/35 sm:p-5"
                   key={assignment.id}
                   onClick={() => startNetworkReview(assignment)}
                   type="button"
@@ -1821,15 +1825,15 @@ export default function ExpertReviewTab() {
         ) : null}
 
         {expertMode === "network-detail" && selectedAssignment ? (
-          <section className="py-6">
-            <button className="mb-5 text-sm font-semibold text-blue-600" onClick={() => setExpertMode("network-list")} type="button">
+          <section className="expert-mobile-shell px-4 py-5 sm:px-0 sm:py-6">
+            <button className="mb-5 touch-manipulation text-sm font-semibold text-blue-600" onClick={() => setExpertMode("network-list")} type="button">
               ← 返回网络评审列表
             </button>
-            <div className="detail-layout grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
+            <div className="detail-layout grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px] xl:gap-5">
               <div className="space-y-5">
-                <article className="rounded-3xl border border-slate-200 bg-white p-6">
+                <article className="rounded-[22px] border border-slate-200 bg-white p-4 sm:rounded-3xl sm:p-6">
                   <div className="flex flex-wrap items-center gap-3">
-                    <h3 className="text-2xl font-bold text-slate-950">{selectedAssignment.targetName}</h3>
+                    <h3 className="text-xl font-bold text-slate-950 sm:text-2xl">{selectedAssignment.targetName}</h3>
                     <StatusBadge statusKey={selectedAssignment.statusKey} />
                   </div>
                   <p className="mt-3 text-sm text-slate-500">{selectedAssignment.roundLabel}</p>
@@ -1837,12 +1841,12 @@ export default function ExpertReviewTab() {
                     {selectedAssignment.overview || "暂无项目概述，请结合计划书、路演材料和视频进行评审。"}
                   </p>
                 </article>
-                <article className="rounded-3xl border border-slate-200 bg-white p-6">
+                <article className="rounded-[22px] border border-slate-200 bg-white p-4 sm:rounded-3xl sm:p-6">
                   <h4 className="text-base font-bold text-slate-950">项目管理已生效材料</h4>
                   <div className="mt-4 grid gap-3 md:grid-cols-3">
                     {materialEntries(selectedAssignment).map(([kind, label, material]) => (
                       <button
-                        className="material-item rounded-2xl border border-slate-200 bg-slate-50 p-4 text-left transition hover:border-blue-200 hover:bg-blue-50"
+                        className="material-item touch-manipulation rounded-2xl border border-slate-200 bg-slate-50 p-4 text-left transition active:scale-[0.99] hover:border-blue-200 hover:bg-blue-50"
                         key={kind}
                         onClick={() => openMaterial(selectedAssignment, kind)}
                         type="button"
@@ -1857,7 +1861,7 @@ export default function ExpertReviewTab() {
                   </div>
                 </article>
               </div>
-              <aside className="rounded-3xl border border-blue-100 bg-blue-50/40 p-6">
+              <aside className="expert-mobile-score-panel rounded-[24px] border border-blue-100 bg-blue-50/40 p-4 sm:rounded-3xl sm:p-6 xl:sticky xl:top-6">
                 <h4 className="text-lg font-bold text-slate-950">提交评分</h4>
                 {selectedAssignment.score ? (
                   <div className="mt-5 rounded-2xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">
@@ -1885,7 +1889,7 @@ export default function ExpertReviewTab() {
                     value={networkScoreDrafts[selectedAssignment.id] ?? ""}
                   />
                   <input
-                    className="score-range mt-3 h-1.5 w-full cursor-pointer appearance-none rounded-full bg-gradient-to-r from-rose-400 via-amber-400 to-emerald-500 accent-blue-600"
+                    className="score-range mt-3 h-2 w-full cursor-pointer appearance-none rounded-full bg-slate-200 accent-blue-600"
                     disabled={
                       Boolean(selectedAssignment.score) ||
                       !selectedAssignment.canEdit ||
@@ -1923,55 +1927,65 @@ export default function ExpertReviewTab() {
                 {selectedAssignment.score ? (
                   <p className="mt-4 text-xs text-slate-500">最近提交：{formatDateTime(selectedAssignment.score.updatedAt)}</p>
                 ) : null}
-                <button
-                  className="mt-6 w-full rounded-2xl bg-blue-600 px-4 py-3 text-sm font-bold text-white shadow-[0_14px_36px_rgba(37,99,235,0.24)] transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60"
-                  disabled={
-                    Boolean(selectedAssignment.score) ||
-                    !selectedAssignment.canEdit ||
-                    submittingAssignmentId === selectedAssignment.id
-                  }
-                  onClick={() => prepareNetworkSubmission(selectedAssignment)}
-                  type="button"
-                >
-                  {selectedAssignment.score ? "已提交，不能修改" : "确认提交评分"}
-                </button>
+                <div className="expert-score-submit-bar sticky bottom-0 -mx-4 mt-6 border-t border-blue-100 bg-blue-50/95 px-4 py-3 backdrop-blur sm:static sm:m-0 sm:border-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-0">
+                  <button
+                    className="w-full touch-manipulation rounded-2xl bg-blue-600 px-4 py-3.5 text-sm font-bold text-white transition active:scale-[0.98] hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60 sm:py-3"
+                    disabled={
+                      Boolean(selectedAssignment.score) ||
+                      !selectedAssignment.canEdit ||
+                      submittingAssignmentId === selectedAssignment.id
+                    }
+                    onClick={() => prepareNetworkSubmission(selectedAssignment)}
+                    type="button"
+                  >
+                    {selectedAssignment.score
+                      ? "已提交，不能修改"
+                      : submittingAssignmentId === selectedAssignment.id
+                        ? "提交中..."
+                        : "确认提交评分"}
+                  </button>
+                </div>
               </aside>
             </div>
           </section>
         ) : null}
 
         {expertMode === "roadshow-wait" ? (
-          <section className="mx-auto max-w-2xl py-16 text-center">
+          <section className="expert-mobile-shell mx-auto max-w-2xl px-4 py-14 text-center sm:px-0 sm:py-16">
             <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-3xl bg-slate-100 text-slate-400">
               <Clock3 className="h-8 w-8" />
             </div>
             <h3 className="mt-6 text-2xl font-bold text-slate-950">等待评审开始</h3>
             <p className="mt-3 text-sm leading-6 text-slate-500">管理员开始路演节奏并指派项目后，这里会自动出现评分入口。</p>
-            <button className="mt-8 rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-600" onClick={() => setExpertMode("home")} type="button">
+            <button className="mt-8 touch-manipulation rounded-xl border border-slate-200 px-5 py-3 text-sm font-semibold text-slate-600 active:scale-[0.98] sm:py-2.5" onClick={() => setExpertMode("home")} type="button">
               返回入口
             </button>
           </section>
         ) : null}
 
         {expertMode === "roadshow-score" && activeRoadshowAssignment ? (
-          <section className="mx-auto max-w-3xl py-10">
-            <div className="rounded-[32px] border border-indigo-100 bg-indigo-50/45 p-7">
-              <div className="flex items-start justify-between gap-5">
+          <section className="expert-mobile-shell mx-auto max-w-3xl px-4 py-6 sm:px-0 sm:py-10">
+            <div className="expert-mobile-score-panel rounded-[24px] border border-indigo-100 bg-indigo-50/45 p-4 sm:rounded-[32px] sm:p-7">
+              <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between sm:gap-5">
                 <div>
                   <p className="text-sm font-semibold text-indigo-600">项目路演评审</p>
-                  <h3 className="mt-2 text-2xl font-bold text-slate-950">{activeRoadshowAssignment.targetName}</h3>
+                  <h3 className="mt-2 text-xl font-bold text-slate-950 sm:text-2xl">{activeRoadshowAssignment.targetName}</h3>
                   <p className="mt-3 text-sm text-slate-500">{activeRoadshowAssignment.overview || "请根据现场展示和答辩情况给出最终评分。"}</p>
                 </div>
-                <button className="text-sm font-semibold text-slate-500 hover:text-indigo-600" onClick={() => setExpertMode("home")} type="button">
+                <button className="w-fit touch-manipulation text-sm font-semibold text-slate-500 hover:text-indigo-600" onClick={() => setExpertMode("home")} type="button">
                   返回入口
                 </button>
               </div>
-              <div className="mt-8 rounded-3xl bg-white p-6">
+              <div className="mt-6 rounded-[22px] bg-white p-4 sm:mt-8 sm:rounded-3xl sm:p-6">
                 <label className="block text-sm font-semibold text-slate-700">
                   路演评分（精确到两位小数）
                   <input
-                    className="mt-3 w-full rounded-3xl border border-slate-200 px-5 py-4 text-center text-5xl font-bold tracking-tight text-slate-950 outline-none transition focus:border-indigo-400 focus:ring-4 focus:ring-indigo-100"
-                    disabled={Boolean(activeRoadshowAssignment.score) || !activeRoadshowAssignment.canEdit}
+                    className="mt-3 w-full rounded-3xl border border-slate-200 px-5 py-4 text-center text-4xl font-bold tracking-tight text-slate-950 outline-none transition focus:border-indigo-400 focus:ring-4 focus:ring-indigo-100 sm:text-5xl"
+                    disabled={
+                      Boolean(activeRoadshowAssignment.score) ||
+                      !activeRoadshowAssignment.canEdit ||
+                      submittingAssignmentId === activeRoadshowAssignment.id
+                    }
                     inputMode="decimal"
                     max={100}
                     min={0}
@@ -1982,8 +1996,12 @@ export default function ExpertReviewTab() {
                     value={roadshowScoreDraft}
                   />
                   <input
-                    className="score-range mt-4 h-1.5 w-full cursor-pointer appearance-none rounded-full bg-gradient-to-r from-rose-400 via-amber-400 to-emerald-500 accent-indigo-600"
-                    disabled={Boolean(activeRoadshowAssignment.score) || !activeRoadshowAssignment.canEdit}
+                    className="score-range mt-4 h-2 w-full cursor-pointer appearance-none rounded-full bg-slate-200 accent-indigo-600"
+                    disabled={
+                      Boolean(activeRoadshowAssignment.score) ||
+                      !activeRoadshowAssignment.canEdit ||
+                      submittingAssignmentId === activeRoadshowAssignment.id
+                    }
                     max={100}
                     min={0}
                     onChange={(event) => setRoadshowScoreDraft(Number(event.target.value).toFixed(2))}
@@ -1995,27 +2013,37 @@ export default function ExpertReviewTab() {
                 <p className="mt-4 text-sm text-slate-500">
                   若输入整数，如 85，系统会按 85.00 分提交；提交前请确认是否需要保留两位小数。
                 </p>
-                <button
-                  className="mt-6 w-full rounded-2xl bg-indigo-600 px-5 py-3 text-sm font-bold text-white shadow-[0_14px_36px_rgba(79,70,229,0.24)] transition hover:bg-indigo-700"
-                  disabled={Boolean(activeRoadshowAssignment.score) || !activeRoadshowAssignment.canEdit}
-                  onClick={prepareRoadshowSubmission}
-                  type="button"
-                >
-                  {activeRoadshowAssignment.score ? "已提交，不能修改" : "确认提交路演分数"}
-                </button>
+                <div className="expert-score-submit-bar sticky bottom-0 -mx-4 mt-6 border-t border-indigo-100 bg-white/95 px-4 py-3 backdrop-blur sm:static sm:m-0 sm:border-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-0">
+                  <button
+                    className="w-full touch-manipulation rounded-2xl bg-indigo-600 px-5 py-3.5 text-sm font-bold text-white transition active:scale-[0.98] hover:bg-indigo-700 disabled:cursor-not-allowed disabled:opacity-60 sm:py-3"
+                    disabled={
+                      Boolean(activeRoadshowAssignment.score) ||
+                      !activeRoadshowAssignment.canEdit ||
+                      submittingAssignmentId === activeRoadshowAssignment.id
+                    }
+                    onClick={prepareRoadshowSubmission}
+                    type="button"
+                  >
+                    {activeRoadshowAssignment.score
+                      ? "已提交，不能修改"
+                      : submittingAssignmentId === activeRoadshowAssignment.id
+                        ? "提交中..."
+                        : "确认提交路演分数"}
+                  </button>
+                </div>
               </div>
             </div>
           </section>
         ) : null}
 
         {expertMode === "roadshow-done" ? (
-          <section className="mx-auto max-w-2xl py-16 text-center">
+          <section className="expert-mobile-shell mx-auto max-w-2xl px-4 py-14 text-center sm:px-0 sm:py-16">
             <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-3xl bg-emerald-50 text-emerald-600">
               <ShieldCheck className="h-8 w-8" />
             </div>
             <h3 className="mt-6 text-2xl font-bold text-slate-950">路演评分已提交</h3>
             <p className="mt-3 text-sm text-slate-500">当前路演评分已提交，感谢完成本轮评审。</p>
-            <button className="mt-8 rounded-xl border border-slate-200 px-5 py-2.5 text-sm font-semibold text-slate-600" onClick={() => setExpertMode("home")} type="button">
+            <button className="mt-8 touch-manipulation rounded-xl border border-slate-200 px-5 py-3 text-sm font-semibold text-slate-600 active:scale-[0.98] sm:py-2.5" onClick={() => setExpertMode("home")} type="button">
               返回入口
             </button>
           </section>
