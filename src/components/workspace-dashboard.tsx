@@ -96,7 +96,7 @@ function WorkspaceDashboardContent() {
   const visibleTabContent = isActiveTabResourceLoading ? <TabSkeleton variant="workspace" /> : tabContent;
 
   useEffect(() => {
-    const preloadTargets = priorityPreloadTabs.filter((tab) => tab !== safeActiveTab).slice(0, 4);
+    const preloadTargets = priorityPreloadTabs.filter((tab) => tab !== safeActiveTab).slice(0, 2);
     const preload = () => {
       for (const tab of preloadTargets) {
         void preloadWorkspaceTabComponents[tab]();
@@ -108,8 +108,8 @@ function WorkspaceDashboardContent() {
     };
     const usedIdleCallback = Boolean(idleWindow.requestIdleCallback);
     const idleHandle = idleWindow.requestIdleCallback
-      ? idleWindow.requestIdleCallback(preload, { timeout: 1200 })
-      : window.setTimeout(preload, 240);
+      ? idleWindow.requestIdleCallback(preload, { timeout: 2000 })
+      : window.setTimeout(preload, 2000);
 
     return () => {
       if (usedIdleCallback && idleWindow.cancelIdleCallback) {

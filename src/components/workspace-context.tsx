@@ -2635,6 +2635,22 @@ function useWorkspaceController({
     [],
   );
 
+  const getWorkspaceTabBlockingResourceKeys = useCallback(
+    (tab: TabKey, role: CurrentUser["role"]): WorkspaceResourceKey[] => {
+      if (role === "expert") {
+        return getWorkspaceTabResourceKeys(tab, role);
+      }
+
+      switch (tab) {
+        case "overview":
+          return ["announcements", "events", "tasks"];
+        default:
+          return getWorkspaceTabResourceKeys(tab, role);
+      }
+    },
+    [getWorkspaceTabResourceKeys],
+  );
+
   const getWorkspaceResourceLoadedKey = useCallback(
     (resourceKey: WorkspaceResourceKey, role: CurrentUser["role"]) =>
       resourceKey === "reports" ? `${resourceKey}:${buildReportsRequestUrl(role)}` : resourceKey,
@@ -2828,13 +2844,32 @@ function useWorkspaceController({
     const loadActiveTabResources = async () => {
       try {
         const resourceKeys = getWorkspaceTabResourceKeys(safeActiveTab, currentUserRole);
-        const pendingResourceKeys = resourceKeys.filter(
+        const blockingResourceKeys = getWorkspaceTabBlockingResourceKeys(safeActiveTab, currentUserRole);
+        const pendingBlockingResourceKeys = blockingResourceKeys.filter(
           (resourceKey) =>
             !loadedWorkspaceResourcesRef.current.has(getWorkspaceResourceLoadedKey(resourceKey, currentUserRole)),
         );
-        setActiveTabResourceLoading(pendingResourceKeys.length > 0);
-        if (resourceKeys.length > 0) {
-          await loadWorkspaceResources(resourceKeys, currentUserRole);
+        setActiveTabResourceLoading(pendingBlockingResourceKeys.length > 0);
+        if (blockingResourceKeys.length > 0) {
+          await loadWorkspaceResources(blockingResourceKeys, currentUserRole);
+        }
+
+        const blockingResourceKeySet = new Set(blockingResourceKeys);
+        const backgroundResourceKeys = resourceKeys.filter((resourceKey) => !blockingResourceKeySet.has(resourceKey));
+        if (backgroundResourceKeys.length > 0) {
+          void loadWorkspaceResources(backgroundResourceKeys, currentUserRole).catch((error) => {
+            if (!isMounted) {
+              return;
+            }
+
+            const message = error instanceof Error ? error.message : "工作区数据加载失败";
+            if (message === "未登录") {
+              window.location.replace("/login");
+              return;
+            }
+
+            setLoadError(message);
+          });
         }
       } catch (error) {
         if (!isMounted) {
@@ -2861,7 +2896,14 @@ function useWorkspaceController({
     return () => {
       isMounted = false;
     };
-  }, [currentUser?.role, getWorkspaceResourceLoadedKey, getWorkspaceTabResourceKeys, loadWorkspaceResources, safeActiveTab]);
+  }, [
+    currentUser?.role,
+    getWorkspaceResourceLoadedKey,
+    getWorkspaceTabBlockingResourceKeys,
+    getWorkspaceTabResourceKeys,
+    loadWorkspaceResources,
+    safeActiveTab,
+  ]);
 
   useEffect(() => {
     const currentUserRole = currentUser?.role;

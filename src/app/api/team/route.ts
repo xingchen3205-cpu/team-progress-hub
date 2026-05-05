@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { validateUsername } from "@/lib/account-policy";
 import { getSessionUser } from "@/lib/auth";
+import { toIsoDateKey } from "@/lib/date";
 import {
   assertMainWorkspaceRole,
   canApproveRegistration,
@@ -20,6 +21,13 @@ type TeamMemberRole = "admin" | "school_admin" | "teacher" | "leader" | "member"
 type TeamViewerRole = TeamMemberRole;
 const teamAccountRoles: TeamMemberRole[] = ["teacher", "leader", "member"];
 const teamGroupAssignableRoles = new Set<TeamMemberRole>(teamAccountRoles);
+const TEAM_REPORT_SUMMARY_LOOKBACK_DAYS = 45;
+
+const getTeamReportSummaryStartDate = () => {
+  const startDate = new Date();
+  startDate.setDate(startDate.getDate() - TEAM_REPORT_SUMMARY_LOOKBACK_DAYS);
+  return toIsoDateKey(startDate);
+};
 
 const canViewAccountIdentifier = (viewerRole: TeamViewerRole) =>
   hasGlobalAdminPrivileges(viewerRole) || viewerRole === "teacher";
@@ -167,8 +175,12 @@ export async function GET(request: NextRequest) {
     select: { assigneeId: true, status: true },
   });
 
+  const teamReportSummaryStartDate = getTeamReportSummaryStartDate();
   const reports = await prisma.report.findMany({
-    where: { userId: { in: visibleMemberIds } },
+    where: {
+      userId: { in: visibleMemberIds },
+      date: { gte: teamReportSummaryStartDate },
+    },
     orderBy: [{ date: "desc" }, { submittedAt: "desc" }],
     select: { userId: true, summary: true, nextPlan: true },
   });

@@ -26,9 +26,14 @@ test("workspace bootstrap only preloads auth and notifications", () => {
 
 test("workspace defines tab-scoped resource loading", () => {
   assert.match(contextSource, /const getWorkspaceTabResourceKeys = useCallback/);
+  assert.match(contextSource, /const getWorkspaceTabBlockingResourceKeys = useCallback/);
   assert.match(
     contextSource,
     /case "overview":[\s\S]*?"announcements"[\s\S]*?"events"[\s\S]*?"tasks"[\s\S]*?"documents"[\s\S]*?"projectMaterials"[\s\S]*?"team"[\s\S]*?"reviewAssignments"[\s\S]*?"reports"/,
+  );
+  assert.match(
+    contextSource,
+    /case "overview":[\s\S]*?return \["announcements", "events", "tasks"\]/,
   );
   assert.match(
     contextSource,
@@ -47,11 +52,14 @@ test("workspace keeps tab switches smooth with resource skeletons and idle prelo
     contextSource,
     /const \[activeTabResourceLoading, setActiveTabResourceLoading\] = useState\(false\)/,
   );
-  assert.match(contextSource, /setActiveTabResourceLoading\(pendingResourceKeys\.length > 0\)/);
+  assert.match(contextSource, /setActiveTabResourceLoading\(pendingBlockingResourceKeys\.length > 0\)/);
+  assert.match(contextSource, /void loadWorkspaceResources\(backgroundResourceKeys, currentUserRole\)/);
   assert.match(contextSource, /isActiveTabResourceLoading: activeTabResourceLoading && !isBooting/);
 
   assert.match(dashboardSource, /const \{ safeActiveTab, isActiveTabResourceLoading \} = useWorkspaceContext\(\)/);
   assert.match(dashboardSource, /isActiveTabResourceLoading \? <TabSkeleton variant="workspace" \/> : tabContent/);
   assert.match(dashboardSource, /const preloadWorkspaceTabComponents/);
+  assert.match(dashboardSource, /slice\(0, 2\)/);
   assert.match(dashboardSource, /requestIdleCallback/);
+  assert.match(dashboardSource, /window\.setTimeout\(preload, 2000\)/);
 });

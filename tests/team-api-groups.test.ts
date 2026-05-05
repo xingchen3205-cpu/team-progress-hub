@@ -109,3 +109,14 @@ test("team api only loads task and report summaries for visible members", () => 
   assert.match(source, /assigneeId:\s*\{\s*in:\s*visibleMemberIds\s*\}/);
   assert.match(source, /userId:\s*\{\s*in:\s*visibleMemberIds\s*\}/);
 });
+
+test("team api bounds report summary lookup to recent dates", () => {
+  const source = readFileSync(
+    path.join(process.cwd(), "src/app/api/team/route.ts"),
+    "utf8",
+  );
+
+  assert.match(source, /TEAM_REPORT_SUMMARY_LOOKBACK_DAYS/);
+  assert.match(source, /getTeamReportSummaryStartDate\(\)/);
+  assert.match(source, /date:\s*\{\s*gte:\s*teamReportSummaryStartDate\s*\}/);
+});
