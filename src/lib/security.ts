@@ -94,6 +94,19 @@ export const authRateLimits = {
   },
 } satisfies Record<string, RateLimitOptions>;
 
+export const expertActionRateLimits = {
+  scoreSubmit: {
+    namespace: "expert-review:score-submit",
+    windowMs: 60_000,
+    max: 20,
+  },
+  materialMaintenance: {
+    namespace: "expert-review:material-maintenance",
+    windowMs: 10 * 60_000,
+    max: 30,
+  },
+} satisfies Record<string, RateLimitOptions>;
+
 const normalizeRateLimitIdentifier = (identifier?: string) =>
   identifier?.trim().toLowerCase().replace(/\s+/g, " ").slice(0, 128) || "";
 

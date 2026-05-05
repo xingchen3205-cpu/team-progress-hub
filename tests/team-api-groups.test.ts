@@ -96,3 +96,16 @@ test("school administrators cannot see system administrator accounts", () => {
   assert.match(source, /if \(viewer\.role === "school_admin" && member\.role === "admin"\)/);
   assert.match(source, /return false/);
 });
+
+test("team api only loads task and report summaries for visible members", () => {
+  const source = readFileSync(
+    path.join(process.cwd(), "src/app/api/team/route.ts"),
+    "utf8",
+  );
+
+  assert.match(source, /const memberVisibilityWhere = buildTeamMemberVisibilityWhere\(user\)/);
+  assert.match(source, /where:\s*memberVisibilityWhere/);
+  assert.match(source, /const visibleMemberIds = members\.map\(\(member\) => member\.id\)/);
+  assert.match(source, /assigneeId:\s*\{\s*in:\s*visibleMemberIds\s*\}/);
+  assert.match(source, /userId:\s*\{\s*in:\s*visibleMemberIds\s*\}/);
+});

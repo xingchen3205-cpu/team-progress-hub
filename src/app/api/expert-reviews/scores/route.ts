@@ -9,6 +9,7 @@ import {
 } from "@/lib/expert-review";
 import { assertRole } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import { checkRateLimit, expertActionRateLimits, rateLimitExceededResponse } from "@/lib/security";
 
 const assignmentInclude = {
   expertUser: {
@@ -91,6 +92,11 @@ export async function POST(request: NextRequest) {
     assertRole(user.role, ["expert"]);
   } catch {
     return NextResponse.json({ message: "无权限" }, { status: 403 });
+  }
+
+  const rateLimit = checkRateLimit(request, expertActionRateLimits.scoreSubmit, user.id);
+  if (!rateLimit.allowed) {
+    return rateLimitExceededResponse(rateLimit, "评分提交过于频繁，请稍后再试");
   }
 
   const body = (await request.json().catch(() => null)) as

@@ -112,6 +112,30 @@ describe("expert review v2 constraints", () => {
     assert.match(materialSource, /getExpertReviewLockState/);
   });
 
+  it("streams expert review material previews with byte range support for mobile video playback", () => {
+    const materialSource = readSource("src/app/api/expert-reviews/assignments/[id]/materials/[kind]/route.ts");
+
+    assert.match(materialSource, /parseHttpRange/);
+    assert.match(materialSource, /request\.headers\.get\("range"\)/);
+    assert.match(materialSource, /readStoredFileRange/);
+    assert.match(materialSource, /"Content-Range"/);
+    assert.match(materialSource, /"Accept-Ranges":\s*"bytes"/);
+    assert.match(materialSource, /status:\s*206/);
+    assert.match(materialSource, /status:\s*416/);
+  });
+
+  it("rate limits expert scoring and review material maintenance endpoints", () => {
+    const securitySource = readSource("src/lib/security.ts");
+    const scoreRouteSource = readSource("src/app/api/expert-reviews/scores/route.ts");
+    const materialUploadRouteSource = readSource("src/app/api/expert-reviews/assignments/[id]/materials/route.ts");
+
+    assert.match(securitySource, /expertActionRateLimits/);
+    assert.match(scoreRouteSource, /checkRateLimit\(request,\s*expertActionRateLimits\.scoreSubmit/);
+    assert.match(scoreRouteSource, /rateLimitExceededResponse\(rateLimit,\s*"评分提交过于频繁/);
+    assert.match(materialUploadRouteSource, /checkRateLimit\(request,\s*expertActionRateLimits\.materialMaintenance/);
+    assert.match(materialUploadRouteSource, /rateLimitExceededResponse\(rateLimit,\s*"评审材料维护过于频繁/);
+  });
+
   it("replaces the old four-category expert scoring UI with v2 expert review panels", () => {
     const tabSource = readSource("src/components/tabs/expert-review-tab-content.tsx");
 

@@ -8,6 +8,7 @@ import {
 } from "@/lib/expert-review";
 import { assertRole } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import { checkRateLimit, expertActionRateLimits, rateLimitExceededResponse } from "@/lib/security";
 import { canAccessTeamScopedResource } from "@/lib/team-scope";
 import { deleteStoredFile, readStoredFileRange, saveUploadedFile } from "@/lib/uploads";
 
@@ -102,6 +103,11 @@ export async function POST(
     assertRole(user.role, ["admin", "school_admin", "teacher", "leader"]);
   } catch {
     return NextResponse.json({ message: "无权限" }, { status: 403 });
+  }
+
+  const rateLimit = checkRateLimit(request, expertActionRateLimits.materialMaintenance, user.id);
+  if (!rateLimit.allowed) {
+    return rateLimitExceededResponse(rateLimit, "评审材料维护过于频繁，请稍后再试");
   }
 
   const { id } = await params;
@@ -349,6 +355,11 @@ export async function DELETE(
     assertRole(user.role, ["admin", "school_admin", "teacher", "leader"]);
   } catch {
     return NextResponse.json({ message: "无权限" }, { status: 403 });
+  }
+
+  const rateLimit = checkRateLimit(request, expertActionRateLimits.materialMaintenance, user.id);
+  if (!rateLimit.allowed) {
+    return rateLimitExceededResponse(rateLimit, "评审材料维护过于频繁，请稍后再试");
   }
 
   const { id } = await params;

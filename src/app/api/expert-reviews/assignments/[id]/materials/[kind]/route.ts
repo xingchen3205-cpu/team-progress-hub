@@ -6,9 +6,49 @@ import { getExpertReviewLockState, getExpertReviewWindowState } from "@/lib/expe
 import { assertRole } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { canAccessTeamScopedResource } from "@/lib/team-scope";
-import { readStoredFile } from "@/lib/uploads";
+import { readStoredFile, readStoredFileRange } from "@/lib/uploads";
 
 export const runtime = "nodejs";
+
+const parseHttpRange = (rangeHeader: string | null, fileSize: number) => {
+  if (!rangeHeader) {
+    return null;
+  }
+
+  const match = rangeHeader.match(/^bytes=(\d*)-(\d*)$/);
+  if (!match) {
+    return "invalid" as const;
+  }
+
+  const [, rawStart, rawEnd] = match;
+  if (!rawStart && !rawEnd) {
+    return "invalid" as const;
+  }
+
+  if (!rawStart) {
+    const suffixLength = Number(rawEnd);
+    if (!Number.isInteger(suffixLength) || suffixLength <= 0) {
+      return "invalid" as const;
+    }
+
+    const start = Math.max(fileSize - suffixLength, 0);
+    return { start, end: fileSize - 1 };
+  }
+
+  const start = Number(rawStart);
+  const end = rawEnd ? Number(rawEnd) : fileSize - 1;
+  if (
+    !Number.isInteger(start) ||
+    !Number.isInteger(end) ||
+    start < 0 ||
+    end < start ||
+    start >= fileSize
+  ) {
+    return "invalid" as const;
+  }
+
+  return { start, end: Math.min(end, fileSize - 1) };
+};
 
 export async function GET(
   request: NextRequest,
@@ -95,6 +135,36 @@ export async function GET(
   }
 
   try {
+    const range = parseHttpRange(request.headers.get("range"), material.fileSize);
+    if (range === "invalid") {
+      return new NextResponse(null, {
+        status: 416,
+        headers: {
+          "Content-Range": `bytes */${material.fileSize}`,
+          "Accept-Ranges": "bytes",
+        },
+      });
+    }
+
+    if (range) {
+      const buffer = await readStoredFileRange({
+        objectKey: material.filePath,
+        start: range.start,
+        end: range.end,
+      });
+
+      return new NextResponse(buffer, {
+        status: 206,
+        headers: {
+          "Content-Type": material.mimeType || "application/octet-stream",
+          "Content-Disposition": buildInlineDisposition(material.fileName),
+          "Content-Length": String(buffer.length),
+          "Content-Range": `bytes ${range.start}-${range.end}/${material.fileSize}`,
+          "Accept-Ranges": "bytes",
+        },
+      });
+    }
+
     const fileData = await readStoredFile(material.filePath);
 
     return new NextResponse(fileData.buffer, {
@@ -102,6 +172,7 @@ export async function GET(
         "Content-Type": fileData.contentType || material.mimeType || "application/octet-stream",
         "Content-Disposition": buildInlineDisposition(material.fileName),
         "Content-Length": String(material.fileSize),
+        "Accept-Ranges": "bytes",
       },
     });
   } catch {

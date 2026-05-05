@@ -24,6 +24,29 @@ const teamGroupAssignableRoles = new Set<TeamMemberRole>(teamAccountRoles);
 const canViewAccountIdentifier = (viewerRole: TeamViewerRole) =>
   hasGlobalAdminPrivileges(viewerRole) || viewerRole === "teacher";
 
+const buildTeamMemberVisibilityWhere = (
+  viewer: { id: string; role: TeamViewerRole; teamGroupId?: string | null },
+): Prisma.UserWhereInput => {
+  if (viewer.role === "admin") {
+    return {};
+  }
+
+  if (viewer.role === "school_admin") {
+    return { role: { not: "admin" } };
+  }
+
+  const scopedVisibility: Prisma.UserWhereInput[] = [{ id: viewer.id }];
+  if (viewer.teamGroupId) {
+    scopedVisibility.push({ teamGroupId: viewer.teamGroupId });
+  }
+
+  if (viewer.role === "teacher") {
+    scopedVisibility.push({ role: "expert" });
+  }
+
+  return { OR: scopedVisibility };
+};
+
 const canViewApprovedMember = (
   viewer: { id: string; role: TeamViewerRole; teamGroupId?: string | null },
   member: { id: string; role: TeamMemberRole; teamGroup?: { id: string } | null },
@@ -108,7 +131,9 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ message: "无权限" }, { status: 403 });
   }
 
+  const memberVisibilityWhere = buildTeamMemberVisibilityWhere(user);
   const members = await prisma.user.findMany({
+    where: memberVisibilityWhere,
     orderBy: { createdAt: "asc" },
     select: {
       id: true,
@@ -135,12 +160,15 @@ export async function GET(request: NextRequest) {
       },
     },
   });
+  const visibleMemberIds = members.map((member) => member.id);
 
   const tasks = await prisma.task.findMany({
+    where: { assigneeId: { in: visibleMemberIds } },
     select: { assigneeId: true, status: true },
   });
 
   const reports = await prisma.report.findMany({
+    where: { userId: { in: visibleMemberIds } },
     orderBy: [{ date: "desc" }, { submittedAt: "desc" }],
     select: { userId: true, summary: true, nextPlan: true },
   });
