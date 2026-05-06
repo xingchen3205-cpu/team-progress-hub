@@ -126,7 +126,7 @@ export async function POST(
       where: { id: sessionId },
       data: {
         currentPackageId: nextPackage.packageId,
-        screenPhase: "presentation",
+        screenPhase: "draw",
         phaseStartedAt: new Date(),
         revealStartedAt: null,
         status: "waiting",
@@ -152,5 +152,6 @@ export async function POST(
       targetName: nextPackage.reviewPackage?.targetName ?? "",
       orderIndex: nextPackage.orderIndex,
     },
+    message: "等待下一项目出场",
   });
 }

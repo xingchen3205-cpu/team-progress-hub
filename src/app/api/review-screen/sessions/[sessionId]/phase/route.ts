@@ -60,6 +60,12 @@ export async function POST(
       qaSeconds: true,
       scoringSeconds: true,
       scoringEnabled: true,
+      projectOrders: {
+        orderBy: { orderIndex: "asc" },
+        select: {
+          packageId: true,
+        },
+      },
     },
   });
 
@@ -71,15 +77,33 @@ export async function POST(
     return NextResponse.json({ message: "大屏链接已过期" }, { status: 409 });
   }
 
+  const currentPackageId = session.currentPackageId ?? session.packageId;
+  const currentProjectIndex = session.projectOrders.findIndex((project) => project.packageId === currentPackageId);
+  const hasNextProject =
+    currentProjectIndex >= 0 && currentProjectIndex + 1 < session.projectOrders.length;
+  const canFinishCurrentRound =
+    session.screenPhase === "reveal" ||
+    session.screenPhase === "scoring" ||
+    (session.screenPhase === "qa" && !session.scoringEnabled);
+
+  if (phase === "finished") {
+    if (hasNextProject) {
+      return NextResponse.json({ message: "还有后续项目，请先切换到下一项目" }, { status: 409 });
+    }
+    if (!canFinishCurrentRound) {
+      return NextResponse.json({ message: "请先完成当前项目流程后再结束本轮" }, { status: 409 });
+    }
+  }
+
   const allowedNextPhases: Record<string, readonly ValidPhase[]> = {
-    draw: ["draw", "presentation", "finished"],
-    presentation: ["presentation", "qa", "finished"],
-    qa: ["qa", "scoring", "finished"],
-    scoring: ["scoring", "finished"],
+    draw: ["draw", "presentation"],
+    presentation: ["presentation", "qa"],
+    qa: ["qa", "scoring"],
+    scoring: ["scoring"],
     reveal: ["finished"],
     finished: [],
   };
-  if (!allowedNextPhases[session.screenPhase]?.includes(phase)) {
+  if (phase !== "finished" && !allowedNextPhases[session.screenPhase]?.includes(phase)) {
     return NextResponse.json({ message: "请按路演、答辩、评分的顺序切换阶段" }, { status: 409 });
   }
 

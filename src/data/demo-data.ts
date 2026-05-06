@@ -253,6 +253,9 @@ export type ExpertReviewAssignmentItem = {
   dropLowestCount?: number;
   reviewMode?: "network" | "roadshow";
   roadshowScreenStarted?: boolean | null;
+  roadshowScreenActive?: boolean | null;
+  roadshowScreenPhase?: string | null;
+  roadshowScreenPhaseLabel?: string | null;
   startAt: string | null;
   deadline: string | null;
   reviewWindowState?: "not_started" | "open" | "ended";

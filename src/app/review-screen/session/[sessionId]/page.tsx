@@ -423,6 +423,15 @@ export default function ReviewScreenSessionPage() {
   const drawRollingNumber = projectOrder.length > 0
     ? ((Math.floor(drawFrameTime / 75) % projectOrder.length) + 1)
     : 1;
+  const hasPendingSelfDrawProjects =
+    screenDisplay.selfDrawEnabled && projectOrder.some((project) => !project.selfDrawnAt);
+  const isWaitingNextProject =
+    phase === "draw" &&
+    hasDrawStarted &&
+    projectOrder.length > 0 &&
+    Boolean(payload?.session.currentPackageId) &&
+    !drawOverlayActive &&
+    !hasPendingSelfDrawProjects;
 
   const selfDrawProject = async (packageId: string) => {
     if (!params.sessionId || !token || !screenDisplay.selfDrawEnabled || phase !== "draw") {
@@ -861,6 +870,22 @@ export default function ReviewScreenSessionPage() {
                 共 {projectOrder.length || totalCount || 0} 个项目
               </div>
             </div>
+
+            {isWaitingNextProject ? (
+              <div className="contest-card flex shrink-0 items-center justify-between gap-6 px-6 py-5">
+                <div>
+                  <p className="text-xs font-black tracking-[2px] text-blue-600">NEXT PROJECT</p>
+                  <h3 className="mt-1 text-3xl font-black text-[#0f2040]">请等待下一个项目出场</h3>
+                  <p className="mt-2 text-sm font-bold text-slate-500">
+                    第 {orderNumber} / {Math.max(totalCount, projectOrder.length, 1)} 项 · {targetName}
+                  </p>
+                </div>
+                <div className="rounded-2xl border border-blue-100 bg-blue-50 px-5 py-4 text-right">
+                  <p className="text-xs font-bold text-blue-500">现场状态</p>
+                  <p className="mt-1 text-xl font-black text-blue-700">等待管理员开始路演</p>
+                </div>
+              </div>
+            ) : null}
 
             <div className="grid flex-1 auto-rows-min grid-cols-[repeat(auto-fit,minmax(320px,1fr))] gap-4 overflow-y-auto">
               {visibleDrawGroups.length ? (

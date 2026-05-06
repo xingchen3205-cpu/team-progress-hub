@@ -271,6 +271,15 @@ export const validateExpertReviewScores = (payload: Record<ExpertReviewScoreFiel
   return null;
 };
 
+const roadshowScreenPhaseLabels: Record<ReviewDisplaySession["screenPhase"], string> = {
+  draw: "等待出场",
+  presentation: "路演进行中",
+  qa: "答辩进行中",
+  scoring: "评分进行中",
+  reveal: "分数确认中",
+  finished: "本轮结束",
+};
+
 export const serializeExpertReviewAssignment = (
   assignment: ExpertReviewAssignment & {
     expertUser: Pick<User, "id" | "name" | "avatar" | "role">;
@@ -318,18 +327,27 @@ export const serializeExpertReviewAssignment = (
   const pptMaterial = assignment.reviewPackage.materials.find((item) => item.kind === "ppt") ?? null;
   const videoMaterial = assignment.reviewPackage.materials.find((item) => item.kind === "video") ?? null;
   const reviewMode = getExpertReviewMode(assignment.reviewPackage);
+  const activeRoadshowSeat =
+    reviewMode === "roadshow"
+      ? assignment.displaySeats?.find(
+          (seat) =>
+            seat.status !== "voided" &&
+            seat.session.currentPackageId === assignment.reviewPackage.id &&
+            seat.session.tokenExpiresAt.getTime() > Date.now(),
+        ) ?? null
+      : null;
+  const roadshowScreenActive = reviewMode === "roadshow" ? Boolean(activeRoadshowSeat) : null;
+  const roadshowScreenPhase = activeRoadshowSeat?.session.screenPhase ?? null;
+  const roadshowScreenPhaseLabel = roadshowScreenPhase
+    ? roadshowScreenPhaseLabels[roadshowScreenPhase]
+    : null;
   const roadshowScreenStarted =
     reviewMode === "roadshow"
       ? Boolean(
-          assignment.displaySeats?.some(
-            (seat) =>
-              seat.status !== "voided" &&
-              seat.session.status === "scoring" &&
-              seat.session.screenPhase === "scoring" &&
-              seat.session.currentPackageId === assignment.reviewPackage.id &&
-              Boolean(seat.session.startedAt) &&
-              seat.session.tokenExpiresAt.getTime() > Date.now(),
-          ),
+          activeRoadshowSeat &&
+            activeRoadshowSeat.session.status === "scoring" &&
+            activeRoadshowSeat.session.screenPhase === "scoring" &&
+            Boolean(activeRoadshowSeat.session.startedAt),
         )
       : null;
   const derivedStatus =
@@ -358,6 +376,9 @@ export const serializeExpertReviewAssignment = (
     dropLowestCount: assignment.reviewPackage.dropLowestCount,
     reviewMode,
     roadshowScreenStarted,
+    roadshowScreenActive,
+    roadshowScreenPhase,
+    roadshowScreenPhaseLabel,
     startAt: assignment.reviewPackage.startAt?.toISOString() ?? null,
     deadline: assignment.reviewPackage.deadline?.toISOString() ?? null,
     reviewWindowState: reviewWindowState.key,

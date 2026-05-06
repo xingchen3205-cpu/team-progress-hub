@@ -60,8 +60,11 @@ describe("expert review v2 constraints", () => {
     assert.match(routeSource, /status:\s*"scoring"/);
     assert.match(routeSource, /现场评分尚未开始/);
     assert.match(serializerSource, /roadshowScreenStarted/);
+    assert.match(serializerSource, /roadshowScreenActive/);
+    assert.match(serializerSource, /roadshowScreenPhaseLabel/);
     assert.match(serializerSource, /ReviewDisplaySeat/);
     assert.match(tabSource, /roadshowScreenStarted/);
+    assert.match(tabSource, /roadshowScreenActive/);
     assert.match(tabSource, /请等待管理员在大屏控制端点击开始评分/);
   });
 
@@ -344,6 +347,8 @@ describe("expert review v2 constraints", () => {
     assert.match(scoreRouteSource, /getExpertReviewLockState/);
     assert.match(tabSource, /assignment\.canEdit/);
     assert.match(tabSource, /setExpertMode\("roadshow-score"\)/);
+    assert.match(tabSource, /当前大屏项目/);
+    assert.match(tabSource, /本轮共 \{roadshowAssignments\.length\} 个项目/);
   });
 
   it("keeps expert mobile assignments in sync without requiring manual refresh", () => {
