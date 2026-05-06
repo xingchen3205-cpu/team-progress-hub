@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { pickReviewScreenDisplaySettings } from "@/lib/review-screen-display-settings";
 import {
   buildAnonymousReviewScreenSeats,
   calculateReviewScreenFinalScore,
@@ -34,6 +36,7 @@ export async function GET(
 ) {
   const { sessionId } = await params;
   const token = request.nextUrl.searchParams.get("token")?.trim();
+  const wantsAdminView = request.nextUrl.searchParams.get("viewer") === "admin";
 
   if (!token) {
     return NextResponse.json({ message: "缺少访问令牌" }, { status: 401 });
@@ -89,6 +92,7 @@ export async function GET(
           groupName: true,
           groupIndex: true,
           groupSlotIndex: true,
+          selfDrawnAt: true,
           revealedAt: true,
           finalScoreCents: true,
           finalScoreText: true,
@@ -137,6 +141,12 @@ export async function GET(
   if (session.reviewPackage.status !== "configured") {
     return NextResponse.json({ message: "评审配置已取消，链接已失效" }, { status: 410 });
   }
+
+  const viewerUser = wantsAdminView ? await getSessionUser(request) : null;
+  const adminCanSeeScores =
+    wantsAdminView && Boolean(viewerUser && ["admin", "school_admin"].includes(viewerUser.role));
+  const screenDisplay = pickReviewScreenDisplaySettings(session);
+  const canShowRankingOnScreen = adminCanSeeScores || screenDisplay.showRankingOnScreen;
 
   const now = new Date();
   if (session.tokenExpiresAt.getTime() <= now.getTime()) {
@@ -263,6 +273,24 @@ export async function GET(
             scoreLockedAt: null,
           };
 
+    const anonymousSeats = buildAnonymousReviewScreenSeats(
+      projectSeats.map((seat) => ({
+        assignmentId: seat.assignmentId,
+        expertUserId: "hidden",
+        expertName: null,
+        status: seat.status,
+        totalScoreCents: seat.totalScoreCents,
+      })),
+    );
+    const visibleSeats =
+      adminCanSeeScores || screenDisplay.showScoresOnScreen
+        ? anonymousSeats
+        : anonymousSeats.map((seat) => ({ ...seat, scoreText: null }));
+    const visibleFinalScore =
+      adminCanSeeScores || screenDisplay.showScoresOnScreen
+        ? lockedFinalScore
+        : { ...lockedFinalScore, validScoreTexts: [] };
+
     return {
       reviewPackage: {
         id: projectPackage.id,
@@ -271,21 +299,14 @@ export async function GET(
         overview: projectPackage.overview ?? "",
         deadline: projectPackage.deadline?.toISOString() ?? null,
       },
-      seats: buildAnonymousReviewScreenSeats(
-        projectSeats.map((seat) => ({
-          assignmentId: seat.assignmentId,
-          expertUserId: "hidden",
-          expertName: null,
-          status: seat.status,
-          totalScoreCents: seat.totalScoreCents,
-        })),
-      ),
-      finalScore: lockedFinalScore,
+      seats: visibleSeats,
+      finalScore: visibleFinalScore,
     };
   });
 
   // Determine active project: use currentPackageId if available, otherwise fallback
   const screenPhase: ReviewScreenPhase = session.screenPhase ?? "draw";
+  const canSelfDrawOnScreen = screenDisplay.selfDrawEnabled && screenPhase === "draw";
   const currentPackageId = session.currentPackageId ?? session.reviewPackage.id;
 
   const activeProjectResult =
@@ -337,7 +358,7 @@ export async function GET(
     const isRevealed =
       revealedPackageIds.has(project.reviewPackage.id) ||
       (isRevealPhase && project.reviewPackage.id === currentPackageId);
-    if (isRevealed) return project;
+    if (adminCanSeeScores || (screenDisplay.showFinalScoreOnScreen && isRevealed)) return project;
     return {
       ...project,
       finalScore: {
@@ -378,6 +399,7 @@ export async function GET(
       groupName: order?.groupName ?? "第一组",
       groupIndex: order?.groupIndex ?? 0,
       groupSlotIndex: order?.groupSlotIndex ?? index,
+      selfDrawnAt: order?.selfDrawnAt?.toISOString() ?? null,
       revealedAt: order?.revealedAt?.toISOString() ?? null,
     };
   });
@@ -399,6 +421,7 @@ export async function GET(
       scoringSeconds: session.scoringSeconds ?? session.countdownSeconds ?? 60,
       dropHighestCount: session.reviewPackage.dropHighestCount,
       dropLowestCount: session.reviewPackage.dropLowestCount,
+      screenDisplay,
       startedAt: session.startedAt?.toISOString() ?? null,
       phaseStartedAt: session.phaseStartedAt?.toISOString() ?? null,
       revealStartedAt: session.revealStartedAt?.toISOString() ?? null,
@@ -420,6 +443,9 @@ export async function GET(
     finalScore: maskedActiveFinalScore,
     projectResults: maskedProjectResults,
     projectOrder,
+    adminCanSeeScores,
+    canShowRankingOnScreen,
+    canSelfDrawOnScreen,
     serverTime: now.toISOString(),
   });
 }

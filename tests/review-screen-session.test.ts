@@ -115,6 +115,46 @@ describe("roadshow review screen session", () => {
     );
   });
 
+  it("normalizes configurable roadshow screen display settings", async () => {
+    const {
+      defaultReviewScreenDisplaySettings,
+      normalizeReviewScreenDisplaySettings,
+    } = await import("../src/lib/review-screen-display-settings");
+
+    assert.deepEqual(defaultReviewScreenDisplaySettings, {
+      scoringEnabled: true,
+      showScoresOnScreen: true,
+      showFinalScoreOnScreen: true,
+      showRankingOnScreen: true,
+      selfDrawEnabled: false,
+    });
+    assert.deepEqual(
+      normalizeReviewScreenDisplaySettings({
+        scoringEnabled: false,
+        showScoresOnScreen: false,
+        showFinalScoreOnScreen: false,
+        showRankingOnScreen: false,
+        selfDrawEnabled: true,
+      }),
+      {
+        scoringEnabled: false,
+        showScoresOnScreen: false,
+        showFinalScoreOnScreen: false,
+        showRankingOnScreen: false,
+        selfDrawEnabled: true,
+      },
+    );
+    assert.equal(
+      normalizeReviewScreenDisplaySettings({
+        scoringEnabled: false,
+        showScoresOnScreen: true,
+        showFinalScoreOnScreen: true,
+        showRankingOnScreen: true,
+      }).scoringEnabled,
+      false,
+    );
+  });
+
   it("keeps the countdown in waiting mode after time expires until all valid seats submit", async () => {
     const { getReviewScreenTimelineState } = await import("../src/lib/review-screen-session");
 
@@ -146,6 +186,12 @@ describe("roadshow review screen session", () => {
     assert.match(schemaSource, /model ReviewDisplayProjectOrder[\s\S]*finalScoreText\s+String\?/);
     assert.match(schemaSource, /model ReviewDisplayProjectOrder[\s\S]*scoreLockedAt\s+DateTime\?/);
     assert.match(schemaSource, /model ReviewDisplayProjectOrder[\s\S]*droppedSeatNos\s+String\?/);
+    assert.match(schemaSource, /model ReviewDisplaySession[\s\S]*scoringEnabled\s+Boolean\s+@default\(true\)/);
+    assert.match(schemaSource, /model ReviewDisplaySession[\s\S]*showScoresOnScreen\s+Boolean\s+@default\(true\)/);
+    assert.match(schemaSource, /model ReviewDisplaySession[\s\S]*showFinalScoreOnScreen\s+Boolean\s+@default\(true\)/);
+    assert.match(schemaSource, /model ReviewDisplaySession[\s\S]*showRankingOnScreen\s+Boolean\s+@default\(true\)/);
+    assert.match(schemaSource, /model ReviewDisplaySession[\s\S]*selfDrawEnabled\s+Boolean\s+@default\(false\)/);
+    assert.match(schemaSource, /model ReviewDisplayProjectOrder[\s\S]*selfDrawnAt\s+DateTime\?/);
     assert.match(schemaSource, /@@unique\(\[sessionId,\s*seatNo\]\)/);
   });
 
@@ -284,10 +330,17 @@ describe("roadshow review screen session", () => {
     assert.match(settingsRouteSource, /presentationSeconds/);
     assert.match(settingsRouteSource, /qaSeconds/);
     assert.match(settingsRouteSource, /scoringSeconds/);
+    assert.match(settingsRouteSource, /normalizeReviewScreenDisplaySettings/);
+    assert.match(settingsRouteSource, /scoringEnabled/);
+    assert.match(settingsRouteSource, /showScoresOnScreen/);
+    assert.match(settingsRouteSource, /showFinalScoreOnScreen/);
+    assert.match(settingsRouteSource, /showRankingOnScreen/);
+    assert.match(settingsRouteSource, /selfDrawEnabled/);
     assert.doesNotMatch(adminTabSource, /阶段已切换为：\$\{phase\}/);
     assert.doesNotMatch(adminTabSource, /启动计时/);
     assert.match(phaseRouteSource, /reveal: \["finished"\]/);
     assert.match(phaseRouteSource, /scoring: \["scoring", "finished"\]/);
+    assert.match(phaseRouteSource, /session\.scoringEnabled/);
     assert.match(screenPageSource, /projectResults/);
     assert.match(screenPageSource, /hasDrawStarted/);
     assert.match(screenPageSource, /payload\?\.session\.phaseStartedAt/);
@@ -303,6 +356,52 @@ describe("roadshow review screen session", () => {
     assert.match(screenPageSource, /score-strike/);
     assert.match(screenPageSource, /最终评审得分/);
     assert.doesNotMatch(screenPageSource, /评分规则：去掉最高分和最低分，取平均值/);
+  });
+
+  it("supports manual order entry, self draw, screen visibility switches, and admin-only score monitoring", () => {
+    const schemaSource = readSource("prisma/schema.prisma");
+    const sessionRouteSource = readSource("src/app/api/review-screen/sessions/route.ts");
+    const publicRouteSource = readSource("src/app/api/review-screen/sessions/[sessionId]/route.ts");
+    const settingsRouteSource = readSource("src/app/api/review-screen/sessions/[sessionId]/settings/route.ts");
+    const selfDrawRouteSource = readSource("src/app/api/review-screen/sessions/[sessionId]/self-draw/route.ts");
+    const adminTabSource = readSource("src/components/tabs/expert-review-tab-content.tsx");
+    const screenPageSource = readSource("src/app/review-screen/session/[sessionId]/page.tsx");
+
+    assert.match(schemaSource, /scoringEnabled\s+Boolean\s+@default\(true\)/);
+    assert.match(schemaSource, /showScoresOnScreen\s+Boolean\s+@default\(true\)/);
+    assert.match(schemaSource, /showFinalScoreOnScreen\s+Boolean\s+@default\(true\)/);
+    assert.match(schemaSource, /showRankingOnScreen\s+Boolean\s+@default\(true\)/);
+    assert.match(schemaSource, /selfDrawEnabled\s+Boolean\s+@default\(false\)/);
+    assert.match(schemaSource, /selfDrawnAt\s+DateTime\?/);
+    assert.match(sessionRouteSource, /normalizeReviewScreenDisplaySettings/);
+    assert.match(sessionRouteSource, /screenDisplay/);
+    assert.match(settingsRouteSource, /screenDisplay/);
+    assert.match(selfDrawRouteSource, /hashReviewScreenToken/);
+    assert.match(selfDrawRouteSource, /selfDrawEnabled/);
+    assert.match(selfDrawRouteSource, /selfDrawnAt/);
+    assert.match(selfDrawRouteSource, /remainingOrderIndexes/);
+    assert.match(publicRouteSource, /viewer"\)\s*===\s*"admin"/);
+    assert.match(publicRouteSource, /adminCanSeeScores/);
+    assert.match(publicRouteSource, /screenDisplay/);
+    assert.match(publicRouteSource, /showScoresOnScreen/);
+    assert.match(publicRouteSource, /showFinalScoreOnScreen/);
+    assert.match(publicRouteSource, /showRankingOnScreen/);
+    assert.match(publicRouteSource, /selfDrawEnabled/);
+    assert.match(adminTabSource, /viewer=admin/);
+    assert.match(adminTabSource, /投屏显示设置/);
+    assert.match(adminTabSource, /管理员监看/);
+    assert.match(adminTabSource, /手动序号/);
+    assert.match(adminTabSource, /自助抽签/);
+    assert.match(adminTabSource, /manualOrderDrafts/);
+    assert.match(adminTabSource, /showScoresOnScreen/);
+    assert.match(adminTabSource, /showRankingOnScreen/);
+    assert.match(adminTabSource, /screenDisplayDrafts/);
+    assert.match(screenPageSource, /screenDisplay/);
+    assert.match(screenPageSource, /showScoresOnScreen/);
+    assert.match(screenPageSource, /showFinalScoreOnScreen/);
+    assert.match(screenPageSource, /showRankingOnScreen/);
+    assert.match(screenPageSource, /selfDrawProject/);
+    assert.match(screenPageSource, /自助抽签/);
   });
 
   it("lets administrators regenerate a screen link for testing even after the old review deadline", () => {
@@ -344,7 +443,7 @@ describe("roadshow review screen session", () => {
     assert.doesNotMatch(screenPageSource, /voidReviewScreenSeat/);
     assert.doesNotMatch(screenPageSource, /startReviewScreenScoring/);
     assert.doesNotMatch(screenPageSource, /copyReviewScreenLink/);
-    assert.doesNotMatch(screenPageSource, /onClick/);
+    assert.match(screenPageSource, /selfDrawProject/);
   });
 
   it("includes large-screen key copy and anonymous seat status on the projection screen", () => {

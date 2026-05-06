@@ -59,6 +59,7 @@ export async function POST(
       presentationSeconds: true,
       qaSeconds: true,
       scoringSeconds: true,
+      scoringEnabled: true,
     },
   });
 
@@ -80,6 +81,10 @@ export async function POST(
   };
   if (!allowedNextPhases[session.screenPhase]?.includes(phase)) {
     return NextResponse.json({ message: "请按路演、答辩、评分的顺序切换阶段" }, { status: 409 });
+  }
+
+  if (phase === "scoring" && !session.scoringEnabled) {
+    return NextResponse.json({ message: "本轮未启用评分环节" }, { status: 409 });
   }
 
   const updatedSession = await prisma.reviewDisplaySession.update({

@@ -4,6 +4,11 @@ import { useEffect, useMemo, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { CheckCircle2, Clock, ShieldCheck } from "lucide-react";
 
+import {
+  normalizeReviewScreenDisplaySettings,
+  type ReviewScreenDisplaySettings,
+} from "@/lib/review-screen-display-settings";
+
 type ScreenSeat = {
   assignmentId: string;
   seatNo: number;
@@ -38,6 +43,7 @@ type ProjectOrderItem = {
   groupName: string | null;
   groupIndex: number;
   groupSlotIndex: number;
+  selfDrawnAt: string | null;
   revealedAt: string | null;
 };
 
@@ -77,6 +83,7 @@ type ScreenPayload = {
     currentPackageId: string;
     currentProjectIndex: number;
     totalProjectCount: number;
+    screenDisplay: ReviewScreenDisplaySettings;
   };
   reviewPackage: {
     targetName: string;
@@ -256,7 +263,8 @@ export default function ReviewScreenSessionPage() {
   }, [params.sessionId, token]);
 
   const phase = payload?.session.screenPhase ?? "draw";
-  const activeTab = getTabState(phase);
+  const screenDisplay = normalizeReviewScreenDisplaySettings(payload?.session.screenDisplay);
+  const activeTab = phase === "finished" && !screenDisplay.showRankingOnScreen ? "score" : getTabState(phase);
   const phaseRemaining = payload?.session.phaseRemainingSeconds ?? 0;
   const countdownTone = getCountdownTone(phaseRemaining);
   const projectOrder = useMemo(() => payload?.projectOrder ?? [], [payload?.projectOrder]);
@@ -283,7 +291,7 @@ export default function ReviewScreenSessionPage() {
         projects: group.projects.sort((left, right) => left.groupSlotIndex - right.groupSlotIndex),
       }));
   }, [projectOrder]);
-  const visibleDrawGroups = hasDrawStarted ? drawGroups : [];
+  const visibleDrawGroups = hasDrawStarted || screenDisplay.selfDrawEnabled ? drawGroups : [];
   const activeProjectResult =
     projectResults.find((project) => project.reviewPackage.id === payload?.session.currentPackageId) ??
     projectResults.find((project) => !project.finalScore.ready) ??
@@ -415,6 +423,52 @@ export default function ReviewScreenSessionPage() {
   const drawRollingNumber = projectOrder.length > 0
     ? ((Math.floor(drawFrameTime / 75) % projectOrder.length) + 1)
     : 1;
+
+  const selfDrawProject = async (packageId: string) => {
+    if (!params.sessionId || !token || !screenDisplay.selfDrawEnabled || phase !== "draw") {
+      return;
+    }
+
+    try {
+      const response = await fetch(
+        `/api/review-screen/sessions/${params.sessionId}/self-draw?token=${encodeURIComponent(token)}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ packageId }),
+        },
+      );
+      const data = (await response.json().catch(() => null)) as
+        | {
+            session?: { currentPackageId?: string | null };
+            projectOrder?: ProjectOrderItem[];
+            message?: string;
+          }
+        | null;
+      if (!response.ok) {
+        throw new Error(data?.message ?? "抽签失败，请重试");
+      }
+      if (data?.projectOrder) {
+        setPayload((current) =>
+          current
+            ? {
+                ...current,
+                projectOrder: data.projectOrder,
+                session: {
+                  ...current.session,
+                  currentPackageId: data.session?.currentPackageId ?? current.session.currentPackageId,
+                },
+              }
+            : current,
+        );
+        const startedAt = Date.now();
+        setDrawAnimationStartedAt(startedAt);
+        setDrawFrameTime(startedAt);
+      }
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "抽签失败，请重试");
+    }
+  };
 
   return (
     <main className="min-h-screen overflow-hidden bg-[#f0f4f9] text-slate-900">
@@ -817,17 +871,39 @@ export default function ReviewScreenSessionPage() {
                     <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-slate-400">{group.projects.length} 个项目</span>
                   </div>
                   <div className="p-3">
-                    {group.projects.map((item) => (
-                      <div className="flex items-center gap-3 rounded-xl px-4 py-3 transition-colors odd:bg-slate-50" key={item.packageId}>
-                        <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full screen-hero-gradient text-xs font-black text-white ${item.orderIndex === currentIndex ? "draw-roll-number" : ""}`}>
-                          {item.orderIndex + 1}
-                        </span>
-                        <div className="min-w-0">
-                          <p className="truncate text-sm font-bold text-slate-900">{item.targetName}</p>
-                          <p className="mt-0.5 truncate text-xs text-slate-400">{item.roundLabel || "项目路演"}</p>
+                    {group.projects.map((item) => {
+                      const canSelfDrawProject =
+                        screenDisplay.selfDrawEnabled &&
+                        phase === "draw" &&
+                        !item.selfDrawnAt;
+                      const drawContent = (
+                        <>
+                          <span className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full screen-hero-gradient text-xs font-black text-white ${item.orderIndex === currentIndex ? "draw-roll-number" : ""}`}>
+                            {item.selfDrawnAt ? item.orderIndex + 1 : "待"}
+                          </span>
+                          <div className="min-w-0 flex-1 text-left">
+                            <p className="truncate text-sm font-bold text-slate-900">{item.targetName}</p>
+                            <p className="mt-0.5 truncate text-xs text-slate-400">
+                              {screenDisplay.selfDrawEnabled && !item.selfDrawnAt ? "自助抽签 · 点击确认上场顺序" : item.roundLabel || "项目路演"}
+                            </p>
+                          </div>
+                        </>
+                      );
+                      return canSelfDrawProject ? (
+                        <button
+                          className="flex w-full items-center gap-3 rounded-xl px-4 py-3 transition-colors odd:bg-slate-50 hover:bg-blue-50"
+                          key={item.packageId}
+                          onClick={() => void selfDrawProject(item.packageId)}
+                          type="button"
+                        >
+                          {drawContent}
+                        </button>
+                      ) : (
+                        <div className="flex items-center gap-3 rounded-xl px-4 py-3 transition-colors odd:bg-slate-50" key={item.packageId}>
+                          {drawContent}
                         </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </article>
                 ))
@@ -912,14 +988,14 @@ export default function ReviewScreenSessionPage() {
                       <p className="text-sm font-black text-slate-900">{seat.displayName}</p>
                       <p className="mt-1 text-xs font-semibold text-slate-400">匿名专家席位状态</p>
                     </div>
-                    {isSubmitted && seat.scoreText ? (
+                    {isSubmitted && seat.scoreText && screenDisplay.showScoresOnScreen ? (
                       <p className={`seat-score-ticker ${isDropped ? "score-strike" : ""}`}>{seat.scoreText}</p>
                     ) : null}
                     <span className={`inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-bold ${isSubmitted ? "bg-emerald-50 text-emerald-700" : isVoided ? "bg-slate-100 text-slate-500" : "bg-slate-100 text-slate-400"}`}>
                       {isSubmitted ? (
                         <>
                           <CheckCircle2 className="h-3.5 w-3.5" />
-                          已出分
+                          {screenDisplay.showScoresOnScreen ? "已出分" : "已提交"}
                         </>
                       ) : isVoided ? (
                         "已排除"
@@ -964,7 +1040,7 @@ export default function ReviewScreenSessionPage() {
           </>
         ) : null}
 
-        {activeTab === "rank" ? (
+        {activeTab === "rank" && screenDisplay.showRankingOnScreen ? (
           <>
             <div className="flex items-center justify-between">
               <div>
@@ -1045,7 +1121,7 @@ export default function ReviewScreenSessionPage() {
         </section>
       ) : null}
 
-      {phase === "reveal" ? (
+      {phase === "reveal" && screenDisplay.showFinalScoreOnScreen ? (
         <section className="score-reveal-overlay">
           <div className="reveal-score-grid">
             {seats.map((seat) => {
@@ -1060,7 +1136,7 @@ export default function ReviewScreenSessionPage() {
                   {isDropped ? <span className="drop-reason-tag">{getDropReasonLabel(dropReason)}</span> : null}
                   <div className={`seat-avatar ${seat.status === "submitted" ? "submitted" : "pending"}`}>{seat.seatNo}</div>
                   <p className="text-sm font-black text-slate-900">{seat.displayName}</p>
-                  {seat.status === "submitted" && seat.scoreText && revealScoreVisible ? (
+                  {seat.status === "submitted" && seat.scoreText && screenDisplay.showScoresOnScreen && revealScoreVisible ? (
                     <p className={`seat-score-ticker ${isDropped ? "score-strike" : ""}`}>{seat.scoreText}</p>
                   ) : (
                     <span className="waiting-dots"><i /><i /><i /></span>

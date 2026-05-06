@@ -114,6 +114,7 @@ export async function POST(
     );
   }
   const firstPackage = projectOrderRows[0]?.project ?? null;
+  const orderedAt = new Date();
 
   const updatedSession = await prisma.$transaction(async (tx) => {
     await tx.reviewDisplayProjectOrder.deleteMany({
@@ -128,6 +129,7 @@ export async function POST(
         groupName: row.groupName,
         groupIndex: row.groupIndex,
         groupSlotIndex: row.groupSlotIndex,
+        selfDrawnAt: orderedAt,
       })),
     });
 
@@ -188,6 +190,7 @@ export async function POST(
       groupName: row.groupName,
       groupIndex: row.groupIndex,
       groupSlotIndex: row.groupSlotIndex,
+      selfDrawnAt: orderedAt.toISOString(),
       revealedAt: null,
     })),
   });

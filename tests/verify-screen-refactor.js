@@ -22,9 +22,10 @@ const readSource = (filePath) =>
   assert.match(screenPageSource, /new Date\(\)/);
   assert.match(screenPageSource, /路演答辩评审投屏/);
 
-  // No admin buttons - the screen can show voided status text, but should not have clickable admin actions
-  assert.doesNotMatch(screenPageSource, /onClick/);
-  assert.doesNotMatch(screenPageSource, /type="button"/);
+  // No admin buttons - the screen may expose self-draw clicks, but should not expose admin actions
+  assert.match(screenPageSource, /selfDrawProject/);
+  assert.doesNotMatch(screenPageSource, /voidReviewScreenSeat/);
+  assert.doesNotMatch(screenPageSource, /copyReviewScreenLink/);
 
   // Key copy
   assert.match(screenPageSource, /抽签分组/);

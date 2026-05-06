@@ -4,6 +4,10 @@ import { getSessionUser } from "@/lib/auth";
 import { assertRole } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { buildRoadshowProjectOrderRows } from "@/lib/roadshow-screen-groups";
+import {
+  normalizeReviewScreenDisplaySettings,
+  pickReviewScreenDisplaySettings,
+} from "@/lib/review-screen-display-settings";
 import { buildReviewDisplaySeatSeeds, createReviewScreenToken } from "@/lib/review-screen-session";
 
 const clampInteger = (value: unknown, fallback: number, min: number, max: number) => {
@@ -40,6 +44,11 @@ export async function GET(request: NextRequest) {
       countdownSeconds: true,
       dropHighestCount: true,
       dropLowestCount: true,
+      scoringEnabled: true,
+      showScoresOnScreen: true,
+      showFinalScoreOnScreen: true,
+      showRankingOnScreen: true,
+      selfDrawEnabled: true,
       status: true,
       startedAt: true,
       createdAt: true,
@@ -73,6 +82,7 @@ export async function GET(request: NextRequest) {
       tokenExpiresAt: session.tokenExpiresAt.toISOString(),
       startedAt: session.startedAt?.toISOString() ?? null,
       createdAt: session.createdAt.toISOString(),
+      screenDisplay: pickReviewScreenDisplaySettings(session),
       reviewPackage: {
         ...session.reviewPackage,
         deadline: session.reviewPackage.deadline?.toISOString() ?? null,
@@ -101,6 +111,13 @@ export async function POST(request: NextRequest) {
         qaSeconds?: number;
         scoringSeconds?: number;
         roadshowGroupSizes?: number[];
+        screenDisplay?: Partial<{
+          scoringEnabled: unknown;
+          showScoresOnScreen: unknown;
+          showFinalScoreOnScreen: unknown;
+          showRankingOnScreen: unknown;
+          selfDrawEnabled: unknown;
+        }>;
       }
     | null;
   const packageId = body?.packageId?.trim();
@@ -218,6 +235,7 @@ export async function POST(request: NextRequest) {
   const presentationSeconds = clampInteger(body?.presentationSeconds, 480, 60, 1800);
   const qaSeconds = clampInteger(body?.qaSeconds, 420, 60, 1800);
   const scoringSeconds = clampInteger(body?.scoringSeconds, 60, 10, 600);
+  const screenDisplay = normalizeReviewScreenDisplaySettings(body?.screenDisplay);
   let projectOrderRows: ReturnType<typeof buildRoadshowProjectOrderRows<typeof stageReviewPackages[number]>>;
   try {
     projectOrderRows = buildRoadshowProjectOrderRows(stageReviewPackages, body?.roadshowGroupSizes);
@@ -244,6 +262,7 @@ export async function POST(request: NextRequest) {
         presentationSeconds,
         qaSeconds,
         scoringSeconds,
+        ...screenDisplay,
         createdById: user.id,
       },
       select: {
@@ -255,6 +274,11 @@ export async function POST(request: NextRequest) {
         presentationSeconds: true,
         qaSeconds: true,
         scoringSeconds: true,
+        scoringEnabled: true,
+        showScoresOnScreen: true,
+        showFinalScoreOnScreen: true,
+        showRankingOnScreen: true,
+        selfDrawEnabled: true,
         dropHighestCount: true,
         dropLowestCount: true,
         status: true,
@@ -271,6 +295,7 @@ export async function POST(request: NextRequest) {
         groupName: row.groupName,
         groupIndex: row.groupIndex,
         groupSlotIndex: row.groupSlotIndex,
+        selfDrawnAt: screenDisplay.selfDrawEnabled ? null : now,
       })),
     });
 
@@ -310,6 +335,7 @@ export async function POST(request: NextRequest) {
         startsAt: session.startsAt?.toISOString() ?? null,
         tokenExpiresAt: session.tokenExpiresAt.toISOString(),
         projectReviewStageType: "roadshow",
+        screenDisplay: pickReviewScreenDisplaySettings(session),
       },
       seats: seats.map((seat) => ({
         ...seat,
@@ -325,6 +351,7 @@ export async function POST(request: NextRequest) {
         groupName: row.groupName,
         groupIndex: row.groupIndex,
         groupSlotIndex: row.groupSlotIndex,
+        selfDrawnAt: screenDisplay.selfDrawEnabled ? null : now.toISOString(),
         revealedAt: null,
       })),
       projectReviewStageId: reviewPackage.projectReviewStageId,
