@@ -37,12 +37,14 @@ export async function POST(
   const body = (await request.json().catch(() => null)) as
     | {
         phase?: string;
+        force?: unknown;
         presentationSeconds?: unknown;
         qaSeconds?: unknown;
         scoringSeconds?: unknown;
       }
     | null;
   const phase = body?.phase?.trim();
+  const forceFinish = body?.force === true;
 
   if (!isValidPhase(phase)) {
     return NextResponse.json({ message: "无效的阶段" }, { status: 400 });
@@ -87,10 +89,10 @@ export async function POST(
     (session.screenPhase === "qa" && !session.scoringEnabled);
 
   if (phase === "finished") {
-    if (hasNextProject) {
+    if (hasNextProject && !forceFinish) {
       return NextResponse.json({ message: "还有后续项目，请先切换到下一项目" }, { status: 409 });
     }
-    if (!canFinishCurrentRound) {
+    if (!canFinishCurrentRound && !forceFinish) {
       return NextResponse.json({ message: "请先完成当前项目流程后再结束本轮" }, { status: 409 });
     }
   }

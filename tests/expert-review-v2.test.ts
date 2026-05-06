@@ -349,6 +349,12 @@ describe("expert review v2 constraints", () => {
     assert.match(tabSource, /setExpertMode\("roadshow-score"\)/);
     assert.match(tabSource, /当前大屏项目/);
     assert.match(tabSource, /本轮共 \{roadshowAssignments\.length\} 个项目/);
+    assert.match(tabSource, /live-roadshow-status-card/);
+    assert.match(tabSource, /roadshow-phase-pill/);
+    assert.match(tabSource, /roadshow-score-input-shell/);
+    assert.match(tabSource, /实时同步中/);
+    assert.match(tabSource, /进入评分阶段后，本页会自动切换到打分界面/);
+    assert.match(tabSource, /系统会再次弹窗确认/);
   });
 
   it("keeps expert mobile assignments in sync without requiring manual refresh", () => {

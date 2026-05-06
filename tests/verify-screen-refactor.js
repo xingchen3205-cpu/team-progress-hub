@@ -127,7 +127,7 @@ const readSource = (filePath) =>
   assert.match(adminTabSource, /当前项目最终得分/);
   assert.match(adminTabSource, /expert-seat-row/);
   assert.match(adminTabSource, /确认提交分数？将按规则计算最终得分并推送到投屏播放揭晓动画。/);
-  assert.match(adminTabSource, /确认结束全部项目？投屏将进入本轮结束状态。/);
+  assert.match(adminTabSource, /确认结束本轮所有评审？投屏将进入本轮结束状态/);
   assert.match(adminTabSource, /固定专家席位/);
   assert.match(adminTabSource, /异常排除/);
   assert.doesNotMatch(adminTabSource, /作废席位/);
@@ -156,8 +156,12 @@ const readSource = (filePath) =>
   assert.match(adminTabSource, /saveReviewScreenTiming/);
   assert.match(adminTabSource, /settings/);
   assert.match(adminTabSource, /switchReviewScreenProject/);
-  assert.match(adminTabSource, /结束全部项目/);
-  assert.match(adminTabSource, /changeReviewScreenPhase\(group, "finished"\)/);
+  assert.match(adminTabSource, /正常结束本轮/);
+  assert.match(adminTabSource, /结束本轮评审/);
+  assert.match(adminTabSource, /force: true/);
+  assert.match(adminTabSource, /取消本阶段评审配置/);
+  assert.match(phaseRouteSource, /forceFinish/);
+  assert.match(adminTabSource, /changeReviewScreenPhase\(group, "finished"/);
   assert.match(adminTabSource, /currentPhase === "finished"/);
   assert.match(adminTabSource, /getReviewScreenPhaseActionLabel/);
   assert.doesNotMatch(adminTabSource, /阶段已切换为：\$\{phase\}/);

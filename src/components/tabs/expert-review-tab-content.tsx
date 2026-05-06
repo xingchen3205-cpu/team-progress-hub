@@ -1,7 +1,22 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { ArrowDown, ArrowUp, CheckCircle2, Copy, ExternalLink, Shuffle, Trophy } from "lucide-react";
+import {
+  ArrowDown,
+  ArrowUp,
+  BookOpen,
+  CheckCircle2,
+  ChevronRight,
+  Clock3,
+  Copy,
+  ExternalLink,
+  Monitor,
+  Plus,
+  ShieldCheck,
+  Shuffle,
+  Trophy,
+  Users,
+} from "lucide-react";
 
 import type { ExpertReviewAssignmentItem } from "@/components/workspace-context";
 import * as Workspace from "@/components/workspace-context";
@@ -385,13 +400,6 @@ export default function ExpertReviewTab() {
     ActionButton,
     EmptyState,
     FileCheck,
-    BookOpen,
-    Monitor,
-    Users,
-    Clock3,
-    ChevronRight,
-    Plus,
-    ShieldCheck,
     formatDateTime,
     expertReviewMaterialLabels,
     requestJson,
@@ -597,8 +605,13 @@ export default function ExpertReviewTab() {
     groupedAssignments[0] ??
     null;
   const activeGroupLiveData = activeGroup ? screenLiveData[activeGroup.key] : undefined;
+  const activeCurrentProjectGroup =
+    groupedAssignments.find((group) => group.key === activeGroupLiveData?.currentPackageId) ??
+    activeGroup;
   const activeGroupLiveProject = activeGroup && activeGroupLiveData
-    ? activeGroupLiveData.projectResults.find((project) => project.reviewPackage.id === activeGroup.key)
+    ? activeGroupLiveData.projectResults.find(
+        (project) => project.reviewPackage.id === (activeGroupLiveData.currentPackageId ?? activeGroup.key),
+      )
     : undefined;
   const activeGroupFinalScoreText =
     activeGroup && isRoadshowAssignment(activeGroup.items[0])
@@ -1138,7 +1151,11 @@ export default function ExpertReviewTab() {
     void reorderReviewScreenProjects(group, sorted);
   };
 
-  const changeReviewScreenPhase = async (group: ReviewGroup, phase: string) => {
+  const changeReviewScreenPhase = async (
+    group: ReviewGroup,
+    phase: string,
+    options?: { force?: boolean },
+  ) => {
     const screenSession = reviewScreenSessions[group.key];
     if (!screenSession) {
       setLoadError("请先生成现场大屏链接");
@@ -1148,7 +1165,7 @@ export default function ExpertReviewTab() {
     try {
       const payload = await requestJson<{ session: { screenPhase: string } }>(`/api/review-screen/sessions/${screenSession.sessionId}/phase`, {
         method: "POST",
-        body: JSON.stringify({ phase, ...getReviewScreenTimingPayload(group.key) }),
+        body: JSON.stringify({ phase, force: options?.force === true, ...getReviewScreenTimingPayload(group.key) }),
       });
       const phaseLabel = getReviewScreenPhaseActionLabel(payload.session.screenPhase);
       setReviewScreenSessions((current) => {
@@ -1495,6 +1512,7 @@ export default function ExpertReviewTab() {
       (currentPhase === "reveal" ||
         currentPhase === "scoring" ||
         (!screenDisplay.scoringEnabled && currentPhase === "qa"));
+    const canForceFinishRound = Boolean(screenSession) && currentPhase !== "finished";
     const nextStepAdvice = !screenSession
       ? "先生成投屏链接，再确认路演顺序和投屏显示设置。"
       : currentPhase === "draw"
@@ -1886,13 +1904,13 @@ export default function ExpertReviewTab() {
                 )}
                 disabled={!canEndRound || reviewScreenActionKey === `${group.key}:phase:finished`}
                 onClick={() => {
-                  if (window.confirm("确认结束全部项目？投屏将进入本轮结束状态。")) {
+                  if (window.confirm("确认正常结束本轮？投屏将进入本轮结束状态，后台保留本轮评分与过程记录。")) {
                     void changeReviewScreenPhase(group, "finished");
                   }
                 }}
                 type="button"
               >
-                结束全部项目
+                正常结束本轮
               </button>
             </div>
           </div>
@@ -2152,6 +2170,32 @@ export default function ExpertReviewTab() {
               )}
             </div>
           </div>
+          <div className="rounded-xl border border-rose-100 bg-rose-50/55 p-4">
+            <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div>
+                <p className="text-sm font-extrabold text-rose-950">收尾操作</p>
+                <p className="mt-1 text-xs leading-5 text-rose-700/75">
+                  结束本轮评审只关闭当前投屏流程，不会删除评审包、专家分配和已提交成绩。
+                </p>
+              </div>
+              <button
+                className="inline-flex shrink-0 items-center justify-center rounded-lg border border-rose-200 bg-white px-4 py-2.5 text-xs font-extrabold text-rose-700 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-45"
+                disabled={!canForceFinishRound || reviewScreenActionKey === `${group.key}:phase:finished`}
+                onClick={() => {
+                  if (
+                    window.confirm(
+                      "确认结束本轮所有评审？投屏将进入本轮结束状态，未完成项目和未提交专家不会再进入本轮投屏；后台会保留已有成绩与过程记录。",
+                    )
+                  ) {
+                    void changeReviewScreenPhase(group, "finished", { force: true });
+                  }
+                }}
+                type="button"
+              >
+                结束本轮评审
+              </button>
+            </div>
+          </div>
           {screenSession?.message ? (
             <p className="rounded-xl bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700">{screenSession.message}</p>
           ) : null}
@@ -2203,6 +2247,36 @@ export default function ExpertReviewTab() {
                     系统仅展示管理员已分配给您的评审任务，提交后评分将锁定。
                   </p>
                 </div>
+                {activeRoadshowAssignment ? (
+                  <div className="live-roadshow-status-card mt-6 overflow-hidden rounded-[24px] border border-blue-100 bg-[linear-gradient(135deg,#eff6ff,#ffffff_50%,#ecfdf5)] p-4 text-left shadow-[0_18px_50px_rgba(37,99,235,0.10)] sm:mt-8 sm:p-5">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold tracking-[0.18em] text-blue-500">实时同步中</p>
+                        <h2 className="mt-2 truncate text-lg font-bold text-slate-950 sm:text-xl">
+                          {activeRoadshowAssignment.targetName}
+                        </h2>
+                        <p className="mt-1 text-xs leading-5 text-slate-500">
+                          本轮共 {roadshowAssignments.length} 个项目 · {activeRoadshowAssignment.roundLabel}
+                        </p>
+                      </div>
+                      <span className="roadshow-phase-pill inline-flex w-fit items-center rounded-full border border-blue-100 bg-white px-3 py-1.5 text-xs font-bold text-blue-700">
+                        {activeRoadshowAssignment.roadshowScreenPhaseLabel ?? "等待开始"}
+                      </span>
+                    </div>
+                    <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                      <p className="text-xs leading-5 text-slate-500">
+                        进入评分阶段后，本页会自动切换到打分界面，提交前系统会再次弹窗确认。
+                      </p>
+                      <button
+                        className="inline-flex w-full touch-manipulation items-center justify-center rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-bold text-white transition active:scale-[0.98] hover:bg-blue-700 sm:w-auto"
+                        onClick={startRoadshowReview}
+                        type="button"
+                      >
+                        {activeRoadshowAssignment.canEdit ? "进入评分" : "查看现场状态"}
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
                 <div className="mt-7 grid gap-3 sm:mt-10 md:grid-cols-2 md:gap-5">
                   <button
                     className="expert-task-card group relative overflow-hidden rounded-[20px] border border-blue-100 bg-white px-5 py-5 text-left transition active:scale-[0.99] hover:border-blue-200 hover:bg-blue-50/45 sm:rounded-[22px] sm:px-8 sm:py-8 touch-manipulation"
@@ -2420,11 +2494,14 @@ export default function ExpertReviewTab() {
             <h3 className="mt-6 text-2xl font-bold text-slate-950">等待评审开始</h3>
             <p className="mt-3 text-sm leading-6 text-slate-500">管理员开始路演节奏并指派项目后，这里会自动出现评分入口。</p>
             {activeRoadshowAssignment ? (
-              <div className="mt-6 rounded-3xl border border-slate-200 bg-white p-5 text-left">
-                <p className="text-xs font-bold text-slate-400">当前大屏项目</p>
+              <div className="live-roadshow-status-card mt-6 rounded-3xl border border-blue-100 bg-white p-5 text-left shadow-[0_14px_40px_rgba(37,99,235,0.08)]">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-xs font-bold text-slate-400">当前大屏项目</p>
+                  <span className="rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-bold text-blue-700">实时同步中</span>
+                </div>
                 <h4 className="mt-2 text-lg font-bold text-slate-950">{activeRoadshowAssignment.targetName}</h4>
                 <div className="mt-3 flex flex-wrap items-center gap-2">
-                  <span className="rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">
+                  <span className="roadshow-phase-pill rounded-full bg-emerald-50 px-3 py-1 text-xs font-bold text-emerald-700">
                     {activeRoadshowAssignment.roadshowScreenPhaseLabel ?? "等待开始"}
                   </span>
                   <span className="rounded-full border border-slate-200 bg-slate-50 px-3 py-1 text-xs font-bold text-slate-500">
@@ -2449,16 +2526,22 @@ export default function ExpertReviewTab() {
                 <div>
                   <p className="text-sm font-semibold text-indigo-600">项目路演评审</p>
                   <h3 className="mt-2 text-xl font-bold text-slate-950 sm:text-2xl">{activeRoadshowAssignment.targetName}</h3>
-                  <p className="mt-2 text-xs font-bold text-indigo-500">
-                    {activeRoadshowAssignment.roadshowScreenPhaseLabel ?? "评分进行中"} · 本轮共 {roadshowAssignments.length} 个项目
-                  </p>
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <span className="roadshow-phase-pill rounded-full bg-indigo-600 px-3 py-1 text-xs font-bold text-white">
+                      {activeRoadshowAssignment.roadshowScreenPhaseLabel ?? "评分进行中"}
+                    </span>
+                    <span className="rounded-full border border-indigo-100 bg-white px-3 py-1 text-xs font-bold text-indigo-600">实时同步中</span>
+                    <span className="rounded-full border border-slate-200 bg-white px-3 py-1 text-xs font-bold text-slate-500">
+                      本轮共 {roadshowAssignments.length} 个项目
+                    </span>
+                  </div>
                   <p className="mt-3 text-sm text-slate-500">{activeRoadshowAssignment.overview || "请根据现场展示和答辩情况给出最终评分。"}</p>
                 </div>
                 <button className="w-fit touch-manipulation text-sm font-semibold text-slate-500 hover:text-indigo-600" onClick={() => setExpertMode("home")} type="button">
                   返回入口
                 </button>
               </div>
-              <div className="mt-6 rounded-[22px] bg-white p-4 sm:mt-8 sm:rounded-3xl sm:p-6">
+              <div className="roadshow-score-input-shell mt-6 rounded-[22px] bg-white p-4 sm:mt-8 sm:rounded-3xl sm:p-6">
                 <label className="block text-sm font-semibold text-slate-700">
                   路演评分（精确到两位小数）
                   <input
@@ -2493,7 +2576,7 @@ export default function ExpertReviewTab() {
                   />
                 </label>
                 <p className="mt-4 text-sm text-slate-500">
-                  若输入整数，如 85，系统会按 85.00 分提交；提交前请确认是否需要保留两位小数。
+                  若输入整数，如 85，系统会按 85.00 分提交；提交前请确认是否需要保留两位小数，系统会再次弹窗确认。
                 </p>
                 <div className="expert-score-submit-bar sticky bottom-0 -mx-4 mt-6 border-t border-indigo-100 bg-white/95 px-4 py-3 backdrop-blur sm:static sm:m-0 sm:border-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-0">
                   <button
@@ -2568,8 +2651,8 @@ export default function ExpertReviewTab() {
   const activeExpertSeatCount = activeSidebarSeats.length || activeGroup?.items.length || 0;
   const activeSubmittedSeatCount = activeSidebarSeats.filter((seat) => seat.status === "submitted").length;
   const activePendingSeatCount = activeSidebarSeats.filter((seat) => seat.status === "pending").length;
-  const activeDropHighestCount = activeGroup?.items[0]?.dropHighestCount ?? 1;
-  const activeDropLowestCount = activeGroup?.items[0]?.dropLowestCount ?? 1;
+  const activeDropHighestCount = activeCurrentProjectGroup?.items[0]?.dropHighestCount ?? 1;
+  const activeDropLowestCount = activeCurrentProjectGroup?.items[0]?.dropLowestCount ?? 1;
   const activeProjectListSource = activeGroupLiveData?.projectOrder?.length
     ? activeGroupLiveData.projectOrder
     : activeStageGroups.map<ReviewScreenProjectOrderItem>((group, index) => ({
@@ -2844,24 +2927,21 @@ export default function ExpertReviewTab() {
 
             <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <h3 className="text-sm font-extrabold text-slate-950">项目列表</h3>
+              <p className="mt-2 text-[11px] leading-5 text-slate-400">
+                项目列表只展示本轮顺序和后台分数；推进投屏请使用左侧“下一项目”和阶段控制，避免同一轮出现多套大屏状态。
+              </p>
               <div className="mt-4 space-y-2">
                 {activeProjectList.map((project) => (
-                  <button
-                    className={`flex w-full items-center gap-3 rounded-xl border px-3 py-3 text-left transition ${
+                  <div
+                    aria-current={project.isCurrent ? "true" : undefined}
+                    className={`flex w-full items-center gap-3 rounded-xl border px-3 py-3 text-left ${
                       project.isCurrent
                         ? "border-blue-300 bg-blue-50 shadow-[0_0_0_2px_rgba(59,130,246,0.08)]"
                         : project.isCompleted
-                          ? "border-emerald-100 bg-white hover:bg-emerald-50"
-                          : "border-slate-200 bg-white hover:bg-slate-50"
+                          ? "border-emerald-100 bg-white"
+                          : "border-slate-200 bg-white"
                     }`}
                     key={project.packageId}
-                    onClick={() => {
-                      setActiveGroupKey(project.packageId);
-                      if (activeGroup && activeScreenSession && !project.isCurrent) {
-                        void switchReviewScreenProject(activeGroup, project.packageId);
-                      }
-                    }}
-                    type="button"
                   >
                     <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-full font-mono text-[11px] font-extrabold ${
                       project.isCurrent
@@ -2881,7 +2961,7 @@ export default function ExpertReviewTab() {
                     <span className={`font-mono text-sm font-bold ${project.scoreText ? "text-emerald-700" : "text-slate-400"}`}>
                       {project.scoreText ?? "--"}
                     </span>
-                  </button>
+                  </div>
                 ))}
               </div>
             </article>
