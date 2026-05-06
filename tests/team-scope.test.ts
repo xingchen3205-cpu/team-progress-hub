@@ -61,8 +61,7 @@ describe("team-scoped workspace visibility", () => {
     });
 
     assert.equal(expertWhere.expertUserId, "expert-1");
-    assert.deepEqual(expertWhere.reviewPackage?.OR?.[0], { deadline: null });
-    assert.ok(expertWhere.reviewPackage?.OR?.[1]?.deadline?.gt instanceof Date);
+    assert.deepEqual(expertWhere.reviewPackage, { status: { not: "cancelled" } });
 
     assert.deepEqual(
       buildExpertReviewAssignmentVisibilityWhere({

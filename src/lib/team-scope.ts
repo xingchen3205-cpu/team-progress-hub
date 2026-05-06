@@ -67,14 +67,9 @@ export const buildDocumentVisibilityWhere = (actor: TeamScopedActor) => {
 
 export const buildExpertReviewAssignmentVisibilityWhere = (actor: TeamScopedActor) => {
   if (actor.role === "expert") {
-    const now = new Date();
     return {
       expertUserId: actor.id,
       reviewPackage: {
-        OR: [
-          { deadline: null },
-          { deadline: { gt: now } },
-        ],
         status: { not: "cancelled" as const },
       },
     };

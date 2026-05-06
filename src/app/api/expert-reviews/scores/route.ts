@@ -170,28 +170,30 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  const reviewWindowState = getExpertReviewWindowState({
-    startAt: assignment.reviewPackage.startAt,
-    deadline: assignment.reviewPackage.deadline,
-    lockedAt: null,
-  });
-
-  if (reviewWindowState.key === "not_started") {
-    return NextResponse.json({ message: "评审尚未开始，请在管理员设置的评审时间内提交" }, { status: 409 });
-  }
-
-  if (
-    getExpertReviewLockState({
+  if (!isRoadshowAssignment) {
+    const reviewWindowState = getExpertReviewWindowState({
+      startAt: assignment.reviewPackage.startAt,
       deadline: assignment.reviewPackage.deadline,
       lockedAt: null,
-    })
-  ) {
-    await prisma.expertReviewAssignment.update({
-      where: { id: assignment.id },
-      data: { status: "locked" },
     });
 
-    return NextResponse.json({ message: "评审已截止，当前记录已锁定" }, { status: 409 });
+    if (reviewWindowState.key === "not_started") {
+      return NextResponse.json({ message: "评审尚未开始，请在管理员设置的评审时间内提交" }, { status: 409 });
+    }
+
+    if (
+      getExpertReviewLockState({
+        deadline: assignment.reviewPackage.deadline,
+        lockedAt: null,
+      })
+    ) {
+      await prisma.expertReviewAssignment.update({
+        where: { id: assignment.id },
+        data: { status: "locked" },
+      });
+
+      return NextResponse.json({ message: "评审已截止，当前记录已锁定" }, { status: 409 });
+    }
   }
 
   const commentTotal = body?.commentTotal?.trim() || "";

@@ -303,7 +303,7 @@ export const serializeExpertReviewAssignment = (
     >;
   },
 ) => {
-  const derivedStatus = getExpertReviewStatus({
+  const baseStatus = getExpertReviewStatus({
     status: assignment.status,
     startAt: assignment.reviewPackage.startAt,
     deadline: assignment.reviewPackage.deadline,
@@ -332,11 +332,19 @@ export const serializeExpertReviewAssignment = (
           ),
         )
       : null;
+  const derivedStatus =
+    reviewMode === "roadshow" && !assignment.score && assignment.status === "pending"
+      ? {
+          key: "pending" as const,
+          label: "待评审" as const,
+        }
+      : baseStatus;
   const canEdit =
     derivedStatus.key === "pending" &&
-    reviewWindowState.key === "open" &&
     !assignment.score &&
-    (reviewMode !== "roadshow" || roadshowScreenStarted === true);
+    (reviewMode === "roadshow"
+      ? roadshowScreenStarted === true
+      : reviewWindowState.key === "open");
 
   return {
     id: assignment.id,

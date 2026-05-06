@@ -220,16 +220,22 @@ const getReviewWindowBlockMessage = (assignment: ExpertReviewAssignmentItem) => 
     return null;
   }
 
+  if (isRoadshowAssignment(assignment)) {
+    if (assignment.roadshowScreenStarted === true && assignment.canEdit) {
+      return null;
+    }
+
+    if (assignment.roadshowScreenStarted === false) {
+      return "现场评分尚未开始，请等待管理员在大屏控制端点击开始评分。";
+    }
+  }
+
   if (assignment.reviewWindowState === "not_started") {
     return "当前不在评审时间段内，评审尚未开始。";
   }
 
   if (assignment.reviewWindowState === "ended" || assignment.statusKey === "locked") {
     return "当前不在评审时间段内，评审已结束。";
-  }
-
-  if (isRoadshowAssignment(assignment) && assignment.roadshowScreenStarted === false) {
-    return "现场评分尚未开始，请等待管理员在大屏控制端点击开始评分。";
   }
 
   if (assignment.statusKey !== "pending" || assignment.canEdit) {
@@ -515,21 +521,27 @@ export default function ExpertReviewTab() {
     [reviewAssignments],
   );
   useEffect(() => {
-    if (
-      currentRole !== "expert" ||
-      !roadshowAssignments.some(
-        (assignment) => assignment.statusKey === "pending" && assignment.roadshowScreenStarted === false,
-      )
-    ) {
+    if (currentRole !== "expert") {
       return;
     }
 
-    const timer = window.setInterval(() => {
+    const refreshExpertAssignments = () => {
+      if (document.visibilityState !== "visible") {
+        return;
+      }
       refreshWorkspace("reviewAssignments");
-    }, 3000);
+    };
 
-    return () => window.clearInterval(timer);
-  }, [currentRole, refreshWorkspace, roadshowAssignments]);
+    const timer = window.setInterval(refreshExpertAssignments, 3000);
+    window.addEventListener("focus", refreshExpertAssignments);
+    document.addEventListener("visibilitychange", refreshExpertAssignments);
+
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("focus", refreshExpertAssignments);
+      document.removeEventListener("visibilitychange", refreshExpertAssignments);
+    };
+  }, [currentRole, refreshWorkspace]);
   useEffect(() => {
     if (!canManageReviewMaterials || Object.keys(reviewScreenSessions).length === 0) {
       return;
@@ -547,9 +559,26 @@ export default function ExpertReviewTab() {
     roadshowAssignments[0] ??
     null;
   const activeRoadshowAssignment =
+    roadshowAssignments.find((assignment) => assignment.statusKey === "pending" && assignment.canEdit) ??
+    roadshowAssignments.find((assignment) => assignment.statusKey === "pending" && assignment.roadshowScreenStarted === true) ??
     roadshowAssignments.find((assignment) => assignment.statusKey === "pending") ??
     roadshowAssignments[0] ??
     null;
+  useEffect(() => {
+    if (
+      currentRole !== "expert" ||
+      expertMode !== "roadshow-wait" ||
+      !activeRoadshowAssignment ||
+      !activeRoadshowAssignment.canEdit ||
+      activeRoadshowAssignment.score
+    ) {
+      return;
+    }
+
+    const scoreText = formatScoreForAssignment(activeRoadshowAssignment);
+    setRoadshowScoreDraft(scoreText === "--" ? "" : scoreText);
+    setExpertMode("roadshow-score");
+  }, [activeRoadshowAssignment, currentRole, expertMode]);
   const activeGroup =
     groupedAssignments.find((group) => group.key === activeGroupKey) ??
     groupedAssignments[0] ??

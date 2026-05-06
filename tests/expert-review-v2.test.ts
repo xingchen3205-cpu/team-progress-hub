@@ -102,12 +102,13 @@ describe("expert review v2 constraints", () => {
     assert.match(routeSource, /lockedAt:\s*submittedAt/);
   });
 
-  it("filters expired expert assignments and material previews for expert accounts", () => {
+  it("keeps expert assignments visible after deadline while keeping material preview locked", () => {
     const scopeSource = readSource("src/lib/team-scope.ts");
     const materialSource = readSource("src/app/api/expert-reviews/assignments/[id]/materials/[kind]/route.ts");
 
-    assert.match(scopeSource, /reviewPackage:\s*\{\s*OR:\s*\[/);
-    assert.match(scopeSource, /deadline:\s*\{\s*gt:\s*now\s*\}/);
+    assert.match(scopeSource, /expertUserId:\s*actor\.id/);
+    assert.match(scopeSource, /reviewPackage:\s*\{\s*status:\s*\{\s*not:\s*"cancelled"/);
+    assert.doesNotMatch(scopeSource, /deadline:\s*\{\s*gt:\s*now\s*\}/);
     assert.match(materialSource, /评审已截止/);
     assert.match(materialSource, /getExpertReviewLockState/);
   });
@@ -329,6 +330,29 @@ describe("expert review v2 constraints", () => {
     assert.match(materialRouteSource, /评审尚未开始/);
     assert.match(tabSource, /getReviewWindowBlockMessage/);
     assert.match(tabSource, /当前不在评审时间段内/);
+  });
+
+  it("lets live roadshow scoring follow the screen session instead of an old deadline", () => {
+    const serializerSource = readSource("src/lib/expert-review.ts");
+    const scoreRouteSource = readSource("src/app/api/expert-reviews/scores/route.ts");
+    const tabSource = readSource("src/components/tabs/expert-review-tab-content.tsx");
+
+    assert.match(serializerSource, /reviewMode === "roadshow"\s*\?/);
+    assert.match(serializerSource, /roadshowScreenStarted === true/);
+    assert.match(scoreRouteSource, /if \(!isRoadshowAssignment\)/);
+    assert.match(scoreRouteSource, /getExpertReviewWindowState/);
+    assert.match(scoreRouteSource, /getExpertReviewLockState/);
+    assert.match(tabSource, /assignment\.canEdit/);
+    assert.match(tabSource, /setExpertMode\("roadshow-score"\)/);
+  });
+
+  it("keeps expert mobile assignments in sync without requiring manual refresh", () => {
+    const tabSource = readSource("src/components/tabs/expert-review-tab-content.tsx");
+
+    assert.match(tabSource, /const refreshExpertAssignments/);
+    assert.match(tabSource, /document\.visibilityState !== "visible"/);
+    assert.match(tabSource, /window\.setInterval\(refreshExpertAssignments,\s*3000\)/);
+    assert.doesNotMatch(tabSource, /roadshowAssignments\.some\(\s*\(assignment\) => assignment\.statusKey === "pending" && assignment\.roadshowScreenStarted === false/);
   });
 
   it("allows administrators to edit review packages without deleting submitted expert scores", () => {
