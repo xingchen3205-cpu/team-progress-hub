@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { type CSSProperties, useCallback, useEffect, useMemo, useState } from "react";
 import {
   ArrowDown,
   ArrowUp,
@@ -763,7 +763,10 @@ export default function ExpertReviewTab() {
   useEffect(() => {
     const groupKeys = Array.from(
       new Set([...Object.keys(screenTimingDrafts), ...Object.keys(screenDisplayDrafts)]),
-    ).filter((groupKey) => Boolean(reviewScreenSessions[groupKey]?.sessionId));
+    ).filter((groupKey) => {
+      const screenPhase = screenLiveData[groupKey]?.screenPhase ?? "draw";
+      return Boolean(reviewScreenSessions[groupKey]?.sessionId) && screenPhase === "draw";
+    });
     if (groupKeys.length === 0) return;
 
     const timer = window.setTimeout(() => {
@@ -775,7 +778,7 @@ export default function ExpertReviewTab() {
     }, 500);
 
     return () => window.clearTimeout(timer);
-  }, [reviewScreenSessions, saveReviewScreenTiming, screenDisplayDrafts, screenTimingDrafts]);
+  }, [reviewScreenSessions, saveReviewScreenTiming, screenDisplayDrafts, screenLiveData, screenTimingDrafts]);
 
   const getRoadshowProjectCount = (group: ReviewGroup) => {
     if (!group.projectReviewStageId) {
@@ -1477,6 +1480,8 @@ export default function ExpertReviewTab() {
     const formattedRemaining = `${String(Math.floor(phaseRemainingSeconds / 60)).padStart(2, "0")}:${String(
       phaseRemainingSeconds % 60,
     ).padStart(2, "0")}`;
+    const isScreenSessionFinished = currentPhase === "finished";
+    const canEditScreenSetup = Boolean(screenSession) && currentPhase === "draw";
     const canAdjustOrder = Boolean(screenSession) && currentPhase === "draw";
     const canStartPresentation = Boolean(screenSession) && (currentPhase === "draw" || currentPhase === "presentation");
     const canStartQa = Boolean(screenSession) && currentPhase === "presentation";
@@ -1593,6 +1598,481 @@ export default function ExpertReviewTab() {
             projects: projectOrder.map((project) => ({ ...project, result: undefined })),
           },
         ];
+    const reviewConsoleTheme = {
+      "--ink": "#0B1220",
+      "--ink-soft": "#2A3548",
+      "--line": "#E6EAF0",
+      "--line-soft": "#F0F3F8",
+      "--bg": "#F6F7FB",
+      "--card": "#FFFFFF",
+      "--muted": "#6B7385",
+      "--muted-2": "#9098A9",
+      "--brand": "#1E5EFF",
+      "--brand-soft": "#EAF0FF",
+      "--accent": "#FF6A3D",
+      "--warn": "#F2A93B",
+      "--ok": "#1FB57A",
+      "--ok-soft": "#E6F6EE",
+      "--danger": "#E5484D",
+      "--danger-soft": "#FCEBEC",
+      "--stage-dark": "#0E1626",
+      "--stage-dark-2": "#152038",
+    } as CSSProperties;
+    const projectResultByPackageId = new Map(
+      (liveData?.projectResults ?? []).map((result) => [result.reviewPackage.id, result]),
+    );
+    const totalProjectCount = projectOrder.length || 1;
+    const completedProjectCount = projectOrder.filter((project, index) => {
+      const result = projectResultByPackageId.get(project.packageId);
+      return isScreenSessionFinished || Boolean(result?.finalScore.scoreLockedAt || project.revealedAt) || index < currentProjectIndex;
+    }).length;
+    const progressPercent = Math.min(100, Math.round((completedProjectCount / totalProjectCount) * 100));
+    const reviewLifecycleStage = isScreenSessionFinished ? "finished" : currentPhase === "draw" ? "config" : "running";
+    const stageSteps = [
+      { key: "config", title: "配置评审", description: "顺序 / 规则 / 投屏" },
+      { key: "running", title: "现场推进", description: "路演 / 答辩 / 评分" },
+      { key: "finished", title: "收尾归档", description: "成绩 / 导出 / 复盘" },
+    ];
+    const stageIndex = stageSteps.findIndex((step) => step.key === reviewLifecycleStage);
+    const isTimerUrgent = currentPhase !== "draw" && currentPhase !== "finished" && phaseRemainingSeconds <= 30;
+    const isTimerExpired = currentPhase !== "draw" && currentPhase !== "finished" && phaseRemainingSeconds === 0;
+    const singleProjectSeconds =
+      Math.max(0, Number.parseInt(timingDraft.presentationMinutes, 10) || 0) * 60 +
+      Math.max(0, Number.parseInt(timingDraft.qaMinutes, 10) || 0) * 60 +
+      Math.max(0, Number.parseInt(timingDraft.scoringSeconds, 10) || 0);
+    const estimatedRemainingSeconds = Math.max(0, totalProjectCount - completedProjectCount) * singleProjectSeconds;
+    const estimatedRemainingHours = estimatedRemainingSeconds / 3600;
+    const planDeltaMinutes = Math.max(0, currentProjectIndex - completedProjectCount) * Math.round(singleProjectSeconds / 60);
+    const monitorSeats =
+      consoleSeats.length > 0
+        ? consoleSeats
+        : group.items.map((assignment, index) => ({
+            id: assignment.id,
+            seatNo: index + 1,
+            displayName: `专家 ${index + 1}`,
+            status: assignment.score ? "submitted" as const : "pending" as const,
+            voidedAt: null,
+            scoreText: assignment.score ? formatScoreForAssignment(assignment) : null,
+          }));
+    const groupHasLockedScore = group.items.some((item) => Boolean(item.score?.lockedAt));
+    const getProjectStatus = (project: ReviewScreenProjectOrderItem, index: number) => {
+      const result = projectResultByPackageId.get(project.packageId);
+      if (project.packageId === currentProject?.packageId && currentPhase !== "finished") return "current";
+      if (isScreenSessionFinished || result?.finalScore.scoreLockedAt || project.revealedAt || index < currentProjectIndex) return "done";
+      if (index === currentProjectIndex + 1) return "next";
+      return "pending";
+    };
+    const renderStageStrip = () => (
+      <div className="review-stage-strip border-b border-[var(--line)] bg-white px-5 py-4">
+        <div className="grid gap-3 md:grid-cols-3">
+          {stageSteps.map((step, index) => {
+            const done = index < stageIndex;
+            const active = index === stageIndex;
+            return (
+              <div className="flex items-center gap-3" key={step.key}>
+                <span
+                  className={`flex h-8 w-8 shrink-0 items-center justify-center rounded-full font-mono text-xs font-extrabold ${
+                    done
+                      ? "bg-emerald-500 text-white"
+                      : active
+                        ? "bg-[var(--brand)] text-white shadow-[0_0_0_4px_var(--brand-soft)]"
+                        : "bg-slate-100 text-slate-400"
+                  }`}
+                >
+                  {done ? "✓" : index + 1}
+                </span>
+                <div className="min-w-0">
+                  <p className={`truncate text-sm font-extrabold ${active ? "text-[var(--brand)]" : "text-slate-700"}`}>
+                    {step.title}
+                  </p>
+                  <p className="mt-0.5 truncate text-[11px] text-slate-400">{step.description}</p>
+                </div>
+                {index < stageSteps.length - 1 ? (
+                  <span className={`hidden h-px flex-1 md:block ${done ? "bg-emerald-400" : "border-t border-dashed border-slate-200"}`} />
+                ) : null}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+    const workflowSteps = [
+      {
+        no: "01",
+        phase: "presentation" as const,
+        label: "开始路演",
+        enabled: canStartPresentation,
+        done: ["qa", "scoring", "reveal", "finished"].includes(currentPhase),
+        onClick: () => void changeReviewScreenPhase(group, "presentation"),
+      },
+      {
+        no: "02",
+        phase: "qa" as const,
+        label: "开始答辩",
+        enabled: canStartQa,
+        done: ["scoring", "reveal", "finished"].includes(currentPhase),
+        onClick: () => void changeReviewScreenPhase(group, "qa"),
+      },
+      {
+        no: "03",
+        phase: "scoring" as const,
+        label: "开始评分",
+        enabled: canStartScoring,
+        done: ["reveal", "finished"].includes(currentPhase),
+        onClick: () => void changeReviewScreenPhase(group, "scoring"),
+      },
+      {
+        no: "04",
+        phase: "reveal" as const,
+        label: "计算得分",
+        enabled: canRevealScore,
+        done: currentProjectHasLockedScore || ["reveal", "finished"].includes(currentPhase),
+        onClick: () => {
+          if (window.confirm("确认提交分数？将按规则计算最终得分并推送到投屏播放揭晓动画。")) {
+            void revealReviewScreenScore(group);
+          }
+        },
+      },
+      {
+        no: "05",
+        phase: "finished" as const,
+        label: "完成本项",
+        enabled: canGoNextProject || canEndRound,
+        done: currentPhase === "finished",
+        onClick: () => {
+          if (hasNextProject) {
+            const nextProject = projectOrder[currentProjectIndex + 1];
+            const confirmed = window.confirm(
+              nextProject
+                ? `下一项目：${nextProject.targetName}（${currentProjectIndex + 2}/${totalProjectCount}），切换到待开始状态？`
+                : "确认切换到下一项目？",
+            );
+            if (!confirmed) return;
+            void nextReviewScreenProject(group);
+            return;
+          }
+
+          if (window.confirm("确认结束本轮？所有未评分项目将标记为未完成，已有成绩将归档。")) {
+            void changeReviewScreenPhase(group, "finished");
+          }
+        },
+      },
+    ];
+    const renderNowBar = () => (
+      <div className="review-now-bar sticky top-[72px] z-20 overflow-hidden border-b border-slate-950 bg-[linear-gradient(180deg,var(--stage-dark)_0%,var(--stage-dark-2)_100%)] text-white shadow-[0_4px_20px_rgba(11,18,32,.15)]">
+        <div className="grid gap-4 px-5 py-4 xl:grid-cols-[auto_minmax(0,1fr)_auto_auto_auto] xl:items-center">
+          <div className={`inline-flex w-fit items-center gap-2 rounded-lg border border-orange-400/30 bg-orange-500/15 px-3 py-1.5 text-[11px] font-extrabold uppercase tracking-[0.16em] text-orange-300 ${reviewLifecycleStage === "running" ? "" : "opacity-50"}`}>
+            <span className="h-2 w-2 animate-pulse rounded-full bg-[var(--accent)] shadow-[0_0_10px_var(--accent)]" />
+            LIVE 直播中
+          </div>
+          <div className="min-w-0">
+            <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-white/45">
+              当前项目 {Math.min(currentProjectIndex + 1, totalProjectCount)} / {totalProjectCount}
+            </p>
+            <p className="mt-1 truncate text-lg font-extrabold text-white">
+              {currentProject?.targetName ?? liveData?.reviewPackage?.targetName ?? group.targetName}
+            </p>
+            <p className="mt-1 truncate text-[11px] text-white/55">
+              {currentProject?.groupName ? `${currentProject.groupName} · ` : "第一组 · "}
+              序号 {Math.min(currentProjectIndex + 1, totalProjectCount)} · {currentProject?.roundLabel || group.roundLabel}
+            </p>
+          </div>
+          <div className="border-white/10 xl:border-l xl:border-r xl:px-5">
+            <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-white/45">当前阶段</p>
+            <p className="mt-1 text-sm font-extrabold text-white">
+              <span className="mr-2 inline-block h-2 w-2 animate-pulse rounded-full bg-[var(--accent)]" />
+              {liveData?.phaseLabel ?? getReviewScreenPhaseActionLabel(currentPhase)}
+            </p>
+          </div>
+          <div className="text-left xl:text-right">
+            <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-white/45">倒计时</p>
+            <p className={`mt-1 font-mono text-[32px] font-extrabold leading-none tabular-nums ${isTimerUrgent ? "animate-pulse text-rose-400" : "text-[var(--accent)]"}`}>
+              {formattedRemaining}
+            </p>
+            {isTimerExpired ? <p className="mt-1 text-[11px] font-bold text-orange-300">倒计时已到，可手动推进</p> : null}
+          </div>
+          <div className="flex items-center gap-2">
+            <button
+              className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-white/10 bg-white/10 text-white transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-35"
+              disabled={!screenSession || currentProjectIndex <= 0 || reviewScreenActionKey === `${group.key}:project:${projectOrder[currentProjectIndex - 1]?.packageId}`}
+              onClick={() => {
+                const previousProject = projectOrder[currentProjectIndex - 1];
+                if (previousProject && window.confirm(`确认回到上一项目：${previousProject.targetName}？`)) {
+                  void switchReviewScreenProject(group, previousProject.packageId);
+                }
+              }}
+              title="上一项目"
+              type="button"
+            >
+              ←
+              <span className="sr-only">上一项目</span>
+            </button>
+            <button
+              className="inline-flex h-10 items-center justify-center gap-1 rounded-lg bg-[var(--brand)] px-4 text-xs font-extrabold text-white transition hover:brightness-105 disabled:cursor-not-allowed disabled:opacity-35"
+              disabled={!canGoNextProject}
+              onClick={() => {
+                if (
+                  canForceNextWithoutLockedScore &&
+                  !window.confirm("当前项目还有未提交专家或尚未计算最终得分，确认强制进入下一项目？未提交专家不会计入当前项目已锁定成绩。")
+                ) {
+                  return;
+                }
+                void nextReviewScreenProject(group);
+              }}
+              type="button"
+            >
+              下一项目
+              <ChevronRight className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </div>
+        <div className="flex flex-col gap-3 border-t border-white/10 bg-black/20 px-5 py-3 xl:flex-row xl:items-center">
+          <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-white/40">流程控制</span>
+          <div className="grid flex-1 gap-2 md:grid-cols-5">
+            {workflowSteps.map((step) => {
+              const active = currentPhase === step.phase && !step.done;
+              return (
+                <button
+                  className={`inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border px-3 py-2 text-xs font-extrabold transition ${
+                    step.done
+                      ? "border-emerald-300/25 bg-emerald-400/10 text-emerald-200"
+                      : active || step.enabled
+                        ? "border-[var(--brand)] bg-blue-500/20 text-white shadow-[0_0_0_1px_var(--brand)_inset,0_4px_16px_rgba(30,94,255,.24)]"
+                        : "border-white/10 bg-white/5 text-white/40"
+                  } disabled:cursor-not-allowed disabled:opacity-35`}
+                  disabled={!step.enabled || reviewScreenActionKey?.startsWith(`${group.key}:`)}
+                  key={step.no}
+                  onClick={step.onClick}
+                  type="button"
+                >
+                  <span className="font-mono text-[10px]">{step.done ? "✓" : step.no}</span>
+                  {step.label}
+                </button>
+              );
+            })}
+          </div>
+          <button
+            className="inline-flex min-h-10 items-center justify-center gap-1 rounded-lg border border-white/10 bg-white/10 px-4 text-xs font-extrabold text-white transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-35"
+            disabled={!screenSession}
+            onClick={() => screenSession && window.open(screenSession.screenUrl, "_blank", "noopener,noreferrer")}
+            type="button"
+          >
+            📺 大屏
+          </button>
+        </div>
+      </div>
+    );
+    const renderGlobalProgress = () => (
+      <div className="review-global-progress grid gap-4 border-b border-[var(--line)] bg-white px-5 py-4 lg:grid-cols-[auto_minmax(0,1fr)_auto_auto_auto] lg:items-center">
+        <div>
+          <p className="mb-1 text-[10px] font-extrabold uppercase tracking-[0.12em] text-[var(--brand)]">全场进度</p>
+          <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">已完成</p>
+          <p className="mt-1 font-mono text-lg font-extrabold text-slate-950">
+            {completedProjectCount}<span className="mx-1 text-slate-300">/</span>{totalProjectCount} 项
+          </p>
+        </div>
+        <div className="min-w-0">
+          <div className="mb-2 flex justify-between text-[11px] text-slate-400">
+            <span>开场 {screenSession?.startedAt ? formatDateTime(screenSession.startedAt) : "未开始"}</span>
+            <span>预计结束 ~{estimatedRemainingHours.toFixed(1)} h 后</span>
+          </div>
+          <div className="relative h-2 overflow-hidden rounded-full bg-slate-100">
+            <div className="h-full rounded-full bg-[linear-gradient(90deg,var(--ok),var(--brand))]" style={{ width: `${progressPercent}%` }} />
+            <span className="absolute top-[-3px] h-4 w-0.5 rounded bg-[var(--accent)]" style={{ left: `${Math.min(98, progressPercent)}%` }} />
+          </div>
+        </div>
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">已用时</p>
+          <p className="mt-1 font-mono text-sm font-extrabold text-emerald-600">实时</p>
+        </div>
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">较计划</p>
+          <p className={`mt-1 font-mono text-sm font-extrabold ${planDeltaMinutes > 0 ? "text-orange-500" : "text-emerald-600"}`}>
+            {planDeltaMinutes > 0 ? `+${planDeltaMinutes}` : "0"} 分钟
+          </p>
+        </div>
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">剩余</p>
+          <p className="mt-1 font-mono text-sm font-extrabold text-slate-700">~{estimatedRemainingHours.toFixed(1)} h</p>
+        </div>
+      </div>
+    );
+    const renderTrackView = () => (
+      <div className="review-track-view sticky top-[224px] z-10 border-b border-[var(--line)] bg-white px-5 py-4 shadow-[0_2px_8px_rgba(15,23,42,0.03)]">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+          <div>
+            <p className="text-sm font-extrabold text-slate-950">路演轨道</p>
+            <p className="mt-1 text-[11px] text-slate-400">横向显示全部项目，当前项目自动居中，适配 50 项以上场景。</p>
+          </div>
+          <div className="flex flex-wrap gap-2 text-[11px] font-bold text-slate-500">
+            <span className="rounded-full bg-slate-950 px-3 py-1 text-white">全部 {totalProjectCount}</span>
+            {progressGroups.map((scoreGroup) => (
+              <span className="rounded-full bg-slate-100 px-3 py-1" key={scoreGroup.groupName}>
+                {scoreGroup.groupName}({scoreGroup.projects.length})
+              </span>
+            ))}
+          </div>
+        </div>
+        <div className="mt-4 overflow-x-auto pb-2">
+          <div className="flex min-w-max items-center gap-2">
+            {progressGroups.map((scoreGroup) => (
+              <div className="flex items-center gap-2" key={scoreGroup.groupName}>
+                <span className="shrink-0 rounded-lg bg-slate-100 px-2 py-3 text-[10px] font-extrabold text-slate-500 [writing-mode:vertical-rl]">
+                  {scoreGroup.groupName}
+                </span>
+                {scoreGroup.projects.map((project) => {
+                  const globalIndex = projectOrder.findIndex((item) => item.packageId === project.packageId);
+                  const status = getProjectStatus(project, globalIndex);
+                  return (
+                    <button
+                      className={`flex h-[54px] w-[50px] shrink-0 flex-col items-center justify-center rounded-lg border font-mono transition ${
+                        status === "current"
+                          ? "scale-110 border-[var(--brand)] bg-[var(--brand)] text-white shadow-[0_0_0_3px_var(--brand-soft),0_4px_12px_rgba(30,94,255,.28)]"
+                          : status === "done"
+                            ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                            : status === "next"
+                              ? "border-amber-200 bg-amber-50 text-amber-700"
+                              : "border-slate-200 bg-white text-slate-500"
+                      }`}
+                      key={project.packageId}
+                      title={project.targetName}
+                      type="button"
+                    >
+                      <span className="text-xs font-extrabold">{globalIndex + 1}{status === "done" ? "✓" : ""}</span>
+                      <span className="mt-1 font-sans text-[9px] font-bold">
+                        {status === "current" ? getReviewScreenPhaseActionLabel(currentPhase) : status === "done" ? project.result?.finalScore.finalScoreText ?? "完成" : status === "next" ? "下个" : "待评"}
+                      </span>
+                    </button>
+                  );
+                })}
+                <span className="h-12 w-px shrink-0 bg-gradient-to-b from-transparent via-slate-200 to-transparent" />
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="mt-2 flex flex-wrap gap-4 text-[10px] text-slate-400">
+          <span>■ 已完成</span>
+          <span>■ 进行中</span>
+          <span>■ 下一个</span>
+          <span>□ 待评审</span>
+        </div>
+      </div>
+    );
+    const renderAdminScoreMonitor = () => (
+      <div className="monitor-matrix overflow-hidden rounded-xl border border-slate-200 bg-white">
+        <div className="flex flex-col gap-2 border-b border-slate-100 bg-[linear-gradient(90deg,#FFF8F1,#fff)] px-4 py-4 md:flex-row md:items-center md:justify-between">
+          <div>
+            <p className="text-sm font-extrabold text-slate-950">评分监看矩阵 · 项目 × 专家 · 实时状态</p>
+            <p className="mt-1 text-xs text-slate-400">
+              后台显示专家实名，大屏继续保持匿名；大屏隐藏分数时，后台仍可查看每组、每个项目和每位实名专家的实时分数。
+            </p>
+          </div>
+          <span className="rounded-full bg-orange-50 px-3 py-1 text-[11px] font-extrabold text-orange-700 ring-1 ring-orange-100">
+            ⚠ 后台实名
+          </span>
+        </div>
+        <div className="border-b border-orange-100 bg-orange-50 px-4 py-2 text-[11px] font-bold text-orange-700">
+          ⚠ 此区域仅后台可见，包含专家真实姓名与具体分数。大屏显示按“投屏设置”控制。
+        </div>
+        <div className="flex flex-col gap-3 border-b border-slate-100 bg-slate-50 px-4 py-3 xl:flex-row xl:items-center xl:justify-between">
+          <div className="flex flex-wrap gap-2 text-[11px] font-bold">
+            <span className="rounded-full bg-white px-3 py-1 text-slate-600 ring-1 ring-slate-100">全部 {totalProjectCount}</span>
+            <span className="rounded-full bg-emerald-50 px-3 py-1 text-emerald-700 ring-1 ring-emerald-100">已完成 {completedProjectCount}</span>
+            <span className="rounded-full bg-blue-50 px-3 py-1 text-blue-700 ring-1 ring-blue-100">进行中 {reviewLifecycleStage === "running" ? 1 : 0}</span>
+            <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-500">待评 {Math.max(0, totalProjectCount - completedProjectCount)}</span>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 text-[11px] font-bold text-slate-500">
+            <span>规则: 去 {packageDropHighestCount} 最高 · 去 {packageDropLowestCount} 最低 · 取均值</span>
+            <button className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-extrabold text-slate-600 transition hover:bg-slate-50" type="button">
+              ⬇ 导出
+            </button>
+          </div>
+        </div>
+        <div className="max-h-[520px] overflow-auto">
+          <table className="min-w-full border-collapse text-[11px]">
+            <thead>
+              <tr>
+                <th className="sticky left-0 top-0 z-20 min-w-[190px] border-b border-slate-200 bg-white px-4 py-3 text-left font-extrabold text-slate-500">
+                  项目
+                </th>
+                {monitorSeats.map((seat) => {
+                  const expertName = group.items[seat.seatNo - 1]?.expert.name ?? seat.displayName;
+                  return (
+                    <th className="sticky top-0 z-10 min-w-[76px] border-b border-slate-200 bg-white px-2 py-3 text-center font-extrabold text-slate-500" key={seat.seatNo}>
+                      {expertName}
+                    </th>
+                  );
+                })}
+                <th className="sticky right-0 top-0 z-20 min-w-[76px] border-b border-slate-200 bg-slate-50 px-3 py-3 text-center font-extrabold text-slate-500">
+                  最终
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {projectOrder.map((project, index) => {
+                const result = projectResultByPackageId.get(project.packageId);
+                const projectGroup = groupedAssignments.find((item) => item.key === project.packageId);
+                const isCurrent = project.packageId === currentProject?.packageId && !isScreenSessionFinished;
+                return (
+                  <tr className={isCurrent ? "bg-[var(--brand-soft)]" : "bg-white hover:bg-slate-50"} key={project.packageId}>
+                    <td className={`sticky left-0 z-10 border-b border-slate-100 px-4 py-3 ${isCurrent ? "bg-[var(--brand-soft)]" : "bg-white"}`}>
+                      <div className="flex min-w-0 items-center gap-2">
+                        <span className={`flex h-6 w-6 shrink-0 items-center justify-center rounded-md font-mono text-[11px] font-extrabold ${isCurrent ? "bg-[var(--brand)] text-white" : "bg-slate-100 text-slate-500"}`}>
+                          {index + 1}
+                        </span>
+                        <div className="min-w-0">
+                          <p className="truncate text-xs font-extrabold text-slate-900">{project.targetName}</p>
+                          <p className="mt-0.5 truncate text-[10px] text-slate-400">{project.groupName || `第${project.groupIndex + 1}组`}</p>
+                        </div>
+                      </div>
+                    </td>
+                    {monitorSeats.map((seat) => {
+                      const seatResult = result?.seats.find((item) => item.seatNo === seat.seatNo);
+                      const seatExpertName = projectGroup?.items[seat.seatNo - 1]?.expert.name ?? group.items[seat.seatNo - 1]?.expert.name ?? seat.displayName;
+                      const isDropped = Boolean(result?.finalScore.droppedSeatNos.includes(seat.seatNo)) || seatResult?.status === "voided";
+                      const isSubmitted = seatResult?.status === "submitted";
+                      const cellText =
+                        seatResult?.status === "voided"
+                          ? "排除"
+                          : isSubmitted
+                            ? seatResult.scoreText ?? "已交"
+                            : isCurrent && currentPhase === "scoring"
+                              ? "评分中"
+                              : isCurrent && currentPhase === "qa"
+                                ? "答辩中"
+                                : "—";
+                      return (
+                        <td className="border-b border-slate-100 px-2 py-3 text-center font-mono" key={`${project.packageId}:${seat.seatNo}`} title={seatExpertName}>
+                          <span
+                            className={`inline-flex min-w-12 justify-center rounded-md px-2 py-1 font-extrabold ${
+                              isDropped
+                                ? "bg-rose-50 text-rose-600 line-through"
+                                : isSubmitted
+                                  ? "bg-emerald-50 text-emerald-700"
+                                  : isCurrent && (currentPhase === "qa" || currentPhase === "scoring")
+                                    ? "bg-amber-50 text-amber-700"
+                                    : "bg-slate-50 text-slate-400"
+                            }`}
+                          >
+                            {cellText}
+                          </span>
+                        </td>
+                      );
+                    })}
+                    <td className={`sticky right-0 z-10 border-b border-slate-100 px-3 py-3 text-center font-mono text-sm font-extrabold ${isCurrent ? "bg-[var(--brand-soft)] text-blue-700" : "bg-slate-50 text-slate-500"}`}>
+                      {result?.finalScore.finalScoreText ?? "--"}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        {projectOrder.length === 0 ? (
+          <p className="px-4 py-8 text-center text-xs font-bold text-slate-400">生成投屏链接后展示后台监看数据</p>
+        ) : null}
+      </div>
+    );
     const phaseButtonClassName = (
       phase: "presentation" | "qa" | "scoring" | "reveal" | "finished",
       baseClassName: string,
@@ -1600,8 +2080,119 @@ export default function ExpertReviewTab() {
     ) =>
       `inline-flex min-h-10 items-center justify-center gap-1.5 rounded-lg border px-3 py-2 text-xs font-bold transition disabled:cursor-not-allowed disabled:opacity-35 ${currentPhase === phase ? activeClassName : baseClassName}`;
 
+    if (isScreenSessionFinished) {
+      return (
+      <article
+        className="live-section review-large-scene overflow-hidden rounded-2xl border-2 border-slate-200 bg-white shadow-[0_12px_32px_rgba(15,23,42,0.06)]"
+        style={reviewConsoleTheme}
+      >
+        {renderStageStrip()}
+        <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-slate-50 px-5 py-4">
+            <div className="flex min-w-0 items-center gap-2">
+              <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600" />
+              <h3 className="truncate text-sm font-extrabold text-slate-950">本轮评审已结束</h3>
+            </div>
+            <span className="shrink-0 rounded-full bg-white px-3 py-1 text-[11px] font-bold text-slate-500 ring-1 ring-slate-100">
+              已关闭现场控制
+            </span>
+          </div>
+
+          <div className="space-y-4 p-5">
+            <div className="grid gap-3 md:grid-cols-[minmax(0,1fr)_220px]">
+              <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <p className="text-sm font-extrabold text-slate-950">本轮摘要</p>
+                <p className="mt-2 text-sm leading-6 text-slate-500">
+                  现场投屏流程已经结束，阶段控制、投屏设置、抽签和项目切换均已关闭。后台保留已提交评分、最终得分和专家实名监看记录。
+                </p>
+              </div>
+              <div className="rounded-xl border border-emerald-100 bg-emerald-50 p-4 text-center">
+                <p className="text-[11px] font-bold text-emerald-700/65">当前状态</p>
+                <p className="mt-2 text-base font-extrabold text-emerald-700">本轮结束</p>
+                <p className="mt-1 font-mono text-sm font-bold text-emerald-700/75">
+                  {activeSubmittedSeatCount || currentSubmittedSeatCount}/{activeExpertSeatCount || currentEffectiveSeatCount || 0}
+                </p>
+              </div>
+            </div>
+
+            <div className="rounded-xl border border-slate-200 bg-white p-4">
+              <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <p className="text-sm font-extrabold text-slate-950">多组进度</p>
+                  <p className="mt-1 text-xs text-slate-400">本轮结束后只保留查看，不再开放现场推进操作。</p>
+                </div>
+                <span className="rounded-full bg-slate-50 px-3 py-1 text-[11px] font-bold text-slate-500 ring-1 ring-slate-100">
+                  {adminScoreGroups.length || 1} 组
+                </span>
+              </div>
+              <div className="mt-3 grid gap-2 md:grid-cols-2">
+                {progressGroups.map((scoreGroup) => {
+                  const completedCount = scoreGroup.projects.filter((project) => {
+                    return Boolean(project.result?.finalScore.scoreLockedAt || project.revealedAt);
+                  }).length;
+                  const totalCount = scoreGroup.projects.length || 1;
+                  const progressPercent = Math.round((completedCount / totalCount) * 100);
+
+                  return (
+                    <div className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-3" key={scoreGroup.groupName}>
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="truncate text-xs font-extrabold text-slate-800">{scoreGroup.groupName}</p>
+                        <span className="font-mono text-[11px] font-bold text-slate-500">
+                          {completedCount}/{totalCount}
+                        </span>
+                      </div>
+                      <div className="mt-2 h-2 overflow-hidden rounded-full bg-white ring-1 ring-slate-100">
+                        <div className="h-full rounded-full bg-emerald-600 transition-all" style={{ width: `${progressPercent}%` }} />
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+
+            {renderAdminScoreMonitor()}
+
+            <div className="flex flex-col gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 md:flex-row md:items-center">
+              <span className="shrink-0 text-xs font-bold text-slate-500">投屏链接</span>
+              <input
+                className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 font-mono text-xs text-slate-500 outline-none"
+                readOnly
+                value={screenSession?.screenUrl ?? "本轮未生成投屏链接"}
+              />
+              {screenSession ? (
+                <>
+                  <button
+                    className="inline-flex shrink-0 items-center justify-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-600 transition hover:bg-slate-50"
+                    onClick={() => void copyReviewScreenUrl(group.key, screenSession.screenUrl)}
+                    type="button"
+                  >
+                    <Copy className="h-3.5 w-3.5" />
+                    {copiedScreenGroupKey === group.key ? "已复制 ✓" : "复制"}
+                  </button>
+                  <button
+                    className="inline-flex shrink-0 items-center justify-center gap-1 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-600 transition hover:bg-slate-50"
+                    onClick={() => window.open(screenSession.screenUrl, "_blank", "noopener,noreferrer")}
+                    type="button"
+                  >
+                    <ExternalLink className="h-3.5 w-3.5" />
+                    查看大屏留档
+                  </button>
+                </>
+              ) : null}
+            </div>
+
+            {screenSession?.message ? (
+              <p className="rounded-xl bg-slate-50 px-3 py-2 text-xs font-semibold text-slate-500">{screenSession.message}</p>
+            ) : null}
+          </div>
+        </article>
+      );
+    }
+
     return (
-      <article className="live-section overflow-hidden rounded-2xl border-2 border-blue-100 bg-white shadow-[0_12px_32px_rgba(37,99,235,0.08)]">
+      <article
+        className="live-section review-large-scene overflow-hidden rounded-2xl border-2 border-blue-100 bg-white shadow-[0_12px_32px_rgba(37,99,235,0.08)]"
+        style={reviewConsoleTheme}
+      >
         <div className="flex items-center justify-between gap-3 border-b border-blue-100 bg-blue-50 px-5 py-4">
           <div className="flex min-w-0 items-center gap-2">
             <span className="h-2 w-2 shrink-0 animate-pulse rounded-full bg-rose-500" />
@@ -1612,6 +2203,11 @@ export default function ExpertReviewTab() {
             投屏同步中
           </span>
         </div>
+
+        {renderStageStrip()}
+        {renderNowBar()}
+        {renderGlobalProgress()}
+        {renderTrackView()}
 
         <div className="space-y-4 p-5">
           <div className="phase-control-bar flex items-center justify-between gap-4 rounded-xl bg-slate-950 px-5 py-4 shadow-[0_10px_24px_rgba(15,23,42,0.16)]">
@@ -1707,6 +2303,7 @@ export default function ExpertReviewTab() {
               <div className="mt-2 flex items-center justify-center gap-2">
                 <input
                   className="h-9 w-16 rounded-lg border border-slate-200 bg-white px-2 text-center font-mono text-base font-bold text-slate-950 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                  disabled={!canEditScreenSetup}
                   inputMode="numeric"
                   onChange={(event) => updateScreenTimingDraft(group.key, "presentationMinutes", event.target.value)}
                   value={timingDraft.presentationMinutes}
@@ -1719,6 +2316,7 @@ export default function ExpertReviewTab() {
               <div className="mt-2 flex items-center justify-center gap-2">
                 <input
                   className="h-9 w-16 rounded-lg border border-slate-200 bg-white px-2 text-center font-mono text-base font-bold text-slate-950 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                  disabled={!canEditScreenSetup}
                   inputMode="numeric"
                   onChange={(event) => updateScreenTimingDraft(group.key, "qaMinutes", event.target.value)}
                   value={timingDraft.qaMinutes}
@@ -1731,6 +2329,7 @@ export default function ExpertReviewTab() {
               <div className="mt-2 flex items-center justify-center gap-2">
                 <input
                   className="h-9 w-16 rounded-lg border border-slate-200 bg-white px-2 text-center font-mono text-base font-bold text-slate-950 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                  disabled={!canEditScreenSetup}
                   inputMode="numeric"
                   onChange={(event) => updateScreenTimingDraft(group.key, "scoringSeconds", event.target.value)}
                   value={timingDraft.scoringSeconds}
@@ -1762,6 +2361,7 @@ export default function ExpertReviewTab() {
                 <span className="text-xs font-bold text-slate-600">路演分组容量</span>
                 <input
                   className="h-8 w-24 rounded-lg border border-slate-200 bg-white px-2 text-center font-mono text-sm font-bold text-slate-950 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                  disabled={!canEditScreenSetup}
                   inputMode="text"
                   onChange={(event) => updateScreenGroupDraft(group.key, event.target.value)}
                   placeholder={`${roadshowProjectCount}`}
@@ -1784,16 +2384,16 @@ export default function ExpertReviewTab() {
               : `评分规则（来自评审包）：当前有效专家 ${effectiveExpertCount} 位，去掉后剩余 ${remainingScoreCount} 个有效评分。`}
           </p>
 
-          <div className="rounded-xl border border-blue-100 bg-blue-50/60 p-4">
+          <div className="review-config-card rounded-xl border border-blue-100 bg-blue-50/60 p-4">
             <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
               <div>
                 <p className="text-sm font-extrabold text-blue-950">投屏显示设置</p>
                 <p className="mt-1 text-xs text-blue-700/70">
-                  后台管理员监看始终显示分数；这里仅控制大屏给现场观众看的内容。
+                  后台管理员监看始终显示分数；这里仅控制大屏给现场观众看的内容。本轮开始后投屏设置已锁定。
                 </p>
               </div>
               <span className="rounded-full bg-white px-3 py-1 text-[11px] font-bold text-blue-700 ring-1 ring-blue-100">
-                {screenDisplay.scoringEnabled ? "含评分环节" : "仅路演答辩"}
+                {!canEditScreenSetup && screenSession ? "投屏设置已锁定" : screenDisplay.scoringEnabled ? "含评分环节" : "仅路演答辩"}
               </span>
             </div>
             <div className="mt-3 grid gap-2 md:grid-cols-2">
@@ -1809,7 +2409,7 @@ export default function ExpertReviewTab() {
                 return (
                   <label
                     className={`flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-xs font-bold ${
-                      disabled
+                      !canEditScreenSetup || disabled
                         ? "border-slate-100 bg-slate-50 text-slate-300"
                         : "border-blue-100 bg-white text-slate-700"
                     }`}
@@ -1819,7 +2419,7 @@ export default function ExpertReviewTab() {
                     <input
                       checked={Boolean(screenDisplay[key])}
                       className="h-4 w-4 accent-blue-600"
-                      disabled={disabled}
+                      disabled={!canEditScreenSetup || disabled}
                       onChange={(event) => updateScreenDisplayDraft(group.key, key, event.target.checked)}
                       type="checkbox"
                     />
@@ -2103,74 +2703,8 @@ export default function ExpertReviewTab() {
             </div>
           </div>
 
-          <div className="rounded-xl border border-slate-200 bg-white p-4">
-            <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
-              <div>
-                <p className="text-sm font-extrabold text-slate-950">管理员监看</p>
-                <p className="mt-1 text-xs text-slate-400">
-                  大屏隐藏分数时，后台仍可查看每组、每个项目和每个匿名专家席位的实时分数。
-                </p>
-              </div>
-              <span className="rounded-full bg-slate-50 px-3 py-1 text-[11px] font-bold text-slate-500 ring-1 ring-slate-100">
-                后台可见分数
-              </span>
-            </div>
-            <div className="mt-3 max-h-[520px] space-y-3 overflow-y-auto pr-1">
-              {adminScoreGroups.length ? (
-                adminScoreGroups.map((scoreGroup) => (
-                  <div className="rounded-xl border border-slate-100 bg-slate-50 p-3" key={scoreGroup.groupName}>
-                    <p className="text-xs font-extrabold text-slate-700">{scoreGroup.groupName}</p>
-                    <div className="mt-2 grid gap-2">
-                      {scoreGroup.projects.map((project, projectIndex) => {
-                        const result = project.result;
-                        const submitted = result?.finalScore.submittedSeatCount ?? result?.seats.filter((seat) => seat.status === "submitted").length ?? 0;
-                        const effective = result?.finalScore.effectiveSeatCount ?? result?.seats.filter((seat) => seat.status !== "voided").length ?? consoleSeats.length;
-                        return (
-                          <div className="rounded-lg border border-slate-100 bg-white p-3" key={project.packageId}>
-                            <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                              <div className="min-w-0">
-                                <p className="truncate text-xs font-bold text-slate-900">
-                                  {projectIndex + 1}. {project.targetName}
-                                </p>
-                                <p className="mt-1 text-[11px] text-slate-400">
-                                  提交 {submitted}/{effective || consoleSeats.length || 0}
-                                  {result?.finalScore.scoreLockedAt ? ` · 最终得分 ${result.finalScore.finalScoreText ?? "--"}` : ""}
-                                </p>
-                              </div>
-                              <span className="shrink-0 rounded-full bg-blue-50 px-2.5 py-1 font-mono text-[11px] font-bold text-blue-700">
-                                {result?.finalScore.finalScoreText ?? "--"}
-                              </span>
-                            </div>
-                            <div className="mt-2 flex flex-wrap gap-1.5">
-                              {(result?.seats.length ? result.seats : consoleSeats).map((seat) => (
-                                <span
-                                  className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${
-                                    seat.status === "submitted"
-                                      ? "bg-emerald-50 text-emerald-700"
-                                      : seat.status === "voided"
-                                        ? "bg-slate-100 text-slate-400"
-                                        : "bg-amber-50 text-amber-700"
-                                  }`}
-                                  key={`${project.packageId}:${seat.seatNo}`}
-                                >
-                                  专家{seat.seatNo} {seat.status === "submitted" ? seat.scoreText ?? "已提交" : seat.status === "voided" ? "已排除" : "待提交"}
-                                </span>
-                              ))}
-                            </div>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ))
-              ) : (
-                <p className="rounded-lg bg-slate-50 px-3 py-6 text-center text-xs font-bold text-slate-400">
-                  生成投屏链接后展示后台监看数据
-                </p>
-              )}
-            </div>
-          </div>
-          <div className="rounded-xl border border-rose-100 bg-rose-50/55 p-4">
+          {renderAdminScoreMonitor()}
+          <div className="review-danger-zone rounded-xl border border-rose-100 bg-rose-50/55 p-4">
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div>
                 <p className="text-sm font-extrabold text-rose-950">收尾操作</p>
@@ -2192,8 +2726,31 @@ export default function ExpertReviewTab() {
                 }}
                 type="button"
               >
-                结束本轮评审
+                正常结束本轮评审
               </button>
+            </div>
+            <div className="mt-4 border-t border-rose-100 pt-4">
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                <div>
+                  <p className="text-xs font-extrabold text-rose-900">取消本阶段评审配置</p>
+                  <p className="mt-1 text-xs leading-5 text-rose-700/70">
+                    删除配置会移除当前评审包配置，不等于正常结束现场评审；如已有锁定成绩，请先确认是否需要重置。
+                  </p>
+                </div>
+                <button
+                  className="inline-flex shrink-0 items-center justify-center rounded-lg border border-rose-200 bg-white px-4 py-2.5 text-xs font-extrabold text-rose-700 transition hover:bg-rose-50"
+                  onClick={() => {
+                    if (window.confirm(`确认删除配置“${group.targetName}”？该操作不能恢复。`)) {
+                      void deleteReviewAssignment(group.items[0].id, group.targetName, {
+                        permanent: groupHasLockedScore,
+                      });
+                    }
+                  }}
+                  type="button"
+                >
+                  删除配置
+                </button>
+              </div>
             </div>
           </div>
           {screenSession?.message ? (
@@ -2817,7 +3374,7 @@ export default function ExpertReviewTab() {
           </main>
 
           <aside className="space-y-4">
-            <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
+            <article className="review-sidebar-summary rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <h3 className="text-sm font-extrabold text-slate-950">评审概览</h3>
               <div className="mt-4 grid grid-cols-2 gap-3">
                 <div className="rounded-xl bg-blue-50 px-4 py-3 text-center">

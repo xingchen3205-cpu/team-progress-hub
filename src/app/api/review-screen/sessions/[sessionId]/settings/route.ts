@@ -60,6 +60,7 @@ export async function POST(
       showFinalScoreOnScreen: true,
       showRankingOnScreen: true,
       selfDrawEnabled: true,
+      screenPhase: true,
     },
   });
 
@@ -69,6 +70,10 @@ export async function POST(
 
   if (session.tokenExpiresAt.getTime() <= Date.now()) {
     return NextResponse.json({ message: "大屏链接已过期" }, { status: 409 });
+  }
+
+  if (session.screenPhase !== "draw") {
+    return NextResponse.json({ message: "本轮已开始，投屏设置已锁定" }, { status: 409 });
   }
 
   const updated = await prisma.reviewDisplaySession.update({
