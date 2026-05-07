@@ -39,7 +39,7 @@ export async function POST(
     return NextResponse.json({ message: "专家席位不存在" }, { status: 404 });
   }
 
-  if (seat.status !== "voided") {
+  if (seat.status !== "voided" && seat.status !== "excluded") {
     return NextResponse.json({ message: "该专家席位无需恢复" }, { status: 409 });
   }
 

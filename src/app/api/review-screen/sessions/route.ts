@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { createAuditLogEntry } from "@/lib/audit-log";
 import { getSessionUser } from "@/lib/auth";
 import { assertRole } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
@@ -319,6 +320,23 @@ export async function POST(request: NextRequest) {
         displayName: true,
         status: true,
         voidedAt: true,
+      },
+    });
+
+    await createAuditLogEntry({
+      tx,
+      operator: user,
+      action: "review_screen_session.token_generated",
+      objectType: "review_screen_session",
+      objectId: createdSession.id,
+      teamGroupId: reviewPackage.teamGroupId,
+      beforeState: null,
+      afterState: {
+        packageId: reviewPackage.id,
+        projectReviewStageId: reviewPackage.projectReviewStageId,
+        tokenExpiresAt,
+        projectCount: projectOrderRows.length,
+        seatCount: createdSeats.length,
       },
     });
 

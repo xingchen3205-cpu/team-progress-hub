@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { createAuditLogEntry } from "@/lib/audit-log";
 import { getSessionUser } from "@/lib/auth";
 import { assertRole } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { pickReviewScreenDisplaySettings } from "@/lib/review-screen-display-settings";
-import { calculateReviewScreenFinalScore } from "@/lib/review-screen-session";
+import { calculateReviewScreenFinalScore, isExcludedReviewSeatStatus } from "@/lib/review-screen-session";
 import { validateReviewScoreRule } from "@/lib/review-score-rules";
 
 export async function POST(
@@ -56,6 +57,7 @@ export async function POST(
     where: { id: currentPackageId },
     select: {
       id: true,
+      teamGroupId: true,
       dropHighestCount: true,
       dropLowestCount: true,
       assignments: {
@@ -93,6 +95,8 @@ export async function POST(
       status:
         seat.status === "voided"
           ? "voided"
+          : isExcludedReviewSeatStatus(seat.status)
+            ? "excluded"
           : typeof seat.totalScoreCents === "number"
             ? "submitted"
             : "pending",
@@ -137,6 +141,26 @@ export async function POST(
         dropHighestCount: currentReviewPackage.dropHighestCount,
         dropLowestCount: currentReviewPackage.dropLowestCount,
         scoreLockedAt: lockedAt,
+      },
+    });
+
+    await createAuditLogEntry({
+      tx,
+      operator: user,
+      action: "review_screen_project.final_score_locked",
+      objectType: "expert_review_package",
+      objectId: currentPackageId,
+      teamGroupId: currentReviewPackage.teamGroupId,
+      beforeState: {
+        finalScoreLocked: false,
+      },
+      afterState: {
+        finalScoreCents: finalScore.finalScoreCents,
+        finalScoreText: finalScore.finalScoreText,
+        effectiveSeatCount: finalScore.effectiveSeatCount,
+        submittedSeatCount: finalScore.submittedSeatCount,
+        droppedSeatReasons: finalScore.droppedSeatReasons ?? [],
+        lockedAt,
       },
     });
 

@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { assertRole } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import { closeUnsubmittedReviewAssignments } from "@/lib/review-audit";
 
 const validPhases = ["draw", "presentation", "qa", "scoring", "finished"] as const;
 type ValidPhase = typeof validPhases[number];
@@ -66,6 +67,7 @@ export async function POST(
         orderBy: { orderIndex: "asc" },
         select: {
           packageId: true,
+          scoreLockedAt: true,
         },
       },
     },
@@ -81,6 +83,7 @@ export async function POST(
 
   const currentPackageId = session.currentPackageId ?? session.packageId;
   const currentProjectIndex = session.projectOrders.findIndex((project) => project.packageId === currentPackageId);
+  const currentProjectOrder = session.projectOrders.find((project) => project.packageId === currentPackageId);
   const hasNextProject =
     currentProjectIndex >= 0 && currentProjectIndex + 1 < session.projectOrders.length;
   const canFinishCurrentRound =
@@ -113,26 +116,38 @@ export async function POST(
     return NextResponse.json({ message: "本轮未启用评分环节" }, { status: 409 });
   }
 
-  const updatedSession = await prisma.reviewDisplaySession.update({
-    where: { id: sessionId },
-    data: {
-      screenPhase: phase,
-      phaseStartedAt: new Date(),
-      presentationSeconds: normalizeSeconds(body?.presentationSeconds, session.presentationSeconds ?? 480, 60, 1800),
-      qaSeconds: normalizeSeconds(body?.qaSeconds, session.qaSeconds ?? 420, 60, 1800),
-      scoringSeconds: normalizeSeconds(body?.scoringSeconds, session.scoringSeconds ?? 60, 10, 600),
-      ...(phase === "scoring" ? { status: "scoring", startedAt: new Date() } : {}),
-      ...(phase === "finished" ? { status: "closed", endedAt: new Date() } : {}),
-    },
-    select: {
-      id: true,
-      screenPhase: true,
-      phaseStartedAt: true,
-      revealStartedAt: true,
-      status: true,
-      startedAt: true,
-      endedAt: true,
-    },
+  const updatedSession = await prisma.$transaction(async (tx) => {
+    if (phase === "finished" && session.screenPhase === "scoring" && !currentProjectOrder?.scoreLockedAt) {
+      await closeUnsubmittedReviewAssignments({
+        tx,
+        packageId: currentPackageId,
+        operator: user,
+        status: "closed_by_admin",
+        reason: "管理员结束本轮时关闭未提交专家任务",
+      });
+    }
+
+    return tx.reviewDisplaySession.update({
+      where: { id: sessionId },
+      data: {
+        screenPhase: phase,
+        phaseStartedAt: new Date(),
+        presentationSeconds: normalizeSeconds(body?.presentationSeconds, session.presentationSeconds ?? 480, 60, 1800),
+        qaSeconds: normalizeSeconds(body?.qaSeconds, session.qaSeconds ?? 420, 60, 1800),
+        scoringSeconds: normalizeSeconds(body?.scoringSeconds, session.scoringSeconds ?? 60, 10, 600),
+        ...(phase === "scoring" ? { status: "scoring", startedAt: new Date() } : {}),
+        ...(phase === "finished" ? { status: "closed", endedAt: new Date() } : {}),
+      },
+      select: {
+        id: true,
+        screenPhase: true,
+        phaseStartedAt: true,
+        revealStartedAt: true,
+        status: true,
+        startedAt: true,
+        endedAt: true,
+      },
+    });
   });
 
   return NextResponse.json({

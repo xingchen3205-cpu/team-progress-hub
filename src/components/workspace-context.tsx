@@ -5768,11 +5768,12 @@ function useWorkspaceController({
 
   const deleteReviewAssignmentRequest = async (
     assignmentId: string,
-    options?: { permanent?: boolean },
+    options?: { permanent?: boolean; reason?: string },
   ) => {
     const confirmQuery = options?.permanent ? "?confirm=permanent" : "";
     await requestJson(`/api/expert-reviews/assignments/${assignmentId}${confirmQuery}`, {
       method: "DELETE",
+      body: JSON.stringify(options?.reason ? { reason: options.reason } : {}),
     });
     refreshWorkspace("reviewAssignments");
   };
@@ -5798,7 +5799,13 @@ function useWorkspaceController({
             confirmVariant: "danger",
             successTitle: "评审包已重置",
             successDetail: "项目管理阶段仍保留，可重新分配专家并设置评审时间。",
-            onConfirm: () => deleteReviewAssignmentRequest(assignmentId, { permanent: true }),
+            onConfirm: () => {
+              const reason = window.prompt("请输入重置原因，将写入审计日志和评分历史。");
+              if (!reason?.trim()) {
+                throw new Error("重置原因不能为空");
+              }
+              return deleteReviewAssignmentRequest(assignmentId, { permanent: true, reason: reason.trim() });
+            },
           });
         },
       });

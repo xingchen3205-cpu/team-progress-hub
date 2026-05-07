@@ -15,6 +15,7 @@ import path from "node:path";
 
 import { isMimeTypeAllowedForFileName } from "@/lib/file-policy";
 import { roleLabels } from "@/lib/permissions";
+import { isExcludedReviewSeatStatus, type ReviewScreenSeatStatus } from "@/lib/review-screen-session";
 
 export const expertReviewCategoryCaps = {
   scorePersonalGrowth: 25,
@@ -226,10 +227,31 @@ export const getExpertReviewStatus = ({
   deadline?: Date | string | null;
   score?: Pick<ExpertReviewScore, "lockedAt"> | null;
 }) => {
-  if (status === "completed" || score) {
+  if (status === "submitted" || status === "completed" || score) {
     return {
       key: "completed" as const,
       label: "已提交" as const,
+    };
+  }
+
+  if (status === "closed_by_admin") {
+    return {
+      key: "closed_by_admin" as const,
+      label: "已关闭，无需提交" as const,
+    };
+  }
+
+  if (status === "timeout") {
+    return {
+      key: "timeout" as const,
+      label: "超时未提交" as const,
+    };
+  }
+
+  if (status === "excluded") {
+    return {
+      key: "excluded" as const,
+      label: "已排除" as const,
     };
   }
 
@@ -331,7 +353,7 @@ export const serializeExpertReviewAssignment = (
     reviewMode === "roadshow"
       ? assignment.displaySeats?.find(
           (seat) =>
-            seat.status !== "voided" &&
+            !isExcludedReviewSeatStatus(seat.status as ReviewScreenSeatStatus) &&
             seat.session.currentPackageId === assignment.reviewPackage.id &&
             seat.session.tokenExpiresAt.getTime() > Date.now(),
         ) ?? null

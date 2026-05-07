@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { createAuditLogEntry } from "@/lib/audit-log";
 import { getSessionUser } from "@/lib/auth";
 import {
   redactExpertReviewAssignmentForRole,
@@ -301,6 +302,8 @@ export async function DELETE(
 
   const { id } = await params;
   const confirm = request.nextUrl.searchParams.get("confirm");
+  const body = (await request.json().catch(() => null)) as { reason?: string } | null;
+  const reason = body?.reason?.trim() ?? request.nextUrl.searchParams.get("reason")?.trim() ?? "";
   const assignment = await prisma.expertReviewAssignment.findUnique({
     where: { id },
     include: {
@@ -311,6 +314,12 @@ export async function DELETE(
           assignments: {
             include: {
               score: true,
+              expertUser: {
+                select: {
+                  id: true,
+                  name: true,
+                },
+              },
             },
           },
         },
@@ -340,7 +349,76 @@ export async function DELETE(
       );
     }
 
+    if (!reason) {
+      return NextResponse.json({ message: "重置原因不能为空" }, { status: 400 });
+    }
+
     await prisma.$transaction(async (tx) => {
+      const scoreSnapshots = assignment.reviewPackage.assignments.flatMap((item) =>
+        item.score
+          ? [
+              {
+                packageId: assignment.packageId,
+                teamGroupId: assignment.reviewPackage.teamGroupId,
+                assignmentId: item.id,
+                reviewerId: item.score.reviewerId,
+                snapshot: JSON.stringify({
+                  assignmentId: item.id,
+                  expertUserId: item.expertUserId,
+                  expertName: item.expertUser.name,
+                  status: item.status,
+                  score: {
+                    id: item.score.id,
+                    reviewerId: item.score.reviewerId,
+                    scorePersonalGrowth: item.score.scorePersonalGrowth,
+                    scoreInnovation: item.score.scoreInnovation,
+                    scoreIndustry: item.score.scoreIndustry,
+                    scoreTeamwork: item.score.scoreTeamwork,
+                    totalScore: item.score.totalScore,
+                    commentTotal: item.score.commentTotal,
+                    submittedAt: item.score.submittedAt.toISOString(),
+                    updatedAt: item.score.updatedAt.toISOString(),
+                    lockedAt: item.score.lockedAt?.toISOString() ?? null,
+                  },
+                }),
+                resetById: user.id,
+                resetReason: reason,
+              },
+            ]
+          : [],
+      );
+
+      if (scoreSnapshots.length > 0) {
+        await tx.expertReviewScoreHistory.createMany({
+          data: scoreSnapshots,
+        });
+      }
+
+      await createAuditLogEntry({
+        tx,
+        operator: user,
+        action: "expert_review_package.reset",
+        objectType: "expert_review_package",
+        objectId: assignment.packageId,
+        teamGroupId: assignment.reviewPackage.teamGroupId,
+        beforeState: {
+          packageId: assignment.reviewPackage.id,
+          targetName: assignment.reviewPackage.targetName,
+          status: assignment.reviewPackage.status,
+          dropHighestCount: assignment.reviewPackage.dropHighestCount,
+          dropLowestCount: assignment.reviewPackage.dropLowestCount,
+          assignmentCount: assignment.reviewPackage.assignments.length,
+          scoreHistoryCount: scoreSnapshots.length,
+          displaySessionCount: assignment.reviewPackage.displaySessions.length,
+          materialCount: assignment.reviewPackage.materials.length,
+        },
+        afterState: {
+          packageDeleted: true,
+          scoreHistoryCreated: scoreSnapshots.length,
+        },
+        reason,
+      });
+
       await tx.reviewDisplaySession.deleteMany({
         where: { packageId: assignment.packageId },
       });
@@ -359,6 +437,27 @@ export async function DELETE(
   }
 
   await prisma.$transaction(async (tx) => {
+    await createAuditLogEntry({
+      tx,
+      operator: user,
+      action: "expert_review_package.cancel",
+      objectType: "expert_review_package",
+      objectId: assignment.packageId,
+      teamGroupId: assignment.reviewPackage.teamGroupId,
+      beforeState: {
+        packageId: assignment.reviewPackage.id,
+        targetName: assignment.reviewPackage.targetName,
+        status: assignment.reviewPackage.status,
+        assignmentCount: assignment.reviewPackage.assignments.length,
+        displaySessionCount: assignment.reviewPackage.displaySessions.length,
+        materialCount: assignment.reviewPackage.materials.length,
+      },
+      afterState: {
+        status: "cancelled",
+      },
+      reason,
+    });
+
     await tx.reviewDisplaySession.deleteMany({
       where: { packageId: assignment.packageId },
     });

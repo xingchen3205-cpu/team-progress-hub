@@ -139,14 +139,24 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: "评分已提交，不能修改" }, { status: 409 });
   }
 
+  if (assignment.status === "closed_by_admin") {
+    return NextResponse.json({ message: "本项目评分已由管理员关闭，无需提交" }, { status: 409 });
+  }
+
+  if (assignment.status === "timeout") {
+    return NextResponse.json({ message: "本项目评分已超时关闭，不能提交" }, { status: 409 });
+  }
+
+  if (assignment.status === "excluded") {
+    return NextResponse.json({ message: "该专家席位已被排除，不能提交评分" }, { status: 409 });
+  }
+
   const isRoadshowAssignment = getExpertReviewMode(assignment.reviewPackage) === "roadshow";
   if (isRoadshowAssignment) {
     const startedScreenSeat = await prisma.reviewDisplaySeat.findFirst({
       where: {
         expertUserId: user.id,
-        status: {
-          not: "voided",
-        },
+        status: { notIn: ["excluded", "voided"] },
         session: {
           status: "scoring",
           screenPhase: "scoring",
@@ -282,15 +292,13 @@ export async function POST(request: NextRequest) {
 
     await tx.expertReviewAssignment.update({
       where: { id: assignment.id },
-      data: { status: "completed" },
+      data: { status: "submitted" },
     });
 
     await tx.reviewDisplaySeat.updateMany({
       where: {
         expertUserId: user.id,
-        status: {
-          not: "voided",
-        },
+        status: { notIn: ["excluded", "voided"] },
         session: {
           status: "scoring",
           currentPackageId: assignment.reviewPackage.id,

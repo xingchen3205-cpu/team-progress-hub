@@ -14,7 +14,7 @@ type ScreenSeat = {
   seatNo: number;
   displayName: string;
   avatarText: string;
-  status: "pending" | "submitted" | "voided";
+  status: "pending" | "submitted" | "timeout" | "closed_by_admin" | "excluded" | "voided";
   scoreText: string | null;
 };
 
@@ -26,7 +26,7 @@ type ScreenFinalScore = {
   submittedSeatCount: number;
   waitingSeatNos: number[];
   droppedSeatNos: number[];
-  droppedSeatReasons?: Array<{ seatNo: number; reason: "highest" | "lowest" | "voided" | string }>;
+  droppedSeatReasons?: Array<{ seatNo: number; reason: "highest" | "lowest" | "excluded" | "voided" | string }>;
   validScoreTexts?: string[];
   dropHighestCount?: number;
   dropLowestCount?: number;
@@ -188,9 +188,11 @@ const getTabState = (phase: ScreenPhase) => {
 const getDropReasonLabel = (reason?: string) => {
   if (reason === "highest") return "去最高分";
   if (reason === "lowest") return "去最低分";
-  if (reason === "voided") return "已排除";
+  if (reason === "excluded" || reason === "voided") return "已排除";
   return "";
 };
+
+const isExcludedSeatStatus = (status?: string | null) => status === "excluded" || status === "voided";
 
 const getCountdownTone = (seconds: number) => {
   if (seconds <= 10 && seconds > 0) return "danger";
@@ -315,7 +317,7 @@ export default function ReviewScreenSessionPage() {
 
   const activeFinalScore = activeProjectResult?.finalScore ?? payload?.finalScore;
   const submittedCount = activeFinalScore?.submittedSeatCount ?? seats.filter((seat) => seat.status === "submitted").length;
-  const effectiveCount = activeFinalScore?.effectiveSeatCount ?? seats.filter((seat) => seat.status !== "voided").length;
+  const effectiveCount = activeFinalScore?.effectiveSeatCount ?? seats.filter((seat) => !isExcludedSeatStatus(seat.status)).length;
   const progressText = `${submittedCount}/${effectiveCount}`;
   const progressRatio = effectiveCount > 0 ? Math.min(1, submittedCount / effectiveCount) : 0;
   const progressOffset = 188 - progressRatio * 188;
@@ -1011,7 +1013,7 @@ export default function ReviewScreenSessionPage() {
             <div className="grid flex-1 auto-rows-fr grid-cols-[repeat(auto-fit,minmax(156px,1fr))] gap-3 overflow-y-auto">
               {seats.map((seat) => {
                 const isSubmitted = seat.status === "submitted";
-                const isVoided = seat.status === "voided";
+                const isVoided = isExcludedSeatStatus(seat.status);
                 const dropReason = droppedSeatReasonByNo.get(seat.seatNo);
                 const isDropped = phase === "reveal" && Boolean(dropReason);
                 return (

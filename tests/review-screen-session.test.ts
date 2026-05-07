@@ -195,6 +195,51 @@ describe("roadshow review screen session", () => {
     assert.match(schemaSource, /@@unique\(\[sessionId,\s*seatNo\]\)/);
   });
 
+  it("declares audit logs, score reset snapshots, and stable task status enums for review auditability", () => {
+    const schemaSource = readSource("prisma/schema.prisma");
+
+    assert.match(schemaSource, /enum ExpertReviewAssignmentStatus[\s\S]*pending[\s\S]*submitted[\s\S]*timeout[\s\S]*closed_by_admin[\s\S]*excluded/);
+    assert.match(schemaSource, /enum ReviewDisplaySeatStatus[\s\S]*pending[\s\S]*submitted[\s\S]*timeout[\s\S]*closed_by_admin[\s\S]*excluded/);
+    assert.match(schemaSource, /model AuditLog/);
+    assert.match(schemaSource, /operatorId\s+String/);
+    assert.match(schemaSource, /operatorRole\s+Role/);
+    assert.match(schemaSource, /beforeState\s+String\?/);
+    assert.match(schemaSource, /afterState\s+String\?/);
+    assert.match(schemaSource, /reason\s+String\?/);
+    assert.match(schemaSource, /model ExpertReviewScoreHistory/);
+    assert.match(schemaSource, /snapshot\s+String/);
+    assert.match(schemaSource, /resetReason\s+String/);
+  });
+
+  it("keeps destructive review reset auditable with required reason, score snapshots, and transactional logs", () => {
+    const routeSource = readSource("src/app/api/expert-reviews/assignments/[id]/route.ts");
+    const auditSource = readSource("src/lib/audit-log.ts");
+
+    assert.match(routeSource, /reason/);
+    assert.match(routeSource, /重置原因不能为空/);
+    assert.match(routeSource, /expertReviewScoreHistory\.createMany/);
+    assert.match(routeSource, /createAuditLogEntry/);
+    assert.match(routeSource, /action:\s*"expert_review_package\.reset"/);
+    assert.match(auditSource, /requiresAuditReason/);
+    assert.match(auditSource, /beforeState/);
+    assert.match(auditSource, /afterState/);
+  });
+
+  it("closes unsubmitted roadshow assignments when administrators force-switch away from a scoring project", () => {
+    const nextProjectRouteSource = readSource("src/app/api/review-screen/sessions/[sessionId]/next-project/route.ts");
+    const phaseRouteSource = readSource("src/app/api/review-screen/sessions/[sessionId]/phase/route.ts");
+    const serializerSource = readSource("src/lib/expert-review.ts");
+    const tabSource = readSource("src/components/tabs/expert-review-tab-content.tsx");
+
+    assert.match(nextProjectRouteSource, /closeUnsubmittedReviewAssignments/);
+    assert.match(nextProjectRouteSource, /status:\s*"closed_by_admin"/);
+    assert.match(phaseRouteSource, /closeUnsubmittedReviewAssignments/);
+    assert.match(serializerSource, /closed_by_admin/);
+    assert.match(serializerSource, /已关闭，无需提交/);
+    assert.match(tabSource, /closed_by_admin/);
+    assert.match(tabSource, /已关闭，无需提交/);
+  });
+
   it("stores score rules on review packages and locks final scores in the backend reveal route", () => {
     const sessionRouteSource = readSource("src/app/api/review-screen/sessions/route.ts");
     const publicRouteSource = readSource("src/app/api/review-screen/sessions/[sessionId]/route.ts");

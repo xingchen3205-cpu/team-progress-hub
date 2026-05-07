@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { assertRole } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import { closeUnsubmittedReviewAssignments } from "@/lib/review-audit";
 
 export async function POST(
   request: NextRequest,
@@ -30,6 +31,7 @@ export async function POST(
         select: {
           packageId: true,
           orderIndex: true,
+          scoreLockedAt: true,
           reviewPackage: {
             select: {
               targetName: true,
@@ -61,6 +63,8 @@ export async function POST(
   const currentIndex = session.projectOrders.findIndex(
     (o: { packageId: string }) => o.packageId === session.currentPackageId,
   );
+  const currentPackageId = session.currentPackageId ?? session.packageId;
+  const currentOrder = session.projectOrders.find((o) => o.packageId === currentPackageId);
   const targetIndex = targetPackageId
     ? session.projectOrders.findIndex((o: { packageId: string }) => o.packageId === targetPackageId)
     : currentIndex + 1;
@@ -70,20 +74,32 @@ export async function POST(
   }
 
   if (targetIndex >= session.projectOrders.length) {
-    const updated = await prisma.reviewDisplaySession.update({
-      where: { id: sessionId },
-      data: {
-        screenPhase: "finished",
-        phaseStartedAt: new Date(),
-        status: "closed",
-        endedAt: new Date(),
-      },
-      select: {
-        id: true,
-        screenPhase: true,
-        currentPackageId: true,
-        phaseStartedAt: true,
-      },
+    const updated = await prisma.$transaction(async (tx) => {
+      if (session.screenPhase === "scoring" && !currentOrder?.scoreLockedAt) {
+        await closeUnsubmittedReviewAssignments({
+          tx,
+          packageId: currentPackageId,
+          operator: user,
+          status: "closed_by_admin",
+          reason: "管理员结束本轮时关闭未提交专家任务",
+        });
+      }
+
+      return tx.reviewDisplaySession.update({
+        where: { id: sessionId },
+        data: {
+          screenPhase: "finished",
+          phaseStartedAt: new Date(),
+          status: "closed",
+          endedAt: new Date(),
+        },
+        select: {
+          id: true,
+          screenPhase: true,
+          currentPackageId: true,
+          phaseStartedAt: true,
+        },
+      });
     });
     return NextResponse.json({
       session: {
@@ -97,6 +113,16 @@ export async function POST(
   const nextPackage = session.projectOrders[targetIndex];
 
   const updated = await prisma.$transaction(async (tx) => {
+    if (session.screenPhase === "scoring" && !currentOrder?.scoreLockedAt) {
+      await closeUnsubmittedReviewAssignments({
+        tx,
+        packageId: currentPackageId,
+        operator: user,
+        status: "closed_by_admin",
+        reason: "管理员切换项目时关闭未提交专家任务",
+      });
+    }
+
     const assignmentByExpertId = new Map(
       nextPackage.reviewPackage.assignments.map((assignment) => [assignment.expertUserId, assignment.id]),
     );

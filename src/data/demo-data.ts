@@ -260,8 +260,8 @@ export type ExpertReviewAssignmentItem = {
   deadline: string | null;
   reviewWindowState?: "not_started" | "open" | "ended";
   reviewWindowLabel?: "未开始" | "进行中" | "已结束";
-  status: "待评审" | "已提交" | "已锁定";
-  statusKey: "pending" | "completed" | "locked";
+  status: "待评审" | "已提交" | "已锁定" | "超时未提交" | "已关闭，无需提交" | "已排除";
+  statusKey: "pending" | "completed" | "locked" | "timeout" | "closed_by_admin" | "excluded";
   canEdit: boolean;
   expert: {
     id: string;

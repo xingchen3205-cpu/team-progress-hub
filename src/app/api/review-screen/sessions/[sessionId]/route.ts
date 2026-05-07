@@ -11,6 +11,7 @@ import {
   getPhaseRemainingSeconds,
   getReviewScreenTimelineState,
   hashReviewScreenToken,
+  isExcludedReviewSeatStatus,
   type ReviewScreenPhase,
   type ReviewScreenSeatStatus,
 } from "@/lib/review-screen-session";
@@ -62,6 +63,7 @@ export async function GET(
             select: {
               id: true,
               expertUserId: true,
+              status: true,
               score: {
                 select: {
                   totalScore: true,
@@ -119,6 +121,7 @@ export async function GET(
                 select: {
                   id: true,
                   expertUserId: true,
+                  status: true,
                   score: {
                     select: {
                       totalScore: true,
@@ -188,6 +191,7 @@ export async function GET(
               select: {
                 id: true,
                 expertUserId: true,
+                status: true,
                 score: {
                   select: {
                     totalScore: true,
@@ -214,10 +218,14 @@ export async function GET(
         return [];
       }
       const derivedStatus: ReviewScreenSeatStatus =
-        seat.status === "voided"
-          ? "voided"
+        isExcludedReviewSeatStatus(seat.status)
+          ? seat.status
           : assignment.score
             ? "submitted"
+            : assignment.status === "closed_by_admin" ||
+                assignment.status === "timeout" ||
+                assignment.status === "excluded"
+              ? assignment.status
             : "pending";
 
       return [

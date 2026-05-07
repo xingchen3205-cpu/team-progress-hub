@@ -23,8 +23,12 @@ enum UserApprovalStatus {
 
 enum ExpertReviewAssignmentStatus {
   pending
+  submitted
   completed
   locked
+  timeout
+  closed_by_admin
+  excluded
 }
 
 enum ExpertReviewMaterialKind {
@@ -101,6 +105,9 @@ enum ReviewDisplaySessionStatus {
 enum ReviewDisplaySeatStatus {
   pending
   submitted
+  timeout
+  closed_by_admin
+  excluded
   voided
 }
 
@@ -617,6 +624,44 @@ model ExpertReviewScore {
   lockedAt            DateTime?
   assignment          ExpertReviewAssignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
   reviewer            User                   @relation("ExpertScoreReviewer", fields: [reviewerId], references: [id])
+}
+
+model ExpertReviewScoreHistory {
+  id            String   @id @default(cuid())
+  packageId     String
+  teamGroupId   String?
+  assignmentId  String
+  reviewerId    String?
+  snapshot      String
+  resetById     String
+  resetReason   String
+  createdAt     DateTime @default(now())
+
+  @@index([packageId, createdAt])
+  @@index([teamGroupId, createdAt])
+  @@index([assignmentId, createdAt])
+  @@index([resetById, createdAt])
+}
+
+model AuditLog {
+  id           String   @id @default(cuid())
+  operatorId   String
+  operatorRole Role
+  action       String
+  objectType   String
+  objectId     String
+  teamGroupId  String?
+  beforeState  String?
+  afterState   String?
+  reason       String?
+  metadata     String?
+  createdAt    DateTime @default(now())
+
+  @@index([operatorId, createdAt])
+  @@index([operatorRole, createdAt])
+  @@index([action, createdAt])
+  @@index([objectType, objectId, createdAt])
+  @@index([teamGroupId, createdAt])
 }
 
 model ReviewDisplaySession {

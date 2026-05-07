@@ -69,7 +69,7 @@ type ReviewScreenSessionState = {
     id: string;
     seatNo: number;
     displayName: string;
-    status: "pending" | "submitted" | "voided";
+    status: "pending" | "submitted" | "timeout" | "closed_by_admin" | "excluded" | "voided";
     voidedAt: string | null;
   }>;
 };
@@ -90,7 +90,7 @@ type ReviewScreenFinalScoreState = {
   submittedSeatCount: number;
   waitingSeatNos: number[];
   droppedSeatNos: number[];
-  droppedSeatReasons?: Array<{ seatNo: number; reason: "highest" | "lowest" | "voided" | string }>;
+  droppedSeatReasons?: Array<{ seatNo: number; reason: "highest" | "lowest" | "excluded" | "voided" | string }>;
   validScoreTexts?: string[];
   dropHighestCount?: number;
   dropLowestCount?: number;
@@ -119,6 +119,20 @@ type ReviewScreenProjectOrderItem = {
   revealedAt: string | null;
 };
 
+type ResetHistoryItem = {
+  id: string;
+  packageId: string;
+  assignmentId: string;
+  reviewerId: string | null;
+  resetById: string;
+  resetReason: string;
+  createdAt: string;
+  expertName: string;
+  totalScoreText: string;
+  submittedAt: string | null;
+  lockedAt: string | null;
+};
+
 const reviewScreenPhaseActionLabels: Record<string, string> = {
   draw: "抽签准备",
   presentation: "路演展示",
@@ -130,6 +144,8 @@ const reviewScreenPhaseActionLabels: Record<string, string> = {
 
 const getReviewScreenPhaseActionLabel = (phase: string) =>
   reviewScreenPhaseActionLabels[phase] ?? "现场阶段";
+
+const isExcludedSeatStatus = (status?: string | null) => status === "excluded" || status === "voided";
 
 const mergeConsoleSeats = (
   sessionSeats: ReviewScreenConsoleSeat[],
@@ -271,11 +287,17 @@ function StatusBadge({ statusKey }: { statusKey: ExpertReviewAssignmentItem["sta
     pending: "bg-amber-50 text-amber-700 border-amber-100",
     completed: "bg-emerald-50 text-emerald-700 border-emerald-100",
     locked: "bg-slate-100 text-slate-500 border-slate-200",
+    timeout: "bg-orange-50 text-orange-700 border-orange-100",
+    closed_by_admin: "bg-slate-100 text-slate-500 border-slate-200",
+    excluded: "bg-rose-50 text-rose-700 border-rose-100",
   }[statusKey];
   const label = {
     pending: "待评审",
     completed: "已提交",
     locked: "已锁定",
+    timeout: "超时未提交",
+    closed_by_admin: "已关闭，无需提交",
+    excluded: "已排除",
   }[statusKey];
 
   return <span className={`rounded-full border px-2.5 py-1 text-xs font-semibold ${meta}`}>{label}</span>;
@@ -423,6 +445,9 @@ export default function ExpertReviewTab() {
   const [screenDisplayDrafts, setScreenDisplayDrafts] = useState<Record<string, ReviewScreenDisplaySettings>>({});
   const [manualOrderDrafts, setManualOrderDrafts] = useState<Record<string, Record<string, string>>>({});
   const [screenGroupDrafts, setScreenGroupDrafts] = useState<Record<string, string>>({});
+  const [resetHistoryOpen, setResetHistoryOpen] = useState(false);
+  const [resetHistories, setResetHistories] = useState<ResetHistoryItem[]>([]);
+  const [resetHistoryLoading, setResetHistoryLoading] = useState(false);
   const [screenLiveData, setScreenLiveData] = useState<
     Record<
       string,
@@ -573,6 +598,24 @@ export default function ExpertReviewTab() {
 
     return () => window.clearInterval(timer);
   }, [canManageReviewMaterials, refreshWorkspace, reviewScreenSessions]);
+
+  const openResetHistory = async () => {
+    setResetHistoryOpen(true);
+    setResetHistoryLoading(true);
+    try {
+      const payload = await requestJson<{ histories: ResetHistoryItem[] }>(
+        "/api/expert-reviews/reset-history",
+        undefined,
+        { force: true },
+      );
+      setResetHistories(payload.histories);
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "重置历史加载失败");
+    } finally {
+      setResetHistoryLoading(false);
+    }
+  };
+
   const selectedAssignment =
     reviewAssignments.find((assignment) => assignment.id === selectedAssignmentId) ??
     networkAssignments[0] ??
@@ -922,6 +965,11 @@ export default function ExpertReviewTab() {
     if (!window.confirm("排除该专家后，其席位将不参与评分计算。确定排除？")) {
       return;
     }
+    const reason = window.prompt("请输入排除原因，例如专家离场或设备故障。");
+    if (!reason?.trim()) {
+      setLoadError("排除专家席位必须填写原因");
+      return;
+    }
 
     setReviewScreenActionKey(`${group.key}:${seatId}`);
     try {
@@ -929,7 +977,7 @@ export default function ExpertReviewTab() {
         seat: ReviewScreenSessionState["seats"][number];
       }>(`/api/review-screen/sessions/${screenSession.sessionId}/void-seat`, {
         method: "POST",
-        body: JSON.stringify({ seatId }),
+        body: JSON.stringify({ seatId, reason: reason.trim() }),
       });
       setReviewScreenSessions((current) => {
         const next = { ...current };
@@ -1468,9 +1516,17 @@ export default function ExpertReviewTab() {
       (project) => project.reviewPackage.id === currentProject?.packageId,
     );
     const currentProjectSeats = currentLiveProject?.seats ?? [];
+    const packageDropHighestCount = group.items[0]?.dropHighestCount ?? 1;
+    const packageDropLowestCount = group.items[0]?.dropLowestCount ?? 1;
+    const effectiveExpertCount = consoleSeats.length || group.items.length;
+    const remainingScoreCount = Math.max(
+      0,
+      effectiveExpertCount - packageDropHighestCount - packageDropLowestCount,
+    );
+    const scoreRuleIsInvalid = remainingScoreCount < 2 && effectiveExpertCount >= 2;
     const currentProjectHasAllSubmitted =
       currentProjectSeats.length > 0 &&
-      currentProjectSeats.every((seat) => seat.status === "submitted" || seat.status === "voided") &&
+      currentProjectSeats.every((seat) => seat.status === "submitted" || isExcludedSeatStatus(seat.status)) &&
       currentProjectSeats.some((seat) => seat.status === "submitted");
     const currentProjectHasLockedScore = Boolean(
       currentLiveProject?.finalScore.scoreLockedAt || currentProject?.revealedAt,
@@ -1478,6 +1534,27 @@ export default function ExpertReviewTab() {
     const currentPendingSeatNos = currentProjectSeats
       .filter((seat) => seat.status === "pending")
       .map((seat) => seat.seatNo);
+    const currentWholeRoundExcludedCount = consoleSeats.filter((seat) => isExcludedSeatStatus(seat.status)).length;
+    const currentProjectExcludedCount = currentProjectSeats.filter((seat) => isExcludedSeatStatus(seat.status)).length;
+    const currentEffectiveExpertCount =
+      currentLiveProject?.finalScore.effectiveSeatCount ??
+      Math.max(0, currentProjectSeats.length - currentProjectExcludedCount);
+    const currentSubmittedScoreCount =
+      currentLiveProject?.finalScore.submittedSeatCount ??
+      currentProjectSeats.filter((seat) => seat.status === "submitted").length;
+    const currentKeptScoreCount = Math.max(
+      0,
+      currentEffectiveExpertCount - packageDropHighestCount - packageDropLowestCount,
+    );
+    const calculationBlockReason = currentProjectHasLockedScore
+      ? "当前项目成绩已锁定"
+      : scoreRuleIsInvalid
+        ? "去高去低后保留评分少于 2 个"
+        : currentPendingSeatNos.length > 0
+          ? `仍有 ${currentPendingSeatNos.length} 位有效专家未提交`
+          : currentProjectHasAllSubmitted
+            ? "满足计算条件"
+            : "等待进入评分阶段";
     const phaseRemainingSeconds = Math.max(0, liveData?.phaseRemainingSeconds ?? 0);
     const formattedRemaining = `${String(Math.floor(phaseRemainingSeconds / 60)).padStart(2, "0")}:${String(
       phaseRemainingSeconds % 60,
@@ -1492,14 +1569,6 @@ export default function ExpertReviewTab() {
     const canStartPresentation = Boolean(screenSession) && (currentPhase === "draw" || currentPhase === "presentation");
     const canStartQa = Boolean(screenSession) && currentPhase === "presentation";
     const canStartScoring = Boolean(screenSession) && screenDisplay.scoringEnabled && currentPhase === "qa";
-    const packageDropHighestCount = group.items[0]?.dropHighestCount ?? 1;
-    const packageDropLowestCount = group.items[0]?.dropLowestCount ?? 1;
-    const effectiveExpertCount = consoleSeats.length || group.items.length;
-    const remainingScoreCount = Math.max(
-      0,
-      effectiveExpertCount - packageDropHighestCount - packageDropLowestCount,
-    );
-    const scoreRuleIsInvalid = remainingScoreCount < 2 && effectiveExpertCount >= 2;
     const canRevealScore =
       Boolean(screenSession) &&
       screenDisplay.scoringEnabled &&
@@ -1708,7 +1777,9 @@ export default function ExpertReviewTab() {
           if (hasNextProject) {
             const nextProject = projectOrder[currentProjectIndex + 1];
             const confirmed = window.confirm(
-              nextProject
+              canForceNextWithoutLockedScore
+                ? `当前项目还有未提交专家或尚未计算最终得分，确认进入下一项目：${nextProject?.targetName ?? "下一项目"}？未提交专家任务将显示为“已关闭，无需提交”。`
+                : nextProject
                 ? `下一项目：${nextProject.targetName}（${currentProjectIndex + 2}/${totalProjectCount}），切换到待开始状态？`
                 : "确认切换到下一项目？",
             );
@@ -1778,7 +1849,7 @@ export default function ExpertReviewTab() {
               onClick={() => {
                 if (
                   canForceNextWithoutLockedScore &&
-                  !window.confirm("当前项目还有未提交专家或尚未计算最终得分，确认强制进入下一项目？未提交专家不会计入当前项目已锁定成绩。")
+                  !window.confirm("当前项目还有未提交专家或尚未计算最终得分，确认强制进入下一项目？未提交专家任务将显示为“已关闭，无需提交”。")
                 ) {
                   return;
                 }
@@ -1953,6 +2024,15 @@ export default function ExpertReviewTab() {
             </button>
           </div>
         </div>
+        <div className="grid gap-2 border-b border-slate-100 bg-white px-4 py-3 text-[11px] font-bold text-slate-500 md:grid-cols-5">
+          <span>有效专家 {currentEffectiveExpertCount} 位</span>
+          <span>排除整轮 {currentWholeRoundExcludedCount} 人 · 本项目 {currentProjectExcludedCount} 人</span>
+          <span>已提交 {currentSubmittedScoreCount} / {currentEffectiveExpertCount}</span>
+          <span>去高去低后保留 {currentKeptScoreCount} 个</span>
+          <span className={currentProjectHasAllSubmitted && !scoreRuleIsInvalid ? "text-emerald-700" : "text-amber-700"}>
+            是否可计算：{currentProjectHasAllSubmitted && !scoreRuleIsInvalid ? "是" : "否"} · {calculationBlockReason}
+          </span>
+        </div>
         <div className="max-h-[520px] overflow-auto">
           <table className="min-w-full border-collapse text-[11px]">
             <thead>
@@ -1994,13 +2074,17 @@ export default function ExpertReviewTab() {
                     {monitorSeats.map((seat) => {
                       const seatResult = result?.seats.find((item) => item.seatNo === seat.seatNo);
                       const seatExpertName = projectGroup?.items[seat.seatNo - 1]?.expert.name ?? group.items[seat.seatNo - 1]?.expert.name ?? seat.displayName;
-                      const isDropped = Boolean(result?.finalScore.droppedSeatNos.includes(seat.seatNo)) || seatResult?.status === "voided";
+                      const isDropped = Boolean(result?.finalScore.droppedSeatNos.includes(seat.seatNo)) || isExcludedSeatStatus(seatResult?.status);
                       const isSubmitted = seatResult?.status === "submitted";
                       const cellText =
-                        seatResult?.status === "voided"
+                        isExcludedSeatStatus(seatResult?.status)
                           ? "排除"
                           : isSubmitted
                             ? seatResult.scoreText ?? "已交"
+                            : seatResult?.status === "closed_by_admin"
+                              ? "已关闭"
+                              : seatResult?.status === "timeout"
+                                ? "超时"
                             : isCurrent && currentPhase === "scoring"
                               ? "评分中"
                               : isCurrent && currentPhase === "qa"
@@ -2431,7 +2515,7 @@ export default function ExpertReviewTab() {
               const assignment = group.items[seat.seatNo - 1];
               const expertName = assignment?.expert.name ?? seat.displayName;
               const isSubmitted = seat.status === "submitted";
-              const isVoided = seat.status === "voided";
+              const isVoided = isExcludedSeatStatus(seat.status);
               const scoreText = seat.scoreText ?? (assignment ? getLiveAssignmentScoreText(assignment) : "--");
               return (
                 <div
@@ -3043,6 +3127,46 @@ export default function ExpertReviewTab() {
 
   return (
     <div className="review-admin-control-shell mx-auto max-w-[1200px] space-y-5">
+      {resetHistoryOpen ? (
+        <Workspace.Modal title="重置历史" onClose={() => setResetHistoryOpen(false)}>
+          <div className="space-y-4">
+            <p className="text-sm leading-6 text-slate-500">
+              每次评审包重置前的专家评分快照都会保留在这里，用于后台审计和复核。
+            </p>
+            <div className="max-h-[420px] overflow-auto rounded-2xl border border-slate-200">
+              {resetHistoryLoading ? (
+                <p className="px-4 py-8 text-center text-sm text-slate-400">加载中...</p>
+              ) : resetHistories.length === 0 ? (
+                <p className="px-4 py-8 text-center text-sm text-slate-400">暂无重置历史</p>
+              ) : (
+                <table className="min-w-full border-collapse text-sm">
+                  <thead className="bg-slate-50 text-xs text-slate-500">
+                    <tr>
+                      <th className="px-4 py-3 text-left font-bold">专家</th>
+                      <th className="px-4 py-3 text-left font-bold">原分数</th>
+                      <th className="px-4 py-3 text-left font-bold">重置时间</th>
+                      <th className="px-4 py-3 text-left font-bold">原因</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {resetHistories.map((history) => (
+                      <tr className="border-t border-slate-100" key={history.id}>
+                        <td className="px-4 py-3 font-semibold text-slate-800">{history.expertName}</td>
+                        <td className="px-4 py-3 font-mono font-bold text-slate-700">{history.totalScoreText}</td>
+                        <td className="px-4 py-3 text-slate-500">{formatDateTime(history.createdAt)}</td>
+                        <td className="px-4 py-3 text-slate-500">{history.resetReason}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+            <Workspace.ModalActions>
+              <ActionButton onClick={() => setResetHistoryOpen(false)}>关闭</ActionButton>
+            </Workspace.ModalActions>
+          </div>
+        </Workspace.Modal>
+      ) : null}
       <section className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <div>
           <h2 className="text-[22px] font-extrabold text-slate-950">专家评审</h2>
@@ -3053,6 +3177,15 @@ export default function ExpertReviewTab() {
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
+          {canManageReviewMaterials ? (
+            <button
+              className="rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
+              onClick={() => void openResetHistory()}
+              type="button"
+            >
+              重置历史
+            </button>
+          ) : null}
           <button
             className="rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
             onClick={downloadReviewScoreDetails}
@@ -3218,7 +3351,7 @@ export default function ExpertReviewTab() {
                   const expertName = assignment?.expert.name ?? seat.displayName;
                   const scoreText = seat.scoreText ?? (assignment ? getLiveAssignmentScoreText(assignment) : "--");
                   const isSubmitted = seat.status === "submitted";
-                  const isVoided = seat.status === "voided";
+                  const isVoided = isExcludedSeatStatus(seat.status);
                   return (
                     <div
                       className={`expert-seat-row flex items-center gap-3 rounded-xl border px-3 py-2.5 ${
