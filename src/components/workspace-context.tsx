@@ -5463,6 +5463,7 @@ function useWorkspaceController({
   const openReviewAssignmentModal = (
     assignmentsToEdit?: ExpertReviewAssignmentItem[],
     initialStageId?: string,
+    options?: { initialTeamGroupIds?: string[] },
   ) => {
     const editAssignments = assignmentsToEdit?.filter(Boolean) ?? [];
 
@@ -5497,6 +5498,7 @@ function useWorkspaceController({
     setReviewAssignmentDraft({
       ...baseDraft,
       stageId: initialStageId ?? "",
+      teamGroupIds: options?.initialTeamGroupIds ?? baseDraft.teamGroupIds,
       roundLabel: initialStage?.name ?? baseDraft.roundLabel,
     });
     setReviewAssignmentModalOpen(true);
@@ -5567,7 +5569,7 @@ function useWorkspaceController({
         setReviewAssignmentEditAssignmentId(null);
         setReviewAssignmentDraft(defaultExpertReviewAssignmentDraft(expertMembers[0]?.id ?? ""));
         showSuccessToast("评审包已更新", "评审时间、说明和专家名单已同步到专家端。");
-        refreshWorkspace("reviewAssignments");
+        refreshWorkspace(["reviewAssignments", "projectStages"]);
       } catch (error) {
         setLoadError(error instanceof Error ? error.message : "评审任务更新失败");
       } finally {
@@ -5642,7 +5644,7 @@ function useWorkspaceController({
       setReviewAssignmentEditAssignmentId(null);
       setReviewAssignmentDraft(defaultExpertReviewAssignmentDraft(expertMembers[0]?.id ?? ""));
       showSuccessToast("评审任务已生成", "已按项目管理轮次分配给专家。");
-      refreshWorkspace("reviewAssignments");
+      refreshWorkspace(["reviewAssignments", "projectStages"]);
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "评审任务创建失败");
     } finally {
@@ -5775,7 +5777,7 @@ function useWorkspaceController({
       method: "DELETE",
       body: JSON.stringify(options?.reason ? { reason: options.reason } : {}),
     });
-    refreshWorkspace("reviewAssignments");
+    refreshWorkspace(["reviewAssignments", "projectStages"]);
   };
 
   const deleteReviewAssignment = (

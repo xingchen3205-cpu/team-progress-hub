@@ -244,6 +244,7 @@ export type ExpertItem = {
 export type ExpertReviewAssignmentItem = {
   id: string;
   packageId: string;
+  teamGroupId?: string | null;
   packageStatus?: "configured" | "cancelled" | "archived";
   projectReviewStageId?: string | null;
   targetName: string;

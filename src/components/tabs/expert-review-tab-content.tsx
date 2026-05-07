@@ -409,6 +409,7 @@ export default function ExpertReviewTab() {
     currentRole,
     reviewAssignments,
     projectStages,
+    teamGroups,
     canCreateReviewPackage,
     canManageReviewMaterials,
     openPreviewAsset,
@@ -647,6 +648,14 @@ export default function ExpertReviewTab() {
     groupedAssignments.find((group) => group.key === activeGroupKey) ??
     groupedAssignments[0] ??
     null;
+  const reconfigurableProjectStages = projectStages.filter((stage) => {
+    if (groupedAssignments.length === 0) {
+      return true;
+    }
+
+    const configuredAssignments = assignmentsByStageId.get(stage.id) ?? [];
+    return configuredAssignments.length === 0 && stage.reviewConfig?.status !== "archived";
+  });
   const activeGroupLiveData = activeGroup ? screenLiveData[activeGroup.key] : undefined;
   const activeCurrentProjectGroup =
     groupedAssignments.find((group) => group.key === activeGroupLiveData?.currentPackageId) ??
@@ -3071,6 +3080,26 @@ export default function ExpertReviewTab() {
           : group.key === activeGroup.key,
       )
     : [];
+  const activeProjectStage = activeGroup?.projectReviewStageId
+    ? projectStages.find((stage) => stage.id === activeGroup.projectReviewStageId) ?? null
+    : null;
+  const activeStageAllowedTeamGroupIds =
+    activeProjectStage?.allowedTeamGroupIds ??
+    (activeProjectStage?.teamGroup?.id ? [activeProjectStage.teamGroup.id] : []);
+  const activeReviewStageTeamGroups = activeProjectStage
+    ? teamGroups.filter((group) =>
+        activeStageAllowedTeamGroupIds.length === 0 || activeStageAllowedTeamGroupIds.includes(group.id),
+      )
+    : [];
+  const configuredActiveStageTeamGroupIds = new Set(
+    activeStageGroups
+      .map((group) => group.items[0]?.teamGroupId)
+      .filter((teamGroupId): teamGroupId is string => Boolean(teamGroupId)),
+  );
+  const resettableRoadshowGroups =
+    activeProjectStage?.type === "roadshow"
+      ? activeReviewStageTeamGroups.filter((group) => !configuredActiveStageTeamGroupIds.has(group.id))
+      : [];
   const activeScreenSession = activeGroup ? reviewScreenSessions[activeGroup.key] : undefined;
   const activeSidebarSeats = activeGroup
     ? activeScreenSession?.seats.length
@@ -3204,7 +3233,7 @@ export default function ExpertReviewTab() {
         </div>
       </section>
 
-      {canCreateReviewPackage && projectStages.length > 0 && groupedAssignments.length === 0 ? (
+      {canCreateReviewPackage && reconfigurableProjectStages.length > 0 ? (
         <section className="rounded-2xl border border-blue-100 bg-white p-5 shadow-sm">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
             <div>
@@ -3217,7 +3246,7 @@ export default function ExpertReviewTab() {
             </span>
           </div>
           <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {projectStages.map((stage) => {
+            {reconfigurableProjectStages.map((stage) => {
               const configuredAssignments = assignmentsByStageId.get(stage.id) ?? [];
               const reviewConfigStatus =
                 configuredAssignments.length > 0
@@ -3278,6 +3307,32 @@ export default function ExpertReviewTab() {
         </section>
       ) : activeGroupIsRoadshow && activeGroup ? (
         <main className="space-y-5">
+          {canCreateReviewPackage && activeProjectStage && resettableRoadshowGroups.length > 0 ? (
+            <section className="rounded-2xl border border-amber-100 bg-amber-50/80 p-5 shadow-sm">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <p className="text-sm font-bold text-amber-700">已重置 / 未配置项目组</p>
+                  <h3 className="mt-1 text-lg font-extrabold text-slate-950">可在当前路演轮次内重新配置</h3>
+                  <p className="mt-2 text-sm leading-6 text-slate-600">
+                    {resettableRoadshowGroups.map((group) => group.name).join("、")} 已不在当前评审包列表中，无需返回项目管理重建轮次。
+                  </p>
+                </div>
+                <ActionButton
+                  onClick={() =>
+                    openReviewAssignmentModal(undefined, activeProjectStage.id, {
+                      initialTeamGroupIds: resettableRoadshowGroups.map((group) => group.id),
+                    })
+                  }
+                  variant="primary"
+                >
+                  <span className="inline-flex items-center gap-2">
+                    <Plus className="h-4 w-4" />
+                    重新配置项目组
+                  </span>
+                </ActionButton>
+              </div>
+            </section>
+          ) : null}
           {renderReviewScreenConsole(activeGroup)}
         </main>
       ) : (

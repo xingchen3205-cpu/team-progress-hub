@@ -407,6 +407,25 @@ describe("expert review v2 constraints", () => {
     assert.match(tabSource, /未配置/);
   });
 
+  it("lets administrators reconfigure a reset roadshow team group without returning to project management", () => {
+    const assignmentRouteSource = readSource("src/app/api/expert-reviews/assignments/route.ts");
+    const assignmentItemRouteSource = readSource("src/app/api/expert-reviews/assignments/[id]/route.ts");
+    const serializerSource = readSource("src/lib/expert-review.ts");
+    const contextSource = readSource("src/components/workspace-context.tsx");
+    const tabSource = readSource("src/components/tabs/expert-review-tab-content.tsx");
+
+    assert.match(assignmentRouteSource, /reviewPackage:\s*\{[\s\S]*?select:\s*\{[\s\S]*?teamGroupId:\s*true/);
+    assert.match(assignmentItemRouteSource, /reviewPackage:\s*\{[\s\S]*?select:\s*\{[\s\S]*?teamGroupId:\s*true/);
+    assert.match(serializerSource, /teamGroupId:\s*assignment\.reviewPackage\.teamGroupId/);
+    assert.match(contextSource, /initialTeamGroupIds/);
+    assert.match(contextSource, /refreshWorkspace\(\["reviewAssignments",\s*"projectStages"\]\)/);
+    assert.match(tabSource, /reconfigurableProjectStages/);
+    assert.doesNotMatch(tabSource, /projectStages\.length > 0 && groupedAssignments\.length === 0/);
+    assert.match(tabSource, /resettableRoadshowGroups/);
+    assert.match(tabSource, /重新配置项目组/);
+    assert.match(tabSource, /openReviewAssignmentModal\(undefined,\s*activeProjectStage\.id/);
+  });
+
   it("requires two confirmations before deleting scored review packages and linked project stages", () => {
     const assignmentItemRouteSource = readSource("src/app/api/expert-reviews/assignments/[id]/route.ts");
     const stageDeleteRouteSource = readSource("src/app/api/project-stages/[stageId]/route.ts");

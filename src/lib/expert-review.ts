@@ -305,7 +305,7 @@ const roadshowScreenPhaseLabels: Record<ReviewDisplaySession["screenPhase"], str
 export const serializeExpertReviewAssignment = (
   assignment: ExpertReviewAssignment & {
     expertUser: Pick<User, "id" | "name" | "avatar" | "role">;
-    reviewPackage: Pick<ExpertReviewPackage, "id" | "targetName" | "roundLabel" | "overview" | "status" | "startAt" | "deadline" | "dropHighestCount" | "dropLowestCount"> & {
+    reviewPackage: Pick<ExpertReviewPackage, "id" | "teamGroupId" | "targetName" | "roundLabel" | "overview" | "status" | "startAt" | "deadline" | "dropHighestCount" | "dropLowestCount"> & {
       projectReviewStage?: Pick<ProjectReviewStage, "id" | "type"> | null;
       materials: Array<
         Pick<
@@ -389,6 +389,7 @@ export const serializeExpertReviewAssignment = (
   return {
     id: assignment.id,
     packageId: assignment.reviewPackage.id,
+    teamGroupId: assignment.reviewPackage.teamGroupId,
     packageStatus: assignment.reviewPackage.status,
     projectReviewStageId: assignment.reviewPackage.projectReviewStage?.id ?? null,
     targetName: assignment.reviewPackage.targetName,

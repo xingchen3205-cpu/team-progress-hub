@@ -29,6 +29,7 @@ const assignmentInclude = {
   reviewPackage: {
     select: {
       id: true,
+      teamGroupId: true,
       targetName: true,
       roundLabel: true,
       overview: true,
