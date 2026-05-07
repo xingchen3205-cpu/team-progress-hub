@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, it } from "node:test";
 import { createElement } from "react";
@@ -466,8 +466,9 @@ describe("roadshow review screen session", () => {
     assert.match(screenPageSource, /本项目评审已完成，等待下一项目/);
     assert.match(screenPageSource, /本轮路演已结束/);
     assert.match(screenPageSource, /请等待管理员分配路演项目/);
-    assert.match(screenPageSource, /phase === "finished" && !screenDisplay\.showRankingOnScreen/);
-    assert.match(screenPageSource, /phase === "finished" && screenDisplay\.showRankingOnScreen/);
+    assert.match(screenPageSource, /phase === "finished" && rankingRows\.some\(\(row\) => row\.score !== null\)/);
+    assert.doesNotMatch(screenPageSource, /phase === "finished" && !screenDisplay\.showRankingOnScreen/);
+    assert.doesNotMatch(screenPageSource, /phase === "finished" && screenDisplay\.showRankingOnScreen/);
     assert.doesNotMatch(screenPageSource, /phase === "draw" && !drawEnabled\s*\?\s*"score"/);
     assert.doesNotMatch(screenPageSource, /phase === "finished"[\s\S]{0,120}\?\s*"score"/);
     assert.match(screenPageSource, /payload\?\.session\.phaseStartedAt/);
@@ -571,7 +572,10 @@ describe("roadshow review screen session", () => {
     assert.match(screenPageSource, /南京铁道职业技术学院/);
     assert.match(screenPageSource, /payload\?\.reviewPackage\.roundLabel/);
     assert.match(screenPageSource, /payload\?\.session\.phaseLabel \?\? getPhaseLabel\(phase\)/);
-    assert.match(screenPageSource, /校徽/);
+    assert.match(screenPageSource, /\/brand\/njrts-logo\.png/);
+    assert.match(screenPageSource, /南京铁道职业技术学院校徽/);
+    assert.equal(existsSync(path.join(process.cwd(), "public/brand/njrts-logo.png")), true);
+    assert.doesNotMatch(screenPageSource, />校徽</);
     assert.doesNotMatch(screenPageSource, /useCurrentTime/);
     assert.doesNotMatch(screenPageSource, /timeText/);
     assert.doesNotMatch(screenPageSource, /currentTime/);
@@ -612,6 +616,7 @@ describe("roadshow review screen session", () => {
     assert.match(screenPageSource, /screen-stage-project-title/);
     assert.match(screenPageSource, /font-size:\s*clamp\(42px,\s*6vw,\s*86px\)/);
     assert.match(screenPageSource, /phase === "presentation" \? "路演展示" : "答辩提问"/);
+    assert.doesNotMatch(screenPageSource, /screen-stage-countdown-card::before/);
     assert.doesNotMatch(screenPageSource, /max-w-\[980px\] truncate text-2xl font-black text-white\/85/);
   });
 
@@ -653,6 +658,8 @@ describe("roadshow review screen session", () => {
     assert.match(screenPageSource, /waiting-dots/);
     assert.match(screenPageSource, /seat-pop/);
     assert.match(screenPageSource, /FinalRankingStage/);
+    assert.match(screenPageSource, /activeTab === "rank"/);
+    assert.doesNotMatch(screenPageSource, /activeTab === "rank" && screenDisplay\.showRankingOnScreen/);
     assert.match(rankingStageSource, /final-ranking-stage/);
     assert.match(rankingStageSource, /final-ranking-champion/);
     assert.match(rankingStageSource, /final-ranking-podium-card/);

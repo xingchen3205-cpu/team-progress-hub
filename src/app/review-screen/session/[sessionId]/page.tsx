@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
+import Image from "next/image";
 import { useParams, useSearchParams } from "next/navigation";
 import { CheckCircle2, Clock, ShieldCheck } from "lucide-react";
 
@@ -326,44 +327,6 @@ export default function ReviewScreenSessionPage() {
   );
   const hasCurrentProject = Boolean(payload?.session.currentPackageId);
   const activeProjectCompleted = Boolean(activeProjectOrder?.revealedAt || activeFinalScore?.scoreLockedAt);
-  const finishedRankingVisible = phase === "finished" && screenDisplay.showRankingOnScreen;
-  const waitingScreen =
-    phase === "finished" && !screenDisplay.showRankingOnScreen
-      ? {
-          eyebrow: "ROUND FINISHED",
-          title: "本轮路演已结束",
-          description: "请等待管理员开启下一轮评审",
-          status: "现场已收尾",
-        }
-      : phase === "draw" && !drawEnabled
-        ? hasCurrentProject
-          ? activeProjectCompleted
-            ? {
-                eyebrow: "PROJECT COMPLETE",
-                title: "本项目评审已完成，等待下一项目",
-                description: `第 ${orderNumber} / ${Math.max(totalCount, projectOrder.length, 1)} 项 · ${targetName}`,
-                status: "等待切换项目",
-              }
-            : {
-                eyebrow: "NEXT PROJECT",
-                title: "请等待下一个项目路演开始",
-                description: `第 ${orderNumber} / ${Math.max(totalCount, projectOrder.length, 1)} 项 · ${targetName}`,
-                status: "等待管理员开始路演",
-              }
-          : {
-              eyebrow: "WAITING",
-              title: "请等待管理员分配路演项目",
-              description: title,
-              status: "等待项目同步",
-            }
-        : null;
-  const activeTab = finishedRankingVisible
-    ? "rank"
-    : waitingScreen
-    ? "waiting"
-    : phase === "draw"
-      ? "draw"
-      : getTabState(phase);
   const submittedCount = activeFinalScore?.submittedSeatCount ?? seats.filter((seat) => seat.status === "submitted").length;
   const effectiveCount = activeFinalScore?.effectiveSeatCount ?? seats.filter((seat) => !isExcludedSeatStatus(seat.status)).length;
   const progressText = `${submittedCount}/${effectiveCount}`;
@@ -448,6 +411,44 @@ export default function ReviewScreenSessionPage() {
         return right.score - left.score;
       });
   }, [payload?.session.currentPackageId, projectOrder, projectResults]);
+  const finishedRankingVisible = phase === "finished" && rankingRows.some((row) => row.score !== null);
+  const waitingScreen =
+    phase === "finished" && !finishedRankingVisible
+      ? {
+          eyebrow: "ROUND FINISHED",
+          title: "本轮路演已结束",
+          description: "请等待管理员开启下一轮评审",
+          status: "现场已收尾",
+        }
+      : phase === "draw" && !drawEnabled
+        ? hasCurrentProject
+          ? activeProjectCompleted
+            ? {
+                eyebrow: "PROJECT COMPLETE",
+                title: "本项目评审已完成，等待下一项目",
+                description: `第 ${orderNumber} / ${Math.max(totalCount, projectOrder.length, 1)} 项 · ${targetName}`,
+                status: "等待切换项目",
+              }
+            : {
+                eyebrow: "NEXT PROJECT",
+                title: "请等待下一个项目路演开始",
+                description: `第 ${orderNumber} / ${Math.max(totalCount, projectOrder.length, 1)} 项 · ${targetName}`,
+                status: "等待管理员开始路演",
+              }
+          : {
+              eyebrow: "WAITING",
+              title: "请等待管理员分配路演项目",
+              description: title,
+              status: "等待项目同步",
+            }
+        : null;
+  const activeTab = finishedRankingVisible
+    ? "rank"
+    : waitingScreen
+    ? "waiting"
+    : phase === "draw"
+      ? "draw"
+      : getTabState(phase);
 
   const drawAnimationDuration = Math.min(projectOrder.length, 12) * 1100 + 700;
   const drawElapsed = drawAnimationStartedAt === null ? 0 : drawFrameTime - drawAnimationStartedAt;
@@ -600,23 +601,16 @@ export default function ReviewScreenSessionPage() {
         }
         .screen-full-countdown {
           position: fixed;
-          inset: 0;
+          top: 68px;
+          right: 0;
+          bottom: 0;
+          left: 0;
           z-index: 40;
           display: flex;
           align-items: center;
           justify-content: center;
           overflow: hidden;
-          background: linear-gradient(160deg, #0f1f40 0%, #1a3a70 35%, #2856a0 62%, #1a3a70 100%);
-        }
-        .screen-full-countdown::before {
-          content: "";
-          position: absolute;
-          inset: 0;
-          background:
-            radial-gradient(ellipse 60% 50% at 50% 38%, rgba(255,255,255,0.08), transparent 70%),
-            linear-gradient(rgba(255,255,255,0.018) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(255,255,255,0.018) 1px, transparent 1px);
-          background-size: auto, 80px 80px, 80px 80px;
+          background: #f0f4f9;
         }
         .screen-stage-countdown-card {
           position: relative;
@@ -633,14 +627,7 @@ export default function ReviewScreenSessionPage() {
           background: rgba(255, 255, 255, 0.96);
           padding: clamp(36px, 5vh, 68px);
           text-align: center;
-          box-shadow: 0 28px 90px rgba(15, 32, 64, 0.3);
-        }
-        .screen-stage-countdown-card::before {
-          content: "";
-          position: absolute;
-          inset: 0 0 auto 0;
-          height: 7px;
-          background: linear-gradient(135deg, #1a3a6e 0%, #2856a0 52%, #c22832 100%);
+          box-shadow: 0 18px 48px rgba(15, 32, 64, 0.14);
         }
         .screen-stage-label-row {
           position: absolute;
@@ -1037,11 +1024,16 @@ export default function ReviewScreenSessionPage() {
         }
       `}</style>
 
-      <header className="screen-banner screen-hero-gradient flex items-center justify-between px-11 text-white">
+      <header className="screen-banner screen-hero-gradient relative z-50 flex items-center justify-between px-11 text-white">
         <div className="relative z-10 flex min-w-0 items-center gap-4">
-          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white text-xs font-black text-[#1a3a6e] ring-1 ring-white/40">
-            校徽
-          </div>
+          <Image
+            alt="南京铁道职业技术学院校徽"
+            className="h-12 w-12 shrink-0 rounded-full bg-white p-1.5 shadow-sm ring-1 ring-white/50"
+            height={48}
+            priority
+            src="/brand/njrts-logo.png"
+            width={48}
+          />
           <div className="min-w-0">
             <h1 className="truncate text-xl font-black tracking-[0.5px]">南京铁道职业技术学院</h1>
             <p className="mt-0.5 truncate text-sm font-semibold tracking-[0.5px] text-white/75">{title}</p>
@@ -1283,7 +1275,7 @@ export default function ReviewScreenSessionPage() {
           </>
         ) : null}
 
-        {activeTab === "rank" && screenDisplay.showRankingOnScreen ? (
+        {activeTab === "rank" ? (
           <FinalRankingStage
             rankings={rankingRows.map((row, index) => ({
               rank: index + 1,
