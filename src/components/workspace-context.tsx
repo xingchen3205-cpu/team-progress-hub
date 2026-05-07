@@ -5578,18 +5578,20 @@ function useWorkspaceController({
       return;
     }
 
-    if (!reviewAssignmentDraft.stageId) {
-      setLoadError("请先选择项目管理轮次");
+    const selectedStage = projectStages.find((stage) => stage.id === reviewAssignmentDraft.stageId) ?? null;
+    const isCustomReviewTarget = !reviewAssignmentDraft.stageId;
+
+    if (isCustomReviewTarget && !reviewAssignmentDraft.targetName.trim()) {
+      setLoadError("请填写自定义项目名称");
       return;
     }
 
-    const selectedStage = projectStages.find((stage) => stage.id === reviewAssignmentDraft.stageId) ?? null;
-    if (selectedStage?.type === "roadshow" && reviewAssignmentDraft.teamGroupIds.length === 0) {
+    if (!isCustomReviewTarget && selectedStage?.type === "roadshow" && reviewAssignmentDraft.teamGroupIds.length === 0) {
       setLoadError("请先选择路演项目组");
       return;
     }
 
-    if (selectedStage?.type !== "roadshow" && reviewAssignmentDraft.materialSubmissionIds.length === 0) {
+    if (!isCustomReviewTarget && selectedStage?.type !== "roadshow" && reviewAssignmentDraft.materialSubmissionIds.length === 0) {
       setLoadError("请先选择已生效项目材料");
       return;
     }
@@ -5623,9 +5625,10 @@ function useWorkspaceController({
       await requestJson("/api/expert-reviews/assignments", {
         method: "POST",
         body: JSON.stringify({
-          stageId: reviewAssignmentDraft.stageId,
-          materialSubmissionIds: reviewAssignmentDraft.materialSubmissionIds,
-          teamGroupIds: reviewAssignmentDraft.teamGroupIds,
+          stageId: reviewAssignmentDraft.stageId || undefined,
+          targetName: reviewAssignmentDraft.targetName.trim(),
+          materialSubmissionIds: isCustomReviewTarget ? [] : reviewAssignmentDraft.materialSubmissionIds,
+          teamGroupIds: isCustomReviewTarget ? [] : reviewAssignmentDraft.teamGroupIds,
           expertUserIds: reviewAssignmentDraft.expertUserIds,
           roundLabel: reviewAssignmentDraft.roundLabel.trim(),
           overview: reviewAssignmentDraft.overview.trim(),
@@ -5643,7 +5646,10 @@ function useWorkspaceController({
       setReviewAssignmentModalOpen(false);
       setReviewAssignmentEditAssignmentId(null);
       setReviewAssignmentDraft(defaultExpertReviewAssignmentDraft(expertMembers[0]?.id ?? ""));
-      showSuccessToast("评审任务已生成", "已按项目管理轮次分配给专家。");
+      showSuccessToast(
+        "评审任务已生成",
+        isCustomReviewTarget ? "已按自定义项目名称分配给专家。" : "已按项目管理轮次分配给专家。",
+      );
       refreshWorkspace(["reviewAssignments", "projectStages"]);
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "评审任务创建失败");

@@ -109,6 +109,13 @@ describe("login screen defaults", () => {
     assert.match(loginScreenSource, /captchaRequired && loginErrors\.captcha/);
   });
 
+  it("shows mobile login submitting feedback before waiting on the network request", () => {
+    assert.match(loginScreenSource, /getInitialMobileLoginViewport/);
+    assert.match(loginScreenSource, /window\.requestAnimationFrame/);
+    assert.match(loginScreenSource, /setIsSubmitting\(true\)[\s\S]*await waitForNextPaint\(\)/);
+    assert.match(loginScreenSource, /正在登录\.\.\./);
+  });
+
   it("reduces aggressive letter-spacing on mobile", () => {
     assert.match(loginScreenSource, /tracking-normal/);
     assert.match(loginScreenSource, /sm:tracking-/);

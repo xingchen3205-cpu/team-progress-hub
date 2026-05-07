@@ -1559,7 +1559,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
 
       {reviewAssignmentModalOpen ? (
         <Modal
-          title={isEditingReviewAssignment ? "编辑专家评审设置" : "从项目管理分配专家评审"}
+          title={isEditingReviewAssignment ? "编辑专家评审设置" : "分配专家评审"}
           onClose={closeReviewAssignmentModal}
         >
           <div className="space-y-4">
@@ -1569,7 +1569,8 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
               </div>
             ) : (
               <label className="block text-sm text-slate-500">
-                选择项目管理轮次
+                项目来源
+                <span className="ml-2 text-xs text-slate-400">可选择项目管理轮次，也可直接自定义项目名称</span>
                 <select
                   className={fieldClassName}
                   value={reviewAssignmentDraft.stageId}
@@ -1584,7 +1585,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                     }));
                   }}
                 >
-                  <option value="">请选择已创建的项目管理轮次</option>
+                  <option value="">自定义项目名称（不绑定项目管理）</option>
                   {projectStages.map((stage) => (
                     <option key={stage.id} value={stage.id}>
                       {stage.name} · {stage.typeLabel}
@@ -1593,6 +1594,23 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                 </select>
               </label>
             )}
+
+            {!isEditingReviewAssignment && !selectedReviewStage ? (
+              <label className="block text-sm text-slate-500">
+                自定义项目名称
+                <input
+                  className={fieldClassName}
+                  placeholder="请输入要评审的项目名称"
+                  value={reviewAssignmentDraft.targetName}
+                  onChange={(event) =>
+                    setReviewAssignmentDraft((current) => ({ ...current, targetName: event.target.value }))
+                  }
+                />
+                <span className="mt-1 block text-xs leading-5 text-slate-400">
+                  不绑定项目管理，适合临时测试、补录项目或尚未建项目组的现场评审。
+                </span>
+              </label>
+            ) : null}
 
             <div className="grid gap-4 md:grid-cols-2">
               <label className="block text-sm text-slate-500">

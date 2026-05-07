@@ -72,6 +72,19 @@ const modeCopy: Record<FormMode, { title: string; subtitle: string; lead: string
   },
 };
 
+const getInitialMobileLoginViewport = () =>
+  typeof window !== "undefined" && window.matchMedia("(max-width: 639px)").matches;
+
+const waitForNextPaint = () =>
+  new Promise<void>((resolve) => {
+    if (typeof window === "undefined") {
+      resolve();
+      return;
+    }
+
+    window.requestAnimationFrame(() => resolve());
+  });
+
 export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: string }) {
   const router = useRouter();
   const resetToken = initialResetToken.trim();
@@ -82,7 +95,7 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
   const [resetValues, setResetValues] = useState(initialResetValues);
   const [sessionCheckPending, setSessionCheckPending] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [isMobileLoginViewport, setIsMobileLoginViewport] = useState(false);
+  const [isMobileLoginViewport, setIsMobileLoginViewport] = useState(getInitialMobileLoginViewport);
   const [captchaVersion, setCaptchaVersion] = useState(() => Date.now());
   const [captchaError, setCaptchaError] = useState(false);
   const [loginErrors, setLoginErrors] = useState<{
@@ -251,6 +264,7 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
 
     setIsSubmitting(true);
     try {
+      await waitForNextPaint();
       const response = await fetch("/api/auth/login", {
         method: "POST",
         headers: {
@@ -816,7 +830,7 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
                         {isSubmitting ? (
                           <span className="inline-flex items-center justify-center gap-2">
                             <Loader2 className="h-5 w-5 animate-spin" />
-                            登录中...
+                            正在登录...
                           </span>
                         ) : (
                           "登录"

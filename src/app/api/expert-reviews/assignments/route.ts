@@ -192,7 +192,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: "评审截止时间必须晚于评审开始时间" }, { status: 400 });
   }
 
-  if (stageId || materialSubmissionIds.length > 0 || teamGroupIds.length > 0 || expertUserIds.length > 0) {
+  if (stageId || materialSubmissionIds.length > 0 || teamGroupIds.length > 0) {
     if (!stageId || expertUserIds.length === 0) {
       return NextResponse.json({ message: "请选择项目管理轮次和评审专家" }, { status: 400 });
     }
@@ -471,21 +471,22 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  if (!expertUserId || !targetName) {
+  const customExpertUserIds = expertUserIds.length > 0 ? expertUserIds : expertUserId ? [expertUserId] : [];
+
+  if (customExpertUserIds.length === 0 || !targetName) {
     return NextResponse.json({ message: "评审任务信息不完整" }, { status: 400 });
   }
 
-  const expertUser = await prisma.user.findUnique({
-    where: { id: expertUserId },
-    select: { id: true, role: true },
+  const expertCount = await prisma.user.count({
+    where: { id: { in: customExpertUserIds }, role: "expert" },
   });
 
-  if (!expertUser || expertUser.role !== "expert") {
+  if (expertCount !== customExpertUserIds.length) {
     return NextResponse.json({ message: "请选择有效的评审专家账号" }, { status: 400 });
   }
 
   const singleScoreRuleError = validateReviewScoreRule({
-    expertCount: 1,
+    expertCount: customExpertUserIds.length,
     dropHighestCount,
     dropLowestCount,
   });
@@ -493,7 +494,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: singleScoreRuleError }, { status: 400 });
   }
 
-  const assignment = await prisma.$transaction(async (tx) => {
+  const assignments = await prisma.$transaction(async (tx) => {
     const reviewPackage = await tx.expertReviewPackage.create({
       data: {
         targetName,
@@ -510,21 +511,30 @@ export async function POST(request: NextRequest) {
       select: { id: true },
     });
 
-    return tx.expertReviewAssignment.create({
-      data: {
+    await tx.expertReviewAssignment.createMany({
+      data: customExpertUserIds.map((id) => ({
         packageId: reviewPackage.id,
-        expertUserId,
+        expertUserId: id,
+      })),
+    });
+
+    return tx.expertReviewAssignment.findMany({
+      where: {
+        packageId: reviewPackage.id,
       },
       include: assignmentInclude,
+      orderBy: [{ createdAt: "desc" }],
     });
   });
 
+  const serializedAssignments = assignments.map((assignment) =>
+    redactExpertReviewAssignmentForRole(serializeExpertReviewAssignment(assignment), user.role),
+  );
+
   return NextResponse.json(
     {
-      assignment: redactExpertReviewAssignmentForRole(
-        serializeExpertReviewAssignment(assignment),
-        user.role,
-      ),
+      assignment: serializedAssignments[0] ?? null,
+      assignments: serializedAssignments,
     },
     { status: 201 },
   );

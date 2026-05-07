@@ -283,6 +283,21 @@ describe("expert review v2 constraints", () => {
     assert.match(tabSource, /项目管理已生效材料/);
   });
 
+  it("allows administrators to create standalone expert review projects without project management records", () => {
+    const shellSource = readSource("src/components/workspace-shell.tsx");
+    const contextSource = readSource("src/components/workspace-context.tsx");
+    const routeSource = readSource("src/app/api/expert-reviews/assignments/route.ts");
+
+    assert.match(shellSource, /自定义项目名称/);
+    assert.match(shellSource, /不绑定项目管理/);
+    assert.match(contextSource, /请填写自定义项目名称/);
+    assert.match(contextSource, /targetName:\s*reviewAssignmentDraft\.targetName\.trim\(\)/);
+    assert.match(routeSource, /const customExpertUserIds/);
+    assert.match(routeSource, /targetName,\s*roundLabel,\s*overview/);
+    assert.match(routeSource, /expertReviewAssignment\.createMany/);
+    assert.doesNotMatch(contextSource, /if \(!reviewAssignmentDraft\.stageId\)[\s\S]{0,120}请先选择项目管理轮次/);
+  });
+
   it("uses an independent expert review window instead of the project material upload window", () => {
     const contextSource = readSource("src/components/workspace-context.tsx");
     const shellSource = readSource("src/components/workspace-shell.tsx");
