@@ -1955,6 +1955,229 @@ export default function ExpertReviewTab() {
         },
       },
     ];
+    const guideStepKey =
+      isScreenSessionFinished
+        ? "finished"
+        : currentPhase === "draw"
+          ? "config"
+          : currentPhase === "presentation" || currentPhase === "qa"
+            ? "live"
+            : currentPhase === "scoring"
+              ? "scoring"
+              : currentPhase === "reveal"
+                ? "reveal"
+                : "config";
+    const guideSteps = [
+      { key: "config", title: "配置准备", hint: "顺序 / 时长 / 投屏" },
+      { key: "live", title: "现场推进", hint: "路演 / 答辩" },
+      { key: "scoring", title: "专家评分", hint: "提交进度 / 异常" },
+      { key: "reveal", title: "出分确认", hint: "复核 / 揭分" },
+      { key: "finished", title: "结束归档", hint: "排名 / 复盘" },
+    ] as const;
+    const activeGuideStepIndex = Math.max(0, guideSteps.findIndex((step) => step.key === guideStepKey));
+    const primaryGuideAction =
+      !screenSession
+        ? {
+            label: "生成并复制投屏链接",
+            description: "先生成本轮大屏链接，随后再开始路演。",
+            disabled: reviewScreenActionKey === group.key,
+            onClick: () => void createReviewScreenSession(group),
+          }
+        : guideStepKey === "config"
+          ? {
+              label: "开始路演",
+              description: "确认顺序、时长和投屏设置后，进入当前项目路演展示。",
+              disabled: !canStartPresentation || reviewScreenActionKey?.startsWith(`${group.key}:`),
+              onClick: workflowSteps[0].onClick,
+            }
+          : currentPhase === "presentation"
+            ? {
+                label: "开始答辩",
+                description: "路演结束后进入专家提问倒计时。",
+                disabled: !canStartQa || reviewScreenActionKey?.startsWith(`${group.key}:`),
+                onClick: workflowSteps[1].onClick,
+              }
+            : currentPhase === "qa"
+              ? {
+                  label: screenDisplay.scoringEnabled ? "开始评分" : "完成本项",
+                  description: screenDisplay.scoringEnabled ? "答辩结束后开放专家手机端评分。" : "当前配置未启用评分，可直接推进下一项目。",
+                  disabled: screenDisplay.scoringEnabled
+                    ? !canStartScoring || reviewScreenActionKey?.startsWith(`${group.key}:`)
+                    : !workflowSteps[4].enabled || reviewScreenActionKey?.startsWith(`${group.key}:`),
+                  onClick: screenDisplay.scoringEnabled ? workflowSteps[2].onClick : workflowSteps[4].onClick,
+                }
+              : guideStepKey === "scoring"
+                ? {
+                    label: canRevealScore ? "确认并计算最终得分" : "等待专家提交评分",
+                    description: canRevealScore
+                      ? "所有有效专家已提交，点击后锁定后台分数并按投屏设置揭分。"
+                      : calculationBlockReason,
+                    disabled: !canRevealScore || reviewScreenActionKey?.startsWith(`${group.key}:`),
+                    onClick: workflowSteps[3].onClick,
+                  }
+                : guideStepKey === "reveal"
+                  ? {
+                      label: hasNextProject ? "完成本项，进入下一项目" : "结束本轮评审",
+                      description: hasNextProject ? "当前项目已出分，切到下一项目等待开始。" : "本轮最后一个项目已完成，关闭现场流程并进入归档。",
+                      disabled: !workflowSteps[4].enabled || reviewScreenActionKey?.startsWith(`${group.key}:`),
+                      onClick: workflowSteps[4].onClick,
+                    }
+                  : {
+                      label: "本轮已结束",
+                      description: "现场控制已关闭，可查看成绩和重置历史。",
+                      disabled: true,
+                      onClick: () => undefined,
+                    };
+    const secondaryGuideActions = [
+      screenSession
+        ? {
+            label: "打开大屏",
+            disabled: false,
+            onClick: () => window.open(screenSession.screenUrl, "_blank", "noopener,noreferrer"),
+          }
+        : null,
+      guideStepKey === "config" && screenSession
+        ? {
+            label: "保存配置",
+            disabled: reviewScreenActionKey === group.key,
+            onClick: () => void saveReviewScreenTiming(group.key, screenSession),
+          }
+        : null,
+      currentProjectIndex > 0 && !isScreenSessionFinished
+        ? {
+            label: "上一项目",
+            disabled: !screenSession || reviewScreenActionKey === `${group.key}:project:${projectOrder[currentProjectIndex - 1]?.packageId}`,
+            onClick: () => {
+              const previousProject = projectOrder[currentProjectIndex - 1];
+              if (previousProject && window.confirm(`确认回到上一项目：${previousProject.targetName}？`)) {
+                void switchReviewScreenProject(group, previousProject.packageId);
+              }
+            },
+          }
+        : null,
+    ].filter((action): action is { label: string; disabled: boolean; onClick: () => void } => Boolean(action));
+    const nextGuideOutcome =
+      !screenSession
+        ? "系统会生成现场大屏链接，并把本轮项目、专家席位和投屏设置绑定到同一个会话。"
+        : guideStepKey === "config"
+          ? "大屏进入路演展示倒计时，后台配置会自动收起，管理员只推进现场流程。"
+          : currentPhase === "presentation"
+            ? "大屏切换到答辩提问倒计时，专家端仍不开放评分。"
+            : currentPhase === "qa"
+              ? screenDisplay.scoringEnabled
+                ? "专家手机端进入评分窗口，后台开始显示提交进度和异常处理入口。"
+                : "本项目直接进入完成状态，后台准备切换下一项目或结束本轮。"
+              : guideStepKey === "scoring"
+                ? "系统按去高去低规则计算并锁定最终分，大屏按投屏设置播放揭分。"
+                : guideStepKey === "reveal"
+                  ? hasNextProject
+                    ? "当前项目收起，下一项目进入待开始状态。"
+                    : "本轮进入结束归档状态，现场控制按钮关闭。"
+                  : "管理员只能查看结果、导出或在更多管理操作里重置配置。";
+    const guideAdminNote =
+      scoreRuleIsInvalid
+        ? "当前评分规则会导致有效评分不足，请先调整去高去低数量。"
+        : currentPendingSeatNos.length > 0 && guideStepKey === "scoring"
+          ? `还有 ${currentPendingSeatNos.length} 位有效专家未提交，暂不要揭分。`
+          : guideStepKey === "config"
+            ? "开场前只检查顺序、时长、投屏和评分规则，现场开始后不要再改配置。"
+            : guideStepKey === "live"
+              ? "这一阶段只负责路演/答辩倒计时推进，不处理分数。"
+              : guideStepKey === "reveal"
+                ? "揭分后不展示专家个人分，只展示最终总分。"
+                : "结束后已收起现场推进，避免误触影响下一组。";
+    const renderGuidedControlPanel = () => (
+      <section className="review-guided-control-panel overflow-hidden rounded-xl border border-blue-100 bg-white shadow-sm">
+        <div className="border-b border-blue-100 bg-[linear-gradient(90deg,#f8fbff,#ffffff)] px-5 py-4">
+          <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+            <div className="min-w-0">
+              <p className="text-xs font-extrabold text-blue-600">流程控制 · 当前阶段操作</p>
+              <h3 className="mt-1 truncate text-xl font-extrabold text-slate-950">
+                {guideSteps[activeGuideStepIndex]?.title ?? "现场推进"}
+              </h3>
+              <p className="mt-2 text-sm leading-6 text-slate-500">
+                只显示当前阶段主操作；上一阶段配置、历史成绩和危险操作已收起，避免现场误点。
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {guideSteps.map((step, index) => {
+                const done = index < activeGuideStepIndex;
+                const active = step.key === guideStepKey;
+                return (
+                  <div
+                    className={`min-w-[92px] rounded-xl border px-3 py-2 ${
+                      active
+                        ? "border-blue-300 bg-blue-50 text-blue-700"
+                        : done
+                          ? "border-emerald-100 bg-emerald-50 text-emerald-700"
+                          : "border-slate-100 bg-slate-50 text-slate-400"
+                    }`}
+                    key={step.key}
+                  >
+                    <p className="text-xs font-extrabold">{done ? "已完成" : active ? "当前" : "待进行"}</p>
+                    <p className="mt-1 text-sm font-extrabold">{step.title}</p>
+                    <p className="mt-0.5 text-[10px] font-semibold opacity-70">{step.hint}</p>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+        <div className="grid gap-4 px-5 py-5 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-center">
+          <div className="min-w-0">
+            <p className="text-sm font-extrabold text-slate-950">
+              {currentProject?.targetName ?? liveData?.reviewPackage?.targetName ?? group.targetName}
+            </p>
+            <div className="mt-3 grid gap-3 md:grid-cols-3">
+              <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-3">
+                <p className="text-[11px] font-extrabold text-slate-400">本步要做什么</p>
+                <p className="mt-1 text-xs leading-5 text-slate-700">{primaryGuideAction.description}</p>
+              </div>
+              <div className="rounded-xl border border-blue-100 bg-blue-50 px-3 py-3">
+                <p className="text-[11px] font-extrabold text-blue-500">操作后发生什么</p>
+                <p className="mt-1 text-xs leading-5 text-blue-800">{nextGuideOutcome}</p>
+              </div>
+              <div className="rounded-xl border border-amber-100 bg-amber-50 px-3 py-3">
+                <p className="text-[11px] font-extrabold text-amber-600">管理员注意</p>
+                <p className="mt-1 text-xs leading-5 text-amber-800">{guideAdminNote}</p>
+              </div>
+            </div>
+            <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-bold">
+              <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-600">
+                项目 {Math.min(currentProjectIndex + 1, totalProjectCount)} / {totalProjectCount}
+              </span>
+              <span className="rounded-full bg-blue-50 px-3 py-1 text-blue-700">
+                {liveData?.phaseLabel ?? getConsolePhaseLabel(currentPhase)}
+              </span>
+              <span className={currentProjectHasAllSubmitted && !scoreRuleIsInvalid ? "rounded-full bg-emerald-50 px-3 py-1 text-emerald-700" : "rounded-full bg-amber-50 px-3 py-1 text-amber-700"}>
+                {calculationBlockReason}
+              </span>
+            </div>
+          </div>
+          <div className="flex flex-col gap-2 sm:flex-row xl:justify-end">
+            {secondaryGuideActions.map((action) => (
+              <button
+                className="inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-extrabold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
+                disabled={action.disabled}
+                key={action.label}
+                onClick={action.onClick}
+                type="button"
+              >
+                {action.label}
+              </button>
+            ))}
+            <button
+              className="inline-flex min-h-11 items-center justify-center rounded-xl bg-blue-600 px-5 text-sm font-extrabold text-white shadow-[0_10px_22px_rgba(37,99,235,0.18)] transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
+              disabled={primaryGuideAction.disabled}
+              onClick={primaryGuideAction.onClick}
+              type="button"
+            >
+              {primaryGuideAction.label}
+            </button>
+          </div>
+        </div>
+      </section>
+    );
     const renderNowBar = () => (
       <div className="review-now-bar sticky top-[72px] z-20 overflow-hidden border-b border-slate-950 bg-[linear-gradient(180deg,var(--stage-dark)_0%,var(--stage-dark-2)_100%)] text-white shadow-[0_4px_20px_rgba(11,18,32,.15)]">
         <div className="grid gap-4 px-5 py-4 xl:grid-cols-[auto_minmax(0,1fr)_auto_auto_auto] xl:items-center">
@@ -2022,40 +2245,6 @@ export default function ExpertReviewTab() {
               <ChevronRight className="h-3.5 w-3.5" />
             </button>
           </div>
-        </div>
-        <div className="flex flex-col gap-3 border-t border-white/10 bg-black/20 px-5 py-3 xl:flex-row xl:items-center">
-          <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-white/40">流程控制</span>
-          <div className="grid flex-1 gap-2 md:grid-cols-5">
-            {workflowSteps.map((step) => {
-              const active = currentPhase === step.phase && !step.done;
-              return (
-                <button
-                  className={`inline-flex min-h-10 items-center justify-center gap-2 rounded-lg border px-3 py-2 text-xs font-extrabold transition ${
-                    step.done
-                      ? "border-emerald-300/25 bg-emerald-400/10 text-emerald-200"
-                      : active || step.enabled
-                        ? "border-[var(--brand)] bg-blue-500/20 text-white shadow-[0_0_0_1px_var(--brand)_inset,0_4px_16px_rgba(30,94,255,.24)]"
-                        : "border-white/10 bg-white/5 text-white/40"
-                  } disabled:cursor-not-allowed disabled:opacity-35`}
-                  disabled={!step.enabled || reviewScreenActionKey?.startsWith(`${group.key}:`)}
-                  key={step.no}
-                  onClick={step.onClick}
-                  type="button"
-                >
-                  <span className="font-mono text-[10px]">{step.done ? "✓" : step.no}</span>
-                  {step.label}
-                </button>
-              );
-            })}
-          </div>
-          <button
-            className="inline-flex min-h-10 items-center justify-center gap-1 rounded-lg border border-white/10 bg-white/10 px-4 text-xs font-extrabold text-white transition hover:bg-white/15 disabled:cursor-not-allowed disabled:opacity-35"
-            disabled={!screenSession}
-            onClick={() => screenSession && window.open(screenSession.screenUrl, "_blank", "noopener,noreferrer")}
-            type="button"
-          >
-            📺 大屏
-          </button>
         </div>
       </div>
     );
@@ -2786,9 +2975,25 @@ export default function ExpertReviewTab() {
                 {warningMessages.join(" ")}
               </div>
             ) : null}
-            {renderAdminScoreMonitor()}
-            {renderConfigCard()}
-            {renderDangerZone()}
+            {renderGuidedControlPanel()}
+            {guideStepKey === "config" ? renderConfigCard() : null}
+            {["scoring", "reveal", "finished"].includes(guideStepKey) ? renderAdminScoreMonitor() : null}
+            <details className="rounded-xl border border-slate-200 bg-white p-4">
+              <summary className="cursor-pointer text-sm font-extrabold text-slate-700">
+                更多管理操作
+              </summary>
+              <div className="mt-4 space-y-4">
+                {guideStepKey !== "config" ? (
+                  <div className="rounded-xl border border-slate-100 bg-slate-50 p-4">
+                    <p className="text-xs font-bold text-slate-500">
+                      配置内容已收起，避免现场推进时误改。如需调整，请先结束或重置本轮。
+                    </p>
+                  </div>
+                ) : null}
+                {renderTrackView()}
+                {renderDangerZone()}
+              </div>
+            </details>
           </div>
           {renderReviewSidebar()}
         </div>

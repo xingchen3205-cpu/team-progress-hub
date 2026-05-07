@@ -250,6 +250,26 @@ describe("roadshow review screen session", () => {
     assert.match(adminTabSource, /result\?\.finalScore\.finalScoreText \?\? "--"/);
   });
 
+  it("uses a guided admin control panel instead of exposing every roadshow action at once", () => {
+    const adminTabSource = readSource("src/components/tabs/expert-review-tab-content.tsx");
+
+    assert.match(adminTabSource, /renderGuidedControlPanel/);
+    assert.match(adminTabSource, /guideStepKey/);
+    assert.match(adminTabSource, /primaryGuideAction/);
+    assert.match(adminTabSource, /secondaryGuideActions/);
+    assert.match(adminTabSource, /review-guided-control-panel/);
+    assert.match(adminTabSource, /当前阶段操作/);
+    assert.match(adminTabSource, /只显示当前阶段主操作/);
+    assert.match(adminTabSource, /本步要做什么/);
+    assert.match(adminTabSource, /操作后发生什么/);
+    assert.match(adminTabSource, /管理员注意/);
+    assert.match(adminTabSource, /nextGuideOutcome/);
+    assert.match(adminTabSource, /更多管理操作/);
+    assert.match(adminTabSource, /guideStepKey === "config" \? renderConfigCard\(\) : null/);
+    assert.match(adminTabSource, /\["scoring",\s*"reveal",\s*"finished"\]\.includes\(guideStepKey\) \? renderAdminScoreMonitor\(\) : null/);
+    assert.doesNotMatch(adminTabSource, /流程控制[\s\S]{0,900}workflowSteps\.map/);
+  });
+
   it("closes unsubmitted roadshow assignments when administrators force-switch away from a scoring project", () => {
     const nextProjectRouteSource = readSource("src/app/api/review-screen/sessions/[sessionId]/next-project/route.ts");
     const phaseRouteSource = readSource("src/app/api/review-screen/sessions/[sessionId]/phase/route.ts");
