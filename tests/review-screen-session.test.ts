@@ -123,9 +123,9 @@ describe("roadshow review screen session", () => {
 
     assert.deepEqual(defaultReviewScreenDisplaySettings, {
       scoringEnabled: true,
-      showScoresOnScreen: true,
-      showFinalScoreOnScreen: true,
-      showRankingOnScreen: true,
+      showScoresOnScreen: false,
+      showFinalScoreOnScreen: false,
+      showRankingOnScreen: false,
       selfDrawEnabled: false,
     });
     assert.deepEqual(
@@ -187,9 +187,9 @@ describe("roadshow review screen session", () => {
     assert.match(schemaSource, /model ReviewDisplayProjectOrder[\s\S]*scoreLockedAt\s+DateTime\?/);
     assert.match(schemaSource, /model ReviewDisplayProjectOrder[\s\S]*droppedSeatNos\s+String\?/);
     assert.match(schemaSource, /model ReviewDisplaySession[\s\S]*scoringEnabled\s+Boolean\s+@default\(true\)/);
-    assert.match(schemaSource, /model ReviewDisplaySession[\s\S]*showScoresOnScreen\s+Boolean\s+@default\(true\)/);
-    assert.match(schemaSource, /model ReviewDisplaySession[\s\S]*showFinalScoreOnScreen\s+Boolean\s+@default\(true\)/);
-    assert.match(schemaSource, /model ReviewDisplaySession[\s\S]*showRankingOnScreen\s+Boolean\s+@default\(true\)/);
+    assert.match(schemaSource, /model ReviewDisplaySession[\s\S]*showScoresOnScreen\s+Boolean\s+@default\(false\)/);
+    assert.match(schemaSource, /model ReviewDisplaySession[\s\S]*showFinalScoreOnScreen\s+Boolean\s+@default\(false\)/);
+    assert.match(schemaSource, /model ReviewDisplaySession[\s\S]*showRankingOnScreen\s+Boolean\s+@default\(false\)/);
     assert.match(schemaSource, /model ReviewDisplaySession[\s\S]*selfDrawEnabled\s+Boolean\s+@default\(false\)/);
     assert.match(schemaSource, /model ReviewDisplayProjectOrder[\s\S]*selfDrawnAt\s+DateTime\?/);
     assert.match(schemaSource, /@@unique\(\[sessionId,\s*seatNo\]\)/);
@@ -285,7 +285,7 @@ describe("roadshow review screen session", () => {
     assert.match(nextProjectRouteSource, /等待下一项目出场/);
     assert.match(adminTabSource, /packageIds/);
     assert.match(adminTabSource, /stageGroupKeys/);
-    assert.match(adminTabSource, /现场大屏控制台/);
+    assert.match(adminTabSource, /review-large-scene/);
     assert.match(adminTabSource, /review-admin-control-shell/);
     assert.match(adminTabSource, /review-stage-strip/);
     assert.match(adminTabSource, /review-now-bar/);
@@ -294,7 +294,10 @@ describe("roadshow review screen session", () => {
     assert.match(adminTabSource, /monitor-matrix/);
     assert.match(adminTabSource, /review-config-card/);
     assert.match(adminTabSource, /review-danger-zone/);
-    assert.match(adminTabSource, /review-sidebar-summary/);
+    assert.match(adminTabSource, /review-content-grid/);
+    assert.match(adminTabSource, /pkg-info/);
+    assert.match(adminTabSource, /overview-grid/);
+    assert.match(adminTabSource, /expert-row/);
     assert.match(adminTabSource, /--stage-dark/);
     assert.match(adminTabSource, /--brand/);
     assert.match(adminTabSource, /LIVE 直播中/);
@@ -312,17 +315,18 @@ describe("roadshow review screen session", () => {
     assert.match(adminTabSource, /正常结束本轮评审/);
     assert.match(adminTabSource, /删除配置/);
     assert.match(adminTabSource, /xl:grid-cols-\[minmax\(0,1fr\)_340px\]/);
-    assert.match(adminTabSource, /投屏同步中/);
-    assert.match(adminTabSource, /phase-control-bar/);
-    assert.match(adminTabSource, /现场检查/);
-    assert.match(adminTabSource, /下一步建议/);
+    assert.doesNotMatch(adminTabSource, /投屏同步中/);
+    assert.doesNotMatch(adminTabSource, /phase-control-bar/);
+    assert.doesNotMatch(adminTabSource, /现场检查/);
+    assert.doesNotMatch(adminTabSource, /下一步建议/);
     assert.match(adminTabSource, /流程控制/);
-    assert.match(adminTabSource, /多组进度/);
+    assert.match(adminTabSource, /分组进度/);
     assert.match(adminTabSource, /progressGroups/);
     assert.match(adminTabSource, /max-h-\[520px\]/);
-    assert.match(adminTabSource, /当前项目最终得分/);
-    assert.match(adminTabSource, /expert-seat-row/);
-    assert.match(adminTabSource, /确认提交分数？将按规则计算最终得分并推送到投屏播放揭晓动画。/);
+    assert.doesNotMatch(adminTabSource, /当前项目最终得分/);
+    assert.match(adminTabSource, /expert-row/);
+    assert.match(adminTabSource, /确认计算并锁定当前项目得分/);
+    assert.doesNotMatch(adminTabSource, /推送到投屏播放揭晓动画/);
     assert.match(adminTabSource, /确认结束本轮所有评审？投屏将进入本轮结束状态/);
     assert.match(adminTabSource, /isScreenSessionFinished/);
     assert.match(adminTabSource, /本轮评审已结束/);
@@ -363,10 +367,12 @@ describe("roadshow review screen session", () => {
     assert.match(phaseRouteSource, /forceFinish/);
     assert.match(adminTabSource, /changeReviewScreenPhase\(group, "finished"/);
     assert.match(adminTabSource, /currentPhase === "finished"/);
-    assert.match(adminTabSource, /canEditScreenSetup/);
+    assert.match(adminTabSource, /canEditConfigFields/);
     assert.match(adminTabSource, /投屏设置已锁定/);
-    assert.match(adminTabSource, /disabled=\{!canEditScreenSetup \|\| disabled\}/);
-    assert.match(adminTabSource, /项目列表只展示本轮顺序和后台分数/);
+    assert.match(adminTabSource, /drawControlsVisible/);
+    assert.match(adminTabSource, /screenDisplay\.selfDrawEnabled/);
+    assert.match(adminTabSource, /不需要抽签/);
+    assert.doesNotMatch(adminTabSource, /项目列表只展示本轮顺序和后台分数/);
     assert.doesNotMatch(adminTabSource, /匿名专家席位/);
     assert.doesNotMatch(adminTabSource, /setActiveGroupKey\(project\.packageId\)/);
     assert.doesNotMatch(adminTabSource, /switchReviewScreenProject\(activeGroup,\s*project\.packageId\)/);
@@ -422,9 +428,9 @@ describe("roadshow review screen session", () => {
     const screenPageSource = readSource("src/app/review-screen/session/[sessionId]/page.tsx");
 
     assert.match(schemaSource, /scoringEnabled\s+Boolean\s+@default\(true\)/);
-    assert.match(schemaSource, /showScoresOnScreen\s+Boolean\s+@default\(true\)/);
-    assert.match(schemaSource, /showFinalScoreOnScreen\s+Boolean\s+@default\(true\)/);
-    assert.match(schemaSource, /showRankingOnScreen\s+Boolean\s+@default\(true\)/);
+    assert.match(schemaSource, /showScoresOnScreen\s+Boolean\s+@default\(false\)/);
+    assert.match(schemaSource, /showFinalScoreOnScreen\s+Boolean\s+@default\(false\)/);
+    assert.match(schemaSource, /showRankingOnScreen\s+Boolean\s+@default\(false\)/);
     assert.match(schemaSource, /selfDrawEnabled\s+Boolean\s+@default\(false\)/);
     assert.match(schemaSource, /selfDrawnAt\s+DateTime\?/);
     assert.match(sessionRouteSource, /normalizeReviewScreenDisplaySettings/);
@@ -448,16 +454,22 @@ describe("roadshow review screen session", () => {
     assert.match(adminTabSource, /seatExpertName/);
     assert.match(adminTabSource, /手动序号/);
     assert.match(adminTabSource, /自助抽签/);
+    assert.match(adminTabSource, /drawControlsVisible/);
+    assert.match(adminTabSource, /仅开启“项目自助抽签”时显示/);
     assert.match(adminTabSource, /manualOrderDrafts/);
     assert.match(adminTabSource, /showScoresOnScreen/);
     assert.match(adminTabSource, /showRankingOnScreen/);
     assert.match(adminTabSource, /screenDisplayDrafts/);
     assert.match(screenPageSource, /screenDisplay/);
+    assert.match(screenPageSource, /drawEnabled/);
+    assert.match(screenPageSource, /phase === "draw" && !drawEnabled/);
     assert.match(screenPageSource, /showScoresOnScreen/);
     assert.match(screenPageSource, /showFinalScoreOnScreen/);
     assert.match(screenPageSource, /showRankingOnScreen/);
     assert.match(screenPageSource, /selfDrawProject/);
     assert.match(screenPageSource, /自助抽签/);
+    assert.match(screenPageSource, /screenDisplay\.showFinalScoreOnScreen && phase === "reveal"/);
+    assert.doesNotMatch(screenPageSource, /等待管理员点击随机抽签/);
   });
 
   it("lets administrators regenerate a screen link for testing even after the old review deadline", () => {
@@ -505,7 +517,7 @@ describe("roadshow review screen session", () => {
   it("includes large-screen key copy and anonymous seat status on the projection screen", () => {
     const screenPageSource = readSource("src/app/review-screen/session/[sessionId]/page.tsx");
 
-    assert.match(screenPageSource, /抽签分组/);
+    assert.match(screenPageSource, /drawEnabled \? "抽签分组" : null/);
     assert.match(screenPageSource, /评审打分/);
     assert.match(screenPageSource, /实时排名/);
     assert.match(screenPageSource, /路演顺序/);

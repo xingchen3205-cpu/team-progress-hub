@@ -106,8 +106,6 @@ type RankingRow = {
   isFinished: boolean;
 };
 
-const screenStateLabels = ["抽签分组", "评审打分", "实时排名", "本轮排名"] as const;
-
 const fallbackSeats: ScreenSeat[] = [
   { assignmentId: "fallback-1", seatNo: 1, displayName: "专家 1", avatarText: "1", status: "pending", scoreText: null },
   { assignmentId: "fallback-2", seatNo: 2, displayName: "专家 2", avatarText: "2", status: "pending", scoreText: null },
@@ -264,7 +262,19 @@ export default function ReviewScreenSessionPage() {
 
   const phase = payload?.session.screenPhase ?? "draw";
   const screenDisplay = normalizeReviewScreenDisplaySettings(payload?.session.screenDisplay);
-  const activeTab = phase === "finished" && !screenDisplay.showRankingOnScreen ? "score" : getTabState(phase);
+  const drawEnabled = screenDisplay.selfDrawEnabled;
+  const screenStateLabels = [
+    drawEnabled ? "抽签分组" : null,
+    "评审打分",
+    screenDisplay.showRankingOnScreen ? "实时排名" : null,
+    screenDisplay.showRankingOnScreen ? "本轮排名" : null,
+  ].filter((label): label is string => Boolean(label));
+  const activeTab =
+    phase === "draw" && !drawEnabled
+      ? "score"
+      : phase === "finished" && !screenDisplay.showRankingOnScreen
+        ? "score"
+        : getTabState(phase);
   const phaseRemaining = payload?.session.phaseRemainingSeconds ?? 0;
   const countdownTone = getCountdownTone(phaseRemaining);
   const projectOrder = useMemo(() => payload?.projectOrder ?? [], [payload?.projectOrder]);
@@ -291,7 +301,7 @@ export default function ReviewScreenSessionPage() {
         projects: group.projects.sort((left, right) => left.groupSlotIndex - right.groupSlotIndex),
       }));
   }, [projectOrder]);
-  const visibleDrawGroups = hasDrawStarted || screenDisplay.selfDrawEnabled ? drawGroups : [];
+  const visibleDrawGroups = drawEnabled && (hasDrawStarted || screenDisplay.selfDrawEnabled) ? drawGroups : [];
   const activeProjectResult =
     projectResults.find((project) => project.reviewPackage.id === payload?.session.currentPackageId) ??
     projectResults.find((project) => !project.finalScore.ready) ??
@@ -316,7 +326,7 @@ export default function ReviewScreenSessionPage() {
   const orderNumber = getOrderIndex(projectOrder, payload?.session.currentPackageId ?? "") || currentIndex + 1;
   const seatPulse = usePulseKey(seats.map((seat) => `${seat.assignmentId}:${seat.status}:${seat.scoreText}`).join("|"));
   const revealStartedAt = payload?.session.revealStartedAt;
-  const revealFrameTime = useRevealAnimationFrame(revealStartedAt, phase === "reveal");
+  const revealFrameTime = useRevealAnimationFrame(revealStartedAt, screenDisplay.showFinalScoreOnScreen && phase === "reveal");
   const droppedSeatReasonByNo = useMemo(() => {
     const map = new Map<number, string>();
     for (const item of activeFinalScore?.droppedSeatReasons ?? []) {
@@ -331,12 +341,12 @@ export default function ReviewScreenSessionPage() {
         .map((seat) => seat.scoreText ?? "0.00");
 
   useEffect(() => {
-    if (phase === "draw" && hasDrawStarted && projectOrder.length > 0) {
+    if (drawEnabled && phase === "draw" && hasDrawStarted && projectOrder.length > 0) {
       const startedAt = Date.now();
       setDrawAnimationStartedAt(startedAt);
       setDrawFrameTime(startedAt);
     }
-  }, [hasDrawStarted, phase, projectOrder.length, projectOrderKey]);
+  }, [drawEnabled, hasDrawStarted, phase, projectOrder.length, projectOrderKey]);
 
   useEffect(() => {
     if (drawAnimationStartedAt === null) return;
@@ -410,6 +420,7 @@ export default function ReviewScreenSessionPage() {
   const drawAnimationDuration = Math.min(projectOrder.length, 12) * 1100 + 700;
   const drawElapsed = drawAnimationStartedAt === null ? 0 : drawFrameTime - drawAnimationStartedAt;
   const drawOverlayActive =
+    drawEnabled &&
     phase === "draw" &&
     hasDrawStarted &&
     projectOrder.length > 0 &&
@@ -424,8 +435,9 @@ export default function ReviewScreenSessionPage() {
     ? ((Math.floor(drawFrameTime / 75) % projectOrder.length) + 1)
     : 1;
   const hasPendingSelfDrawProjects =
-    screenDisplay.selfDrawEnabled && projectOrder.some((project) => !project.selfDrawnAt);
+    drawEnabled && projectOrder.some((project) => !project.selfDrawnAt);
   const isWaitingNextProject =
+    drawEnabled &&
     phase === "draw" &&
     hasDrawStarted &&
     projectOrder.length > 0 &&
@@ -844,7 +856,7 @@ export default function ReviewScreenSessionPage() {
         </div>
         <div className="relative z-10 flex items-center gap-5">
           <span className="rounded-lg border border-white/20 bg-white/12 px-5 py-2 text-sm font-bold tracking-wide">
-            {getPhaseLabel(phase)}
+            {payload?.session.phaseLabel ?? getPhaseLabel(phase)}
           </span>
           <span className="font-mono text-[26px] font-black tracking-[2px]">{timeText}</span>
         </div>
@@ -935,8 +947,8 @@ export default function ReviewScreenSessionPage() {
               ) : (
                 <div className="contest-card col-span-full flex min-h-[420px] flex-col items-center justify-center text-center text-slate-400">
                   <ShieldCheck className="h-14 w-14 text-blue-200" />
-                  <p className="mt-4 text-base font-black text-slate-500">等待管理员点击随机抽签</p>
-                  <p className="mt-1 text-sm">打开大屏不会自动抽签，抽签后才同步分组结果</p>
+                  <p className="mt-4 text-base font-black text-slate-500">等待项目确认出场顺序</p>
+                  <p className="mt-1 text-sm">项目自助抽签开启后，现场点击项目卡片即可同步顺序</p>
                 </div>
               )}
             </div>
@@ -1129,7 +1141,7 @@ export default function ReviewScreenSessionPage() {
         </section>
       ) : null}
 
-      {drawOverlayActive && drawOverlayItem ? (
+      {drawEnabled && drawOverlayActive && drawOverlayItem ? (
         <section className="draw-sequence-overlay">
           <div className="draw-sequence-card">
             <p className="text-sm font-black tracking-[2px] text-slate-400">抽签进行中</p>
@@ -1146,7 +1158,7 @@ export default function ReviewScreenSessionPage() {
         </section>
       ) : null}
 
-      {phase === "reveal" && screenDisplay.showFinalScoreOnScreen ? (
+      {screenDisplay.showFinalScoreOnScreen && phase === "reveal" ? (
         <section className="score-reveal-overlay">
           <div className="reveal-score-grid">
             {seats.map((seat) => {

@@ -287,7 +287,7 @@ export async function GET(
         ? anonymousSeats
         : anonymousSeats.map((seat) => ({ ...seat, scoreText: null }));
     const visibleFinalScore =
-      adminCanSeeScores || screenDisplay.showScoresOnScreen
+      adminCanSeeScores || screenDisplay.showFinalScoreOnScreen
         ? lockedFinalScore
         : { ...lockedFinalScore, validScoreTexts: [] };
 
@@ -408,6 +408,11 @@ export async function GET(
     (o) => o.packageId === currentPackageId,
   );
 
+  const phaseLabel =
+    screenPhase === "draw" && !screenDisplay.selfDrawEnabled
+      ? "待开始"
+      : getPhaseLabel(screenPhase);
+
   return NextResponse.json({
     session: {
       id: session.id,
@@ -426,7 +431,7 @@ export async function GET(
       phaseStartedAt: session.phaseStartedAt?.toISOString() ?? null,
       revealStartedAt: session.revealStartedAt?.toISOString() ?? null,
       timeline,
-      phaseLabel: getPhaseLabel(screenPhase),
+      phaseLabel,
       phaseRemainingSeconds,
       currentPackageId,
       currentProjectIndex: currentProjectIndex >= 0 ? currentProjectIndex : 0,

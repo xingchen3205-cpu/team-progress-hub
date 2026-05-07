@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { assertRole } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import { pickReviewScreenDisplaySettings } from "@/lib/review-screen-display-settings";
 import { calculateReviewScreenFinalScore } from "@/lib/review-screen-session";
 import { validateReviewScoreRule } from "@/lib/review-score-rules";
 
@@ -105,7 +106,7 @@ export async function POST(
 
   if (!finalScore.ready) {
     return NextResponse.json(
-      { message: "还有专家未提交评分，不能揭晓分数", waitingSeatNos: finalScore.waitingSeatNos },
+      { message: "还有专家未提交评分，不能计算得分", waitingSeatNos: finalScore.waitingSeatNos },
       { status: 409 },
     );
   }
@@ -118,6 +119,9 @@ export async function POST(
   if (scoreRuleError) {
     return NextResponse.json({ message: scoreRuleError }, { status: 409 });
   }
+
+  const screenDisplay = pickReviewScreenDisplaySettings(session);
+  const shouldRevealOnScreen = screenDisplay.showFinalScoreOnScreen;
 
   const updated = await prisma.$transaction(async (tx) => {
     const lockedAt = new Date();
@@ -138,12 +142,18 @@ export async function POST(
 
     return tx.reviewDisplaySession.update({
       where: { id: sessionId },
-      data: {
-        screenPhase: "reveal",
-        phaseStartedAt: lockedAt,
-        revealStartedAt: lockedAt,
-        status: "revealed",
-      },
+      data: shouldRevealOnScreen
+        ? {
+            screenPhase: "reveal",
+            phaseStartedAt: lockedAt,
+            revealStartedAt: lockedAt,
+            status: "revealed",
+          }
+        : {
+            screenPhase: "scoring",
+            revealStartedAt: null,
+            status: "scoring",
+          },
       select: {
         id: true,
         screenPhase: true,
@@ -160,6 +170,7 @@ export async function POST(
       phaseStartedAt: updated.phaseStartedAt?.toISOString() ?? null,
       revealStartedAt: updated.revealStartedAt?.toISOString() ?? null,
     },
+    revealOnScreen: shouldRevealOnScreen,
     finalScore: {
       finalScoreText: finalScore.finalScoreText,
       finalScoreCents: finalScore.finalScoreCents,

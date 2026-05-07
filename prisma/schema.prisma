@@ -637,9 +637,9 @@ model ReviewDisplaySession {
   qaSeconds              Int                         @default(420)
   scoringSeconds         Int                         @default(60)
   scoringEnabled         Boolean                     @default(true)
-  showScoresOnScreen     Boolean                     @default(true)
-  showFinalScoreOnScreen Boolean                     @default(true)
-  showRankingOnScreen    Boolean                     @default(true)
+  showScoresOnScreen     Boolean                     @default(false)
+  showFinalScoreOnScreen Boolean                     @default(false)
+  showRankingOnScreen    Boolean                     @default(false)
   selfDrawEnabled        Boolean                     @default(false)
   phaseStartedAt         DateTime?
   revealStartedAt        DateTime?

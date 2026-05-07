@@ -8,9 +8,9 @@ export type ReviewScreenDisplaySettings = {
 
 export const defaultReviewScreenDisplaySettings: ReviewScreenDisplaySettings = {
   scoringEnabled: true,
-  showScoresOnScreen: true,
-  showFinalScoreOnScreen: true,
-  showRankingOnScreen: true,
+  showScoresOnScreen: false,
+  showFinalScoreOnScreen: false,
+  showRankingOnScreen: false,
   selfDrawEnabled: false,
 };
 
