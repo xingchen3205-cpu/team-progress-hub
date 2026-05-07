@@ -411,35 +411,27 @@ export default function ReviewScreenSessionPage() {
         return right.score - left.score;
       });
   }, [payload?.session.currentPackageId, projectOrder, projectResults]);
-  const finishedRankingVisible = phase === "finished" && rankingRows.some((row) => row.score !== null);
+  const finishedRankingVisible = phase === "finished" && rankingRows.length > 0;
   const waitingScreen =
     phase === "finished" && !finishedRankingVisible
       ? {
-          eyebrow: "ROUND FINISHED",
           title: "本轮路演已结束",
           description: "请等待管理员开启下一轮评审",
-          status: "现场已收尾",
         }
       : phase === "draw" && !drawEnabled
         ? hasCurrentProject
           ? activeProjectCompleted
             ? {
-                eyebrow: "PROJECT COMPLETE",
                 title: "本项目评审已完成，等待下一项目",
                 description: `第 ${orderNumber} / ${Math.max(totalCount, projectOrder.length, 1)} 项 · ${targetName}`,
-                status: "等待切换项目",
               }
             : {
-                eyebrow: "NEXT PROJECT",
                 title: "请等待下一个项目路演开始",
                 description: `第 ${orderNumber} / ${Math.max(totalCount, projectOrder.length, 1)} 项 · ${targetName}`,
-                status: "等待管理员开始路演",
               }
           : {
-              eyebrow: "WAITING",
               title: "请等待管理员分配路演项目",
               description: title,
-              status: "等待项目同步",
             }
         : null;
   const activeTab = finishedRankingVisible
@@ -756,20 +748,6 @@ export default function ReviewScreenSessionPage() {
           font-size: clamp(18px, 2vw, 28px);
           font-weight: 800;
         }
-        .waiting-stage-status {
-          margin-top: 38px;
-          display: inline-flex;
-          align-items: center;
-          justify-content: center;
-          border-radius: 999px;
-          border: 1px solid rgba(255,255,255,.26);
-          background: rgba(255,255,255,.14);
-          padding: 12px 22px;
-          color: rgba(255,255,255,.88);
-          font-size: 14px;
-          font-weight: 900;
-          backdrop-filter: blur(10px);
-        }
         .score-reveal-overlay {
           position: fixed;
           inset: 0;
@@ -1028,11 +1006,11 @@ export default function ReviewScreenSessionPage() {
         <div className="relative z-10 flex min-w-0 items-center gap-4">
           <Image
             alt="南京铁道职业技术学院校徽"
-            className="h-12 w-12 shrink-0 rounded-full bg-white p-1.5 shadow-sm ring-1 ring-white/50"
-            height={48}
+            className="h-14 w-14 shrink-0 rounded-full bg-white object-contain shadow-sm ring-1 ring-white/50"
+            height={56}
             priority
             src="/brand/njrts-logo.png"
-            width={48}
+            width={56}
           />
           <div className="min-w-0">
             <h1 className="truncate text-xl font-black tracking-[0.5px]">南京铁道职业技术学院</h1>
@@ -1058,13 +1036,8 @@ export default function ReviewScreenSessionPage() {
         {activeTab === "waiting" && waitingScreen ? (
           <div className="waiting-stage">
             <div className="waiting-stage-content">
-              <p className="text-sm font-black uppercase tracking-[4px] text-white/50">{waitingScreen.eyebrow}</p>
               <h2 className="waiting-stage-title">{waitingScreen.title}</h2>
               <p className="waiting-stage-description">{waitingScreen.description}</p>
-              <div className="waiting-stage-status">
-                <span className="mr-3 h-2.5 w-2.5 rounded-full bg-white/80 shadow-[0_0_18px_rgba(255,255,255,.75)]" />
-                {waitingScreen.status}
-              </div>
             </div>
           </div>
         ) : null}
@@ -1073,7 +1046,7 @@ export default function ReviewScreenSessionPage() {
           <>
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs font-black tracking-[2px] text-[#c22832]">ROADSHOW DRAW</p>
+                <p className="text-xs font-black tracking-[2px] text-[#c22832]">路演抽签</p>
                 <h2 className="mt-1 text-2xl font-black text-[#0f2040]">路演顺序抽签</h2>
               </div>
               <div className="rounded-full border border-blue-100 bg-white px-4 py-2 text-sm font-bold text-blue-700 shadow-sm">
@@ -1084,7 +1057,7 @@ export default function ReviewScreenSessionPage() {
             {isWaitingNextProject ? (
               <div className="contest-card flex shrink-0 items-center justify-between gap-6 px-6 py-5">
                 <div>
-                  <p className="text-xs font-black tracking-[2px] text-blue-600">NEXT PROJECT</p>
+                  <p className="text-xs font-black tracking-[2px] text-blue-600">下一项目</p>
                   <h3 className="mt-1 text-3xl font-black text-[#0f2040]">请等待下一个项目路演开始</h3>
                   <p className="mt-2 text-sm font-bold text-slate-500">
                     第 {orderNumber} / {Math.max(totalCount, projectOrder.length, 1)} 项 · {targetName}
@@ -1282,7 +1255,7 @@ export default function ReviewScreenSessionPage() {
               projectName: row.project.reviewPackage.targetName,
               presentationOrder: row.roadshowOrder || index + 1,
               trackName: row.project.reviewPackage.roundLabel || "项目路演评审",
-              score: row.score ?? Number.NaN,
+              score: row.score ?? 0,
             }))}
             roundLabel={`共 ${rankingRows.length} 项`}
             sessionTitle={title}

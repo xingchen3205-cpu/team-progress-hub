@@ -439,18 +439,19 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
               <div aria-hidden className="absolute -right-20 -top-28 h-72 w-72 rounded-full border border-white/20" />
               <div aria-hidden className="absolute right-16 top-8 h-32 w-32 rounded-full border border-white/15" />
               <div aria-hidden className="absolute bottom-0 right-0 h-32 w-[420px] bg-[radial-gradient(circle_at_70%_80%,rgba(255,255,255,0.28),transparent_60%)]" />
-              <div className="relative z-[1] flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
-                <div className="flex items-center gap-4">
-                  <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-white/25 bg-white/15 shadow-[0_16px_40px_rgba(0,0,0,0.12)] backdrop-blur">
-                    <Image alt="南铁校徽" className="h-9 w-9 object-contain brightness-0 invert" height={77} src="/official-logo.png" width={430} />
+              <div className="relative z-[1] flex flex-col items-center gap-5 text-center md:flex-row md:items-center md:justify-between md:text-left">
+                <div className="flex w-full flex-col items-center gap-4 md:w-auto md:flex-row md:items-center">
+                  <div className="flex h-16 w-16 items-center justify-center rounded-full border border-white/35 bg-white shadow-[0_16px_40px_rgba(0,0,0,0.12)]">
+                    <Image alt="南铁校徽" className="h-16 w-16 object-contain" height={64} src="/brand/njrts-logo.png" width={64} />
                   </div>
-                  <div>
-                    <p className="text-xs font-semibold tracking-[0.2em] text-blue-100">EXPERT REVIEW PORTAL</p>
-                    <h1 className="mt-1 text-2xl font-bold tracking-tight">大学生创新大赛评审系统</h1>
-                    <p className="mt-1 text-sm text-blue-100">南京铁道职业技术学院 · 专家评审入口</p>
+                  <div className="mx-auto max-w-[18em] md:mx-0">
+                    <h1 className="text-center text-[28px] font-bold leading-tight tracking-tight md:text-left md:text-3xl">
+                      南京铁道职业技术学院大赛评审系统
+                    </h1>
+                    <p className="mt-2 text-center text-sm text-blue-100 md:text-left">专家评审入口</p>
                   </div>
                 </div>
-                <div className="flex flex-wrap items-center gap-3">
+                <div className="flex flex-wrap items-center justify-center gap-3 md:justify-end">
                   <div className="rounded-2xl border border-white/20 bg-white/12 px-4 py-2.5 text-sm text-blue-50 backdrop-blur">
                     <span className="text-blue-100">当前专家</span>
                     <span className="ml-2 font-semibold text-white">{currentUser.profile.name}</span>

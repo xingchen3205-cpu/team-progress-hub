@@ -466,7 +466,7 @@ describe("roadshow review screen session", () => {
     assert.match(screenPageSource, /本项目评审已完成，等待下一项目/);
     assert.match(screenPageSource, /本轮路演已结束/);
     assert.match(screenPageSource, /请等待管理员分配路演项目/);
-    assert.match(screenPageSource, /phase === "finished" && rankingRows\.some\(\(row\) => row\.score !== null\)/);
+    assert.match(screenPageSource, /phase === "finished" && rankingRows\.length > 0/);
     assert.doesNotMatch(screenPageSource, /phase === "finished" && !screenDisplay\.showRankingOnScreen/);
     assert.doesNotMatch(screenPageSource, /phase === "finished" && screenDisplay\.showRankingOnScreen/);
     assert.doesNotMatch(screenPageSource, /phase === "draw" && !drawEnabled\s*\?\s*"score"/);
@@ -574,8 +574,10 @@ describe("roadshow review screen session", () => {
     assert.match(screenPageSource, /payload\?\.session\.phaseLabel \?\? getPhaseLabel\(phase\)/);
     assert.match(screenPageSource, /\/brand\/njrts-logo\.png/);
     assert.match(screenPageSource, /南京铁道职业技术学院校徽/);
+    assert.match(screenPageSource, /object-contain/);
     assert.equal(existsSync(path.join(process.cwd(), "public/brand/njrts-logo.png")), true);
     assert.doesNotMatch(screenPageSource, />校徽</);
+    assert.doesNotMatch(screenPageSource, /rounded-full bg-white p-1\.5/);
     assert.doesNotMatch(screenPageSource, /useCurrentTime/);
     assert.doesNotMatch(screenPageSource, /timeText/);
     assert.doesNotMatch(screenPageSource, /currentTime/);
@@ -659,7 +661,10 @@ describe("roadshow review screen session", () => {
     assert.match(screenPageSource, /seat-pop/);
     assert.match(screenPageSource, /FinalRankingStage/);
     assert.match(screenPageSource, /activeTab === "rank"/);
+    assert.match(screenPageSource, /score:\s*row\.score \?\? 0/);
     assert.doesNotMatch(screenPageSource, /activeTab === "rank" && screenDisplay\.showRankingOnScreen/);
+    assert.doesNotMatch(screenPageSource, /ROUND FINISHED|PROJECT COMPLETE|WAITING/);
+    assert.doesNotMatch(screenPageSource, /现场已收尾|waiting-stage-status/);
     assert.match(rankingStageSource, /final-ranking-stage/);
     assert.match(rankingStageSource, /final-ranking-champion/);
     assert.match(rankingStageSource, /final-ranking-podium-card/);
