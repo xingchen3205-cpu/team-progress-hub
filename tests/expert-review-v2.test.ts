@@ -484,13 +484,13 @@ describe("expert review v2 constraints", () => {
     assert.doesNotMatch(tabSource, /取消本阶段评审配置[\s\S]{0,600}deleteReviewAssignment\(activeGroup\.items\[0\]\.id/);
   });
 
-  it("collapses finished roadshow groups so other simultaneous groups remain visible", () => {
+  it("collapses finished roadshow projects so other simultaneous projects remain visible", () => {
     const tabSource = readSource("src/components/tabs/expert-review-tab-content.tsx");
 
     assert.match(tabSource, /roadshowGroupCards/);
     assert.match(tabSource, /activeRoadshowConsoleFinished/);
     assert.match(tabSource, /本轮已结束，已收起现场控制台/);
-    assert.match(tabSource, /查看该路演组/);
+    assert.match(tabSource, /切换到该项目/);
     assert.match(tabSource, /renderRoadshowGroupCards/);
     assert.doesNotMatch(tabSource, /activeGroupIsRoadshow && activeGroup \? \(\s*<main className="space-y-5">\s*\{renderReviewScreenConsole\(activeGroup\)\}/);
   });

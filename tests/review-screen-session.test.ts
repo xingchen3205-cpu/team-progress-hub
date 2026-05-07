@@ -259,15 +259,28 @@ describe("roadshow review screen session", () => {
     assert.match(adminTabSource, /secondaryGuideActions/);
     assert.match(adminTabSource, /review-guided-control-panel/);
     assert.match(adminTabSource, /当前阶段操作/);
-    assert.match(adminTabSource, /只显示当前阶段主操作/);
-    assert.match(adminTabSource, /本步要做什么/);
-    assert.match(adminTabSource, /操作后发生什么/);
-    assert.match(adminTabSource, /管理员注意/);
-    assert.match(adminTabSource, /nextGuideOutcome/);
+    assert.match(adminTabSource, /配置本轮/);
+    assert.match(adminTabSource, /reviewConfigModalGroupKey/);
     assert.match(adminTabSource, /更多管理操作/);
-    assert.match(adminTabSource, /guideStepKey === "config" \? renderConfigCard\(\) : null/);
+    assert.match(adminTabSource, /reviewConfigModalGroupKey === group\.key/);
+    assert.doesNotMatch(adminTabSource, /本步要做什么/);
+    assert.doesNotMatch(adminTabSource, /操作后发生什么/);
+    assert.doesNotMatch(adminTabSource, /管理员注意/);
+    assert.doesNotMatch(adminTabSource, /上一项目/);
+    assert.doesNotMatch(adminTabSource, /保存配置/);
+    assert.doesNotMatch(adminTabSource, /guideStepKey === "config" \? renderConfigCard\(\) : null/);
     assert.match(adminTabSource, /\["scoring",\s*"reveal",\s*"finished"\]\.includes\(guideStepKey\) \? renderAdminScoreMonitor\(\) : null/);
     assert.doesNotMatch(adminTabSource, /流程控制[\s\S]{0,900}workflowSteps\.map/);
+  });
+
+  it("names roadshow cards as projects instead of splitting one round into roadshow groups", () => {
+    const adminTabSource = readSource("src/components/tabs/expert-review-tab-content.tsx");
+
+    assert.match(adminTabSource, /本轮项目/);
+    assert.match(adminTabSource, /切换到该项目/);
+    assert.doesNotMatch(adminTabSource, /路演组/);
+    assert.doesNotMatch(adminTabSource, /查看该路演组/);
+    assert.doesNotMatch(adminTabSource, /多个路演组/);
   });
 
   it("closes unsubmitted roadshow assignments when administrators force-switch away from a scoring project", () => {
@@ -393,11 +406,10 @@ describe("roadshow review screen session", () => {
     assert.match(adminTabSource, /LIVE 直播中/);
     assert.match(adminTabSource, /当前项目/);
     assert.match(adminTabSource, /倒计时/);
-    assert.match(adminTabSource, /上一项目/);
     assert.match(adminTabSource, /下一项目/);
     assert.match(adminTabSource, /完成本项/);
     assert.match(adminTabSource, /全场进度/);
-    assert.match(adminTabSource, /路演轨道/);
+    assert.match(adminTabSource, /本轮项目进度/);
     assert.match(adminTabSource, /评分监看矩阵 · 项目 × 专家 · 实时状态/);
     assert.match(adminTabSource, /⚠ 后台实名/);
     assert.match(adminTabSource, /此区域仅后台可见/);
@@ -410,8 +422,8 @@ describe("roadshow review screen session", () => {
     assert.doesNotMatch(adminTabSource, /现场检查/);
     assert.doesNotMatch(adminTabSource, /下一步建议/);
     assert.match(adminTabSource, /流程控制/);
-    assert.match(adminTabSource, /分组进度/);
-    assert.match(adminTabSource, /progressGroups/);
+    assert.match(adminTabSource, /本轮进度/);
+    assert.match(adminTabSource, /projectProgressItems/);
     assert.match(adminTabSource, /max-h-\[520px\]/);
     assert.doesNotMatch(adminTabSource, /当前项目最终得分/);
     assert.match(adminTabSource, /expert-row/);
@@ -437,7 +449,7 @@ describe("roadshow review screen session", () => {
     assert.match(adminTabSource, /去最低分/);
     assert.doesNotMatch(adminTabSource, /updateScreenTimingDraft\(group\.key,\s*"dropHighestCount"/);
     assert.doesNotMatch(adminTabSource, /updateScreenTimingDraft\(group\.key,\s*"dropLowestCount"/);
-    assert.match(adminTabSource, /路演分组容量/);
+    assert.doesNotMatch(adminTabSource, /路演分组容量/);
     assert.match(adminTabSource, /getRoadshowGroupSizesPayload/);
     assert.match(adminTabSource, /uniqueSessionEntries/);
     assert.match(adminTabSource, /projectResults/);
