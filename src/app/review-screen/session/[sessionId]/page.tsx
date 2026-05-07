@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useParams, useSearchParams } from "next/navigation";
 import { CheckCircle2, Clock, ShieldCheck } from "lucide-react";
 
+import { FinalRankingStage } from "@/components/review-screen/FinalRankingStage";
 import {
   normalizeReviewScreenDisplaySettings,
   type ReviewScreenDisplaySettings,
@@ -119,20 +120,32 @@ const formatSeconds = (seconds: number) => {
   return `${String(minutes).padStart(2, "0")}:${String(restSeconds).padStart(2, "0")}`;
 };
 
-const useCurrentTime = () => {
-  const [time, setTime] = useState(() => new Date());
+const useServerClockOffset = (serverTime?: string) => {
+  const offsetRef = useRef(0);
+
   useEffect(() => {
-    const timer = window.setInterval(() => setTime(new Date()), 1000);
-    return () => window.clearInterval(timer);
-  }, []);
-  return time;
+    if (!serverTime) return;
+    const parsedServerTime = new Date(serverTime).getTime();
+    if (!Number.isNaN(parsedServerTime)) {
+      offsetRef.current = parsedServerTime - Date.now();
+    }
+  }, [serverTime]);
+
+  return offsetRef;
 };
 
-const useRevealAnimationFrame = (revealStartedAt?: string | null, active = false) => {
+const useRevealAnimationFrame = (
+  revealStartedAt?: string | null,
+  active = false,
+  serverClockOffsetRef?: { current: number },
+) => {
   const [revealFrameTime, setRevealFrameTime] = useState(() => Date.now());
 
   useEffect(() => {
+    const getFrameTime = () => Date.now() + (serverClockOffsetRef?.current ?? 0);
+
     if (!active || !revealStartedAt) {
+      setRevealFrameTime(getFrameTime());
       return;
     }
 
@@ -143,7 +156,7 @@ const useRevealAnimationFrame = (revealStartedAt?: string | null, active = false
 
     let animationFrameId = 0;
     const tick = () => {
-      const now = Date.now();
+      const now = getFrameTime();
       setRevealFrameTime(now);
       if (now - startedTime < 3200) {
         animationFrameId = window.requestAnimationFrame(tick);
@@ -152,7 +165,7 @@ const useRevealAnimationFrame = (revealStartedAt?: string | null, active = false
 
     animationFrameId = window.requestAnimationFrame(tick);
     return () => window.cancelAnimationFrame(animationFrameId);
-  }, [active, revealStartedAt]);
+  }, [active, revealStartedAt, serverClockOffsetRef]);
 
   return revealFrameTime;
 };
@@ -205,13 +218,6 @@ const getOrderIndex = (projectOrder: ProjectOrderItem[], packageId: string) => {
   return index >= 0 ? index + 1 : 0;
 };
 
-const getRankingBadgeClassName = (rank: number) => {
-  if (rank === 1) return "rank-badge gold";
-  if (rank === 2) return "rank-badge silver";
-  if (rank === 3) return "rank-badge bronze";
-  return "rank-badge plain";
-};
-
 export default function ReviewScreenSessionPage() {
   const params = useParams<{ sessionId: string }>();
   const searchParams = useSearchParams();
@@ -220,7 +226,6 @@ export default function ReviewScreenSessionPage() {
   const [errorMessage, setErrorMessage] = useState("");
   const [drawAnimationStartedAt, setDrawAnimationStartedAt] = useState<number | null>(null);
   const [drawFrameTime, setDrawFrameTime] = useState(() => Date.now());
-  const currentTime = useCurrentTime();
 
   useEffect(() => {
     let cancelled = false;
@@ -263,6 +268,7 @@ export default function ReviewScreenSessionPage() {
   }, [params.sessionId, token]);
 
   const phase = payload?.session.screenPhase ?? "draw";
+  const serverClockOffsetRef = useServerClockOffset(payload?.serverTime);
   const screenDisplay = normalizeReviewScreenDisplaySettings(payload?.session.screenDisplay);
   const drawEnabled = screenDisplay.selfDrawEnabled;
   const screenStateLabels = [
@@ -365,7 +371,11 @@ export default function ReviewScreenSessionPage() {
   const progressOffset = 188 - progressRatio * 188;
   const seatPulse = usePulseKey(seats.map((seat) => `${seat.assignmentId}:${seat.status}:${seat.scoreText}`).join("|"));
   const revealStartedAt = payload?.session.revealStartedAt;
-  const revealFrameTime = useRevealAnimationFrame(revealStartedAt, screenDisplay.showFinalScoreOnScreen && phase === "reveal");
+  const revealFrameTime = useRevealAnimationFrame(
+    revealStartedAt,
+    screenDisplay.showFinalScoreOnScreen && phase === "reveal",
+    serverClockOffsetRef,
+  );
   const droppedSeatReasonByNo = useMemo(() => {
     const map = new Map<number, string>();
     for (const item of activeFinalScore?.droppedSeatReasons ?? []) {
@@ -395,14 +405,6 @@ export default function ReviewScreenSessionPage() {
     }, 75);
     return () => window.clearInterval(timer);
   }, [drawAnimationStartedAt, projectOrder.length]);
-
-  const timeText = useMemo(
-    () =>
-      [currentTime.getHours(), currentTime.getMinutes(), currentTime.getSeconds()]
-        .map((value) => String(value).padStart(2, "0"))
-        .join(":"),
-    [currentTime],
-  );
 
   const revealElapsedMs = useMemo(() => {
     if (!revealStartedAt) return 0;
@@ -991,20 +993,6 @@ export default function ReviewScreenSessionPage() {
           line-height: 1;
           animation: score-pop .58s cubic-bezier(.16,1,.3,1);
         }
-        .rank-badge {
-          display: inline-flex;
-          width: 30px;
-          height: 30px;
-          border-radius: 999px;
-          align-items: center;
-          justify-content: center;
-          font-size: 13px;
-          font-weight: 900;
-        }
-        .rank-badge.gold { background: linear-gradient(135deg, #fcd34d, #f59e0b); color: #78350f; box-shadow: 0 2px 8px rgba(245,158,11,0.3); }
-        .rank-badge.silver { background: linear-gradient(135deg, #e2e8f0, #cbd5e1); color: #334155; }
-        .rank-badge.bronze { background: linear-gradient(135deg, #fed7aa, #fb923c); color: #7c2d12; }
-        .rank-badge.plain { background: #f0f4f9; color: #94a3b8; }
         @keyframes dot-breathe {
           0%, 80%, 100% { opacity: .32; transform: scale(.8); }
           40% { opacity: 1; transform: scale(1.3); }
@@ -1050,20 +1038,19 @@ export default function ReviewScreenSessionPage() {
       `}</style>
 
       <header className="screen-banner screen-hero-gradient flex items-center justify-between px-11 text-white">
-        <div className="relative z-10 flex items-center gap-4">
-          <div className="flex h-10 w-10 items-center justify-center rounded-xl border-2 border-white/25 bg-white/15 text-lg font-black">
-            创
+        <div className="relative z-10 flex min-w-0 items-center gap-4">
+          <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-white text-xs font-black text-[#1a3a6e] ring-1 ring-white/40">
+            校徽
           </div>
-          <div>
-            <h1 className="text-lg font-black tracking-[1.5px]">中国国际大学生创新大赛</h1>
-            <p className="mt-0.5 text-xs font-medium tracking-[1px] text-white/70">{title} · 路演答辩评审投屏</p>
+          <div className="min-w-0">
+            <h1 className="truncate text-xl font-black tracking-[0.5px]">南京铁道职业技术学院</h1>
+            <p className="mt-0.5 truncate text-sm font-semibold tracking-[0.5px] text-white/75">{title}</p>
           </div>
         </div>
-        <div className="relative z-10 flex items-center gap-5">
+        <div className="relative z-10 shrink-0">
           <span className="rounded-lg border border-white/20 bg-white/12 px-5 py-2 text-sm font-bold tracking-wide">
             {payload?.session.phaseLabel ?? getPhaseLabel(phase)}
           </span>
-          <span className="font-mono text-[26px] font-black tracking-[2px]">{timeText}</span>
         </div>
       </header>
 
@@ -1297,53 +1284,17 @@ export default function ReviewScreenSessionPage() {
         ) : null}
 
         {activeTab === "rank" && screenDisplay.showRankingOnScreen ? (
-          <>
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-xs font-black tracking-[2px] text-[#c22832]">LIVE RANKING</p>
-                <h2 className="mt-1 text-2xl font-black text-[#0f2040]">本轮评审最终排名</h2>
-              </div>
-              <div className="flex items-center gap-2 text-sm font-bold text-[#d93440]">
-                <span className="h-2 w-2 animate-pulse rounded-full bg-[#d93440]" />
-                实时刷新中
-              </div>
-            </div>
-
-            <div className="contest-card flex-1 overflow-hidden">
-              <table className="h-full w-full border-collapse text-sm">
-                <thead className="bg-[#1a3a6e] text-white">
-                  <tr>
-                    <th className="w-[8%] px-5 py-4 text-center text-xs font-bold tracking-wide">排名</th>
-                    <th className="w-[38%] px-5 py-4 text-left text-xs font-bold tracking-wide">项目名称</th>
-                    <th className="w-[10%] px-5 py-4 text-center text-xs font-bold tracking-wide">路演顺序</th>
-                    <th className="w-[24%] px-5 py-4 text-left text-xs font-bold tracking-wide">赛道</th>
-                    <th className="w-[20%] px-5 py-4 text-center text-xs font-bold tracking-wide">得分</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {rankingRows.length ? (
-                    rankingRows.map((row, index) => (
-                      <tr className={`border-b border-slate-100 transition-colors odd:bg-slate-50 ${row.isCurrent ? "!bg-blue-50" : ""}`} key={row.project.reviewPackage.id}>
-                        <td className="px-5 py-4 text-center">
-                          <span className={getRankingBadgeClassName(index + 1)}>{index + 1}</span>
-                        </td>
-                        <td className="px-5 py-4 font-bold text-slate-900">{row.project.reviewPackage.targetName}</td>
-                        <td className="px-5 py-4 text-center font-mono font-black text-slate-700">{row.roadshowOrder || "-"}</td>
-                        <td className="px-5 py-4 text-slate-500">{row.project.reviewPackage.roundLabel || "项目路演评审"}</td>
-                        <td className="px-5 py-4 text-center font-mono text-lg font-black text-[#c22832]">
-                          {row.score === null ? "--" : row.score.toFixed(2)}
-                        </td>
-                      </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td className="px-5 py-20 text-center text-slate-400" colSpan={5}>暂无评审数据</td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </>
+          <FinalRankingStage
+            rankings={rankingRows.map((row, index) => ({
+              rank: index + 1,
+              projectName: row.project.reviewPackage.targetName,
+              presentationOrder: row.roadshowOrder || index + 1,
+              trackName: row.project.reviewPackage.roundLabel || "项目路演评审",
+              score: row.score ?? Number.NaN,
+            }))}
+            roundLabel={`共 ${rankingRows.length} 项`}
+            sessionTitle={title}
+          />
         ) : null}
       </section>
 
@@ -1387,7 +1338,7 @@ export default function ReviewScreenSessionPage() {
       {screenDisplay.showFinalScoreOnScreen && phase === "reveal" ? (
         <section className="score-reveal-overlay">
           <div className="score-reveal-card">
-            <p className="text-sm font-black tracking-[3px] text-slate-400">FINAL SCORE · 最终得分</p>
+            <p className="text-sm font-black tracking-[3px] text-slate-400">最终得分</p>
             <h2 className={`score-reveal-project-name mt-4 max-w-[680px] truncate ${revealProjectVisible ? "visible" : ""}`}>
               {targetName}
             </h2>

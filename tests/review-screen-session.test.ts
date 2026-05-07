@@ -2,9 +2,24 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { describe, it } from "node:test";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
+
+import { FinalRankingStage, type FinalRankingStageProps } from "../src/components/review-screen/FinalRankingStage";
 
 const readSource = (filePath: string) =>
   readFileSync(path.join(process.cwd(), filePath), "utf8");
+
+const countMatches = (source: string, pattern: RegExp) => source.match(pattern)?.length ?? 0;
+
+const buildRankingItems = (count: number): FinalRankingStageProps["rankings"] =>
+  Array.from({ length: count }, (_, index) => ({
+    rank: index + 1,
+    projectName: `测试项目 ${index + 1}`,
+    presentationOrder: index + 1,
+    trackName: "校赛路演测试",
+    score: 90 - index,
+  }));
 
 describe("roadshow review screen session", () => {
   it("keeps screen seats anonymous and does not expose real expert names", async () => {
@@ -545,18 +560,49 @@ describe("roadshow review screen session", () => {
 
     assert.match(screenPageSource, /screen-banner/);
     assert.match(screenPageSource, /screen-hero-gradient/);
-    assert.match(screenPageSource, /中国国际大学生创新大赛/);
+    assert.match(screenPageSource, /南京铁道职业技术学院/);
     assert.match(screenPageSource, /text-slate-900/);
     assert.doesNotMatch(screenPageSource, /bg-slate-950/);
   });
 
-  it("shows current time and phase on the review screen header", () => {
+  it("shows school, configured round label, and phase without Beijing time on the review screen header", () => {
     const screenPageSource = readSource("src/app/review-screen/session/[sessionId]/page.tsx");
 
-    assert.match(screenPageSource, /useCurrentTime/);
-    assert.match(screenPageSource, /new Date\(\)/);
-    assert.match(screenPageSource, /路演答辩评审投屏/);
-    assert.match(screenPageSource, /currentTime/);
+    assert.match(screenPageSource, /南京铁道职业技术学院/);
+    assert.match(screenPageSource, /payload\?\.reviewPackage\.roundLabel/);
+    assert.match(screenPageSource, /payload\?\.session\.phaseLabel \?\? getPhaseLabel\(phase\)/);
+    assert.match(screenPageSource, /校徽/);
+    assert.doesNotMatch(screenPageSource, /useCurrentTime/);
+    assert.doesNotMatch(screenPageSource, /timeText/);
+    assert.doesNotMatch(screenPageSource, /currentTime/);
+    assert.doesNotMatch(screenPageSource, /路演答辩评审投屏/);
+    assert.doesNotMatch(screenPageSource, /中国国际大学生创新大赛/);
+  });
+
+  it("renders final ranking as champion, two podium cards, and compact table rows", () => {
+    const markup = renderToStaticMarkup(createElement(FinalRankingStage, {
+      rankings: buildRankingItems(6),
+      sessionTitle: "校赛路演测试",
+      roundLabel: "第一轮",
+    }));
+
+    assert.equal(countMatches(markup, /class="final-ranking-champion"/g), 1);
+    assert.equal(countMatches(markup, /class="final-ranking-podium-card/g), 2);
+    assert.equal(countMatches(markup, /class="final-ranking-table(?:\s|")/g), 1);
+    assert.equal(countMatches(markup, /class="final-ranking-table-row/g), 3);
+  });
+
+  it("renders two final ranking projects without a table and keeps the runner-up half-width", () => {
+    const markup = renderToStaticMarkup(createElement(FinalRankingStage, {
+      rankings: buildRankingItems(2),
+      sessionTitle: "校赛路演测试",
+      roundLabel: "第一轮",
+    }));
+
+    assert.equal(countMatches(markup, /class="final-ranking-champion"/g), 1);
+    assert.equal(countMatches(markup, /class="final-ranking-podium-card/g), 1);
+    assert.equal(countMatches(markup, /class="final-ranking-table(?:\s|")/g), 0);
+    assert.match(markup, /grid-template-columns:\s*repeat\(2,\s*minmax\(0,\s*1fr\)\)/);
   });
 
   it("uses a large readable project title for presentation and Q&A countdown stages", () => {
@@ -583,6 +629,7 @@ describe("roadshow review screen session", () => {
 
   it("includes large-screen key copy and anonymous seat status on the projection screen", () => {
     const screenPageSource = readSource("src/app/review-screen/session/[sessionId]/page.tsx");
+    const rankingStageSource = readSource("src/components/review-screen/FinalRankingStage.tsx");
 
     assert.match(screenPageSource, /drawEnabled \? "抽签分组" : null/);
     assert.match(screenPageSource, /评审打分/);
@@ -595,8 +642,9 @@ describe("roadshow review screen session", () => {
     assert.match(screenPageSource, /最终得分/);
     assert.match(screenPageSource, /提交进度/);
     assert.match(screenPageSource, /评分倒计时/);
-    assert.match(screenPageSource, /本轮评审最终排名/);
-    assert.match(screenPageSource, /LIVE RANKING/);
+    assert.match(rankingStageSource, /本轮评审结果/);
+    assert.match(rankingStageSource, /第一名/);
+    assert.match(rankingStageSource, /最终得分/);
     assert.match(screenPageSource, /screen-full-countdown/);
     assert.match(screenPageSource, /draw-sequence-overlay/);
     assert.match(screenPageSource, /phase-panel/);
@@ -604,6 +652,16 @@ describe("roadshow review screen session", () => {
     assert.match(screenPageSource, /score-reveal-overlay/);
     assert.match(screenPageSource, /waiting-dots/);
     assert.match(screenPageSource, /seat-pop/);
+    assert.match(screenPageSource, /FinalRankingStage/);
+    assert.match(rankingStageSource, /final-ranking-stage/);
+    assert.match(rankingStageSource, /final-ranking-champion/);
+    assert.match(rankingStageSource, /final-ranking-podium-card/);
+    assert.match(rankingStageSource, /final-ranking-table/);
+    assert.match(rankingStageSource, /fontVariantNumeric:\s*"tabular-nums"/);
+    assert.match(rankingStageSource, /console\.warn/);
+    assert.doesNotMatch(rankingStageSource, /FINAL RANKING|TOP PROJECT|SCORE|#f5f3ee|#2c2c2a|#d4af37|CHAMPION/);
+    assert.doesNotMatch(screenPageSource, /实时刷新中/);
+    assert.doesNotMatch(screenPageSource, /FINAL SCORE/);
     assert.doesNotMatch(screenPageSource, /现场说明/);
     assert.doesNotMatch(screenPageSource, /grid-cols-\[minmax\(0,1fr\)_380px\]/);
     assert.match(screenPageSource, /本轮排名/);
