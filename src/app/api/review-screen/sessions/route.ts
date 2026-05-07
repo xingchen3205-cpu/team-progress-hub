@@ -112,6 +112,7 @@ export async function POST(request: NextRequest) {
         qaSeconds?: number;
         scoringSeconds?: number;
         roadshowGroupSizes?: number[];
+        packageIds?: string[];
         screenDisplay?: Partial<{
           scoringEnabled: unknown;
           showScoresOnScreen: unknown;
@@ -201,7 +202,25 @@ export async function POST(request: NextRequest) {
         },
       })
     : [reviewPackage];
-  const stageAssignments = stageReviewPackages.flatMap((stagePackage) =>
+  const requestedPackageIds = Array.isArray(body?.packageIds)
+    ? body.packageIds.filter((id): id is string => typeof id === "string" && Boolean(id.trim())).map((id) => id.trim())
+    : [];
+  const stagePackageById = new Map(stageReviewPackages.map((stagePackage) => [stagePackage.id, stagePackage]));
+  const orderedStageReviewPackages = requestedPackageIds.length
+    ? [...new Set(requestedPackageIds)]
+        .map((stagePackageId) => stagePackageById.get(stagePackageId))
+        .filter((stagePackage): stagePackage is (typeof stageReviewPackages)[number] => Boolean(stagePackage))
+    : stageReviewPackages;
+  const requestedPackageSetIsValid =
+    requestedPackageIds.length === 0 ||
+    (orderedStageReviewPackages.length === stageReviewPackages.length &&
+      orderedStageReviewPackages.every((stagePackage) => stagePackageById.has(stagePackage.id)));
+
+  if (!requestedPackageSetIsValid) {
+    return NextResponse.json({ message: "路演顺序与本轮项目不匹配" }, { status: 400 });
+  }
+
+  const stageAssignments = orderedStageReviewPackages.flatMap((stagePackage) =>
     stagePackage.assignments.map((assignment) => ({
       ...assignment,
       packageId: stagePackage.id,
@@ -237,9 +256,9 @@ export async function POST(request: NextRequest) {
   const qaSeconds = clampInteger(body?.qaSeconds, 420, 60, 1800);
   const scoringSeconds = clampInteger(body?.scoringSeconds, 60, 10, 600);
   const screenDisplay = normalizeReviewScreenDisplaySettings(body?.screenDisplay);
-  let projectOrderRows: ReturnType<typeof buildRoadshowProjectOrderRows<typeof stageReviewPackages[number]>>;
+  let projectOrderRows: ReturnType<typeof buildRoadshowProjectOrderRows<typeof orderedStageReviewPackages[number]>>;
   try {
-    projectOrderRows = buildRoadshowProjectOrderRows(stageReviewPackages, body?.roadshowGroupSizes);
+    projectOrderRows = buildRoadshowProjectOrderRows(orderedStageReviewPackages, body?.roadshowGroupSizes);
   } catch (error) {
     return NextResponse.json(
       { message: error instanceof Error ? error.message : "路演分组设置无效" },

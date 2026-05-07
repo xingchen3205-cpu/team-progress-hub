@@ -750,29 +750,30 @@ export default function ReviewScreenSessionPage() {
         }
         .score-reveal-overlay {
           position: fixed;
-          inset: 0;
-          z-index: 50;
+          inset: 68px 0 0 0;
+          z-index: 40;
           display: flex;
           align-items: center;
           justify-content: center;
-          padding: 72px 48px;
-          background:
-            linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px),
-            linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px),
-            rgba(26, 34, 54, 0.9);
-          background-size: 84px 84px, 84px 84px, auto;
-          backdrop-filter: blur(18px);
+          padding: 36px 48px 48px;
+          background: #f0f4f9;
+          background-image:
+            linear-gradient(rgba(26,58,110,0.035) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(26,58,110,0.035) 1px, transparent 1px);
+          background-size: 96px 96px, 96px 96px;
         }
         .score-reveal-card {
           position: relative;
           margin: 0 auto;
-          min-width: min(760px, calc(100vw - 48px));
+          width: min(1180px, calc(100vw - 96px));
+          min-height: min(620px, calc(100vh - 152px));
           overflow: hidden;
-          border-radius: 18px;
+          border: 1px solid rgba(207, 224, 255, .95);
+          border-radius: 30px;
           background: #fff;
-          padding: 64px 82px 58px;
+          padding: clamp(54px, 6vh, 78px) clamp(72px, 8vw, 110px) clamp(46px, 5vh, 66px);
           text-align: center;
-          box-shadow: 0 20px 60px rgba(15, 32, 64, 0.2);
+          box-shadow: 0 18px 48px rgba(29, 92, 255, 0.10);
           animation: reveal-rise 0.5s cubic-bezier(.16,1,.3,1);
           will-change: transform, opacity;
         }
@@ -780,14 +781,14 @@ export default function ReviewScreenSessionPage() {
           content: "";
           position: absolute;
           inset: 0 0 auto 0;
-          height: 5px;
-          background: linear-gradient(135deg, #1a3a6e, #2856a0 48%, #c22832, #d93440);
+          height: 4px;
+          background: #1d5cff;
         }
         .score-reveal-project-name {
           opacity: 0;
           transform: translateY(-12px);
-          color: rgba(15, 23, 42, .68);
-          font-size: clamp(24px, 3vh, 36px);
+          color: #0f2040;
+          font-size: clamp(36px, 5.2vw, 76px);
           font-weight: 900;
           letter-spacing: 0;
           transition: opacity .5s ease-out, transform .5s ease-out;
@@ -803,10 +804,7 @@ export default function ReviewScreenSessionPage() {
           line-height: 1;
           transform: scale(.96);
           opacity: 0;
-          background: linear-gradient(135deg, #1a3a6e 0%, #2856a0 45%, #c22832 80%, #d93440 100%);
-          -webkit-background-clip: text;
-          background-clip: text;
-          color: transparent;
+          color: #1d5cff;
           font-variant-numeric: tabular-nums;
           transition: opacity .4s ease-out, transform .4s ease-out;
           will-change: contents;
@@ -823,7 +821,7 @@ export default function ReviewScreenSessionPage() {
           height: 1px;
           width: 0;
           margin: 24px auto 0;
-          background: rgba(15, 23, 42, .32);
+          background: rgba(29, 92, 255, .38);
           transition: width .45s cubic-bezier(.22, 1, .36, 1);
         }
         .score-reveal-underline.visible { width: 180px; }
@@ -1303,8 +1301,8 @@ export default function ReviewScreenSessionPage() {
       {screenDisplay.showFinalScoreOnScreen && phase === "reveal" ? (
         <section className="score-reveal-overlay">
           <div className="score-reveal-card">
-            <p className="text-sm font-black tracking-[3px] text-slate-400">最终得分</p>
-            <h2 className={`score-reveal-project-name mt-4 max-w-[680px] truncate ${revealProjectVisible ? "visible" : ""}`}>
+            <p className="text-base font-black tracking-[4px] text-blue-600">最终得分</p>
+            <h2 className={`score-reveal-project-name mx-auto mt-5 max-w-[980px] truncate ${revealProjectVisible ? "visible" : ""}`}>
               {targetName}
             </h2>
             <p className={`score-reveal-score mt-8 ${revealScoreVisible ? "visible" : ""} ${revealScoreSettling ? "pop" : ""}`}>

@@ -385,7 +385,7 @@ describe("roadshow review screen session", () => {
     assert.match(adminTabSource, /max-h-\[520px\]/);
     assert.doesNotMatch(adminTabSource, /当前项目最终得分/);
     assert.match(adminTabSource, /expert-row/);
-    assert.match(adminTabSource, /确认计算并锁定当前项目得分/);
+    assert.match(adminTabSource, /确认揭晓本项目得分/);
     assert.doesNotMatch(adminTabSource, /推送到投屏播放揭晓动画/);
     assert.match(adminTabSource, /确认结束本轮所有评审？投屏将进入本轮结束状态/);
     assert.match(adminTabSource, /isScreenSessionFinished/);
@@ -395,6 +395,10 @@ describe("roadshow review screen session", () => {
     assert.match(adminTabSource, /路演顺序/);
     assert.match(adminTabSource, /上移/);
     assert.match(adminTabSource, /下移/);
+    assert.match(adminTabSource, /getManualOrderedProjects/);
+    assert.match(adminTabSource, /applyLocalReviewScreenOrderDraft/);
+    assert.match(sessionRouteSource, /packageIds/);
+    assert.match(sessionRouteSource, /orderedStageReviewPackages/);
     assert.match(adminTabSource, /路演时长/);
     assert.match(adminTabSource, /答辩时长/);
     assert.match(adminTabSource, /评分时长/);
@@ -675,6 +679,10 @@ describe("roadshow review screen session", () => {
     assert.match(screenPageSource, /phase-panel/);
     assert.match(screenPageSource, /drawOverlayActive/);
     assert.match(screenPageSource, /score-reveal-overlay/);
+    assert.match(screenPageSource, /score-reveal-overlay[\s\S]*background:\s*#f0f4f9/);
+    assert.match(screenPageSource, /score-reveal-score[\s\S]*color:\s*#1d5cff/);
+    assert.doesNotMatch(screenPageSource, /\.score-reveal-score\s*\{[^}]*background:\s*linear-gradient/);
+    assert.doesNotMatch(screenPageSource, /rgba\(26,\s*34,\s*54,\s*0\.9\)/);
     assert.match(screenPageSource, /waiting-dots/);
     assert.match(screenPageSource, /seat-pop/);
     assert.match(screenPageSource, /FinalRankingStage/);

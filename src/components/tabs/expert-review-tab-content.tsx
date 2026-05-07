@@ -12,6 +12,7 @@ import {
   ExternalLink,
   Monitor,
   Plus,
+  RefreshCw,
   ShieldCheck,
   Shuffle,
   Trophy,
@@ -57,6 +58,15 @@ type ExpertScoreSuccess = {
   targetName: string;
   roundLabel: string;
   displayScore: string;
+} | null;
+
+type PendingRevealConfirmation = {
+  groupKey: string;
+  targetName: string;
+  roundLabel: string;
+  showFinalScoreOnScreen: boolean;
+  finalScoreText: string;
+  pendingSeatNos: number[];
 } | null;
 
 type ReviewScreenSessionState = {
@@ -186,6 +196,28 @@ const formatScoreForAssignment = (assignment: ExpertReviewAssignmentItem) => {
 
   return (assignment.score.totalScore / (usesCentScoreScale(assignment) ? 100 : 1)).toFixed(2);
 };
+
+const getManualOrderedProjects = (
+  projectOrder: ReviewScreenProjectOrderItem[],
+  drafts?: Record<string, string>,
+) =>
+  projectOrder
+    .map((item, index) => {
+      const manualOrder = Number(drafts?.[item.packageId] || index + 1);
+      return {
+        item,
+        originalIndex: index,
+        manualOrder: Number.isFinite(manualOrder) && manualOrder > 0 ? manualOrder : index + 1,
+      };
+    })
+    .sort((left, right) => left.manualOrder - right.manualOrder || left.originalIndex - right.originalIndex)
+    .map((entry, index) => ({ ...entry.item, orderIndex: index }));
+
+const buildSequentialManualOrderDrafts = (projectOrder: ReviewScreenProjectOrderItem[]) =>
+  projectOrder.reduce<Record<string, string>>((drafts, item, index) => {
+    drafts[item.packageId] = String(index + 1);
+    return drafts;
+  }, {});
 
 const getScoreValue = (assignment: ExpertReviewAssignmentItem) => {
   if (!assignment.score) {
@@ -366,6 +398,84 @@ function ConfirmModal({
   );
 }
 
+function ReviewScreenRevealConfirmModal({
+  pendingReveal,
+  isSubmitting,
+  onCancel,
+  onConfirm,
+}: {
+  pendingReveal: PendingRevealConfirmation;
+  isSubmitting: boolean;
+  onCancel: () => void;
+  onConfirm: () => void;
+}) {
+  if (!pendingReveal) {
+    return null;
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-end justify-center bg-slate-950/35 px-3 pb-3 backdrop-blur-sm sm:items-center sm:px-4 sm:pb-0">
+      <div
+        aria-live="polite"
+        className="w-full max-w-lg overflow-hidden rounded-t-[28px] bg-white shadow-[0_24px_70px_rgba(15,23,42,0.24)] sm:rounded-3xl"
+        role="dialog"
+      >
+        <div className="border-b border-blue-100 bg-[linear-gradient(135deg,#eff6ff,#ffffff_62%,#f8fbff)] px-5 py-5 sm:px-6">
+          <p className="text-xs font-black tracking-[0.18em] text-blue-600">
+            {pendingReveal.showFinalScoreOnScreen ? "计算并揭晓" : "确认归档"}
+          </p>
+          <h3 className="mt-2 text-xl font-black text-slate-950">
+            {pendingReveal.showFinalScoreOnScreen ? "确认揭晓本项目得分？" : "确认锁定本项目得分？"}
+          </h3>
+          <p className="mt-2 text-sm leading-6 text-slate-500">
+            成绩锁定后会写入后台记录；{pendingReveal.showFinalScoreOnScreen ? "大屏将立即播放最终得分动画。" : "本次不会在大屏展示具体分数。"}
+          </p>
+        </div>
+        <div className="px-5 py-5 sm:px-6">
+          <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+            <p className="truncate text-sm font-bold text-slate-900">{pendingReveal.targetName}</p>
+            <p className="mt-1 truncate text-xs font-semibold text-slate-500">{pendingReveal.roundLabel}</p>
+            <div className="mt-4 flex items-end justify-between gap-4">
+              <div>
+                <p className="text-xs font-bold text-slate-400">后台预计得分</p>
+                <p className="mt-1 font-mono text-4xl font-black text-blue-700 tabular-nums">
+                  {pendingReveal.finalScoreText}
+                </p>
+              </div>
+              <span className="rounded-full border border-emerald-100 bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700">
+                专家已提交完成
+              </span>
+            </div>
+          </div>
+          {pendingReveal.pendingSeatNos.length ? (
+            <p className="mt-3 rounded-xl border border-amber-100 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-700">
+              仍有席位 {pendingReveal.pendingSeatNos.join("、")} 未提交，请确认是否继续。
+            </p>
+          ) : null}
+          <div className="mt-6 grid grid-cols-2 gap-3 sm:flex sm:justify-end">
+            <button
+              className="touch-manipulation rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm font-semibold text-slate-600 transition active:scale-[0.98] hover:bg-slate-50 sm:py-2.5"
+              disabled={isSubmitting}
+              onClick={onCancel}
+              type="button"
+            >
+              返回检查
+            </button>
+            <button
+              className="touch-manipulation rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white shadow-[0_10px_24px_rgba(37,99,235,0.22)] transition active:scale-[0.98] hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-60 sm:py-2.5"
+              disabled={isSubmitting}
+              onClick={onConfirm}
+              type="button"
+            >
+              {isSubmitting ? "处理中..." : pendingReveal.showFinalScoreOnScreen ? "确认揭晓" : "确认归档"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ExpertScoreSuccessModal({
   success,
   onClose,
@@ -434,8 +544,10 @@ export default function ExpertReviewTab() {
   const [networkCommentDrafts, setNetworkCommentDrafts] = useState<Record<string, string>>({});
   const [roadshowScoreDraft, setRoadshowScoreDraft] = useState("");
   const [pendingSubmission, setPendingSubmission] = useState<PendingSubmission>(null);
+  const [pendingRevealConfirmation, setPendingRevealConfirmation] = useState<PendingRevealConfirmation>(null);
   const [submittingAssignmentId, setSubmittingAssignmentId] = useState<string | null>(null);
   const [expertScoreSuccess, setExpertScoreSuccess] = useState<ExpertScoreSuccess>(null);
+  const [expertAssignmentsRefreshing, setExpertAssignmentsRefreshing] = useState(false);
   const [activeGroupKey, setActiveGroupKey] = useState<string | null>(null);
   const [reviewScreenSessions, setReviewScreenSessions] = useState<Record<string, ReviewScreenSessionState>>({});
   const [reviewScreenActionKey, setReviewScreenActionKey] = useState<string | null>(null);
@@ -566,6 +678,14 @@ export default function ExpertReviewTab() {
     () => reviewAssignments.filter((assignment) => isRoadshowAssignment(assignment)),
     [reviewAssignments],
   );
+  const refreshExpertAssignmentsNow = useCallback(() => {
+    if (currentRole !== "expert") {
+      return;
+    }
+    setExpertAssignmentsRefreshing(true);
+    refreshWorkspace("reviewAssignments");
+    window.setTimeout(() => setExpertAssignmentsRefreshing(false), 700);
+  }, [currentRole, refreshWorkspace]);
   useEffect(() => {
     if (currentRole !== "expert") {
       return;
@@ -874,6 +994,7 @@ export default function ExpertReviewTab() {
     setReviewScreenActionKey(group.key);
     try {
       const roadshowGroupSizes = getRoadshowGroupSizesPayload(group);
+      const packageIds = getReviewScreenProjectOrderForGroup(group).map((project) => project.packageId);
       const payload = await requestJson<{
         session: {
           id: string;
@@ -894,6 +1015,7 @@ export default function ExpertReviewTab() {
           ...getReviewScreenTimingPayload(group.key),
           screenDisplay: getReviewScreenDisplayPayload(group.key),
           roadshowGroupSizes,
+          packageIds,
         }),
       });
 
@@ -1165,6 +1287,7 @@ export default function ExpertReviewTab() {
         }
         return next;
       });
+      applyLocalReviewScreenOrderDraft(group.key, payload.projectOrder);
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "路演顺序调整失败");
     } finally {
@@ -1173,7 +1296,7 @@ export default function ExpertReviewTab() {
   };
 
   const moveReviewScreenProject = (group: ReviewGroup, index: number, direction: -1 | 1) => {
-    const currentOrder = screenLiveData[group.key]?.projectOrder ?? [];
+    const currentOrder = getReviewScreenProjectOrderForGroup(group);
     const targetIndex = index + direction;
     if (targetIndex < 0 || targetIndex >= currentOrder.length) {
       return;
@@ -1181,7 +1304,10 @@ export default function ExpertReviewTab() {
 
     const nextOrder = [...currentOrder];
     [nextOrder[index], nextOrder[targetIndex]] = [nextOrder[targetIndex], nextOrder[index]];
-    void reorderReviewScreenProjects(group, nextOrder.map((item) => item.packageId));
+    applyLocalReviewScreenOrderDraft(group.key, nextOrder);
+    if (reviewScreenSessions[group.key]) {
+      void reorderReviewScreenProjects(group, nextOrder.map((item) => item.packageId));
+    }
   };
 
   const updateManualOrderDraft = (groupKey: string, packageId: string, value: string) => {
@@ -1207,8 +1333,11 @@ export default function ExpertReviewTab() {
     }
     const sorted = parsed
       .sort((left, right) => left.manualOrder - right.manualOrder || left.originalIndex - right.originalIndex)
-      .map((entry) => entry.item.packageId);
-    void reorderReviewScreenProjects(group, sorted);
+      .map((entry) => entry.item);
+    applyLocalReviewScreenOrderDraft(group.key, sorted);
+    if (reviewScreenSessions[group.key]) {
+      void reorderReviewScreenProjects(group, sorted.map((item) => item.packageId));
+    }
   };
 
   const changeReviewScreenPhase = async (
@@ -1322,6 +1451,20 @@ export default function ExpertReviewTab() {
     }
   };
 
+  const confirmPendingReveal = async () => {
+    if (!pendingRevealConfirmation) {
+      return;
+    }
+    const targetGroup = groupedAssignments.find((group) => group.key === pendingRevealConfirmation.groupKey);
+    if (!targetGroup) {
+      setLoadError("当前项目评审配置不存在，请刷新后重试");
+      setPendingRevealConfirmation(null);
+      return;
+    }
+    await revealReviewScreenScore(targetGroup);
+    setPendingRevealConfirmation(null);
+  };
+
   const openMaterial = (assignment: ExpertReviewAssignmentItem, kind: "plan" | "ppt" | "video") => {
     const windowBlockMessage = getReviewWindowBlockMessage(assignment);
     if (windowBlockMessage) {
@@ -1341,6 +1484,40 @@ export default function ExpertReviewTab() {
       mimeType: material.mimeType,
       fileName: material.fileName,
     });
+  };
+
+  const getFallbackReviewScreenProjectOrder = useCallback((group: ReviewGroup) =>
+    groupedAssignments
+      .filter((candidate) =>
+        group.projectReviewStageId
+          ? candidate.projectReviewStageId === group.projectReviewStageId
+          : candidate.key === group.key,
+      )
+      .map<ReviewScreenProjectOrderItem>((candidate, index) => ({
+        orderIndex: index,
+        packageId: candidate.key,
+        targetName: candidate.targetName,
+        roundLabel: candidate.roundLabel,
+        groupName: null,
+        groupIndex: 0,
+        groupSlotIndex: index,
+        selfDrawnAt: null,
+        revealedAt: null,
+      })),
+    [groupedAssignments],
+  );
+
+  const getReviewScreenProjectOrderForGroup = useCallback((group: ReviewGroup) => {
+    const liveOrder = screenLiveData[group.key]?.projectOrder;
+    const baseOrder = liveOrder?.length ? liveOrder : getFallbackReviewScreenProjectOrder(group);
+    return getManualOrderedProjects(baseOrder, manualOrderDrafts[group.key]);
+  }, [getFallbackReviewScreenProjectOrder, manualOrderDrafts, screenLiveData]);
+
+  const applyLocalReviewScreenOrderDraft = (groupKey: string, nextOrder: ReviewScreenProjectOrderItem[]) => {
+    setManualOrderDrafts((current) => ({
+      ...current,
+      [groupKey]: buildSequentialManualOrderDrafts(nextOrder),
+    }));
   };
 
   const startNetworkReview = (assignment: ExpertReviewAssignmentItem) => {
@@ -1490,24 +1667,7 @@ export default function ExpertReviewTab() {
     const timingDraft = screenTimingDrafts[group.key] ?? getDefaultScreenTimingDraft();
     const groupDraft = screenGroupDrafts[group.key] ?? "";
     const roadshowProjectCount = getRoadshowProjectCount(group);
-    const fallbackProjectOrder = groupedAssignments
-      .filter((candidate) =>
-        group.projectReviewStageId
-          ? candidate.projectReviewStageId === group.projectReviewStageId
-          : candidate.key === group.key,
-      )
-      .map<ReviewScreenProjectOrderItem>((candidate, index) => ({
-        orderIndex: index,
-        packageId: candidate.key,
-        targetName: candidate.targetName,
-        roundLabel: candidate.roundLabel,
-        groupName: null,
-        groupIndex: 0,
-        groupSlotIndex: index,
-        selfDrawnAt: null,
-        revealedAt: null,
-      }));
-    const projectOrder = liveData?.projectOrder?.length ? liveData.projectOrder : fallbackProjectOrder;
+    const projectOrder = getReviewScreenProjectOrderForGroup(group);
     const currentPhase = liveData?.screenPhase ?? "draw";
     const screenDisplay = normalizeReviewScreenDisplaySettings(
       screenDisplayDrafts[group.key] ?? liveData?.screenDisplay ?? screenSession?.screenDisplay,
@@ -1764,17 +1924,14 @@ export default function ExpertReviewTab() {
         label: screenDisplay.showFinalScoreOnScreen ? "计算并揭晓" : "确认归档",
         enabled: canRevealScore,
         done: currentProjectHasLockedScore || ["reveal", "finished"].includes(currentPhase),
-        onClick: () => {
-          if (
-            window.confirm(
-              screenDisplay.showFinalScoreOnScreen
-                ? "确认计算并锁定当前项目得分？大屏将按设置展示最终得分。"
-                : "确认计算并锁定当前项目得分？本次只在后台归档，大屏不会显示具体分数或揭晓动画。",
-            )
-          ) {
-            void revealReviewScreenScore(group);
-          }
-        },
+        onClick: () => setPendingRevealConfirmation({
+          groupKey: group.key,
+          targetName: currentProject?.targetName ?? group.targetName,
+          roundLabel: currentProject?.roundLabel || group.roundLabel,
+          showFinalScoreOnScreen: screenDisplay.showFinalScoreOnScreen,
+          finalScoreText: currentLiveProject?.finalScore.finalScoreText ?? activeGroupFinalScoreText,
+          pendingSeatNos: currentPendingSeatNos,
+        }),
       },
       {
         no: "05",
@@ -2302,7 +2459,7 @@ export default function ExpertReviewTab() {
                 ) : null}
                 <button
                   className="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-45"
-                  disabled={!screenSession || reviewScreenActionKey === `${group.key}:order`}
+                  disabled={reviewScreenActionKey === `${group.key}:order`}
                   onClick={() => saveManualReviewScreenOrder(group, projectOrder)}
                   type="button"
                 >
@@ -2335,7 +2492,6 @@ export default function ExpertReviewTab() {
                         手动序号
                         <input
                           className="h-6 w-10 rounded-md border border-slate-200 px-1 text-center font-mono text-xs font-bold text-slate-800 outline-none focus:border-blue-400 disabled:bg-slate-50 disabled:text-slate-300"
-                          disabled={!screenSession}
                           inputMode="numeric"
                           onChange={(event) => updateManualOrderDraft(group.key, project.packageId, event.target.value)}
                           value={manualOrderDrafts[group.key]?.[project.packageId] ?? String(index + 1)}
@@ -2343,7 +2499,7 @@ export default function ExpertReviewTab() {
                       </label>
                       <button
                         className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:bg-blue-50 hover:text-blue-700 disabled:cursor-not-allowed disabled:text-slate-300"
-                        disabled={!screenSession || index === 0 || reviewScreenActionKey === `${group.key}:order`}
+                        disabled={index === 0 || reviewScreenActionKey === `${group.key}:order`}
                         onClick={() => moveReviewScreenProject(group, index, -1)}
                         title="上移"
                         type="button"
@@ -2352,7 +2508,7 @@ export default function ExpertReviewTab() {
                       </button>
                       <button
                         className="inline-flex h-8 w-8 items-center justify-center rounded-lg border border-slate-200 bg-white text-slate-600 transition hover:bg-blue-50 hover:text-blue-700 disabled:cursor-not-allowed disabled:text-slate-300"
-                        disabled={!screenSession || index === projectOrder.length - 1 || reviewScreenActionKey === `${group.key}:order`}
+                        disabled={index === projectOrder.length - 1 || reviewScreenActionKey === `${group.key}:order`}
                         onClick={() => moveReviewScreenProject(group, index, 1)}
                         title="下移"
                         type="button"
@@ -2719,6 +2875,15 @@ export default function ExpertReviewTab() {
                       >
                         {activeRoadshowAssignment.canEdit ? "进入评分" : "查看现场状态"}
                       </button>
+                      <button
+                        className="inline-flex w-full touch-manipulation items-center justify-center gap-2 rounded-xl border border-blue-100 bg-white px-4 py-2.5 text-sm font-bold text-blue-700 transition active:scale-[0.98] hover:bg-blue-50 sm:w-auto"
+                        disabled={expertAssignmentsRefreshing}
+                        onClick={refreshExpertAssignmentsNow}
+                        type="button"
+                      >
+                        <RefreshCw className={`h-4 w-4 ${expertAssignmentsRefreshing ? "animate-spin" : ""}`} />
+                        {expertAssignmentsRefreshing ? "正在刷新" : "刷新现场状态"}
+                      </button>
                     </div>
                   </div>
                 ) : null}
@@ -2954,13 +3119,26 @@ export default function ExpertReviewTab() {
                   </span>
                 </div>
                 <p className="mt-3 text-xs leading-5 text-slate-500">
-                  进入评分阶段后，本页会自动切换到打分界面，无需手动刷新。
+                  进入评分阶段后，本页会自动切换到打分界面；如现场已推进但页面未变化，请手动刷新现场状态。
                 </p>
               </div>
             ) : null}
-            <button className="mt-8 touch-manipulation rounded-xl border border-slate-200 px-5 py-3 text-sm font-semibold text-slate-600 active:scale-[0.98] sm:py-2.5" onClick={() => setExpertMode("home")} type="button">
-              返回入口
-            </button>
+            <div className="mt-8 flex flex-col justify-center gap-3 sm:flex-row">
+              <button
+                className="touch-manipulation rounded-xl border border-blue-100 bg-blue-50 px-5 py-3 text-sm font-semibold text-blue-700 active:scale-[0.98] disabled:opacity-60 sm:py-2.5"
+                disabled={expertAssignmentsRefreshing}
+                onClick={refreshExpertAssignmentsNow}
+                type="button"
+              >
+                <span className="inline-flex items-center gap-2">
+                  <RefreshCw className={`h-4 w-4 ${expertAssignmentsRefreshing ? "animate-spin" : ""}`} />
+                  {expertAssignmentsRefreshing ? "正在刷新" : "刷新现场状态"}
+                </span>
+              </button>
+              <button className="touch-manipulation rounded-xl border border-slate-200 px-5 py-3 text-sm font-semibold text-slate-600 active:scale-[0.98] sm:py-2.5" onClick={() => setExpertMode("home")} type="button">
+                返回入口
+              </button>
+            </div>
           </section>
         ) : null}
 
@@ -2982,9 +3160,20 @@ export default function ExpertReviewTab() {
                   </div>
                   <p className="mt-3 text-sm text-slate-500">{activeRoadshowAssignment.overview || "请根据现场展示和答辩情况给出最终评分。"}</p>
                 </div>
-                <button className="w-fit touch-manipulation text-sm font-semibold text-slate-500 hover:text-indigo-600" onClick={() => setExpertMode("home")} type="button">
-                  返回入口
-                </button>
+                <div className="flex shrink-0 flex-wrap gap-2">
+                  <button
+                    className="inline-flex touch-manipulation items-center gap-2 rounded-xl border border-indigo-100 bg-white px-3 py-2 text-sm font-semibold text-indigo-600 hover:bg-indigo-50 disabled:opacity-60"
+                    disabled={expertAssignmentsRefreshing}
+                    onClick={refreshExpertAssignmentsNow}
+                    type="button"
+                  >
+                    <RefreshCw className={`h-4 w-4 ${expertAssignmentsRefreshing ? "animate-spin" : ""}`} />
+                    {expertAssignmentsRefreshing ? "正在刷新" : "刷新现场状态"}
+                  </button>
+                  <button className="touch-manipulation rounded-xl px-3 py-2 text-sm font-semibold text-slate-500 hover:text-indigo-600" onClick={() => setExpertMode("home")} type="button">
+                    返回入口
+                  </button>
+                </div>
               </div>
               <div className="roadshow-score-input-shell mt-6 rounded-[22px] bg-white p-4 sm:mt-8 sm:rounded-3xl sm:p-6">
                 <label className="block text-sm font-semibold text-slate-700">
@@ -3064,6 +3253,12 @@ export default function ExpertReviewTab() {
           onCancel={() => setPendingSubmission(null)}
           onConfirm={() => void submitConfirmedScore()}
           pendingSubmission={pendingSubmission}
+        />
+        <ReviewScreenRevealConfirmModal
+          isSubmitting={Boolean(pendingRevealConfirmation && reviewScreenActionKey === `${pendingRevealConfirmation.groupKey}:reveal`)}
+          onCancel={() => setPendingRevealConfirmation(null)}
+          onConfirm={() => void confirmPendingReveal()}
+          pendingReveal={pendingRevealConfirmation}
         />
         <ExpertScoreSuccessModal
           success={expertScoreSuccess}
@@ -3536,6 +3731,12 @@ export default function ExpertReviewTab() {
           </aside>
         </div>
       )}
+      <ReviewScreenRevealConfirmModal
+        isSubmitting={Boolean(pendingRevealConfirmation && reviewScreenActionKey === `${pendingRevealConfirmation.groupKey}:reveal`)}
+        onCancel={() => setPendingRevealConfirmation(null)}
+        onConfirm={() => void confirmPendingReveal()}
+        pendingReveal={pendingRevealConfirmation}
+      />
     </div>
   );
 }

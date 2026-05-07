@@ -399,9 +399,13 @@ describe("expert review v2 constraints", () => {
     const tabSource = readSource("src/components/tabs/expert-review-tab-content.tsx");
 
     assert.match(tabSource, /const refreshExpertAssignments/);
+    assert.match(tabSource, /refreshExpertAssignmentsNow/);
+    assert.match(tabSource, /刷新现场状态/);
+    assert.match(tabSource, /正在刷新/);
     assert.match(tabSource, /document\.visibilityState !== "visible"/);
     assert.match(tabSource, /window\.setInterval\(refreshExpertAssignments,\s*3000\)/);
     assert.doesNotMatch(tabSource, /roadshowAssignments\.some\(\s*\(assignment\) => assignment\.statusKey === "pending" && assignment\.roadshowScreenStarted === false/);
+    assert.doesNotMatch(tabSource, /无需手动刷新/);
   });
 
   it("allows administrators to edit review packages without deleting submitted expert scores", () => {
