@@ -145,7 +145,7 @@ const useRevealAnimationFrame = (revealStartedAt?: string | null, active = false
     const tick = () => {
       const now = Date.now();
       setRevealFrameTime(now);
-      if (now - startedTime < 15000) {
+      if (now - startedTime < 3200) {
         animationFrameId = window.requestAnimationFrame(tick);
       }
     };
@@ -271,12 +271,6 @@ export default function ReviewScreenSessionPage() {
     screenDisplay.showRankingOnScreen ? "实时排名" : null,
     screenDisplay.showRankingOnScreen ? "本轮排名" : null,
   ].filter((label): label is string => Boolean(label));
-  const activeTab =
-    phase === "draw" && !drawEnabled
-      ? "score"
-      : phase === "finished" && !screenDisplay.showRankingOnScreen
-        ? "score"
-        : getTabState(phase);
   const phaseRemaining = payload?.session.phaseRemainingSeconds ?? 0;
   const countdownTone = getCountdownTone(phaseRemaining);
   const projectOrder = useMemo(() => payload?.projectOrder ?? [], [payload?.projectOrder]);
@@ -316,16 +310,59 @@ export default function ReviewScreenSessionPage() {
       : fallbackSeats;
 
   const activeFinalScore = activeProjectResult?.finalScore ?? payload?.finalScore;
-  const submittedCount = activeFinalScore?.submittedSeatCount ?? seats.filter((seat) => seat.status === "submitted").length;
-  const effectiveCount = activeFinalScore?.effectiveSeatCount ?? seats.filter((seat) => !isExcludedSeatStatus(seat.status)).length;
-  const progressText = `${submittedCount}/${effectiveCount}`;
-  const progressRatio = effectiveCount > 0 ? Math.min(1, submittedCount / effectiveCount) : 0;
-  const progressOffset = 188 - progressRatio * 188;
   const title = payload?.reviewPackage.roundLabel ?? "校级初赛";
   const targetName = payload?.reviewPackage.targetName ?? "等待项目同步";
   const currentIndex = payload?.session.currentProjectIndex ?? 0;
   const totalCount = payload?.session.totalProjectCount ?? projectOrder.length;
   const orderNumber = getOrderIndex(projectOrder, payload?.session.currentPackageId ?? "") || currentIndex + 1;
+  const activeProjectOrder = projectOrder.find(
+    (project) => project.packageId === payload?.session.currentPackageId,
+  );
+  const hasCurrentProject = Boolean(payload?.session.currentPackageId);
+  const activeProjectCompleted = Boolean(activeProjectOrder?.revealedAt || activeFinalScore?.scoreLockedAt);
+  const finishedRankingVisible = phase === "finished" && screenDisplay.showRankingOnScreen;
+  const waitingScreen =
+    phase === "finished" && !screenDisplay.showRankingOnScreen
+      ? {
+          eyebrow: "ROUND FINISHED",
+          title: "本轮路演已结束",
+          description: "请等待管理员开启下一轮评审",
+          status: "现场已收尾",
+        }
+      : phase === "draw" && !drawEnabled
+        ? hasCurrentProject
+          ? activeProjectCompleted
+            ? {
+                eyebrow: "PROJECT COMPLETE",
+                title: "本项目评审已完成，等待下一项目",
+                description: `第 ${orderNumber} / ${Math.max(totalCount, projectOrder.length, 1)} 项 · ${targetName}`,
+                status: "等待切换项目",
+              }
+            : {
+                eyebrow: "NEXT PROJECT",
+                title: "请等待下一个项目路演开始",
+                description: `第 ${orderNumber} / ${Math.max(totalCount, projectOrder.length, 1)} 项 · ${targetName}`,
+                status: "等待管理员开始路演",
+              }
+          : {
+              eyebrow: "WAITING",
+              title: "请等待管理员分配路演项目",
+              description: title,
+              status: "等待项目同步",
+            }
+        : null;
+  const activeTab = finishedRankingVisible
+    ? "rank"
+    : waitingScreen
+    ? "waiting"
+    : phase === "draw"
+      ? "draw"
+      : getTabState(phase);
+  const submittedCount = activeFinalScore?.submittedSeatCount ?? seats.filter((seat) => seat.status === "submitted").length;
+  const effectiveCount = activeFinalScore?.effectiveSeatCount ?? seats.filter((seat) => !isExcludedSeatStatus(seat.status)).length;
+  const progressText = `${submittedCount}/${effectiveCount}`;
+  const progressRatio = effectiveCount > 0 ? Math.min(1, submittedCount / effectiveCount) : 0;
+  const progressOffset = 188 - progressRatio * 188;
   const seatPulse = usePulseKey(seats.map((seat) => `${seat.assignmentId}:${seat.status}:${seat.scoreText}`).join("|"));
   const revealStartedAt = payload?.session.revealStartedAt;
   const revealFrameTime = useRevealAnimationFrame(revealStartedAt, screenDisplay.showFinalScoreOnScreen && phase === "reveal");
@@ -336,11 +373,6 @@ export default function ReviewScreenSessionPage() {
     }
     return map;
   }, [activeFinalScore?.droppedSeatReasons]);
-  const validScoreTexts = activeFinalScore?.validScoreTexts?.length
-    ? activeFinalScore.validScoreTexts
-    : seats
-        .filter((seat) => seat.status === "submitted" && seat.scoreText && !droppedSeatReasonByNo.has(seat.seatNo))
-        .map((seat) => seat.scoreText ?? "0.00");
 
   useEffect(() => {
     if (drawEnabled && phase === "draw" && hasDrawStarted && projectOrder.length > 0) {
@@ -378,24 +410,20 @@ export default function ReviewScreenSessionPage() {
     if (Number.isNaN(started)) return 0;
     return Math.max(0, revealFrameTime - started);
   }, [revealFrameTime, revealStartedAt]);
-  const revealStep = revealElapsedMs < 3000
-    ? "scores"
-    : revealElapsedMs < 5000
-      ? "pause"
-      : revealElapsedMs < 8500
-        ? "drop"
-        : revealElapsedMs < 11500
-          ? "summary"
-          : "final";
-  const revealProgress = Math.min(1, Math.max(0, (revealElapsedMs - 11500) / 1800));
+  const revealProjectVisible = revealElapsedMs >= 50;
+  const revealScoreVisible = revealElapsedMs >= 600;
+  const revealScoreSettling = revealElapsedMs >= 2400 && revealElapsedMs < 2530;
+  const revealUnderlineVisible = revealElapsedMs >= 2530;
+  const revealCaptionVisible = revealElapsedMs >= 2730;
+  const finalScoreRevealProgress = Math.min(1, Math.max(0, (revealElapsedMs - 600) / 1800));
 
   const revealAnimatedScore = useMemo(() => {
     if (!activeFinalScore?.ready || !activeFinalScore.finalScoreText) return "0.00";
     const target = Number.parseFloat(activeFinalScore.finalScoreText);
     if (Number.isNaN(target)) return "0.00";
-    const eased = 1 - Math.pow(1 - revealProgress, 3);
+    const eased = 1 - Math.pow(1 - finalScoreRevealProgress, 3);
     return (target * eased).toFixed(2);
-  }, [activeFinalScore?.finalScoreText, activeFinalScore?.ready, revealProgress]);
+  }, [activeFinalScore?.finalScoreText, activeFinalScore?.ready, finalScoreRevealProgress]);
 
   const rankingRows = useMemo<RankingRow[]>(() => {
     return projectResults
@@ -603,32 +631,90 @@ export default function ReviewScreenSessionPage() {
           text-shadow: 0 0 80px rgba(244, 63, 94, 0.35);
           animation: pulse-timer 0.8s ease infinite;
         }
+        .waiting-stage {
+          position: relative;
+          display: flex;
+          min-height: 0;
+          flex: 1;
+          align-items: center;
+          justify-content: center;
+          overflow: hidden;
+          border-radius: 18px;
+          background:
+            linear-gradient(rgba(255,255,255,0.045) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(255,255,255,0.045) 1px, transparent 1px),
+            linear-gradient(150deg, #0f2040 0%, #1a3a6e 46%, #c22832 100%);
+          background-size: 72px 72px, 72px 72px, auto;
+          box-shadow: 0 18px 48px rgba(15, 32, 64, 0.18);
+          color: white;
+          text-align: center;
+        }
+        .waiting-stage::before {
+          content: "";
+          position: absolute;
+          inset: 0;
+          background: linear-gradient(180deg, rgba(255,255,255,0.14), transparent 42%, rgba(0,0,0,0.16));
+        }
+        .waiting-stage-content {
+          position: relative;
+          z-index: 1;
+          width: min(1040px, calc(100vw - 120px));
+          padding: 72px 32px;
+        }
+        .waiting-stage-title {
+          margin-top: 18px;
+          font-size: clamp(50px, 6.2vw, 92px);
+          font-weight: 900;
+          line-height: 1.04;
+          letter-spacing: 0;
+          text-shadow: 0 12px 34px rgba(0,0,0,.22);
+        }
+        .waiting-stage-description {
+          margin-top: 28px;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          color: rgba(255,255,255,.76);
+          font-size: clamp(18px, 2vw, 28px);
+          font-weight: 800;
+        }
+        .waiting-stage-status {
+          margin-top: 38px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 999px;
+          border: 1px solid rgba(255,255,255,.26);
+          background: rgba(255,255,255,.14);
+          padding: 12px 22px;
+          color: rgba(255,255,255,.88);
+          font-size: 14px;
+          font-weight: 900;
+          backdrop-filter: blur(10px);
+        }
         .score-reveal-overlay {
           position: fixed;
           inset: 0;
           z-index: 50;
-          display: grid;
-          grid-template-rows: minmax(0, 1fr) auto;
-          gap: 18px;
-          padding: 86px 58px 48px;
-          background: rgba(26, 34, 54, 0.84);
-          backdrop-filter: blur(16px);
-        }
-        .reveal-score-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(155px, 1fr));
-          align-content: center;
-          gap: 14px;
-          min-height: 0;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 72px 48px;
+          background:
+            linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px),
+            rgba(26, 34, 54, 0.9);
+          background-size: 84px 84px, 84px 84px, auto;
+          backdrop-filter: blur(18px);
         }
         .score-reveal-card {
           position: relative;
           margin: 0 auto;
-          min-width: min(560px, calc(100vw - 48px));
+          min-width: min(760px, calc(100vw - 48px));
           overflow: hidden;
           border-radius: 18px;
           background: #fff;
-          padding: 48px 64px;
+          padding: 64px 82px 58px;
           text-align: center;
           box-shadow: 0 20px 60px rgba(15, 32, 64, 0.2);
           animation: reveal-rise 0.5s cubic-bezier(.16,1,.3,1);
@@ -641,18 +727,60 @@ export default function ReviewScreenSessionPage() {
           height: 5px;
           background: linear-gradient(135deg, #1a3a6e, #2856a0 48%, #c22832, #d93440);
         }
+        .score-reveal-project-name {
+          opacity: 0;
+          transform: translateY(-12px);
+          color: rgba(15, 23, 42, .68);
+          font-size: clamp(24px, 3vh, 36px);
+          font-weight: 900;
+          letter-spacing: 0;
+          transition: opacity .5s ease-out, transform .5s ease-out;
+        }
+        .score-reveal-project-name.visible {
+          opacity: 1;
+          transform: translateY(0);
+        }
         .score-reveal-score {
           font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
-          font-size: clamp(76px, 8vw, 112px);
+          font-size: clamp(120px, 35vh, 320px);
           font-weight: 900;
           line-height: 1;
+          transform: scale(.96);
+          opacity: 0;
           background: linear-gradient(135deg, #1a3a6e 0%, #2856a0 45%, #c22832 80%, #d93440 100%);
           -webkit-background-clip: text;
           background-clip: text;
           color: transparent;
           font-variant-numeric: tabular-nums;
+          transition: opacity .4s ease-out, transform .4s ease-out;
           will-change: contents;
         }
+        .score-reveal-score.visible {
+          opacity: 1;
+          transform: scale(1);
+        }
+        .score-reveal-score.pop {
+          transform: scale(1.05);
+          transition: transform .12s ease-out;
+        }
+        .score-reveal-underline {
+          height: 1px;
+          width: 0;
+          margin: 24px auto 0;
+          background: rgba(15, 23, 42, .32);
+          transition: width .45s cubic-bezier(.22, 1, .36, 1);
+        }
+        .score-reveal-underline.visible { width: 180px; }
+        .score-reveal-caption {
+          margin-top: 24px;
+          opacity: 0;
+          color: rgba(15, 23, 42, .42);
+          font-size: clamp(13px, 1.5vh, 16px);
+          font-weight: 800;
+          letter-spacing: .1em;
+          transition: opacity .5s ease-out;
+        }
+        .score-reveal-caption.visible { opacity: 1; }
         .expert-seat {
           position: relative;
           overflow: hidden;
@@ -711,20 +839,6 @@ export default function ReviewScreenSessionPage() {
           border-radius: 999px;
           background: #e11d48;
           animation: strike-line .42s cubic-bezier(.16,1,.3,1);
-        }
-        .valid-score-strip {
-          margin: 0 auto;
-          max-width: min(960px, calc(100vw - 96px));
-          border-radius: 18px;
-          border: 1px solid rgba(255,255,255,0.38);
-          background: rgba(255,255,255,0.94);
-          padding: 14px 20px;
-          color: #1a3a6e;
-          font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
-          font-size: 16px;
-          font-weight: 900;
-          box-shadow: 0 12px 36px rgba(15,32,64,.18);
-          animation: strip-slide .5s cubic-bezier(.16,1,.3,1);
         }
         .seat-avatar {
           width: 52px;
@@ -873,6 +987,20 @@ export default function ReviewScreenSessionPage() {
       ) : null}
 
       <section className="phase-panel flex h-[calc(100vh-68px)] flex-col gap-5 overflow-hidden px-11 py-6">
+        {activeTab === "waiting" && waitingScreen ? (
+          <div className="waiting-stage">
+            <div className="waiting-stage-content">
+              <p className="text-sm font-black uppercase tracking-[4px] text-white/50">{waitingScreen.eyebrow}</p>
+              <h2 className="waiting-stage-title">{waitingScreen.title}</h2>
+              <p className="waiting-stage-description">{waitingScreen.description}</p>
+              <div className="waiting-stage-status">
+                <span className="mr-3 h-2.5 w-2.5 rounded-full bg-white/80 shadow-[0_0_18px_rgba(255,255,255,.75)]" />
+                {waitingScreen.status}
+              </div>
+            </div>
+          </div>
+        ) : null}
+
         {activeTab === "draw" ? (
           <>
             <div className="flex items-center justify-between">
@@ -889,7 +1017,7 @@ export default function ReviewScreenSessionPage() {
               <div className="contest-card flex shrink-0 items-center justify-between gap-6 px-6 py-5">
                 <div>
                   <p className="text-xs font-black tracking-[2px] text-blue-600">NEXT PROJECT</p>
-                  <h3 className="mt-1 text-3xl font-black text-[#0f2040]">请等待下一个项目出场</h3>
+                  <h3 className="mt-1 text-3xl font-black text-[#0f2040]">请等待下一个项目路演开始</h3>
                   <p className="mt-2 text-sm font-bold text-slate-500">
                     第 {orderNumber} / {Math.max(totalCount, projectOrder.length, 1)} 项 · {targetName}
                   </p>
@@ -1027,7 +1155,7 @@ export default function ReviewScreenSessionPage() {
                       <p className="text-sm font-black text-slate-900">{seat.displayName}</p>
                       <p className="mt-1 text-xs font-semibold text-slate-400">匿名专家席位状态</p>
                     </div>
-                    {isSubmitted && seat.scoreText && screenDisplay.showScoresOnScreen ? (
+                    {phase === "scoring" && isSubmitted && seat.scoreText && screenDisplay.showScoresOnScreen ? (
                       <p className={`seat-score-ticker ${isDropped ? "score-strike" : ""}`}>{seat.scoreText}</p>
                     ) : null}
                     <span className={`inline-flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-bold ${isSubmitted ? "bg-emerald-50 text-emerald-700" : isVoided ? "bg-slate-100 text-slate-500" : "bg-slate-100 text-slate-400"}`}>
@@ -1162,49 +1290,17 @@ export default function ReviewScreenSessionPage() {
 
       {screenDisplay.showFinalScoreOnScreen && phase === "reveal" ? (
         <section className="score-reveal-overlay">
-          <div className="reveal-score-grid">
-            {seats.map((seat) => {
-              const dropReason = droppedSeatReasonByNo.get(seat.seatNo);
-              const isDropped = Boolean(dropReason) && (revealStep === "drop" || revealStep === "summary" || revealStep === "final");
-              const revealScoreVisible = revealElapsedMs >= seat.seatNo * 340 || revealStep !== "scores";
-              return (
-                <article
-                  className={`expert-seat flex min-h-[154px] flex-col items-center justify-center gap-3 p-5 text-center ${seat.status === "submitted" ? "submitted" : ""} ${isDropped ? "dropped" : ""}`}
-                  key={`reveal-${seat.assignmentId}`}
-                >
-                  {isDropped ? <span className="drop-reason-tag">{getDropReasonLabel(dropReason)}</span> : null}
-                  <div className={`seat-avatar ${seat.status === "submitted" ? "submitted" : "pending"}`}>{seat.seatNo}</div>
-                  <p className="text-sm font-black text-slate-900">{seat.displayName}</p>
-                  {seat.status === "submitted" && seat.scoreText && screenDisplay.showScoresOnScreen && revealScoreVisible ? (
-                    <p className={`seat-score-ticker ${isDropped ? "score-strike" : ""}`}>{seat.scoreText}</p>
-                  ) : (
-                    <span className="waiting-dots"><i /><i /><i /></span>
-                  )}
-                </article>
-              );
-            })}
+          <div className="score-reveal-card">
+            <p className="text-sm font-black tracking-[3px] text-slate-400">FINAL SCORE · 最终得分</p>
+            <h2 className={`score-reveal-project-name mt-4 max-w-[680px] truncate ${revealProjectVisible ? "visible" : ""}`}>
+              {targetName}
+            </h2>
+            <p className={`score-reveal-score mt-8 ${revealScoreVisible ? "visible" : ""} ${revealScoreSettling ? "pop" : ""}`}>
+              {revealAnimatedScore}
+            </p>
+            <div className={`score-reveal-underline ${revealUnderlineVisible ? "visible" : ""}`} />
+            <p className={`score-reveal-caption ${revealCaptionVisible ? "visible" : ""}`}>按本轮评分规则计算</p>
           </div>
-
-          {revealStep === "summary" || revealStep === "final" ? (
-            <div className="valid-score-strip">
-              有效评分：{validScoreTexts.length ? validScoreTexts.join(" + ") : "--"}
-            </div>
-          ) : null}
-
-          {revealStep === "final" ? (
-            <div className="score-reveal-card">
-              <p className="text-sm font-black tracking-[3px] text-slate-400">最终得分 · 最终评审得分</p>
-              <h2 className="mt-3 text-xl font-black text-slate-900">{targetName}</h2>
-              <p className="score-reveal-score mt-8">{revealAnimatedScore}</p>
-              <p className="mt-5 text-xs font-semibold text-slate-400">
-                评分规则：去掉 {activeFinalScore?.dropHighestCount ?? 0} 个最高分和 {activeFinalScore?.dropLowestCount ?? 0} 个最低分，取平均值
-              </p>
-              <div className="mt-4 flex justify-center gap-3 text-xs font-bold text-slate-400">
-                <span>有效席位 {activeFinalScore?.effectiveSeatCount ?? effectiveCount}</span>
-                <span>已提交 {activeFinalScore?.submittedSeatCount ?? submittedCount}</span>
-              </div>
-            </div>
-          ) : null}
         </section>
       ) : null}
     </main>

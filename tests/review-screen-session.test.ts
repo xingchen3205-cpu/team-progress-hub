@@ -447,7 +447,14 @@ describe("roadshow review screen session", () => {
     assert.match(screenPageSource, /projectResults/);
     assert.match(screenPageSource, /hasDrawStarted/);
     assert.match(screenPageSource, /isWaitingNextProject/);
-    assert.match(screenPageSource, /请等待下一个项目出场/);
+    assert.match(screenPageSource, /请等待下一个项目路演开始/);
+    assert.match(screenPageSource, /本项目评审已完成，等待下一项目/);
+    assert.match(screenPageSource, /本轮路演已结束/);
+    assert.match(screenPageSource, /请等待管理员分配路演项目/);
+    assert.match(screenPageSource, /phase === "finished" && !screenDisplay\.showRankingOnScreen/);
+    assert.match(screenPageSource, /phase === "finished" && screenDisplay\.showRankingOnScreen/);
+    assert.doesNotMatch(screenPageSource, /phase === "draw" && !drawEnabled\s*\?\s*"score"/);
+    assert.doesNotMatch(screenPageSource, /phase === "finished"[\s\S]{0,120}\?\s*"score"/);
     assert.match(screenPageSource, /payload\?\.session\.phaseStartedAt/);
     assert.doesNotMatch(screenPageSource, /等待全部有效席位提交/);
     assert.match(screenPageSource, /seat-score-ticker/);
@@ -455,11 +462,16 @@ describe("roadshow review screen session", () => {
     assert.match(screenPageSource, /useRevealAnimationFrame/);
     assert.match(screenPageSource, /window\.requestAnimationFrame/);
     assert.match(screenPageSource, /revealFrameTime/);
-    assert.match(screenPageSource, /revealStep/);
-    assert.match(screenPageSource, /valid-score-strip/);
-    assert.match(screenPageSource, /dropReason/);
-    assert.match(screenPageSource, /score-strike/);
-    assert.match(screenPageSource, /最终评审得分/);
+    assert.match(screenPageSource, /finalScoreRevealProgress/);
+    assert.match(screenPageSource, /score-reveal-project-name/);
+    assert.match(screenPageSource, /score-reveal-underline/);
+    assert.match(screenPageSource, /score-reveal-caption/);
+    assert.match(screenPageSource, /revealElapsedMs >= 600/);
+    assert.match(screenPageSource, /revealElapsedMs >= 2530/);
+    assert.doesNotMatch(screenPageSource, /revealStep/);
+    assert.doesNotMatch(screenPageSource, /valid-score-strip/);
+    assert.doesNotMatch(screenPageSource, /有效评分：/);
+    assert.match(screenPageSource, /按本轮评分规则计算/);
     assert.doesNotMatch(screenPageSource, /评分规则：去掉最高分和最低分，取平均值/);
   });
 
