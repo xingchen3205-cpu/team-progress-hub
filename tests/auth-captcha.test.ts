@@ -35,24 +35,30 @@ test("captcha api route returns svg and sets an HttpOnly challenge cookie", () =
   assert.match(source, /no-store/);
 });
 
-test("login requires captcha and clears challenge cookie after each attempt", () => {
+test("desktop login requires captcha while mobile web login can skip it", () => {
   const source = readFileSync(
     path.join(process.cwd(), "src/app/api/auth/login/route.ts"),
     "utf8",
   );
 
   assert.match(source, /captcha\?:\s*string/);
+  assert.match(source, /isMobileWebRequest/);
+  assert.match(source, /Mobile\|Android\|iPhone\|iPad\|iPod\|Windows Phone\|MicroMessenger\|Mobi/);
+  assert.match(source, /const captchaRequired = !isMobileWebRequest/);
   assert.match(source, /verifyCaptchaChallenge/);
   assert.match(source, /clearCaptchaCookie/);
   assert.match(source, /请输入验证码/);
 });
 
-test("login screen renders captcha input and refreshes the svg image", () => {
+test("login screen keeps desktop captcha but hides and skips it on mobile web", () => {
   const source = readFileSync(
     path.join(process.cwd(), "src/components/login-screen.tsx"),
     "utf8",
   );
 
+  assert.match(source, /isMobileLoginViewport/);
+  assert.match(source, /const captchaRequired = !isMobileLoginViewport/);
+  assert.match(source, /hidden gap-3 sm:grid/);
   assert.match(source, /captchaVersion/);
   assert.match(source, /\/api\/auth\/captcha\?v=/);
   assert.match(source, /请输入验证码/);

@@ -598,6 +598,24 @@ describe("roadshow review screen session", () => {
     assert.equal(countMatches(markup, /class="final-ranking-table-row/g), 3);
   });
 
+  it("keeps admin console countdown polling in sync with the projection screen", () => {
+    const adminTabSource = readSource("src/components/tabs/expert-review-tab-content.tsx");
+    const screenPageSource = readSource("src/app/review-screen/session/[sessionId]/page.tsx");
+
+    assert.match(adminTabSource, /phaseRemainingSeconds:\s*data\.session\.phaseRemainingSeconds/);
+    assert.match(adminTabSource, /window\.setInterval\(poll,\s*1000\)/);
+    assert.match(screenPageSource, /window\.setInterval\(loadSession,\s*1000\)/);
+  });
+
+  it("uses a lighter champion card so final ranking does not look like a dark empty block", () => {
+    const rankingStageSource = readSource("src/components/review-screen/FinalRankingStage.tsx");
+
+    assert.match(rankingStageSource, /background:\s*#eef5ff/);
+    assert.match(rankingStageSource, /border:\s*1px solid #cfe0ff/);
+    assert.match(rankingStageSource, /final-ranking-champion-score[\s\S]*color:\s*#1d5cff/);
+    assert.doesNotMatch(rankingStageSource, /final-ranking-champion[\s\S]{0,260}background:\s*#0f2040/);
+  });
+
   it("renders two final ranking projects without a table and keeps the runner-up half-width", () => {
     const markup = renderToStaticMarkup(createElement(FinalRankingStage, {
       rankings: buildRankingItems(2),

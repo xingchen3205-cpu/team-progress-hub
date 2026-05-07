@@ -82,6 +82,7 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
   const [resetValues, setResetValues] = useState(initialResetValues);
   const [sessionCheckPending, setSessionCheckPending] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [isMobileLoginViewport, setIsMobileLoginViewport] = useState(false);
   const [captchaVersion, setCaptchaVersion] = useState(() => Date.now());
   const [captchaError, setCaptchaError] = useState(false);
   const [loginErrors, setLoginErrors] = useState<{
@@ -116,6 +117,7 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
   const [isSendingRegisterEmailCode, setIsSendingRegisterEmailCode] = useState(false);
 
   const isStudentRegisterRole = registerValues.role === "项目负责人" || registerValues.role === "团队成员";
+  const captchaRequired = !isMobileLoginViewport;
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -132,6 +134,24 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
       username: rememberedAccount,
       remember: true,
     }));
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const mediaQuery = window.matchMedia("(max-width: 639px)");
+    const syncMobileViewport = () => {
+      setIsMobileLoginViewport(mediaQuery.matches);
+    };
+
+    syncMobileViewport();
+    mediaQuery.addEventListener("change", syncMobileViewport);
+
+    return () => {
+      mediaQuery.removeEventListener("change", syncMobileViewport);
+    };
   }, []);
 
   useEffect(() => {
@@ -219,7 +239,7 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
     const nextErrors = {
       username: loginValues.username.trim() ? undefined : "请输入账号",
       password: loginValues.password.trim() ? undefined : "请输入密码",
-      captcha: loginValues.captcha.trim() ? undefined : "请输入验证码",
+      captcha: loginValues.captcha.trim() ? undefined : captchaRequired ? "请输入验证码" : undefined,
       submit: undefined,
     };
 
@@ -240,7 +260,7 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
           email: loginValues.username.trim(),
           username: loginValues.username.trim(),
           password: loginValues.password.trim(),
-          captcha: loginValues.captcha.trim(),
+          captcha: captchaRequired ? loginValues.captcha.trim() : undefined,
         }),
       });
 
@@ -251,7 +271,9 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
           ...current,
           submit: payload?.message || "登录失败，请稍后重试。",
         }));
-        refreshCaptcha();
+        if (captchaRequired) {
+          refreshCaptcha();
+        }
         return;
       }
 
@@ -274,7 +296,9 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
         ...current,
         submit: "登录请求失败，请稍后重试。",
       }));
-      refreshCaptcha();
+      if (captchaRequired) {
+        refreshCaptcha();
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -688,10 +712,10 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
                         <div className="mb-5" />
                       )}
 
-                      <div className="mb-2 grid gap-3 sm:grid-cols-[1fr_auto]">
+                      <div className="mb-2 hidden gap-3 sm:grid sm:grid-cols-[1fr_auto]">
                         <div
                           className={`group relative rounded-[14px] border bg-white px-4 transition duration-200 ${
-                            loginErrors.captcha
+                            captchaRequired && loginErrors.captcha
                               ? "border-[#ef4444] ring-4 ring-[#ef4444]/10"
                               : "border-[#e6ebf2] focus-within:border-[#1d5cff] focus-within:ring-4 focus-within:ring-[#1d5cff]/10"
                           }`}
@@ -746,10 +770,12 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
                           )}
                         </button>
                       </div>
-                      {loginErrors.captcha ? (
+                      {captchaRequired && loginErrors.captcha ? (
                         <p className="mt-2 mb-5 text-sm leading-6 text-[#ef4444]">{loginErrors.captcha}</p>
-                      ) : (
+                      ) : captchaRequired ? (
                         <p className="mt-2 mb-5 text-xs leading-5 text-[#8a96a8]">看不清可点击图片刷新验证码。</p>
+                      ) : (
+                        <div className="mb-5" />
                       )}
 
                       <div className="mb-6 flex items-center justify-between gap-3 text-sm leading-6 text-[#6b7280]">

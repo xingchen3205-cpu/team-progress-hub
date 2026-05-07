@@ -101,6 +101,14 @@ describe("login screen defaults", () => {
     assert.match(loginScreenSource, /h-11\s+w-\[132px\]/);
   });
 
+  it("removes captcha login from mobile web while keeping it on desktop", () => {
+    assert.match(loginScreenSource, /isMobileLoginViewport/);
+    assert.match(loginScreenSource, /const captchaRequired = !isMobileLoginViewport/);
+    assert.match(loginScreenSource, /hidden gap-3 sm:grid/);
+    assert.match(loginScreenSource, /captchaRequired \? "请输入验证码" : undefined/);
+    assert.match(loginScreenSource, /captchaRequired && loginErrors\.captcha/);
+  });
+
   it("reduces aggressive letter-spacing on mobile", () => {
     assert.match(loginScreenSource, /tracking-normal/);
     assert.match(loginScreenSource, /sm:tracking-/);

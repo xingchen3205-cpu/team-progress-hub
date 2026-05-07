@@ -13,6 +13,11 @@ const jsonWithClearedCaptcha = (body: unknown, init?: ResponseInit) => {
   return response;
 };
 
+const isMobileWebRequest = (request: NextRequest) =>
+  /Mobile|Android|iPhone|iPad|iPod|Windows Phone|MicroMessenger|Mobi/i.test(
+    request.headers.get("user-agent") ?? "",
+  );
+
 export async function POST(request: NextRequest) {
   const ipLimit = checkRateLimit(request, authRateLimits.loginIp);
   if (!ipLimit.allowed) {
@@ -36,6 +41,7 @@ export async function POST(request: NextRequest) {
   const account = body?.email?.trim() || body?.username?.trim();
   const password = body?.password?.trim();
   const captcha = body?.captcha?.trim();
+  const captchaRequired = !isMobileWebRequest(request);
 
   if (account) {
     const accountLimit = checkRateLimit(request, authRateLimits.loginAccount, account);
@@ -49,16 +55,18 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  if (!account || !password || !captcha) {
+  if (!account || !password || (captchaRequired && !captcha)) {
     return jsonWithClearedCaptcha(
-      { message: !captcha ? "请输入验证码" : "请输入账号和密码" },
+      { message: captchaRequired && !captcha ? "请输入验证码" : "请输入账号和密码" },
       { status: 400 },
     );
   }
 
-  const captchaChallenge = request.cookies.get(CAPTCHA_COOKIE_NAME)?.value;
-  if (!verifyCaptchaChallenge(captchaChallenge, captcha)) {
-    return jsonWithClearedCaptcha({ message: "验证码错误或已过期" }, { status: 400 });
+  if (captchaRequired) {
+    const captchaChallenge = request.cookies.get(CAPTCHA_COOKIE_NAME)?.value;
+    if (!verifyCaptchaChallenge(captchaChallenge, captcha ?? "")) {
+      return jsonWithClearedCaptcha({ message: "验证码错误或已过期" }, { status: 400 });
+    }
   }
 
   const user =

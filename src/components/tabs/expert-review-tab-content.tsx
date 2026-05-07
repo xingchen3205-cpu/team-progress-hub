@@ -535,7 +535,7 @@ export default function ExpertReviewTab() {
     };
 
     void poll();
-    const timer = window.setInterval(poll, 3000);
+    const timer = window.setInterval(poll, 1000);
     return () => window.clearInterval(timer);
   }, [reviewScreenSessions, requestJson]);
 

@@ -79,19 +79,20 @@ export function FinalRankingStage({
           align-items: center;
           gap: 24px;
           margin-bottom: 12px;
+          border: 1px solid #cfe0ff;
           border-radius: 8px;
-          background: #0f2040;
+          background: #eef5ff;
           padding: 1.75rem 1.5rem;
         }
         .final-ranking-champion-label {
           margin-bottom: 4px;
-          color: #93c5fd;
+          color: #1d5cff;
           font-size: 10px;
           font-weight: 900;
           letter-spacing: 0.3em;
         }
         .final-ranking-champion-rank {
-          color: #fff;
+          color: #1d5cff;
           font-size: 56px;
           font-weight: 900;
           font-variant-numeric: tabular-nums;
@@ -100,7 +101,7 @@ export function FinalRankingStage({
         .final-ranking-champion-name {
           overflow: hidden;
           margin-bottom: 6px;
-          color: #fff;
+          color: #0f2040;
           font-size: 20px;
           font-weight: 800;
           text-overflow: ellipsis;
@@ -109,22 +110,22 @@ export function FinalRankingStage({
         .final-ranking-champion-info {
           display: flex;
           gap: 16px;
-          color: rgba(255,255,255,0.58);
+          color: #64748b;
           font-size: 12px;
           font-weight: 700;
         }
         .final-ranking-champion-separator {
-          color: rgba(255,255,255,0.22);
+          color: #cbd5e1;
         }
         .final-ranking-score-label {
           margin-bottom: 2px;
-          color: rgba(147,197,253,0.82);
+          color: #64748b;
           font-size: 10px;
           font-weight: 900;
           letter-spacing: 0.15em;
         }
         .final-ranking-champion-score {
-          color: #93c5fd;
+          color: #1d5cff;
           font-size: 38px;
           font-weight: 900;
           font-variant-numeric: tabular-nums;
