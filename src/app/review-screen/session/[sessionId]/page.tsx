@@ -616,6 +616,95 @@ export default function ReviewScreenSessionPage() {
             linear-gradient(90deg, rgba(255,255,255,0.018) 1px, transparent 1px);
           background-size: auto, 80px 80px, 80px 80px;
         }
+        .screen-stage-countdown-card {
+          position: relative;
+          z-index: 10;
+          display: flex;
+          width: min(1180px, calc(100vw - 96px));
+          min-height: min(720px, calc(100vh - 150px));
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          overflow: hidden;
+          border: 1px solid rgba(226, 232, 240, 0.95);
+          border-radius: 28px;
+          background: rgba(255, 255, 255, 0.96);
+          padding: clamp(36px, 5vh, 68px);
+          text-align: center;
+          box-shadow: 0 28px 90px rgba(15, 32, 64, 0.3);
+        }
+        .screen-stage-countdown-card::before {
+          content: "";
+          position: absolute;
+          inset: 0 0 auto 0;
+          height: 7px;
+          background: linear-gradient(135deg, #1a3a6e 0%, #2856a0 52%, #c22832 100%);
+        }
+        .screen-stage-label-row {
+          position: absolute;
+          top: clamp(24px, 3vh, 34px);
+          right: clamp(28px, 4vw, 46px);
+          left: clamp(28px, 4vw, 46px);
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 24px;
+        }
+        .screen-stage-phase-badge {
+          display: inline-flex;
+          align-items: center;
+          border-radius: 999px;
+          background: #1d4ed8;
+          padding: 12px 22px;
+          color: #fff;
+          font-size: clamp(18px, 2vw, 30px);
+          font-weight: 900;
+          line-height: 1;
+        }
+        .screen-stage-phase-badge.qa {
+          background: #c22832;
+        }
+        .screen-stage-order {
+          max-width: min(44vw, 520px);
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          color: #64748b;
+          font-size: clamp(15px, 1.35vw, 22px);
+          font-weight: 800;
+        }
+        .screen-stage-project-title {
+          max-width: 1040px;
+          color: #0f2040;
+          font-size: clamp(42px, 6vw, 86px);
+          font-weight: 900;
+          letter-spacing: 0;
+          line-height: 1.08;
+          overflow-wrap: anywhere;
+        }
+        .screen-stage-countdown-card .countdown-number {
+          margin-top: clamp(34px, 5vh, 62px);
+          font-size: clamp(118px, 15vw, 220px);
+          letter-spacing: 4px;
+          text-shadow: none;
+        }
+        .screen-stage-countdown-card .countdown-number.normal {
+          color: #1d4ed8;
+        }
+        .screen-stage-countdown-card .countdown-number.warn {
+          color: #d97706;
+          text-shadow: 0 0 42px rgba(217, 119, 6, 0.18);
+        }
+        .screen-stage-countdown-card .countdown-number.danger {
+          color: #c22832;
+          text-shadow: 0 0 42px rgba(194, 40, 50, 0.2);
+        }
+        .screen-stage-timer-label {
+          margin-top: clamp(20px, 3vh, 34px);
+          color: #64748b;
+          font-size: clamp(18px, 1.8vw, 28px);
+          font-weight: 800;
+        }
         .countdown-number {
           font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
           font-size: clamp(108px, 15vw, 200px);
@@ -1260,11 +1349,18 @@ export default function ReviewScreenSessionPage() {
 
       {phase === "presentation" || phase === "qa" ? (
         <section className="screen-full-countdown">
-          <div className="relative z-10 text-center">
-            <p className="text-lg font-black tracking-[4px] text-white/50">{phase === "presentation" ? "路演展示" : "答辩提问"}</p>
-            <h2 className="mt-2 max-w-[980px] truncate text-2xl font-black text-white/85">{targetName}</h2>
+          <div className="screen-stage-countdown-card">
+            <div className="screen-stage-label-row">
+              <span className={`screen-stage-phase-badge ${phase === "qa" ? "qa" : ""}`}>
+                {phase === "presentation" ? "路演展示" : "答辩提问"}
+              </span>
+              <span className="screen-stage-order">
+                {payload?.reviewPackage.roundLabel || "项目路演评审"} · 第 {orderNumber} / {Math.max(totalCount, projectOrder.length, 1)} 项
+              </span>
+            </div>
+            <h2 className="screen-stage-project-title">{targetName}</h2>
             <p className={`countdown-number mt-8 ${countdownTone}`}>{formatSeconds(phaseRemaining)}</p>
-            <p className="mt-7 text-sm font-semibold text-white/45">
+            <p className="screen-stage-timer-label">
               {phase === "presentation" ? "路演展示时间" : "专家提问时间"}
             </p>
           </div>

@@ -559,6 +559,16 @@ describe("roadshow review screen session", () => {
     assert.match(screenPageSource, /currentTime/);
   });
 
+  it("uses a large readable project title for presentation and Q&A countdown stages", () => {
+    const screenPageSource = readSource("src/app/review-screen/session/[sessionId]/page.tsx");
+
+    assert.match(screenPageSource, /screen-stage-countdown-card/);
+    assert.match(screenPageSource, /screen-stage-project-title/);
+    assert.match(screenPageSource, /font-size:\s*clamp\(42px,\s*6vw,\s*86px\)/);
+    assert.match(screenPageSource, /phase === "presentation" \? "路演展示" : "答辩提问"/);
+    assert.doesNotMatch(screenPageSource, /max-w-\[980px\] truncate text-2xl font-black text-white\/85/);
+  });
+
   it("does not render admin control buttons on the projection screen", () => {
     const screenPageSource = readSource("src/app/review-screen/session/[sessionId]/page.tsx");
 
