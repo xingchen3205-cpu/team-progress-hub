@@ -69,16 +69,15 @@ export async function POST(request: NextRequest) {
     }
   }
 
-  const user =
-    (await prisma.user.findUnique({
-      where: { email: account },
-    })) ??
-    (await prisma.user.findUnique({
-      where: { username: account },
-    })) ??
-    (await prisma.user.findFirst({
-      where: { name: account },
-    }));
+  const user = await prisma.user.findFirst({
+    where: {
+      OR: [
+        { email: account },
+        { username: account },
+        { name: account },
+      ],
+    },
+  });
 
   if (!user) {
     return jsonWithClearedCaptcha({ message: "账号或密码错误" }, { status: 401 });

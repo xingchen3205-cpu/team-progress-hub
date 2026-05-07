@@ -24,6 +24,18 @@ test("workspace bootstrap only preloads auth and notifications", () => {
   assert.doesNotMatch(bootstrapBlock, /requestJson<\{ members: TeamMember\[\]; pendingMembers: TeamMember\[\]; groups\?: TeamGroupItem\[\] \}>\("\/api\/team"\)/);
 });
 
+test("workspace leaves the full-page boot screen after auth before loading tab resources", () => {
+  const bootstrapEffectStart = contextSource.indexOf("const loadWorkspaceData = async () => {");
+  const bootstrapEffectEnd = contextSource.indexOf("const loadActiveTabResources = async () => {");
+  const bootstrapBlock = contextSource.slice(bootstrapEffectStart, bootstrapEffectEnd);
+
+  assert.match(bootstrapBlock, /setCurrentUser\(mePayload\.user\)/);
+  assert.match(bootstrapBlock, /setIsBooting\(false\)/);
+  assert.ok(
+    bootstrapBlock.indexOf("setIsBooting(false)") > bootstrapBlock.indexOf("setCurrentUser(mePayload.user)"),
+  );
+});
+
 test("workspace defines tab-scoped resource loading", () => {
   assert.match(contextSource, /const getWorkspaceTabResourceKeys = useCallback/);
   assert.match(contextSource, /const getWorkspaceTabBlockingResourceKeys = useCallback/);

@@ -273,9 +273,9 @@ export async function GET(
           }
         : {
             ...liveFinalScore,
-            ready: false,
-            finalScoreText: null,
-            finalScoreCents: null,
+            ready: adminCanSeeScores ? liveFinalScore.ready : false,
+            finalScoreText: adminCanSeeScores ? liveFinalScore.finalScoreText : null,
+            finalScoreCents: adminCanSeeScores ? liveFinalScore.finalScoreCents : null,
             dropHighestCount: projectPackage.dropHighestCount,
             dropLowestCount: projectPackage.dropLowestCount,
             scoreLockedAt: null,

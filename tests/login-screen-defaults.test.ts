@@ -116,6 +116,14 @@ describe("login screen defaults", () => {
     assert.match(loginScreenSource, /正在登录\.\.\./);
   });
 
+  it("keeps login navigation responsive without forcing mobile scroll jumps", () => {
+    assert.match(loginScreenSource, /router\.prefetch\("\/workspace"\)/);
+    assert.match(loginScreenSource, /setLoginPhase\("entering"\)/);
+    assert.match(loginScreenSource, /正在进入管理中心\.\.\./);
+    assert.match(loginScreenSource, /router\.push\("\/workspace",\s*\{\s*scroll:\s*false\s*\}\)/);
+    assert.doesNotMatch(loginScreenSource, /window\.scrollTo/);
+  });
+
   it("reduces aggressive letter-spacing on mobile", () => {
     assert.match(loginScreenSource, /tracking-normal/);
     assert.match(loginScreenSource, /sm:tracking-/);

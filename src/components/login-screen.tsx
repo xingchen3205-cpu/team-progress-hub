@@ -18,6 +18,7 @@ import {
 import { EMAIL_RULE_HINT, USERNAME_RULE_HINT, validateRequiredEmail, validateUsername } from "@/lib/account-policy";
 
 type FormMode = "login" | "register" | "forgot" | "reset";
+type LoginPhase = "idle" | "authenticating" | "entering";
 
 const registerRoleOptions = ["指导教师", "项目负责人", "团队成员"] as const;
 
@@ -127,10 +128,15 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
   }>({});
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [loginPhase, setLoginPhase] = useState<LoginPhase>("idle");
   const [isSendingRegisterEmailCode, setIsSendingRegisterEmailCode] = useState(false);
 
   const isStudentRegisterRole = registerValues.role === "项目负责人" || registerValues.role === "团队成员";
   const captchaRequired = !isMobileLoginViewport;
+
+  useEffect(() => {
+    router.prefetch("/workspace");
+  }, [router]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -234,6 +240,7 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
     setResetErrors({});
     setSuccessMessage(null);
     setShowPassword(false);
+    setLoginPhase("idle");
 
     if (resetToken && nextMode !== "reset") {
       router.replace("/login");
@@ -262,6 +269,7 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
       return;
     }
 
+    setLoginPhase("authenticating");
     setIsSubmitting(true);
     try {
       await waitForNextPaint();
@@ -288,6 +296,8 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
         if (captchaRequired) {
           refreshCaptcha();
         }
+        setLoginPhase("idle");
+        setIsSubmitting(false);
         return;
       }
 
@@ -299,11 +309,10 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
         }
       }
 
+      setLoginPhase("entering");
+      await waitForNextPaint();
       startTransition(() => {
-        if (typeof window !== "undefined") {
-          window.scrollTo({ top: 0, left: 0, behavior: "auto" });
-        }
-        router.push("/workspace", { scroll: true });
+        router.push("/workspace", { scroll: false });
       });
     } catch {
       setLoginErrors((current) => ({
@@ -313,7 +322,7 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
       if (captchaRequired) {
         refreshCaptcha();
       }
-    } finally {
+      setLoginPhase("idle");
       setIsSubmitting(false);
     }
   };
@@ -824,13 +833,13 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
 
                       <button
                         className="inline-flex h-[58px] w-full items-center justify-center rounded-[14px] bg-[linear-gradient(180deg,#2F74FF_0%,#1857F2_100%)] text-lg font-semibold tracking-normal text-white shadow-[0_16px_28px_rgba(29,92,255,0.22)] transition duration-200 hover:-translate-y-0.5 hover:shadow-[0_18px_34px_rgba(29,92,255,0.28)] focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#1d5cff]/20 active:scale-[0.99] disabled:cursor-not-allowed disabled:opacity-70 disabled:hover:translate-y-0 sm:tracking-[0.04em]"
-                        disabled={isSubmitting}
+                        disabled={isSubmitting || loginPhase !== "idle"}
                         type="submit"
                       >
-                        {isSubmitting ? (
+                        {loginPhase !== "idle" ? (
                           <span className="inline-flex items-center justify-center gap-2">
                             <Loader2 className="h-5 w-5 animate-spin" />
-                            正在登录...
+                            {loginPhase === "entering" ? "正在进入管理中心..." : "正在登录..."}
                           </span>
                         ) : (
                           "登录"

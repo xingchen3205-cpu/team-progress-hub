@@ -800,10 +800,6 @@ export default function ExpertReviewTab() {
     const liveSeat = liveProject?.seats.find((seat) => seat.assignmentId === assignment.id);
     return liveSeat?.scoreText ?? (assignment.score ? formatScoreForAssignment(assignment) : "--");
   };
-  const activeGroupHasLockedScore = Boolean(
-    activeGroup?.items.some((assignment) => Boolean(assignment.score?.lockedAt)),
-  );
-
   const pendingNetworkCount = networkAssignments.filter((assignment) => assignment.statusKey === "pending").length;
   const finishedNetworkCount = networkAssignments.filter((assignment) => assignment.statusKey !== "pending").length;
   const pendingRoadshowCount = roadshowAssignments.filter((assignment) => assignment.statusKey === "pending").length;
@@ -1851,7 +1847,6 @@ export default function ExpertReviewTab() {
             voidedAt: null,
             scoreText: assignment.score ? formatScoreForAssignment(assignment) : null,
           }));
-    const groupHasLockedScore = group.items.some((item) => Boolean(item.score?.lockedAt));
     const getProjectStatus = (project: ReviewScreenProjectOrderItem, index: number) => {
       const result = projectResultByPackageId.get(project.packageId);
       if (project.packageId === currentProject?.packageId && currentPhase !== "finished") return "current";
@@ -2574,20 +2569,16 @@ export default function ExpertReviewTab() {
           <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
             <div>
               <p className="text-xs font-extrabold text-rose-900">取消本阶段评审配置</p>
-              <p className="mt-1 text-xs leading-5 text-rose-700/70">删除配置会移除当前评审包配置，不等于正常结束现场评审；该操作不可恢复。</p>
+              <p className="mt-1 text-xs leading-5 text-rose-700/70">删除配置会移除本阶段全部项目组的专家分配、评审时间和投屏链接；项目管理阶段保留，可重新配置。</p>
             </div>
             <button
               className="inline-flex shrink-0 items-center justify-center rounded-lg border border-rose-200 bg-white px-4 py-2.5 text-xs font-extrabold text-rose-700 transition hover:bg-rose-50"
               onClick={() => {
-                if (window.confirm(`确认删除配置“${group.targetName}”？该操作不能恢复。`)) {
-                  void deleteReviewAssignment(group.items[0].id, group.targetName, {
-                    permanent: groupHasLockedScore,
-                  });
-                }
+                void deleteReviewStageAssignments(group);
               }}
               type="button"
             >
-              删除配置
+              删除本阶段全部配置
             </button>
           </div>
         </div>
@@ -3348,6 +3339,94 @@ export default function ExpertReviewTab() {
     };
   });
   const activeGroupIsRoadshow = Boolean(activeGroup && isRoadshowAssignment(activeGroup.items[0]));
+  const activeStageHasLockedScore = activeStageGroups.some((group) =>
+    group.items.some((assignment) => Boolean(assignment.score?.lockedAt)),
+  );
+  const deleteReviewStageAssignments = (group: ReviewGroup) =>
+    deleteReviewAssignment(group.items[0].id, group.roundLabel || group.targetName, {
+      permanent: activeStageHasLockedScore,
+      scope: "stage",
+    });
+  const roadshowGroupCards =
+    activeGroupIsRoadshow && activeStageGroups.length > 0
+      ? activeStageGroups.map((group, index) => {
+          const liveData = screenLiveData[group.key];
+          const phase = liveData?.screenPhase ?? "draw";
+          const liveResult = liveData?.projectResults.find((project) => project.reviewPackage.id === group.key);
+          const averageScore = getAverageScore(group);
+          const scoreText = liveResult?.finalScore.finalScoreText ?? (averageScore == null ? "--" : averageScore.toFixed(2));
+          const submittedCount = group.items.filter((assignment) => assignment.statusKey !== "pending" || assignment.score).length;
+          const isFinished = phase === "finished";
+          const isCurrent = activeGroup?.key === group.key;
+          return {
+            group,
+            index,
+            isCurrent,
+            isFinished,
+            phaseLabel: isFinished ? "本轮已结束" : getReviewScreenPhaseActionLabel(phase),
+            scoreText,
+            submittedCount,
+          };
+        })
+      : [];
+  const activeRoadshowConsoleFinished = Boolean(
+    activeGroupIsRoadshow && activeGroup && (screenLiveData[activeGroup.key]?.screenPhase === "finished"),
+  );
+  const renderRoadshowGroupCards = () =>
+    roadshowGroupCards.length > 0 ? (
+      <section className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
+          <div>
+            <h3 className="text-base font-extrabold text-slate-950">本阶段路演项目</h3>
+            <p className="mt-1 text-xs text-slate-500">已结束项目自动收起，点击卡片切换查看其他项目，避免多个路演组互相挡住。</p>
+          </div>
+          <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-500">
+            共 {roadshowGroupCards.length} 项
+          </span>
+        </div>
+        <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+          {roadshowGroupCards.map(({ group, index, isCurrent, isFinished, phaseLabel, scoreText, submittedCount }) => (
+            <button
+              className={`rounded-2xl border p-4 text-left transition ${
+                isCurrent
+                  ? "border-blue-300 bg-blue-50 shadow-[0_0_0_2px_rgba(37,99,235,0.08)]"
+                  : isFinished
+                    ? "border-emerald-100 bg-emerald-50/70 hover:border-emerald-200"
+                    : "border-slate-200 bg-white hover:border-blue-200 hover:bg-slate-50"
+              }`}
+              key={group.key}
+              onClick={() => setActiveGroupKey(group.key)}
+              type="button"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <span className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl font-mono text-sm font-extrabold ${
+                  isFinished ? "bg-emerald-100 text-emerald-700" : isCurrent ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-500"
+                }`}>
+                  {String(index + 1).padStart(2, "0")}
+                </span>
+                <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${
+                  isFinished ? "bg-emerald-100 text-emerald-700" : isCurrent ? "bg-blue-100 text-blue-700" : "bg-slate-100 text-slate-500"
+                }`}>
+                  {phaseLabel}
+                </span>
+              </div>
+              <p className="mt-3 truncate text-sm font-extrabold text-slate-950">{group.targetName}</p>
+              <div className="mt-3 flex items-end justify-between gap-3">
+                <p className="text-xs text-slate-500">
+                  已提交 {submittedCount}/{group.items.length}
+                </p>
+                <p className={`font-mono text-xl font-extrabold ${scoreText === "--" ? "text-slate-300" : "text-emerald-700"}`}>
+                  {scoreText}
+                </p>
+              </div>
+              <p className="mt-3 text-[11px] font-bold text-blue-600">
+                {isCurrent ? "当前查看中" : "查看该路演组"}
+              </p>
+            </button>
+          ))}
+        </div>
+      </section>
+    ) : null;
 
   return (
     <div className="review-admin-control-shell mx-auto max-w-[1200px] space-y-5">
@@ -3502,6 +3581,7 @@ export default function ExpertReviewTab() {
         </section>
       ) : activeGroupIsRoadshow && activeGroup ? (
         <main className="space-y-5">
+          {renderRoadshowGroupCards()}
           {canCreateReviewPackage && activeProjectStage && resettableRoadshowGroups.length > 0 ? (
             <section className="rounded-2xl border border-amber-100 bg-amber-50/80 p-5 shadow-sm">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -3528,7 +3608,30 @@ export default function ExpertReviewTab() {
               </div>
             </section>
           ) : null}
-          {renderReviewScreenConsole(activeGroup)}
+          {activeRoadshowConsoleFinished ? (
+            <section className="rounded-2xl border border-emerald-100 bg-emerald-50 p-6 shadow-sm">
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <p className="text-sm font-bold text-emerald-700">本轮已结束，已收起现场控制台</p>
+                  <h3 className="mt-1 text-xl font-extrabold text-slate-950">{activeGroup.targetName}</h3>
+                  <p className="mt-2 text-sm leading-6 text-slate-600">
+                    该路演组已完成，不再展开阶段按钮和现场倒计时。需要继续操作时，请从上方项目卡片切换到未结束项目，或删除本阶段配置后重新配置。
+                  </p>
+                </div>
+                {canManageReviewMaterials ? (
+                  <button
+                    className="inline-flex shrink-0 items-center justify-center rounded-xl border border-rose-100 bg-white px-4 py-3 text-sm font-extrabold text-rose-600 transition hover:bg-rose-50"
+                    onClick={() => deleteReviewStageAssignments(activeGroup)}
+                    type="button"
+                  >
+                    删除本阶段全部评审配置
+                  </button>
+                ) : null}
+              </div>
+            </section>
+          ) : (
+            renderReviewScreenConsole(activeGroup)
+          )}
         </main>
       ) : (
         <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
@@ -3719,12 +3822,13 @@ export default function ExpertReviewTab() {
                   className="w-full rounded-2xl border border-rose-100 bg-white px-4 py-3 text-sm font-semibold text-rose-600 transition hover:bg-rose-50"
                   onClick={() =>
                     deleteReviewAssignment(activeGroup.items[0].id, activeGroup.targetName, {
-                      permanent: activeGroupHasLockedScore,
+                      permanent: activeStageHasLockedScore,
+                      scope: "stage",
                     })
                   }
                   type="button"
                 >
-                  {activeGroupHasLockedScore ? "重置并重新配置评审包" : "取消本阶段评审配置"}
+                  {activeStageHasLockedScore ? "重置并重新配置本阶段" : "删除本阶段全部评审配置"}
                 </button>
               </div>
             ) : null}

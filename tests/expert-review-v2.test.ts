@@ -441,10 +441,10 @@ describe("expert review v2 constraints", () => {
     assert.match(assignmentItemRouteSource, /expertReviewAssignment\.deleteMany/);
     assert.match(assignmentItemRouteSource, /confirm\s*!==\s*"permanent"/);
     assert.match(assignmentItemRouteSource, /已有评分记录，请先完成二次确认后重置评审包/);
-    assert.match(assignmentItemRouteSource, /expertReviewPackage\.delete\(/);
+    assert.match(assignmentItemRouteSource, /expertReviewPackage\.deleteMany/);
     assert.match(teamScopeSource, /status:\s*\{\s*not:\s*"cancelled"(?:\s+as const)?\s*\}/);
     assert.match(tabSource, /取消本阶段评审配置/);
-    assert.match(tabSource, /重置并重新配置评审包/);
+    assert.match(tabSource, /重置并重新配置本阶段/);
     assert.match(tabSource, /已配置/);
     assert.match(tabSource, /未配置/);
   });
@@ -468,6 +468,33 @@ describe("expert review v2 constraints", () => {
     assert.match(tabSource, /openReviewAssignmentModal\(undefined,\s*activeProjectStage\.id/);
   });
 
+  it("deletes review configuration by project stage instead of only the active roadshow group", () => {
+    const assignmentItemRouteSource = readSource("src/app/api/expert-reviews/assignments/[id]/route.ts");
+    const contextSource = readSource("src/components/workspace-context.tsx");
+    const tabSource = readSource("src/components/tabs/expert-review-tab-content.tsx");
+
+    assert.match(assignmentItemRouteSource, /const deleteScope = request\.nextUrl\.searchParams\.get\("scope"\)/);
+    assert.match(assignmentItemRouteSource, /deleteScope === "stage"/);
+    assert.match(assignmentItemRouteSource, /packagesToDelete/);
+    assert.match(assignmentItemRouteSource, /projectReviewStageId:\s*assignment\.reviewPackage\.projectReviewStageId/);
+    assert.match(contextSource, /searchParams\.set\("scope",\s*"stage"\)/);
+    assert.match(contextSource, /删除本阶段全部评审配置/);
+    assert.match(tabSource, /deleteReviewStageAssignments/);
+    assert.match(tabSource, /activeStageHasLockedScore/);
+    assert.doesNotMatch(tabSource, /取消本阶段评审配置[\s\S]{0,600}deleteReviewAssignment\(activeGroup\.items\[0\]\.id/);
+  });
+
+  it("collapses finished roadshow groups so other simultaneous groups remain visible", () => {
+    const tabSource = readSource("src/components/tabs/expert-review-tab-content.tsx");
+
+    assert.match(tabSource, /roadshowGroupCards/);
+    assert.match(tabSource, /activeRoadshowConsoleFinished/);
+    assert.match(tabSource, /本轮已结束，已收起现场控制台/);
+    assert.match(tabSource, /查看该路演组/);
+    assert.match(tabSource, /renderRoadshowGroupCards/);
+    assert.doesNotMatch(tabSource, /activeGroupIsRoadshow && activeGroup \? \(\s*<main className="space-y-5">\s*\{renderReviewScreenConsole\(activeGroup\)\}/);
+  });
+
   it("requires two confirmations before deleting scored review packages and linked project stages", () => {
     const assignmentItemRouteSource = readSource("src/app/api/expert-reviews/assignments/[id]/route.ts");
     const stageDeleteRouteSource = readSource("src/app/api/project-stages/[stageId]/route.ts");
@@ -486,7 +513,7 @@ describe("expert review v2 constraints", () => {
     assert.match(contextSource, /确认重置/);
     assert.match(projectTabSource, /permanent:\s*stage\.reviewConfig\?\.status === "archived"/);
     assert.match(projectTabSource, /永久删除已归档阶段/);
-    assert.match(expertReviewTabSource, /重置并重新配置评审包/);
+    assert.match(expertReviewTabSource, /重置并重新配置本阶段/);
   });
 
   it("keeps upload windows and expert review windows separate with backend enforcement", () => {

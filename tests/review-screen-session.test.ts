@@ -234,10 +234,20 @@ describe("roadshow review screen session", () => {
     assert.match(routeSource, /重置原因不能为空/);
     assert.match(routeSource, /expertReviewScoreHistory\.createMany/);
     assert.match(routeSource, /createAuditLogEntry/);
-    assert.match(routeSource, /action:\s*"expert_review_package\.reset"/);
+    assert.match(routeSource, /expert_review_package\.reset/);
     assert.match(auditSource, /requiresAuditReason/);
     assert.match(auditSource, /beforeState/);
     assert.match(auditSource, /afterState/);
+  });
+
+  it("lets the admin console show calculable final scores before public reveal locks them", () => {
+    const sessionRouteSource = readSource("src/app/api/review-screen/sessions/[sessionId]/route.ts");
+    const adminTabSource = readSource("src/components/tabs/expert-review-tab-content.tsx");
+
+    assert.match(sessionRouteSource, /ready:\s*adminCanSeeScores \? liveFinalScore\.ready : false/);
+    assert.match(sessionRouteSource, /finalScoreText:\s*adminCanSeeScores \? liveFinalScore\.finalScoreText : null/);
+    assert.match(sessionRouteSource, /if \(adminCanSeeScores \|\| \(screenDisplay\.showFinalScoreOnScreen && isRevealed\)\) return project/);
+    assert.match(adminTabSource, /result\?\.finalScore\.finalScoreText \?\? "--"/);
   });
 
   it("closes unsubmitted roadshow assignments when administrators force-switch away from a scoring project", () => {

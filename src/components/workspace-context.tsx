@@ -2803,6 +2803,8 @@ function useWorkspaceController({
         setCurrentUser(mePayload.user);
         setNotifications(notificationsPayload.notifications);
         loadedWorkspaceResourcesRef.current.add("notifications");
+        setActiveTabResourceLoading(true);
+        setIsBooting(false);
         if (!["admin", "school_admin", "teacher"].includes(mePayload.user.role)) {
           setSentReminders([]);
         }
@@ -5793,10 +5795,17 @@ function useWorkspaceController({
 
   const deleteReviewAssignmentRequest = async (
     assignmentId: string,
-    options?: { permanent?: boolean; reason?: string },
+    options?: { permanent?: boolean; reason?: string; scope?: "package" | "stage" },
   ) => {
-    const confirmQuery = options?.permanent ? "?confirm=permanent" : "";
-    await requestJson(`/api/expert-reviews/assignments/${assignmentId}${confirmQuery}`, {
+    const searchParams = new URLSearchParams();
+    if (options?.permanent) {
+      searchParams.set("confirm", "permanent");
+    }
+    if (options?.scope === "stage") {
+      searchParams.set("scope", "stage");
+    }
+    const query = searchParams.toString();
+    await requestJson(`/api/expert-reviews/assignments/${assignmentId}${query ? `?${query}` : ""}`, {
       method: "DELETE",
       body: JSON.stringify(options?.reason ? { reason: options.reason } : {}),
     });
@@ -5806,30 +5815,41 @@ function useWorkspaceController({
   const deleteReviewAssignment = (
     assignmentId: string,
     targetName: string,
-    options?: { permanent?: boolean },
+    options?: { permanent?: boolean; scope?: "package" | "stage" },
   ) => {
+    const isStageScope = options?.scope === "stage";
     if (options?.permanent) {
       setConfirmDialog({
         open: true,
-        title: "重置并重新配置评审包",
-        message: `「${targetName}」已经产生评分记录。重置会清除该评审包的专家任务、评分记录、投屏链接和投屏记录；项目管理阶段和学生已生效材料仍保留，之后可以重新分配专家并生成新的大屏链接。是否继续？`,
+        title: isStageScope ? "重置并重新配置本阶段" : "重置并重新配置评审包",
+        message: isStageScope
+          ? `「${targetName}」所在阶段已经产生评分记录。重置会清除本阶段全部项目组的专家任务、评分记录、投屏链接和投屏记录；项目管理阶段和学生已生效材料仍保留，之后可以在同一阶段重新配置。是否继续？`
+          : `「${targetName}」已经产生评分记录。重置会清除该评审包的专家任务、评分记录、投屏链接和投屏记录；项目管理阶段和学生已生效材料仍保留，之后可以重新分配专家并生成新的大屏链接。是否继续？`,
         confirmLabel: "继续重置",
         confirmVariant: "danger",
         onConfirm: () => {
           openSecondConfirmDialog(setConfirmDialog, {
             open: true,
             title: "二次确认重置",
-            message: `请再次确认重置「${targetName}」的评审包。此操作会清除当前测试评分和投屏记录，重置后可重新配置专家、时间和大屏。`,
+            message: isStageScope
+              ? `请再次确认重置「${targetName}」所在阶段的全部评审配置。此操作会清除该阶段所有测试评分和投屏记录，重置后可重新配置专家、时间和大屏。`
+              : `请再次确认重置「${targetName}」的评审包。此操作会清除当前测试评分和投屏记录，重置后可重新配置专家、时间和大屏。`,
             confirmLabel: "确认重置",
             confirmVariant: "danger",
-            successTitle: "评审包已重置",
-            successDetail: "项目管理阶段仍保留，可重新分配专家并设置评审时间。",
+            successTitle: isStageScope ? "本阶段评审配置已重置" : "评审包已重置",
+            successDetail: isStageScope
+              ? "项目管理阶段仍保留，可在同一阶段重新分配专家并设置评审时间。"
+              : "项目管理阶段仍保留，可重新分配专家并设置评审时间。",
             onConfirm: () => {
               const reason = window.prompt("请输入重置原因，将写入审计日志和评分历史。");
               if (!reason?.trim()) {
                 throw new Error("重置原因不能为空");
               }
-              return deleteReviewAssignmentRequest(assignmentId, { permanent: true, reason: reason.trim() });
+              return deleteReviewAssignmentRequest(assignmentId, {
+                permanent: true,
+                reason: reason.trim(),
+                scope: options?.scope,
+              });
             },
           });
         },
@@ -5839,12 +5859,14 @@ function useWorkspaceController({
 
     setConfirmDialog({
       open: true,
-      title: "取消本阶段评审配置",
-      message: `确认取消「${targetName}」的本阶段评审配置？项目管理阶段和学生已生效材料会保留，专家分配、评审时间和投屏链接会失效，之后可重新配置。`,
+      title: isStageScope ? "删除本阶段全部评审配置" : "取消当前评审包配置",
+      message: isStageScope
+        ? `确认删除「${targetName}」所在阶段的全部评审配置？项目管理阶段和学生已生效材料会保留，所有项目组的专家分配、评审时间和投屏链接会失效，之后可在同一阶段重新配置。`
+        : `确认取消「${targetName}」的当前评审包配置？项目管理阶段和学生已生效材料会保留，专家分配、评审时间和投屏链接会失效，之后可重新配置。`,
       confirmLabel: "确认取消配置",
-      successTitle: "评审配置已取消",
+      successTitle: isStageScope ? "本阶段评审配置已删除" : "评审配置已取消",
       successDetail: "项目阶段仍保留，可重新分配专家并设置评审时间。",
-      onConfirm: () => deleteReviewAssignmentRequest(assignmentId),
+      onConfirm: () => deleteReviewAssignmentRequest(assignmentId, { scope: options?.scope }),
     });
   };
 

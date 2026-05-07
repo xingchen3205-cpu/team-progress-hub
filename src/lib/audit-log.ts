@@ -10,6 +10,7 @@ export type AuditOperator = {
 export const requiresAuditReason = (action: string) =>
   new Set([
     "expert_review_package.reset",
+    "expert_review_stage.reset",
     "review_display_seat.excluded",
     "expert_review_package.archive_reverted",
   ]).has(action);

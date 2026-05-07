@@ -303,6 +303,7 @@ export async function DELETE(
 
   const { id } = await params;
   const confirm = request.nextUrl.searchParams.get("confirm");
+  const deleteScope = request.nextUrl.searchParams.get("scope");
   const body = (await request.json().catch(() => null)) as { reason?: string } | null;
   const reason = body?.reason?.trim() ?? request.nextUrl.searchParams.get("reason")?.trim() ?? "";
   const assignment = await prisma.expertReviewAssignment.findUnique({
@@ -341,11 +342,77 @@ export async function DELETE(
     return NextResponse.json({ message: "无权限删除该评审任务" }, { status: 403 });
   }
 
-  const hasLockedScore = assignment.reviewPackage.assignments.some((item) => item.score?.lockedAt);
+  const packagesToDelete =
+    deleteScope === "stage" && assignment.reviewPackage.projectReviewStageId
+      ? await prisma.expertReviewPackage.findMany({
+          where: {
+            projectReviewStageId: assignment.reviewPackage.projectReviewStageId,
+            status: { not: "cancelled" },
+          },
+          include: {
+            materials: true,
+            displaySessions: true,
+            assignments: {
+              include: {
+                score: true,
+                expertUser: {
+                  select: {
+                    id: true,
+                    name: true,
+                  },
+                },
+              },
+            },
+          },
+        })
+      : [assignment.reviewPackage];
+
+  if (packagesToDelete.length === 0) {
+    return NextResponse.json({ success: true, message: "本阶段评审配置已清空" });
+  }
+
+  const inaccessiblePackage = packagesToDelete.find(
+    (reviewPackage) =>
+      !canAccessTeamScopedResource(user, {
+        ownerId: reviewPackage.createdById,
+        teamGroupId: reviewPackage.teamGroupId,
+      }),
+  );
+  if (inaccessiblePackage) {
+    return NextResponse.json({ message: "无权限删除该阶段的全部评审配置" }, { status: 403 });
+  }
+
+  const packageIds = packagesToDelete.map((reviewPackage) => reviewPackage.id);
+  const isStageDelete = deleteScope === "stage" && Boolean(assignment.reviewPackage.projectReviewStageId);
+  const auditObjectType = isStageDelete ? "expert_review_stage" : "expert_review_package";
+  const auditObjectId = isStageDelete
+    ? assignment.reviewPackage.projectReviewStageId ?? assignment.packageId
+    : assignment.packageId;
+  const auditTeamGroupId = isStageDelete ? null : assignment.reviewPackage.teamGroupId;
+  const auditBeforeState = {
+    scope: isStageDelete ? "stage" : "package",
+    projectReviewStageId: assignment.reviewPackage.projectReviewStageId,
+    packageCount: packagesToDelete.length,
+    packages: packagesToDelete.map((reviewPackage) => ({
+      packageId: reviewPackage.id,
+      targetName: reviewPackage.targetName,
+      status: reviewPackage.status,
+      teamGroupId: reviewPackage.teamGroupId,
+      dropHighestCount: reviewPackage.dropHighestCount,
+      dropLowestCount: reviewPackage.dropLowestCount,
+      assignmentCount: reviewPackage.assignments.length,
+      displaySessionCount: reviewPackage.displaySessions.length,
+      materialCount: reviewPackage.materials.length,
+    })),
+  };
+
+  const hasLockedScore = packagesToDelete.some((reviewPackage) =>
+    reviewPackage.assignments.some((item) => item.score?.lockedAt),
+  );
   if (hasLockedScore) {
     if (confirm !== "permanent") {
       return NextResponse.json(
-        { message: "已有评分记录，请先完成二次确认后重置评审包" },
+        { message: isStageDelete ? "本阶段已有评分记录，请先完成二次确认后重置全部评审配置" : "已有评分记录，请先完成二次确认后重置评审包" },
         { status: 403 },
       );
     }
@@ -355,38 +422,40 @@ export async function DELETE(
     }
 
     await prisma.$transaction(async (tx) => {
-      const scoreSnapshots = assignment.reviewPackage.assignments.flatMap((item) =>
-        item.score
-          ? [
-              {
-                packageId: assignment.packageId,
-                teamGroupId: assignment.reviewPackage.teamGroupId,
-                assignmentId: item.id,
-                reviewerId: item.score.reviewerId,
-                snapshot: JSON.stringify({
+      const scoreSnapshots = packagesToDelete.flatMap((reviewPackage) =>
+        reviewPackage.assignments.flatMap((item) =>
+          item.score
+            ? [
+                {
+                  packageId: item.packageId,
+                  teamGroupId: reviewPackage.teamGroupId,
                   assignmentId: item.id,
-                  expertUserId: item.expertUserId,
-                  expertName: item.expertUser.name,
-                  status: item.status,
-                  score: {
-                    id: item.score.id,
-                    reviewerId: item.score.reviewerId,
-                    scorePersonalGrowth: item.score.scorePersonalGrowth,
-                    scoreInnovation: item.score.scoreInnovation,
-                    scoreIndustry: item.score.scoreIndustry,
-                    scoreTeamwork: item.score.scoreTeamwork,
-                    totalScore: item.score.totalScore,
-                    commentTotal: item.score.commentTotal,
-                    submittedAt: item.score.submittedAt.toISOString(),
-                    updatedAt: item.score.updatedAt.toISOString(),
-                    lockedAt: item.score.lockedAt?.toISOString() ?? null,
-                  },
-                }),
-                resetById: user.id,
-                resetReason: reason,
-              },
-            ]
-          : [],
+                  reviewerId: item.score.reviewerId,
+                  snapshot: JSON.stringify({
+                    assignmentId: item.id,
+                    expertUserId: item.expertUserId,
+                    expertName: item.expertUser.name,
+                    status: item.status,
+                    score: {
+                      id: item.score.id,
+                      reviewerId: item.score.reviewerId,
+                      scorePersonalGrowth: item.score.scorePersonalGrowth,
+                      scoreInnovation: item.score.scoreInnovation,
+                      scoreIndustry: item.score.scoreIndustry,
+                      scoreTeamwork: item.score.scoreTeamwork,
+                      totalScore: item.score.totalScore,
+                      commentTotal: item.score.commentTotal,
+                      submittedAt: item.score.submittedAt.toISOString(),
+                      updatedAt: item.score.updatedAt.toISOString(),
+                      lockedAt: item.score.lockedAt?.toISOString() ?? null,
+                    },
+                  }),
+                  resetById: user.id,
+                  resetReason: reason,
+                },
+              ]
+            : [],
+        ),
       );
 
       if (scoreSnapshots.length > 0) {
@@ -398,78 +467,68 @@ export async function DELETE(
       await createAuditLogEntry({
         tx,
         operator: user,
-        action: "expert_review_package.reset",
-        objectType: "expert_review_package",
-        objectId: assignment.packageId,
-        teamGroupId: assignment.reviewPackage.teamGroupId,
+        action: isStageDelete ? "expert_review_stage.reset" : "expert_review_package.reset",
+        objectType: auditObjectType,
+        objectId: auditObjectId,
+        teamGroupId: auditTeamGroupId,
         beforeState: {
-          packageId: assignment.reviewPackage.id,
-          targetName: assignment.reviewPackage.targetName,
-          status: assignment.reviewPackage.status,
-          dropHighestCount: assignment.reviewPackage.dropHighestCount,
-          dropLowestCount: assignment.reviewPackage.dropLowestCount,
-          assignmentCount: assignment.reviewPackage.assignments.length,
+          ...auditBeforeState,
           scoreHistoryCount: scoreSnapshots.length,
-          displaySessionCount: assignment.reviewPackage.displaySessions.length,
-          materialCount: assignment.reviewPackage.materials.length,
         },
         afterState: {
-          packageDeleted: true,
+          packageDeleted: packageIds,
           scoreHistoryCreated: scoreSnapshots.length,
         },
         reason,
       });
 
       await tx.reviewDisplaySession.deleteMany({
-        where: { packageId: assignment.packageId },
+        where: { packageId: { in: packageIds } },
       });
       await tx.expertReviewMaterial.deleteMany({
-        where: { packageId: assignment.packageId },
+        where: { packageId: { in: packageIds } },
       });
       await tx.expertReviewAssignment.deleteMany({
-        where: { packageId: assignment.packageId },
+        where: { packageId: { in: packageIds } },
       });
-      await tx.expertReviewPackage.delete({
-        where: { id: assignment.packageId },
+      await tx.expertReviewPackage.deleteMany({
+        where: { id: { in: packageIds } },
       });
     });
 
-    return NextResponse.json({ success: true, message: "评审包已重置，可重新配置" });
+    return NextResponse.json({
+      success: true,
+      message: isStageDelete ? "本阶段全部评审配置已重置，可重新配置" : "评审包已重置，可重新配置",
+    });
   }
 
   await prisma.$transaction(async (tx) => {
     await createAuditLogEntry({
       tx,
       operator: user,
-      action: "expert_review_package.cancel",
-      objectType: "expert_review_package",
-      objectId: assignment.packageId,
-      teamGroupId: assignment.reviewPackage.teamGroupId,
-      beforeState: {
-        packageId: assignment.reviewPackage.id,
-        targetName: assignment.reviewPackage.targetName,
-        status: assignment.reviewPackage.status,
-        assignmentCount: assignment.reviewPackage.assignments.length,
-        displaySessionCount: assignment.reviewPackage.displaySessions.length,
-        materialCount: assignment.reviewPackage.materials.length,
-      },
+      action: isStageDelete ? "expert_review_stage.cancel" : "expert_review_package.cancel",
+      objectType: auditObjectType,
+      objectId: auditObjectId,
+      teamGroupId: auditTeamGroupId,
+      beforeState: auditBeforeState,
       afterState: {
         status: "cancelled",
+        packageIds,
       },
       reason,
     });
 
     await tx.reviewDisplaySession.deleteMany({
-      where: { packageId: assignment.packageId },
+      where: { packageId: { in: packageIds } },
     });
     await tx.expertReviewMaterial.deleteMany({
-      where: { packageId: assignment.packageId },
+      where: { packageId: { in: packageIds } },
     });
     await tx.expertReviewAssignment.deleteMany({
-      where: { packageId: assignment.packageId },
+      where: { packageId: { in: packageIds } },
     });
-    await tx.expertReviewPackage.update({
-      where: { id: assignment.packageId },
+    await tx.expertReviewPackage.updateMany({
+      where: { id: { in: packageIds } },
       data: {
         status: "cancelled",
         startAt: null,
@@ -479,5 +538,8 @@ export async function DELETE(
     });
   });
 
-  return NextResponse.json({ success: true });
+  return NextResponse.json({
+    success: true,
+    message: isStageDelete ? "本阶段全部评审配置已取消" : "评审配置已取消",
+  });
 }
