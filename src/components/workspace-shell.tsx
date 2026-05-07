@@ -1697,6 +1697,23 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                       </p>
                     )}
                   </div>
+                  <label className="mt-4 block text-sm text-slate-500">
+                    新增自定义路演项目
+                    <textarea
+                      className={`${textareaClassName} mt-2 min-h-24 bg-white`}
+                      placeholder="一行一个项目名称，可连续新增多个项目"
+                      value={reviewAssignmentDraft.customTargetNames.join("\n")}
+                      onChange={(event) =>
+                        setReviewAssignmentDraft((current) => ({
+                          ...current,
+                          customTargetNames: event.target.value.split(/\r?\n/),
+                        }))
+                      }
+                    />
+                    <span className="mt-1 block text-xs leading-5 text-slate-400">
+                      已选项目组会保留，自定义项目会追加到本轮路演，不需要先去项目管理创建项目组。
+                    </span>
+                  </label>
                 </div>
               ) : (
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">

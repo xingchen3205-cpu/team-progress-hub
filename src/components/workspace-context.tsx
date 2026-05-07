@@ -338,6 +338,7 @@ export type ExpertReviewAssignmentDraft = {
   stageId: string;
   materialSubmissionIds: string[];
   teamGroupIds: string[];
+  customTargetNames: string[];
   roundLabel: string;
   overview: string;
   startAt: string;
@@ -1548,6 +1549,7 @@ export const defaultExpertReviewAssignmentDraft = (
     stageId: "",
     materialSubmissionIds: [],
     teamGroupIds: [],
+    customTargetNames: [],
     roundLabel: "校内专家预审",
     overview: "",
     startAt: reviewWindow.startAt,
@@ -5477,6 +5479,7 @@ function useWorkspaceController({
         stageId: firstAssignment.projectReviewStageId ?? "",
         materialSubmissionIds: [],
         teamGroupIds: [],
+        customTargetNames: [],
         roundLabel: firstAssignment.roundLabel,
         overview: firstAssignment.overview,
         startAt: firstAssignment.startAt
@@ -5499,6 +5502,7 @@ function useWorkspaceController({
       ...baseDraft,
       stageId: initialStageId ?? "",
       teamGroupIds: options?.initialTeamGroupIds ?? baseDraft.teamGroupIds,
+      customTargetNames: [],
       roundLabel: initialStage?.name ?? baseDraft.roundLabel,
     });
     setReviewAssignmentModalOpen(true);
@@ -5580,14 +5584,26 @@ function useWorkspaceController({
 
     const selectedStage = projectStages.find((stage) => stage.id === reviewAssignmentDraft.stageId) ?? null;
     const isCustomReviewTarget = !reviewAssignmentDraft.stageId;
+    const customTargetNames = [
+      ...new Set(
+        reviewAssignmentDraft.customTargetNames
+          .map((name) => name.trim())
+          .filter(Boolean),
+      ),
+    ];
 
     if (isCustomReviewTarget && !reviewAssignmentDraft.targetName.trim()) {
       setLoadError("请填写自定义项目名称");
       return;
     }
 
-    if (!isCustomReviewTarget && selectedStage?.type === "roadshow" && reviewAssignmentDraft.teamGroupIds.length === 0) {
-      setLoadError("请先选择路演项目组");
+    if (
+      !isCustomReviewTarget &&
+      selectedStage?.type === "roadshow" &&
+      reviewAssignmentDraft.teamGroupIds.length === 0 &&
+      customTargetNames.length === 0
+    ) {
+      setLoadError("请至少选择一个路演项目组或填写一个自定义项目");
       return;
     }
 
@@ -5629,6 +5645,7 @@ function useWorkspaceController({
           targetName: reviewAssignmentDraft.targetName.trim(),
           materialSubmissionIds: isCustomReviewTarget ? [] : reviewAssignmentDraft.materialSubmissionIds,
           teamGroupIds: isCustomReviewTarget ? [] : reviewAssignmentDraft.teamGroupIds,
+          customTargetNames: reviewAssignmentDraft.customTargetNames,
           expertUserIds: reviewAssignmentDraft.expertUserIds,
           roundLabel: reviewAssignmentDraft.roundLabel.trim(),
           overview: reviewAssignmentDraft.overview.trim(),

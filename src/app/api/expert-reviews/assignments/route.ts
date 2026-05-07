@@ -133,6 +133,7 @@ export async function POST(request: NextRequest) {
         stageId?: string;
         materialSubmissionIds?: string[];
         teamGroupIds?: string[];
+        customTargetNames?: string[];
         targetName?: string;
         roundLabel?: string;
         overview?: string;
@@ -171,6 +172,15 @@ export async function POST(request: NextRequest) {
         ),
       ]
     : [];
+  const customTargetNames = Array.isArray(body?.customTargetNames)
+    ? [
+        ...new Set(
+          body.customTargetNames
+            .filter((name): name is string => typeof name === "string" && Boolean(name.trim()))
+            .map((name) => name.trim()),
+        ),
+      ]
+    : [];
   const expertUserId = body?.expertUserId?.trim();
   const targetName = body?.targetName?.trim();
   const roundLabel = body?.roundLabel?.trim() || null;
@@ -192,7 +202,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: "评审截止时间必须晚于评审开始时间" }, { status: 400 });
   }
 
-  if (stageId || materialSubmissionIds.length > 0 || teamGroupIds.length > 0) {
+  if (stageId || materialSubmissionIds.length > 0 || teamGroupIds.length > 0 || customTargetNames.length > 0) {
     if (!stageId || expertUserIds.length === 0) {
       return NextResponse.json({ message: "请选择项目管理轮次和评审专家" }, { status: 400 });
     }
@@ -271,8 +281,8 @@ export async function POST(request: NextRequest) {
     let selectedTeamGroups: Array<{ id: string; name: string }> = [];
 
     if (projectReviewStage.type === "roadshow") {
-      if (teamGroupIds.length === 0) {
-        return NextResponse.json({ message: "请选择路演项目组" }, { status: 400 });
+      if (teamGroupIds.length === 0 && customTargetNames.length === 0) {
+        return NextResponse.json({ message: "请至少选择一个路演项目组或填写一个自定义项目" }, { status: 400 });
       }
 
       selectedTeamGroups = await prisma.teamGroup.findMany({
@@ -338,11 +348,18 @@ export async function POST(request: NextRequest) {
 
     const packageTargets =
       projectReviewStage.type === "roadshow"
-        ? selectedTeamGroups.map((teamGroup) => ({
-            teamGroupId: teamGroup.id,
-            targetName: teamGroup.name,
-            materials: [] as typeof selectedMaterials,
-          }))
+        ? [
+            ...selectedTeamGroups.map((teamGroup) => ({
+              teamGroupId: teamGroup.id as string | null,
+              targetName: teamGroup.name,
+              materials: [] as typeof selectedMaterials,
+            })),
+            ...customTargetNames.map((name) => ({
+              teamGroupId: null,
+              targetName: name,
+              materials: [] as typeof selectedMaterials,
+            })),
+          ]
         : Array.from(materialGroups.entries()).map(([teamGroupId, materials]) => ({
             teamGroupId,
             targetName: materials[0]?.teamGroup.name ?? "项目组",
@@ -352,11 +369,16 @@ export async function POST(request: NextRequest) {
     const existingReviewPackages = await prisma.expertReviewPackage.findMany({
       where: {
         projectReviewStageId: projectReviewStage.id,
-        teamGroupId: { in: packageTargets.map((target) => target.teamGroupId) },
+        OR: packageTargets.map((target) =>
+          target.teamGroupId
+            ? { teamGroupId: target.teamGroupId }
+            : { teamGroupId: null, targetName: target.targetName },
+        ),
       },
       select: {
         id: true,
         teamGroupId: true,
+        targetName: true,
         status: true,
       },
     });
@@ -375,7 +397,10 @@ export async function POST(request: NextRequest) {
       for (const target of packageTargets) {
         const reusablePackage = existingReviewPackages.find(
           (reviewPackage) =>
-            reviewPackage.status === "cancelled" && reviewPackage.teamGroupId === target.teamGroupId,
+            reviewPackage.status === "cancelled" &&
+            (target.teamGroupId
+              ? reviewPackage.teamGroupId === target.teamGroupId
+              : reviewPackage.teamGroupId === null && reviewPackage.targetName === target.targetName),
         );
         if (reusablePackage) {
           await tx.reviewDisplaySession.deleteMany({ where: { packageId: reusablePackage.id } });

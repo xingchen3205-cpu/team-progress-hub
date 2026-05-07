@@ -298,6 +298,23 @@ describe("expert review v2 constraints", () => {
     assert.doesNotMatch(contextSource, /if \(!reviewAssignmentDraft\.stageId\)[\s\S]{0,120}请先选择项目管理轮次/);
   });
 
+  it("allows selected roadshow groups plus multiple custom project names in one review round", () => {
+    const shellSource = readSource("src/components/workspace-shell.tsx");
+    const contextSource = readSource("src/components/workspace-context.tsx");
+    const routeSource = readSource("src/app/api/expert-reviews/assignments/route.ts");
+
+    assert.match(shellSource, /新增自定义路演项目/);
+    assert.match(shellSource, /customTargetNames/);
+    assert.match(shellSource, /一行一个项目名称/);
+    assert.match(contextSource, /customTargetNames:\s*\[\]/);
+    assert.match(contextSource, /customTargetNames:\s*reviewAssignmentDraft\.customTargetNames/);
+    assert.match(contextSource, /请至少选择一个路演项目组或填写一个自定义项目/);
+    assert.match(routeSource, /customTargetNames\?:\s*string\[\]/);
+    assert.match(routeSource, /customTargetNames/);
+    assert.match(routeSource, /teamGroupId:\s*null/);
+    assert.doesNotMatch(routeSource, /teamGroupId:\s*\{\s*in:\s*packageTargets\.map/);
+  });
+
   it("uses an independent expert review window instead of the project material upload window", () => {
     const contextSource = readSource("src/components/workspace-context.tsx");
     const shellSource = readSource("src/components/workspace-shell.tsx");
