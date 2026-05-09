@@ -44,13 +44,14 @@ type SystemLogsResponse = {
   };
 };
 
-type RangeKey = "today" | "7d" | "30d" | "all";
+type RangeKey = "today" | "7d" | "30d" | "may" | "all";
 type KindKey = "all" | "access" | "auth" | "review" | "critical";
 
 const rangeOptions: Array<{ value: RangeKey; label: string }> = [
   { value: "today", label: "今天" },
   { value: "7d", label: "近 7 天" },
   { value: "30d", label: "近 30 天" },
+  { value: "may", label: "5 月至今" },
   { value: "all", label: "全部" },
 ];
 
@@ -117,7 +118,7 @@ export default function SystemLogsTab() {
     requestJson,
   } = Workspace;
 
-  const [range, setRange] = useState<RangeKey>("all");
+  const [range, setRange] = useState<RangeKey>("may");
   const [kind, setKind] = useState<KindKey>("all");
   const [role, setRole] = useState("all");
   const [operatorId, setOperatorId] = useState("all");
@@ -135,7 +136,7 @@ export default function SystemLogsTab() {
       role,
       operatorId,
       action,
-      limit: "120",
+      limit: "all",
     });
     if (keyword.trim()) {
       params.set("q", keyword.trim());
