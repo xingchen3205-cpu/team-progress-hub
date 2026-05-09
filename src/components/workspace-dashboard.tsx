@@ -18,6 +18,7 @@ const loadExpertReviewTab = () => import("@/components/tabs/expert-review-tab");
 const loadDocumentsTab = () => import("@/components/tabs/documents-tab");
 const loadProjectTab = () => import("@/components/tabs/project-tab");
 const loadTeamTab = () => import("@/components/tabs/team-tab");
+const loadSystemLogsTab = () => import("@/components/tabs/system-logs-tab");
 const loadAssistantTab = () => import("@/components/tabs/assistant-tab");
 const loadProfileTab = () => import("@/components/tabs/profile-tab");
 
@@ -51,6 +52,9 @@ const ProjectTab = dynamic(loadProjectTab, {
 const TeamTab = dynamic(loadTeamTab, {
   loading: () => <TabSkeleton variant="workspace" />,
 });
+const SystemLogsTab = dynamic(loadSystemLogsTab, {
+  loading: () => <TabSkeleton variant="workspace" />,
+});
 const AssistantTab = dynamic(loadAssistantTab, {
   loading: () => <TabSkeleton variant="workspace" />,
 });
@@ -69,6 +73,7 @@ const preloadWorkspaceTabComponents: Record<TabKey, () => Promise<unknown>> = {
   documents: loadDocumentsTab,
   project: loadProjectTab,
   team: loadTeamTab,
+  systemLogs: loadSystemLogsTab,
   assistant: loadAssistantTab,
   profile: loadProfileTab,
 };
@@ -89,6 +94,7 @@ function WorkspaceDashboardContent() {
       {safeActiveTab === "documents" && <DocumentsTab />}
       {safeActiveTab === "project" && <ProjectTab />}
       {safeActiveTab === "team" && <TeamTab />}
+      {safeActiveTab === "systemLogs" && <SystemLogsTab />}
       {safeActiveTab === "assistant" && <AssistantTab />}
       {safeActiveTab === "profile" && <ProfileTab />}
     </>

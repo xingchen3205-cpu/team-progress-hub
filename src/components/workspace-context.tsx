@@ -150,6 +150,7 @@ export type TabKey =
   | "documents"
   | "project"
   | "team"
+  | "systemLogs"
   | "assistant"
   | "profile";
 
@@ -644,6 +645,12 @@ export const allTabs: TabItem[] = [
     icon: Users,
   },
   {
+    key: "systemLogs",
+    label: "系统日志",
+    description: "查看全站登录、访问与关键操作审计记录。",
+    icon: FileText,
+  },
+  {
     key: "assistant",
     label: "AI 助手",
     description: "咨询系统使用、赛事流程和材料规范。",
@@ -935,6 +942,7 @@ export const rolePermissions = {
       "documents",
       "project",
       "team",
+      "systemLogs",
       "assistant",
       "profile",
     ] as TabKey[],
@@ -2627,6 +2635,7 @@ function useWorkspaceController({
           return ["projectStages", "projectMaterials", "team"];
         case "team":
           return ["team"];
+        case "systemLogs":
         case "assistant":
         case "profile":
           return [];

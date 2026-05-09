@@ -2,8 +2,10 @@ import bcrypt from "bcryptjs";
 import { NextRequest, NextResponse } from "next/server";
 
 import { signAuthToken, setAuthCookie } from "@/lib/auth";
+import { createAuditLogEntry } from "@/lib/audit-log";
 import { CAPTCHA_COOKIE_NAME, clearCaptchaCookie, verifyCaptchaChallenge } from "@/lib/captcha";
 import { prisma } from "@/lib/prisma";
+import { getRequestIp, getRequestUserAgent } from "@/lib/request-meta";
 import { serializeUser } from "@/lib/api-serializers";
 import { applyRateLimitHeaders, authRateLimits, checkRateLimit } from "@/lib/security";
 
@@ -109,6 +111,23 @@ export async function POST(request: NextRequest) {
 
   setAuthCookie(response, token);
   clearCaptchaCookie(response);
+
+  await prisma.$transaction(async (tx) => {
+    await createAuditLogEntry({
+      tx,
+      operator: { id: user.id, role: user.role },
+      action: "auth.login.success",
+      objectType: "user",
+      objectId: user.id,
+      teamGroupId: user.teamGroupId,
+      metadata: {
+        account,
+        device: isMobileWebRequest(request) ? "mobile" : "desktop",
+        ip: getRequestIp(request),
+        userAgent: getRequestUserAgent(request),
+      },
+    });
+  }).catch(() => undefined);
 
   return response;
 }

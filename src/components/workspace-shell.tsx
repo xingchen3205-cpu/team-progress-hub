@@ -3,7 +3,7 @@
 import Image from "next/image";
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { TeamRoleLabel, DocumentDraft } from "@/components/workspace-context";
 import * as Workspace from "@/components/workspace-context";
 
@@ -311,6 +311,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
       currentDateTime.getDay()
     ],
   };
+  const lastLoggedPageViewRef = useRef("");
   const [workspaceWeather, setWorkspaceWeather] = useState({
     label: "南京天气",
     title: "正在获取南京实时天气",
@@ -346,6 +347,29 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
       setBugFeedbackSubmitting(false);
     }
   };
+
+  useEffect(() => {
+    if (!currentUser?.id || isBooting) {
+      return;
+    }
+
+    const logKey = `${currentUser.id}:${safeActiveTab}`;
+    if (lastLoggedPageViewRef.current === logKey) {
+      return;
+    }
+    lastLoggedPageViewRef.current = logKey;
+
+    void fetch("/api/system-logs/access", {
+      method: "POST",
+      credentials: "same-origin",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        tabKey: safeActiveTab,
+        tabLabel: activeTopbarLabel,
+        path: `/workspace?tab=${safeActiveTab}`,
+      }),
+    }).catch(() => undefined);
+  }, [activeTopbarLabel, currentUser?.id, isBooting, safeActiveTab]);
 
   useEffect(() => {
     let isMounted = true;

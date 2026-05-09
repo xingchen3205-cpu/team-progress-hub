@@ -16,6 +16,7 @@ const validTabs = [
   "documents",
   "project",
   "team",
+  "systemLogs",
   "assistant",
   "profile",
 ] as const;
