@@ -39,6 +39,9 @@ test("system logs api is readable only by system administrators", () => {
   const routeSource = read(routePath);
   assert.match(routeSource, /user\.role !== "admin"/);
   assert.doesNotMatch(routeSource, /user\.role\s*===\s*"school_admin"[\s\S]*?logs:/);
+  assert.doesNotMatch(routeSource, /operatorId:\s*user\.id/);
+  assert.match(routeSource, /const operatorId = searchParams\.get\("operatorId"\)/);
+  assert.match(routeSource, /filters:\s*\{[\s\S]*?operators/);
   assert.match(routeSource, /operatorRole/);
   assert.match(routeSource, /beforeState/);
   assert.match(routeSource, /afterState/);
@@ -70,6 +73,8 @@ test("system logs tab keeps the audit UI readable instead of dumping raw json", 
   assert.match(tabSource, /访问记录/);
   assert.match(tabSource, /关键操作/);
   assert.match(tabSource, /时间 \/ 操作人 \/ 操作内容/);
+  assert.match(tabSource, /操作人/);
+  assert.match(tabSource, /全部人员/);
   assert.match(tabSource, /详情/);
   assert.match(tabSource, /formatAuditJson/);
   assert.doesNotMatch(tabSource, /<pre[^>]*>\{JSON\.stringify\(log\)/);

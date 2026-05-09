@@ -22,6 +22,22 @@ export async function POST(request: NextRequest) {
 
   const tabKey = body?.tabKey?.trim().slice(0, 80) || "unknown";
   const tabLabel = body?.tabLabel?.trim().slice(0, 80) || tabKey;
+  const recentDuplicate = await prisma.auditLog.findFirst({
+    where: {
+      operatorId: user.id,
+      action: "workspace.page_view",
+      objectType: "workspace_tab",
+      objectId: tabKey,
+      createdAt: {
+        gte: new Date(Date.now() - 60 * 1000),
+      },
+    },
+    select: { id: true },
+  });
+
+  if (recentDuplicate) {
+    return NextResponse.json({ success: true, skipped: true });
+  }
 
   await prisma.$transaction(async (tx) => {
     await createAuditLogEntry({

@@ -130,6 +130,7 @@ export async function GET(request: NextRequest) {
   const searchParams = request.nextUrl.searchParams;
   const rangeStart = getRangeStart(searchParams.get("range"));
   const operatorRole = searchParams.get("role");
+  const operatorId = searchParams.get("operatorId");
   const action = searchParams.get("action");
   const objectType = searchParams.get("objectType");
   const keyword = searchParams.get("q")?.trim().toLowerCase() ?? "";
@@ -148,6 +149,10 @@ export async function GET(request: NextRequest) {
     where.operatorRole = operatorRole as Role;
   }
 
+  if (operatorId && operatorId !== "all") {
+    where.operatorId = operatorId;
+  }
+
   if (action && action !== "all") {
     where.action = action;
   }
@@ -164,8 +169,25 @@ export async function GET(request: NextRequest) {
 
   const operatorIds = Array.from(new Set(logs.map((log) => log.operatorId)));
   const teamGroupIds = Array.from(new Set(logs.map((log) => log.teamGroupId).filter(Boolean))) as string[];
+  const operatorFilterWhere: Prisma.UserWhereInput = {
+    approvalStatus: "approved",
+    ...(operatorRole && roleValues.has(operatorRole as Role) ? { role: operatorRole as Role } : {}),
+  };
 
-  const [operators, teamGroups] = await Promise.all([
+  const [allOperators, logOperators, teamGroups] = await Promise.all([
+    prisma.user.findMany({
+      where: operatorFilterWhere,
+      select: {
+        id: true,
+        name: true,
+        username: true,
+        email: true,
+        role: true,
+        teamGroupId: true,
+        teamGroup: { select: { id: true, name: true } },
+      },
+      orderBy: [{ role: "asc" }, { name: "asc" }],
+    }),
     operatorIds.length > 0
       ? prisma.user.findMany({
           where: { id: { in: operatorIds } },
@@ -188,7 +210,9 @@ export async function GET(request: NextRequest) {
       : [],
   ]);
 
-  const operatorMap = new Map(operators.map((operator) => [operator.id, operator]));
+  const operatorMap = new Map(
+    [...allOperators, ...logOperators].map((operator) => [operator.id, operator]),
+  );
   const teamGroupMap = new Map(teamGroups.map((group) => [group.id, group]));
 
   const rows = logs.map((log) => {
@@ -267,6 +291,10 @@ export async function GET(request: NextRequest) {
     },
     filters: {
       actions,
+      operators: allOperators.map((operator) => ({
+        value: operator.id,
+        label: `${operator.name} · ${roleLabels[operator.role]}`,
+      })),
     },
   });
 }

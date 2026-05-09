@@ -40,6 +40,7 @@ type SystemLogsResponse = {
   };
   filters: {
     actions: Array<{ value: string; label: string }>;
+    operators: Array<{ value: string; label: string }>;
   };
 };
 
@@ -116,9 +117,10 @@ export default function SystemLogsTab() {
     requestJson,
   } = Workspace;
 
-  const [range, setRange] = useState<RangeKey>("7d");
+  const [range, setRange] = useState<RangeKey>("all");
   const [kind, setKind] = useState<KindKey>("all");
   const [role, setRole] = useState("all");
+  const [operatorId, setOperatorId] = useState("all");
   const [action, setAction] = useState("all");
   const [keywordDraft, setKeywordDraft] = useState("");
   const [keyword, setKeyword] = useState("");
@@ -131,6 +133,7 @@ export default function SystemLogsTab() {
       range,
       kind,
       role,
+      operatorId,
       action,
       limit: "120",
     });
@@ -138,7 +141,7 @@ export default function SystemLogsTab() {
       params.set("q", keyword.trim());
     }
     return params.toString();
-  }, [action, keyword, kind, range, role]);
+  }, [action, keyword, kind, operatorId, range, role]);
 
   const loadLogs = useCallback(async () => {
     if (currentRole !== "admin") {
@@ -186,6 +189,7 @@ export default function SystemLogsTab() {
   };
   const logs = payload?.logs ?? [];
   const actionOptions = payload?.filters.actions ?? [];
+  const operatorOptions = payload?.filters.operators ?? [];
 
   return (
     <div className="space-y-5">
@@ -230,7 +234,10 @@ export default function SystemLogsTab() {
       </section>
 
       <section className="depth-subtle rounded-xl p-5">
-        <div className="grid gap-3 xl:grid-cols-[1.3fr_160px_160px_180px_1fr_auto] xl:items-end">
+        <div className="mb-4 rounded-xl border border-white/70 bg-white/75 px-4 py-3 text-sm text-slate-600">
+          当前按全站日志查询。可在“操作人”中选择任意账号查看该人的访问和操作记录；默认“全部人员”不会按当前登录管理员过滤。
+        </div>
+        <div className="grid gap-3 xl:grid-cols-[1.25fr_140px_150px_190px_180px_1fr_auto] xl:items-end">
           <div>
             <p className="text-xs font-semibold text-slate-500">日志类型</p>
             <div className="mt-2 grid gap-2 sm:grid-cols-5">
@@ -270,6 +277,18 @@ export default function SystemLogsTab() {
             操作角色
             <select className={fieldClassName} onChange={(event) => setRole(event.target.value)} value={role}>
               {roleOptions.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+
+          <label className="block text-xs font-semibold text-slate-500">
+            操作人
+            <select className={fieldClassName} onChange={(event) => setOperatorId(event.target.value)} value={operatorId}>
+              <option value="all">全部人员</option>
+              {operatorOptions.map((option) => (
                 <option key={option.value} value={option.value}>
                   {option.label}
                 </option>
