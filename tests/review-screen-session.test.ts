@@ -938,4 +938,14 @@ describe("roadshow review screen session", () => {
     assert.match(screenPageSource, /专家 2/);
     assert.match(screenPageSource, /专家 3/);
   });
+
+  it("keeps system draw winners out of the rolling strips until settle", () => {
+    const screenPageSource = readSource("src/app/review-screen/session/[sessionId]/page.tsx");
+
+    assert.match(screenPageSource, /drawTheaterSettledProject/);
+    assert.match(screenPageSource, /draw-theater-settled-result/);
+    assert.doesNotMatch(screenPageSource, /items\.push\(winner\.targetName\)/);
+    assert.doesNotMatch(screenPageSource, /items\.push\(winner\);\s*return items;/);
+    assert.doesNotMatch(screenPageSource, /drawTheaterCurrentProject\?\.targetName/);
+  });
 });

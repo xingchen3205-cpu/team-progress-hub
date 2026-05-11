@@ -188,22 +188,19 @@ const buildDrawTheaterNameStrip = (
   seed: number,
 ) => {
   const pool = rows.filter((item) => item.packageId !== winner.packageId).map((item) => item.targetName);
+  const fallback = pool[(seed + 1) % Math.max(pool.length, 1)] ?? "抽取中";
   const items: string[] = [];
   let previous: string | null = null;
   for (let index = 0; index < 12; index += 1) {
     const picked: string = pickNonRepeatingValue<string>(
       pool,
-      winner.targetName,
+      fallback,
       previous,
       seed * 7 + index * 5 + Math.floor(index / 2),
     );
     items.push(picked);
     previous = picked;
   }
-  if (items[items.length - 1] === winner.targetName && pool.length > 0) {
-    items[items.length - 1] = pool[(seed + 3) % pool.length] ?? items[items.length - 1];
-  }
-  items.push(winner.targetName);
   return items;
 };
 
@@ -240,13 +237,12 @@ const getSelfDrawNameStyle = (name: string) =>
   }) as CSSProperties;
 
 const buildDrawTheaterNumberStrip = (winner: number, total: number, seed: number) => {
-  const safeTotal = Math.max(total, winner, 1);
+  const safeTotal = Math.max(total, winner, 9);
   const pool = Array.from({ length: safeTotal }, (_, index) => index + 1).filter((value) => value !== winner);
   const items = buildNonRepeatingReelValues(pool, 14, seed * 11, winner);
   if (items[items.length - 1] === winner && pool.length > 0) {
     items[items.length - 1] = pool[(seed + 5) % pool.length] ?? items[items.length - 1];
   }
-  items.push(winner);
   return items;
 };
 
@@ -832,6 +828,7 @@ export default function ReviewScreenSessionPage() {
             ? "number"
             : "settle";
   const drawTheaterCurrentProject = drawTheaterRevealRows[drawTheaterRoundIndex] ?? null;
+  const drawTheaterSettledProject = drawTheaterStep === "settle" ? drawTheaterCurrentProject : null;
   const drawTheaterNameStripItems = useMemo(
     () =>
       drawTheaterCurrentProject
@@ -1436,6 +1433,24 @@ export default function ReviewScreenSessionPage() {
           width: min(100%, 1080px);
           height: 96px;
         }
+        .draw-theater-namebox.revealed .draw-theater-name-strip {
+          opacity: 0;
+        }
+        .draw-theater-settled-result {
+          position: absolute;
+          inset: 0;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          padding: 0 28px;
+          color: #0f2040;
+          font-size: var(--draw-name-font-size, clamp(34px, 4.3vw, 58px));
+          font-weight: 900;
+          line-height: 1.08;
+          text-align: center;
+          overflow-wrap: anywhere;
+          animation: draw-result-in .32s cubic-bezier(.16,1,.3,1) both;
+        }
         .draw-theater-numbox {
           width: 270px;
           height: 132px;
@@ -1447,6 +1462,9 @@ export default function ReviewScreenSessionPage() {
         .draw-theater-numbox.show {
           opacity: 1;
           transform: translateY(0);
+        }
+        .draw-theater-numbox.revealed .draw-theater-number-strip {
+          opacity: 0;
         }
         .draw-theater-name-strip,
         .draw-theater-number-strip {
@@ -1521,6 +1539,16 @@ export default function ReviewScreenSessionPage() {
         .draw-theater-number-item.dim .draw-theater-number-prefix,
         .draw-theater-number-item.dim .draw-theater-number-suffix {
           opacity: .38;
+        }
+        .draw-theater-settled-number {
+          position: absolute;
+          inset: 0;
+          display: flex;
+          align-items: baseline;
+          justify-content: center;
+          gap: 12px;
+          font-variant-numeric: tabular-nums;
+          animation: draw-result-in .32s cubic-bezier(.16,1,.3,1) both;
         }
         .draw-theater-glow {
           position: absolute;
@@ -3119,7 +3147,7 @@ export default function ReviewScreenSessionPage() {
                         : "落位"}
               </p>
 
-              <div className="draw-theater-namebox">
+              <div className={`draw-theater-namebox ${drawTheaterSettledProject ? "revealed" : ""}`}>
                 <div
                   className={`draw-theater-name-strip ${drawTheaterStep === "name" ? "rolling" : ""} ${drawTheaterStep !== "ready" && drawTheaterStep !== "name" ? "locked" : ""}`}
                   key={`draw-name-${drawTheaterCurrentProject?.packageId ?? "idle"}`}
@@ -3138,9 +3166,17 @@ export default function ReviewScreenSessionPage() {
                     </div>
                   ))}
                 </div>
+                {drawTheaterSettledProject ? (
+                  <div
+                    className="draw-theater-settled-result"
+                    style={getDrawTheaterNameStyle(drawTheaterSettledProject.targetName)}
+                  >
+                    {drawTheaterSettledProject.targetName}
+                  </div>
+                ) : null}
               </div>
 
-              <div className={`draw-theater-numbox ${drawTheaterStep === "number" || drawTheaterStep === "settle" ? "show" : ""}`}>
+              <div className={`draw-theater-numbox ${drawTheaterStep === "number" || drawTheaterStep === "settle" ? "show" : ""} ${drawTheaterSettledProject ? "revealed" : ""}`}>
                 <div
                   className={`draw-theater-number-strip ${drawTheaterStep === "number" ? "rolling" : ""}`}
                   key={`draw-number-${drawTheaterCurrentProject?.packageId ?? "idle"}`}
@@ -3160,6 +3196,15 @@ export default function ReviewScreenSessionPage() {
                     </div>
                   ))}
                 </div>
+                {drawTheaterSettledProject ? (
+                  <div className="draw-theater-settled-number">
+                    <span className="draw-theater-number-prefix">第</span>
+                    <span className="draw-theater-number-digit">
+                      {String(drawTheaterSettledProject.orderIndex + 1).padStart(2, "0")}
+                    </span>
+                    <span className="draw-theater-number-suffix">位</span>
+                  </div>
+                ) : null}
               </div>
             </div>
 

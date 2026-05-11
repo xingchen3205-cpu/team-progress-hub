@@ -33,10 +33,15 @@ describe("expert review v2 constraints", () => {
 
   it("supports roadshow score submission with exactly two-decimal precision storage", () => {
     const routeSource = readSource("src/app/api/expert-reviews/scores/route.ts");
+    const tabSource = readSource("src/components/tabs/expert-review-tab-content.tsx");
 
     assert.match(routeSource, /roadshowScore/);
     assert.match(routeSource, /Math\.round\(roadshowScore \* 100\)/);
     assert.match(routeSource, /Number\.isInteger\(roadshowScore \* 100\)/);
+    assert.match(routeSource, /totalScore = scaledRoadshowScore/);
+    assert.match(tabSource, /roadshowScore:\s*Number\(pendingSubmission\.score\.toFixed\(2\)\)/);
+    assert.match(tabSource, /assignment\.score \? formatScoreForAssignment\(assignment\) : ""/);
+    assert.doesNotMatch(tabSource, /assignment\.score\.totalScore\)[\s\S]{0,80}导出评分明细/);
   });
 
   it("rejects expert review uploads when mime type conflicts with extension", () => {
@@ -546,6 +551,8 @@ describe("expert review v2 constraints", () => {
     assert.match(tabSource, /当前控制中/);
     assert.match(tabSource, /等待按顺序推进/);
     assert.match(tabSource, /renderRoadshowGroupCards/);
+    assert.match(tabSource, /roadshow-project-card-title/);
+    assert.doesNotMatch(tabSource, /<p className="mt-3 truncate text-sm font-extrabold text-slate-950">/);
     assert.doesNotMatch(tabSource, /activeGroupIsRoadshow && activeGroup \? \(\s*<main className="space-y-5">\s*\{renderReviewScreenConsole\(activeGroup\)\}/);
   });
 

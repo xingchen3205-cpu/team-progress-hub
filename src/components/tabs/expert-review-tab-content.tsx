@@ -3667,7 +3667,9 @@ export default function ExpertReviewTab() {
                   {phaseLabel}
                 </span>
               </div>
-              <p className="mt-3 truncate text-sm font-extrabold text-slate-950">{group.targetName}</p>
+              <p className="roadshow-project-card-title mt-3 break-words text-sm font-extrabold leading-6 text-slate-950">
+                {group.targetName}
+              </p>
               <div className="mt-3 flex items-end justify-between gap-3">
                 <p className="text-xs text-slate-500">
                   已提交 {submittedCount}/{group.items.length}
