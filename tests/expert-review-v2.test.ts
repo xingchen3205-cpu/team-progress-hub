@@ -478,9 +478,10 @@ describe("expert review v2 constraints", () => {
     assert.match(contextSource, /refreshWorkspace\(\["reviewAssignments",\s*"projectStages"\]\)/);
     assert.match(tabSource, /reconfigurableProjectStages/);
     assert.doesNotMatch(tabSource, /projectStages\.length > 0 && groupedAssignments\.length === 0/);
-    assert.match(tabSource, /resettableRoadshowGroups/);
-    assert.match(tabSource, /重新配置项目组/);
-    assert.match(tabSource, /openReviewAssignmentModal\(undefined,\s*activeProjectStage\.id/);
+    assert.doesNotMatch(tabSource, /resettableRoadshowGroups/);
+    assert.doesNotMatch(tabSource, /已重置 \/ 未配置项目组/);
+    assert.doesNotMatch(tabSource, /重新配置项目组/);
+    assert.doesNotMatch(tabSource, /openReviewAssignmentModal\(undefined,\s*activeProjectStage\.id/);
   });
 
   it("keeps roadshow configuration guidance unambiguous and resets local locked screen state", () => {
