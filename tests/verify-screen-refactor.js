@@ -44,8 +44,8 @@ assert.match(drawRouteSource, /phaseStartedAt/);
 assert.match(screenPageSource, /drawReviewScreenOrderFromScreen/);
 assert.match(screenPageSource, /开始随机抽签/);
 assert.match(screenPageSource, /draw-sequence-overlay/);
-assert.match(screenPageSource, /drawRevealBatches/);
-assert.match(screenPageSource, /公开抽签结果/);
+assert.match(screenPageSource, /drawTheaterRows/);
+assert.match(screenPageSource, /路演抽签/);
 
 assert.match(selfDrawCandidateRouteSource, /randomInt/);
 assert.match(selfDrawCandidateRouteSource, /review_screen_session\.self_draw_candidate_selected/);
@@ -53,13 +53,11 @@ assert.match(selfDrawCandidateRouteSource, /currentPackageId:\s*pickedProject\.p
 assert.match(selfDrawRouteSource, /review_screen_session\.self_drawn/);
 assert.match(selfDrawRouteSource, /请先在大屏上抽取上台项目，再抽取路演顺序/);
 assert.match(screenPageSource, /drawSelfDrawCandidate/);
-assert.match(screenPageSource, /toggleSelfDrawCandidateRolling/);
-assert.match(screenPageSource, /toggleSelfDrawSlotRolling/);
-assert.match(screenPageSource, /候抽项目池/);
-assert.match(screenPageSource, /抽取上台项目/);
-assert.match(screenPageSource, /确定上台项目/);
-assert.match(screenPageSource, /开始抽路演顺序/);
-assert.match(screenPageSource, /停下并确认路演号/);
+assert.match(screenPageSource, /self-draw-grid/);
+assert.match(screenPageSource, /项目池/);
+assert.match(screenPageSource, /抽下一位上台/);
+assert.match(screenPageSource, /抽路演序号/);
+assert.doesNotMatch(screenPageSource, /toggleSelfDrawCandidateRolling|toggleSelfDrawSlotRolling/);
 
 assert.match(adminTabSource, /随机抽签和自助抽签都在大屏窗口完成/);
 assert.match(adminTabSource, /打开大屏抽签/);
@@ -73,7 +71,9 @@ assert.match(orderExportRouteSource, /待抽取上台项目/);
 
 assert.match(screenPageSource, /useRevealAnimationFrame/);
 assert.match(screenPageSource, /score-reveal-overlay/);
-assert.match(screenPageSource, /按本轮评分规则计算/);
+assert.match(screenPageSource, /buildNonRepeatingReelValues/);
+assert.doesNotMatch(screenPageSource, /Math\.random/);
+assert.doesNotMatch(screenPageSource, /按本轮评分规则计算/);
 assert.doesNotMatch(screenPageSource, /有效评分：/);
 assert.match(rankingStageSource, /本轮评审结果/);
 assert.match(rankingStageSource, /final-ranking-champion/);

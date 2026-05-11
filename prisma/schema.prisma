@@ -746,6 +746,7 @@ model ReviewDisplayProjectOrder {
   reviewPackage      ExpertReviewPackage  @relation(fields: [packageId], references: [id], onDelete: Cascade)
 
   @@unique([sessionId, packageId])
+  @@unique([sessionId, orderIndex])
   @@index([sessionId, orderIndex])
 }
 

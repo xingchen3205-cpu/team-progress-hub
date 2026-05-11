@@ -132,25 +132,43 @@ const fallbackSeats: ScreenSeat[] = [
   { assignmentId: "fallback-3", seatNo: 3, displayName: "专家 3", avatarText: "3", status: "pending", scoreText: null },
 ];
 
-const buildSelfDrawReelItems = (winner: string, pool: string[]): SelfDrawReelItem[] => {
-  const visualPool = pool.length > 0 ? pool : [winner];
-  const items: SelfDrawReelItem[] = [];
-  for (let index = 0; index < SELF_DRAW_SPIN_COUNT; index += 1) {
-    items.push({
-      value: visualPool[Math.floor(Math.random() * visualPool.length)] ?? winner,
-      dim: true,
-    });
+const buildNonRepeatingReelValues = <T,>(pool: T[], count: number, seed: number, fallback: T): T[] => {
+  const source = pool.length > 0 ? pool : [fallback];
+  const values: T[] = [];
+  let offset = ((seed % source.length) + source.length) % source.length;
+
+  while (values.length < count) {
+    let pushedInCycle = false;
+    for (let step = 0; step < source.length && values.length < count; step += 1) {
+      const value = source[(offset + step) % source.length] ?? fallback;
+      const previous = values[values.length - 1] ?? null;
+      if (source.length > 1 && Object.is(value, previous)) continue;
+      values.push(value);
+      pushedInCycle = true;
+    }
+    if (!pushedInCycle) {
+      values.push(fallback);
+    }
+    offset = (offset + Math.max(1, Math.floor(source.length / 2))) % source.length;
   }
-  items.push({ value: winner, dim: false });
-  items.push({
-    value: visualPool[Math.floor(Math.random() * visualPool.length)] ?? winner,
-    dim: true,
-  });
-  items.push({
-    value: visualPool[Math.floor(Math.random() * visualPool.length)] ?? winner,
-    dim: true,
-  });
-  return items;
+
+  return values;
+};
+
+const buildSelfDrawReelItems = (winner: string, pool: string[], seed = 0): SelfDrawReelItem[] => {
+  const distractors = pool.filter((value) => value !== winner);
+  const beforeWinner = buildNonRepeatingReelValues(
+    distractors,
+    SELF_DRAW_SPIN_COUNT,
+    seed,
+    winner,
+  );
+  const afterWinner = buildNonRepeatingReelValues(distractors, 2, seed + SELF_DRAW_SPIN_COUNT + 1, winner);
+  return [
+    ...beforeWinner.map((value) => ({ value, dim: true })),
+    { value: winner, dim: false },
+    ...afterWinner.map((value) => ({ value, dim: true })),
+  ];
 };
 
 const pickNonRepeatingValue = <T,>(pool: T[], fallback: T, previous: T | null, cursor: number) => {
@@ -190,18 +208,7 @@ const buildDrawTheaterNameStrip = (
 const buildDrawTheaterNumberStrip = (winner: number, total: number, seed: number) => {
   const safeTotal = Math.max(total, winner, 1);
   const pool = Array.from({ length: safeTotal }, (_, index) => index + 1).filter((value) => value !== winner);
-  const items: number[] = [];
-  let previous: number | null = null;
-  for (let index = 0; index < 14; index += 1) {
-    const picked: number = pickNonRepeatingValue<number>(
-      pool,
-      winner,
-      previous,
-      seed * 11 + index * 7 + Math.floor(index / 2),
-    );
-    items.push(picked);
-    previous = picked;
-  }
+  const items = buildNonRepeatingReelValues(pool, 14, seed * 11, winner);
   if (items[items.length - 1] === winner && pool.length > 0) {
     items[items.length - 1] = pool[(seed + 5) % pool.length] ?? items[items.length - 1];
   }
@@ -675,7 +682,6 @@ export default function ReviewScreenSessionPage() {
   const revealScoreVisible = revealElapsedMs >= 600;
   const revealScoreSettling = revealElapsedMs >= 2400 && revealElapsedMs < 2530;
   const revealUnderlineVisible = revealElapsedMs >= 2530;
-  const revealCaptionVisible = revealElapsedMs >= 2730;
   const finalScoreRevealProgress = Math.min(1, Math.max(0, (revealElapsedMs - 600) / 1800));
 
   const revealAnimatedScore = useMemo(() => {
@@ -855,7 +861,7 @@ export default function ReviewScreenSessionPage() {
       ? "路演顺序已确认，可导出顺序表留档"
       : selectedSelfDrawProject
         ? "点击「抽路演序号」由该项目抽取顺序"
-        : "老师不介入选择，全程随机";
+        : "等待抽取";
 
   const stopSelfDrawAutoScroll = () => {
     const state = selfDrawAutoScrollRef.current;
@@ -928,17 +934,19 @@ export default function ReviewScreenSessionPage() {
     mode,
     durationMs,
     pool,
+    seed,
     focus,
   }: {
     winner: string;
     mode: SelfDrawReelMode;
     durationMs: number;
     pool: string[];
+    seed: number;
     focus?: () => void;
   }) =>
     new Promise<void>((resolve) => {
       stopSelfDrawAutoScroll();
-      const items = buildSelfDrawReelItems(winner, pool);
+      const items = buildSelfDrawReelItems(winner, pool, seed);
       setSelfDrawReelMode(mode);
       setSelfDrawReelItems(items);
       setSelfDrawReelTransition("none");
@@ -1148,6 +1156,7 @@ export default function ReviewScreenSessionPage() {
           mode: "name",
           durationMs: SELF_DRAW_NAME_DURATION_MS,
           pool: winnerPool,
+          seed: winnerIndex + pendingSelfDrawProjects.length * 3,
           focus: () => focusSelfDrawPanel("left", winnerIndex),
         });
 
@@ -1183,15 +1192,17 @@ export default function ReviewScreenSessionPage() {
       if (!confirmedOrder) {
         throw new Error("抽签失败，请重试");
       }
-      const winnerOrderNumber = String(confirmedOrder.orderIndex + 1);
-      const numberPool = selfDrawAvailableSlotIndexes.map((index) => String(index + 1));
+      const pickedOrderIndex = data.pickedOrderIndex ?? confirmedOrder.orderIndex;
+      const winnerOrderNumber = String(pickedOrderIndex + 1);
+      const numberPool = [...new Set(selfDrawAvailableSlotIndexes)].map((index) => String(index + 1));
 
       await spinToSelfDrawWinner({
         winner: winnerOrderNumber,
         mode: "num",
         durationMs: SELF_DRAW_NUMBER_DURATION_MS,
         pool: numberPool,
-        focus: () => focusSelfDrawPanel("right", confirmedOrder.orderIndex),
+        seed: pickedOrderIndex + finalProjectOrder.length * 5,
+        focus: () => focusSelfDrawPanel("right", pickedOrderIndex),
       });
 
       const remainingCount = data.remainingCount ?? finalProjectOrder.filter((project) => !project.selfDrawnAt).length;
@@ -1209,16 +1220,16 @@ export default function ReviewScreenSessionPage() {
             }
           : current,
       );
-      setSelfDrawJustFilledOrderIndex(confirmedOrder.orderIndex);
+      setSelfDrawJustFilledOrderIndex(pickedOrderIndex);
       if (!finalDraw) {
         setSelfDrawResultNotice({
           targetName: confirmedOrder.targetName,
-          orderIndex: confirmedOrder.orderIndex,
+          orderIndex: pickedOrderIndex,
         });
       }
       setSelfDrawCandidatePackageId(null);
       setSelfDrawStagePhase(finalDraw ? "done" : "pickName");
-      focusSelfDrawPanel("right", confirmedOrder.orderIndex);
+      focusSelfDrawPanel("right", pickedOrderIndex);
       focusSelfDrawPanel("left", projectOrder.findIndex((project) => project.packageId === confirmedOrder.packageId));
       if (finalDraw) {
         await runFinalReveal(finalProjectOrder);
@@ -2749,7 +2760,7 @@ export default function ReviewScreenSessionPage() {
                         最终路演顺序
                       </h2>
                       <p className={`self-draw-reveal-sub ${selfDrawRevealHeaderVisible ? "show" : ""}`}>
-                        共 {selfDrawRevealRows.length || projectOrder.length} 个项目 · 全程随机抽取
+                        共 {selfDrawRevealRows.length || projectOrder.length} 个项目
                       </p>
                       <div className={`self-draw-reveal-divider ${selfDrawRevealHeaderVisible ? "show" : ""}`} />
                     </div>
@@ -2826,7 +2837,6 @@ export default function ReviewScreenSessionPage() {
                   <div className="contest-card col-span-full flex min-h-[420px] flex-col items-center justify-center text-center text-slate-400">
                     <ShieldCheck className="h-14 w-14 text-blue-200" />
                     <p className="mt-4 text-base font-black text-slate-500">等待项目确认出场顺序</p>
-                    <p className="mt-1 text-sm">管理员确认路演顺序后，大屏会同步展示；抽签不代表评审已经开始。</p>
                   </div>
                 )}
               </div>
@@ -2841,7 +2851,7 @@ export default function ReviewScreenSessionPage() {
                 <Clock className="h-5 w-5" />
               </div>
               <div className="min-w-0 flex-1">
-                <p className="text-xs font-bold text-slate-400">评分倒计时</p>
+                <p className="text-xs font-bold text-slate-400">倒计时</p>
                 <p className={`mt-0.5 font-mono text-3xl font-black tracking-[2px] ${countdownTone === "danger" ? "text-rose-600 animate-pulse" : countdownTone === "warn" ? "text-amber-600" : "text-blue-700"}`}>
                   {formatSeconds(phase === "scoring" ? phaseRemaining : payload?.session.scoringSeconds ?? 60)}
                 </p>
@@ -2883,7 +2893,7 @@ export default function ReviewScreenSessionPage() {
                   </svg>
                   <span className="absolute inset-0 flex items-center justify-center font-mono text-base font-black">{progressText}</span>
                 </div>
-                <p className="text-xs font-bold text-slate-400">提交进度</p>
+                <p className="text-xs font-bold text-slate-400">提交</p>
               </aside>
             </div>
 
@@ -2902,7 +2912,6 @@ export default function ReviewScreenSessionPage() {
                     <div className={`seat-avatar ${isSubmitted ? "submitted" : "pending"}`}>{seat.seatNo}</div>
                     <div>
                       <p className="text-sm font-black text-slate-900">{seat.displayName}</p>
-                      <p className="mt-1 text-xs font-semibold text-slate-400">匿名专家席位状态</p>
                     </div>
                     {phase === "scoring" && isSubmitted && seat.scoreText && screenDisplay.showScoresOnScreen ? (
                       <p className={`seat-score-ticker ${isDropped ? "score-strike" : ""}`}>{seat.scoreText}</p>
@@ -2950,7 +2959,6 @@ export default function ReviewScreenSessionPage() {
                     );
                   })}
                 </div>
-                <p className="text-xs font-bold text-slate-400">项目导航 · 当前蓝色高亮 · 已完成绿色</p>
               </div>
             ) : null}
           </>
@@ -2996,14 +3004,13 @@ export default function ReviewScreenSessionPage() {
           <div className="draw-sequence-card">
             <div className="flex items-start justify-between gap-6 text-left">
               <div>
-                <p className="text-sm font-black tracking-[3px] text-[#c22832]">公开抽签结果</p>
+                <p className="text-sm font-black tracking-[3px] text-[#c22832]">路演抽签</p>
                 <h2 className="mt-2 text-3xl font-black text-[#0f2040]">本轮路演顺序剧场抽签</h2>
                 <p className="mt-2 text-sm font-bold text-slate-500">
-                  共 {projectOrder.length} 个项目 · 随机抽签结果同步大屏并写入审计日志
+                  共 {projectOrder.length} 个项目
                 </p>
               </div>
               <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-right">
-                <p className="text-xs font-black text-blue-500">当前进度</p>
                 <p className="mt-1 font-mono text-2xl font-black text-blue-700 tabular-nums">
                   {drawTheaterAnnouncedCount}/{projectOrder.length}
                 </p>
@@ -3027,12 +3034,12 @@ export default function ReviewScreenSessionPage() {
                 {drawTheaterStep === "ready"
                   ? "准备开始"
                   : drawTheaterStep === "name"
-                    ? "第一步 · 抽取项目"
+                    ? "抽项目"
                     : drawTheaterStep === "number"
-                      ? "第二步 · 抽取路演序号"
+                      ? "抽序号"
                       : drawTheaterStep === "finale"
                         ? "抽签完成"
-                        : "结果确认"}
+                        : "确认"}
               </p>
 
               <div className="draw-theater-namebox">
@@ -3079,7 +3086,7 @@ export default function ReviewScreenSessionPage() {
             </div>
 
             <div className="draw-theater-recent">
-              <p className="draw-theater-recent-title">最近抽中</p>
+              <p className="draw-theater-recent-title">已抽</p>
               <div className="draw-theater-recent-list">
                 {drawTheaterRecentRows.length ? (
                   drawTheaterRecentRows.map((item, index) => (
@@ -3101,7 +3108,7 @@ export default function ReviewScreenSessionPage() {
               <div className="draw-theater-finale-head">
                 <p className="draw-theater-finale-eyebrow">— 抽签完成 —</p>
                 <h2 className="draw-theater-finale-title">最终路演顺序</h2>
-                <p className="draw-theater-finale-sub">共 {drawTheaterRows.length} 个项目 · 全程随机抽取</p>
+                <p className="draw-theater-finale-sub">共 {drawTheaterRows.length} 个项目</p>
                 <div className="draw-theater-finale-divider" />
               </div>
               <div
@@ -3155,7 +3162,6 @@ export default function ReviewScreenSessionPage() {
               {revealAnimatedScore}
             </p>
             <div className={`score-reveal-underline ${revealUnderlineVisible ? "visible" : ""}`} />
-            <p className={`score-reveal-caption ${revealCaptionVisible ? "visible" : ""}`}>按本轮评分规则计算</p>
           </div>
         </section>
       ) : null}

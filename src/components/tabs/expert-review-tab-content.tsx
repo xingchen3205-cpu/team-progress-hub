@@ -2141,18 +2141,6 @@ export default function ExpertReviewTab() {
           }
         : null,
     ].filter((action): action is { label: string; disabled: boolean; onClick: () => void } => Boolean(action));
-    const compactGuideNote =
-      scoreRuleIsInvalid
-        ? "评分规则需先调整"
-        : currentPendingSeatNos.length > 0 && guideStepKey === "scoring"
-          ? `待提交 ${currentPendingSeatNos.length} 位`
-          : guideStepKey === "config"
-            ? "先配置，再开始"
-            : guideStepKey === "live"
-              ? "按现场节奏推进"
-              : guideStepKey === "reveal"
-                ? "确认后进入下一项目"
-                : "现场控制已收起";
     const renderGuidedControlPanel = () => (
       <section className="review-guided-control-panel overflow-hidden rounded-xl border border-blue-100 bg-white shadow-sm">
         <div className="border-b border-blue-100 bg-[linear-gradient(90deg,#f8fbff,#ffffff)] px-5 py-4">
@@ -2187,33 +2175,56 @@ export default function ExpertReviewTab() {
             </div>
           </div>
         </div>
-        <div className="grid gap-4 px-5 py-5 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-center">
-          <div className="min-w-0">
-            <p className="text-sm font-extrabold text-slate-950">
-              {currentProject?.targetName ?? liveData?.reviewPackage?.targetName ?? group.targetName}
-            </p>
-            <p className="mt-1 text-sm text-slate-500">{primaryGuideAction.description}</p>
-            <div className="mt-3 flex flex-wrap gap-2 text-[11px] font-bold">
-              <span className="rounded-full bg-slate-100 px-3 py-1 text-slate-600">
+        <div className="review-guide-body px-5 py-5">
+          <div className="review-guide-message-card rounded-xl border border-slate-200 bg-white px-5 py-4">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+              <div className="min-w-0">
+                <p className="text-sm font-extrabold text-slate-950">
+                  {currentProject?.targetName ?? liveData?.reviewPackage?.targetName ?? group.targetName}
+                </p>
+                <p className="mt-1 text-sm leading-6 text-slate-600">{primaryGuideAction.description}</p>
+              </div>
+              <span className="inline-flex w-fit shrink-0 items-center rounded-full bg-blue-50 px-3 py-1 text-xs font-extrabold text-blue-700">
                 项目 {Math.min(currentProjectIndex + 1, totalProjectCount)} / {totalProjectCount}
               </span>
-              <span className="rounded-full bg-blue-50 px-3 py-1 text-blue-700">
-                {liveData?.phaseLabel ?? getConsolePhaseLabel(currentPhase)}
-              </span>
-              <span className={currentProjectHasAllSubmitted && !scoreRuleIsInvalid ? "rounded-full bg-emerald-50 px-3 py-1 text-emerald-700" : "rounded-full bg-amber-50 px-3 py-1 text-amber-700"}>
-                {calculationBlockReason}
-              </span>
-              <span className="rounded-full bg-white px-3 py-1 text-slate-500 ring-1 ring-slate-100">
-                {compactGuideNote}
-              </span>
             </div>
+
+            <div className="review-guide-status-row mt-4 grid gap-3 md:grid-cols-3">
+              <div className="rounded-xl bg-slate-50 px-4 py-3">
+                <p className="text-[11px] font-bold text-slate-400">当前阶段</p>
+                <p className="mt-1 text-sm font-extrabold text-slate-900">
+                  {liveData?.phaseLabel ?? getConsolePhaseLabel(currentPhase)}
+                </p>
+              </div>
+              <div className="rounded-xl bg-slate-50 px-4 py-3">
+                <p className="text-[11px] font-bold text-slate-400">提交状态</p>
+                <p className="mt-1 text-sm font-extrabold text-slate-900">
+                  {currentSubmittedScoreCount} / {Math.max(currentEffectiveExpertCount, currentSubmittedScoreCount)}
+                </p>
+              </div>
+              <div className={currentProjectHasAllSubmitted && !scoreRuleIsInvalid ? "rounded-xl bg-emerald-50 px-4 py-3" : "rounded-xl bg-amber-50 px-4 py-3"}>
+                <p className={currentProjectHasAllSubmitted && !scoreRuleIsInvalid ? "text-[11px] font-bold text-emerald-600" : "text-[11px] font-bold text-amber-600"}>
+                  计算状态
+                </p>
+                <p className={currentProjectHasAllSubmitted && !scoreRuleIsInvalid ? "mt-1 text-sm font-extrabold text-emerald-800" : "mt-1 text-sm font-extrabold text-amber-800"}>
+                  {calculationBlockReason}
+                </p>
+              </div>
+            </div>
+
+            {warningMessages.length ? (
+              <div className="mt-4 rounded-xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm font-bold leading-6 text-amber-800">
+                {warningMessages.join(" ")}
+              </div>
+            ) : null}
             {screenSession && guideStepKey === "config" ? (
-              <div className="mt-3 rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-800">
+              <div className="mt-4 rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-bold leading-6 text-emerald-800">
                 当前处于“顺序已确认、评审未开始”状态。可以先导出 Excel 顺序表，正式现场开始时再点击“正式开始当前项目路演”。
               </div>
             ) : null}
           </div>
-          <div className="flex flex-col gap-2 sm:flex-row xl:justify-end">
+
+          <div className="review-guide-action-row mt-4 flex flex-col gap-2 sm:flex-row sm:flex-wrap sm:items-center">
             {secondaryGuideActions.map((action) => (
               <button
                 className="inline-flex min-h-11 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-sm font-extrabold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-40"
@@ -2226,7 +2237,7 @@ export default function ExpertReviewTab() {
               </button>
             ))}
             <button
-              className="inline-flex min-h-11 items-center justify-center rounded-xl bg-blue-600 px-5 text-sm font-extrabold text-white shadow-[0_10px_22px_rgba(37,99,235,0.18)] transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
+              className="inline-flex min-h-11 items-center justify-center rounded-xl bg-blue-600 px-5 text-sm font-extrabold text-white shadow-[0_10px_22px_rgba(37,99,235,0.18)] transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none sm:ml-auto"
               disabled={primaryGuideAction.disabled}
               onClick={primaryGuideAction.onClick}
               type="button"
@@ -3091,11 +3102,6 @@ export default function ExpertReviewTab() {
         {renderTrackView()}
         <div className="review-content-grid content grid gap-5 p-5 xl:grid-cols-[minmax(0,1fr)_340px]">
           <div className="flex min-w-0 flex-col gap-4">
-            {warningMessages.length ? (
-              <div className="rounded-xl border border-amber-100 bg-amber-50 px-4 py-3 text-xs font-bold text-amber-700">
-                {warningMessages.join(" ")}
-              </div>
-            ) : null}
             {renderGuidedControlPanel()}
             {["scoring", "reveal", "finished"].includes(guideStepKey) ? renderAdminScoreMonitor() : null}
             <details className="rounded-xl border border-slate-200 bg-white p-4">

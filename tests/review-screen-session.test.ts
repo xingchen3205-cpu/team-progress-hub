@@ -258,6 +258,10 @@ describe("roadshow review screen session", () => {
     assert.match(adminTabSource, /primaryGuideAction/);
     assert.match(adminTabSource, /secondaryGuideActions/);
     assert.match(adminTabSource, /review-guided-control-panel/);
+    assert.match(adminTabSource, /review-guide-body/);
+    assert.match(adminTabSource, /review-guide-message-card/);
+    assert.match(adminTabSource, /review-guide-status-row/);
+    assert.match(adminTabSource, /review-guide-action-row/);
     assert.match(adminTabSource, /当前阶段操作/);
     assert.match(adminTabSource, /配置本轮/);
     assert.match(adminTabSource, /reviewConfigModalGroupKey/);
@@ -268,6 +272,7 @@ describe("roadshow review screen session", () => {
     assert.doesNotMatch(adminTabSource, /管理员注意/);
     assert.doesNotMatch(adminTabSource, /上一项目/);
     assert.doesNotMatch(adminTabSource, /保存配置/);
+    assert.doesNotMatch(adminTabSource, /compactGuideNote/);
     assert.doesNotMatch(adminTabSource, /guideStepKey === "config" \? renderConfigCard\(\) : null/);
     assert.match(adminTabSource, /\["scoring",\s*"reveal",\s*"finished"\]\.includes\(guideStepKey\) \? renderAdminScoreMonitor\(\) : null/);
     assert.doesNotMatch(adminTabSource, /流程控制[\s\S]{0,900}workflowSteps\.map/);
@@ -537,7 +542,7 @@ describe("roadshow review screen session", () => {
     assert.doesNotMatch(screenPageSource, /revealStep/);
     assert.doesNotMatch(screenPageSource, /valid-score-strip/);
     assert.doesNotMatch(screenPageSource, /有效评分：/);
-    assert.match(screenPageSource, /按本轮评分规则计算/);
+    assert.doesNotMatch(screenPageSource, /按本轮评分规则计算/);
     assert.doesNotMatch(screenPageSource, /评分规则：去掉最高分和最低分，取平均值/);
   });
 
@@ -561,6 +566,7 @@ describe("roadshow review screen session", () => {
     assert.match(schemaSource, /showRankingOnScreen\s+Boolean\s+@default\(false\)/);
     assert.match(schemaSource, /selfDrawEnabled\s+Boolean\s+@default\(false\)/);
     assert.match(schemaSource, /selfDrawnAt\s+DateTime\?/);
+    assert.match(schemaSource, /@@unique\(\[sessionId, orderIndex\]\)/);
     assert.match(reviewScreenSessionSource, /randomInt/);
     assert.doesNotMatch(reviewScreenSessionSource, /Math\.random/);
     assert.match(sessionRouteSource, /normalizeReviewScreenDisplaySettings/);
@@ -592,7 +598,8 @@ describe("roadshow review screen session", () => {
     assert.match(selfDrawRouteSource, /hashReviewScreenToken/);
     assert.match(selfDrawRouteSource, /selfDrawEnabled/);
     assert.match(selfDrawRouteSource, /selfDrawnAt/);
-    assert.match(selfDrawRouteSource, /remainingOrderIndexes/);
+    assert.match(selfDrawRouteSource, /availableOrderIndexes/);
+    assert.match(selfDrawRouteSource, /filter\(\(order\) => !order\.selfDrawnAt\)/);
     assert.match(selfDrawRouteSource, /review_screen_session\.self_drawn/);
     assert.match(selfDrawRouteSource, /createAuditLogEntry/);
     assert.match(selfDrawCandidateRouteSource, /randomInt/);
@@ -643,8 +650,10 @@ describe("roadshow review screen session", () => {
     assert.match(screenPageSource, /待定/);
     assert.match(screenPageSource, /自助抽签/);
     assert.match(screenPageSource, /drawTheaterRows/);
-    assert.match(screenPageSource, /公开抽签结果/);
+    assert.match(screenPageSource, /路演抽签/);
     assert.match(screenPageSource, /drawAnimationDuration =/);
+    assert.match(screenPageSource, /buildNonRepeatingReelValues/);
+    assert.doesNotMatch(screenPageSource, /Math\.random/);
     assert.match(screenPageSource, /screenDisplay\.showFinalScoreOnScreen && phase === "reveal"/);
     assert.doesNotMatch(screenPageSource, /等待管理员点击随机抽签/);
   });
@@ -694,7 +703,7 @@ describe("roadshow review screen session", () => {
     assert.match(screenPageSource, /self-draw-stage-main/);
     assert.match(screenPageSource, /self-draw-final-reveal/);
     assert.match(screenPageSource, /最终路演顺序/);
-    assert.match(screenPageSource, /全程随机抽取/);
+    assert.doesNotMatch(screenPageSource, /全程随机抽取/);
     assert.match(screenPageSource, /await sleep\(70\)/);
     assert.match(screenPageSource, /await sleep\(40\)/);
     assert.match(screenPageSource, /finalProjectOrder/);
@@ -854,10 +863,10 @@ describe("roadshow review screen session", () => {
     assert.match(screenPageSource, /drawGroups/);
     assert.match(screenPageSource, /groupName/);
     assert.match(screenPageSource, /当前评审项目/);
-    assert.match(screenPageSource, /匿名专家席位状态/);
+    assert.doesNotMatch(screenPageSource, /匿名专家席位状态/);
     assert.match(screenPageSource, /最终得分/);
-    assert.match(screenPageSource, /提交进度/);
-    assert.match(screenPageSource, /评分倒计时/);
+    assert.match(screenPageSource, />提交</);
+    assert.match(screenPageSource, />倒计时</);
     assert.match(rankingStageSource, /本轮评审结果/);
     assert.match(rankingStageSource, /第一名/);
     assert.match(rankingStageSource, /最终得分/);
@@ -872,10 +881,11 @@ describe("roadshow review screen session", () => {
     assert.match(screenPageSource, /draw-theater-number-strip/);
     assert.match(screenPageSource, /draw-theater-recent/);
     assert.match(screenPageSource, /draw-theater-finale/);
-    assert.match(screenPageSource, /最近抽中/);
+    assert.match(screenPageSource, /已抽/);
     assert.match(screenPageSource, /最终路演顺序/);
     assert.doesNotMatch(screenPageSource, /drawTheaterRollingNumber/);
     assert.doesNotMatch(screenPageSource, /抽签结果正在分批揭示/);
+    assert.doesNotMatch(screenPageSource, /同步大屏|审计日志|项目导航|第一步|第二步|结果确认|当前进度|最近抽中/);
     assert.match(screenPageSource, /phase-panel/);
     assert.match(screenPageSource, /drawOverlayActive/);
     assert.match(screenPageSource, /score-reveal-overlay/);

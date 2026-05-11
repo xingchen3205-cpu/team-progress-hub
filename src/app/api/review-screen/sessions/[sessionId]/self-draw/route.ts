@@ -133,16 +133,85 @@ export async function POST(
     return NextResponse.json({ message: "请先在大屏上抽取上台项目，再抽取路演顺序" }, { status: 409 });
   }
 
-  const remainingSlots = session.projectOrders.filter((order) => !order.selfDrawnAt);
-  const remainingOrderIndexes = remainingSlots.map((order) => order.orderIndex);
-  const pickedSlot = remainingSlots[randomInt(remainingSlots.length)] ?? targetOrder;
-  const pickedOrderIndex = remainingOrderIndexes.includes(pickedSlot.orderIndex) ? pickedSlot.orderIndex : targetOrder.orderIndex;
-  const restSlots = remainingSlots.filter((order) => order.packageId !== pickedSlot.packageId);
   const now = new Date();
-  const undrawnOrders = session.projectOrders.filter((order) => !order.selfDrawnAt && order.packageId !== packageId);
-  const beforeOrder = toOrderAuditRows(session.projectOrders);
+  let pickedOrderIndex = targetOrder.orderIndex;
 
-  const updatedProjectOrder = await prisma.$transaction(async (tx) => {
+  const updatedProjectOrderOrError = await prisma.$transaction(async (tx) => {
+    const freshSession = await tx.reviewDisplaySession.findUnique({
+      where: { id: sessionId },
+      include: {
+        projectOrders: {
+          orderBy: [{ orderIndex: "asc" }, { createdAt: "asc" }],
+          select: {
+            packageId: true,
+            orderIndex: true,
+            groupName: true,
+            groupIndex: true,
+            groupSlotIndex: true,
+            selfDrawnAt: true,
+            revealedAt: true,
+            reviewPackage: {
+              select: {
+                targetName: true,
+                roundLabel: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    if (!freshSession || freshSession.currentPackageId !== packageId) {
+      throw new Error("请先在大屏上抽取上台项目，再抽取路演顺序");
+    }
+    if (freshSession.status !== "waiting" || freshSession.screenPhase !== "draw" || freshSession.startedAt) {
+      throw new Error("本轮已开始，不能继续自助抽签");
+    }
+
+    const freshTargetOrder = freshSession.projectOrders.find((order) => order.packageId === packageId);
+    if (!freshTargetOrder || freshTargetOrder.selfDrawnAt) {
+      throw new Error("该项目已完成抽签");
+    }
+
+    const pendingOrders = freshSession.projectOrders.filter((order) => !order.selfDrawnAt);
+    const availableOrderIndexes = pendingOrders.map((order) => order.orderIndex);
+    if (new Set(availableOrderIndexes).size !== availableOrderIndexes.length) {
+      throw new Error("路演顺序数据异常，请重新生成抽签顺序");
+    }
+
+    pickedOrderIndex = availableOrderIndexes[randomInt(availableOrderIndexes.length)] ?? freshTargetOrder.orderIndex;
+    const pickedSlot = pendingOrders.find((order) => order.orderIndex === pickedOrderIndex) ?? freshTargetOrder;
+    const beforeOrder = toOrderAuditRows(freshSession.projectOrders);
+
+    if (pickedSlot.packageId !== packageId) {
+      await tx.reviewDisplayProjectOrder.update({
+        where: {
+          sessionId_packageId: {
+            sessionId,
+            packageId,
+          },
+        },
+        data: {
+          orderIndex: -1 - freshSession.projectOrders.length - freshTargetOrder.orderIndex,
+        },
+      });
+
+      await tx.reviewDisplayProjectOrder.update({
+        where: {
+          sessionId_packageId: {
+            sessionId,
+            packageId: pickedSlot.packageId,
+          },
+        },
+        data: {
+          orderIndex: freshTargetOrder.orderIndex,
+          groupName: freshTargetOrder.groupName,
+          groupIndex: freshTargetOrder.groupIndex,
+          groupSlotIndex: freshTargetOrder.groupSlotIndex,
+        },
+      });
+    }
+
     await tx.reviewDisplayProjectOrder.update({
       where: {
         sessionId_packageId: {
@@ -151,32 +220,13 @@ export async function POST(
         },
       },
       data: {
-        orderIndex: pickedSlot.orderIndex,
+        orderIndex: pickedOrderIndex,
         groupName: pickedSlot.groupName,
         groupIndex: pickedSlot.groupIndex,
         groupSlotIndex: pickedSlot.groupSlotIndex,
         selfDrawnAt: now,
       },
     });
-
-    await Promise.all(
-      undrawnOrders.map((order, index) =>
-        tx.reviewDisplayProjectOrder.update({
-          where: {
-            sessionId_packageId: {
-              sessionId,
-              packageId: order.packageId,
-            },
-          },
-          data: {
-            orderIndex: restSlots[index]?.orderIndex ?? order.orderIndex,
-            groupName: restSlots[index]?.groupName ?? order.groupName,
-            groupIndex: restSlots[index]?.groupIndex ?? order.groupIndex,
-            groupSlotIndex: restSlots[index]?.groupSlotIndex ?? order.groupSlotIndex,
-          },
-        }),
-      ),
-    );
 
     const rows = await tx.reviewDisplayProjectOrder.findMany({
       where: { sessionId },
@@ -231,7 +281,15 @@ export async function POST(
     });
 
     return rows;
-  });
+  }).catch((error: unknown) =>
+    error instanceof Error ? error : new Error("抽签失败，请刷新后重试"),
+  );
+
+  if (updatedProjectOrderOrError instanceof Error) {
+    return NextResponse.json({ message: updatedProjectOrderOrError.message }, { status: 409 });
+  }
+  const updatedProjectOrder = updatedProjectOrderOrError;
+
   const nextCurrentPackageId = updatedProjectOrder.some((order) => !order.selfDrawnAt)
     ? null
     : updatedProjectOrder[0]?.packageId ?? null;
