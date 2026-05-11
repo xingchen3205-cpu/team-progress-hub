@@ -5804,7 +5804,7 @@ function useWorkspaceController({
 
   const deleteReviewAssignmentRequest = async (
     assignmentId: string,
-    options?: { permanent?: boolean; reason?: string; scope?: "package" | "stage" },
+    options?: { permanent?: boolean; reason?: string; scope?: "package" | "stage"; onSuccess?: () => void },
   ) => {
     const searchParams = new URLSearchParams();
     if (options?.permanent) {
@@ -5819,12 +5819,13 @@ function useWorkspaceController({
       body: JSON.stringify(options?.reason ? { reason: options.reason } : {}),
     });
     refreshWorkspace(["reviewAssignments", "projectStages"]);
+    options?.onSuccess?.();
   };
 
   const deleteReviewAssignment = (
     assignmentId: string,
     targetName: string,
-    options?: { permanent?: boolean; scope?: "package" | "stage" },
+    options?: { permanent?: boolean; scope?: "package" | "stage"; onSuccess?: () => void },
   ) => {
     const isStageScope = options?.scope === "stage";
     if (options?.permanent) {
@@ -5858,6 +5859,7 @@ function useWorkspaceController({
                 permanent: true,
                 reason: reason.trim(),
                 scope: options?.scope,
+                onSuccess: options?.onSuccess,
               });
             },
           });
@@ -5875,7 +5877,7 @@ function useWorkspaceController({
       confirmLabel: "确认取消配置",
       successTitle: isStageScope ? "本阶段评审配置已删除" : "评审配置已取消",
       successDetail: "项目阶段仍保留，可重新分配专家并设置评审时间。",
-      onConfirm: () => deleteReviewAssignmentRequest(assignmentId, { scope: options?.scope }),
+      onConfirm: () => deleteReviewAssignmentRequest(assignmentId, { scope: options?.scope, onSuccess: options?.onSuccess }),
     });
   };
 

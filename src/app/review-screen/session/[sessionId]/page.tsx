@@ -235,6 +235,10 @@ export default function ReviewScreenSessionPage() {
   const [selfDrawRollingPackageId, setSelfDrawRollingPackageId] = useState<string | null>(null);
   const [selfDrawRollFrameTime, setSelfDrawRollFrameTime] = useState(() => Date.now());
   const [selfDrawSubmitting, setSelfDrawSubmitting] = useState(false);
+  const [selfDrawResultNotice, setSelfDrawResultNotice] = useState<{
+    targetName: string;
+    orderIndex: number;
+  } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -475,6 +479,14 @@ export default function ReviewScreenSessionPage() {
     return () => window.cancelAnimationFrame(frameId);
   }, [selfDrawRollingPackageId]);
 
+  useEffect(() => {
+    if (!selfDrawResultNotice) return;
+    const timer = window.setTimeout(() => {
+      setSelfDrawResultNotice(null);
+    }, 1800);
+    return () => window.clearTimeout(timer);
+  }, [selfDrawResultNotice]);
+
   const revealElapsedMs = useMemo(() => {
     if (!revealStartedAt) return 0;
     const started = new Date(revealStartedAt).getTime();
@@ -701,6 +713,7 @@ export default function ReviewScreenSessionPage() {
         throw new Error(data?.message ?? "抽签失败，请重试");
       }
       if (data?.projectOrder) {
+        const confirmedOrder = data.projectOrder.find((project) => project.packageId === packageId);
         setPayload((current) =>
           current
             ? {
@@ -713,6 +726,12 @@ export default function ReviewScreenSessionPage() {
               }
             : current,
         );
+        if (confirmedOrder) {
+          setSelfDrawResultNotice({
+            targetName: confirmedOrder.targetName,
+            orderIndex: confirmedOrder.orderIndex,
+          });
+        }
         setSelfDrawCandidatePackageId(null);
         setSelfDrawRollingPackageId(null);
         setSelfDrawRollFrameTime(Date.now());
@@ -998,6 +1017,59 @@ export default function ReviewScreenSessionPage() {
         }
         .self-draw-action.rolling {
           animation: self-draw-action-pulse 1.1s ease-in-out infinite;
+        }
+        .self-draw-slot-wheel {
+          display: flex;
+          min-height: 132px;
+          align-items: center;
+          justify-content: center;
+          border: 1px solid #bfdbfe;
+          border-radius: 20px;
+          background: linear-gradient(135deg, #f8fbff 0%, #eff6ff 100%);
+          color: #1f4ea7;
+          font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+          font-size: clamp(54px, 7.2vw, 96px);
+          font-weight: 900;
+          font-variant-numeric: tabular-nums;
+          letter-spacing: .02em;
+          transition: transform .18s ease, color .18s ease, border-color .18s ease, background .18s ease;
+        }
+        .self-draw-slot-wheel.rolling {
+          transform: translateY(-2px) scale(1.02);
+          border-color: rgba(194, 40, 50, .36);
+          background: linear-gradient(135deg, #fff7f7 0%, #eff6ff 100%);
+          color: #c22832;
+          animation: draw-roll .28s cubic-bezier(.16,1,.3,1) infinite;
+        }
+        .self-draw-result-notice {
+          position: fixed;
+          inset: 0;
+          z-index: 70;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: rgba(15, 32, 64, .16);
+          backdrop-filter: blur(4px);
+          pointer-events: none;
+          animation: notice-fade .24s ease-out both;
+        }
+        .self-draw-result-card {
+          width: min(560px, calc(100vw - 96px));
+          border: 1px solid rgba(191, 219, 254, .9);
+          border-radius: 28px;
+          background: rgba(255, 255, 255, .98);
+          padding: 34px 38px;
+          text-align: center;
+          box-shadow: 0 28px 80px rgba(15, 32, 64, .24);
+          animation: draw-settle .52s cubic-bezier(.16,1,.3,1);
+        }
+        .self-draw-result-number {
+          color: #1f4ea7;
+          font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+          font-size: clamp(84px, 10vw, 140px);
+          font-weight: 900;
+          line-height: .95;
+          font-variant-numeric: tabular-nums;
         }
         .screen-full-countdown {
           position: fixed;
@@ -1410,6 +1482,10 @@ export default function ReviewScreenSessionPage() {
           0%, 100% { box-shadow: 0 10px 22px rgba(194,40,50,.18); }
           50% { box-shadow: 0 14px 30px rgba(194,40,50,.3); }
         }
+        @keyframes notice-fade {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
         @keyframes panel-in {
           from { transform: translateY(8px); opacity: .2; }
           to { transform: translateY(0); opacity: 1; }
@@ -1521,7 +1597,7 @@ export default function ReviewScreenSessionPage() {
                               {isFilled ? item.targetName : isRolling ? "滚动抽取中" : "等待抽签落位"}
                             </p>
                             <p className="mt-1 truncate text-xs font-bold text-slate-400">
-                              {isFilled ? item.roundLabel || "项目路演" : "空槽位"}
+                              {isFilled ? item.roundLabel || "项目路演" : "待抽取"}
                             </p>
                           </div>
                         </div>
@@ -1544,6 +1620,15 @@ export default function ReviewScreenSessionPage() {
                     <p className="mt-2 min-h-8 truncate text-xl font-black text-[#0f2040]">
                       {(rollingSelfDrawCandidate ?? selectedSelfDrawProject)?.targetName ?? "等待抽取上台项目"}
                     </p>
+                    <div className={`self-draw-slot-wheel mt-4 ${selfDrawRollingPackageId ? "rolling" : ""}`}>
+                      {selfDrawRollingPackageId && selfDrawRollingSlotIndex !== null
+                        ? String(selfDrawRollingSlotIndex + 1).padStart(2, "0")
+                        : selectedSelfDrawProject
+                          ? "--"
+                          : pendingSelfDrawProjects.length
+                            ? "待抽取"
+                            : "完成"}
+                    </div>
                     <p className="mt-2 min-h-5 text-sm font-bold text-blue-700">
                       {selfDrawRollingPackageId
                         ? `顺序槽位滚动中：${selfDrawRollingSlotIndex === null ? "--" : String(selfDrawRollingSlotIndex + 1).padStart(2, "0")}`
@@ -1872,6 +1957,21 @@ export default function ReviewScreenSessionPage() {
                 </p>
               </div>
             )}
+          </div>
+        </section>
+      ) : null}
+
+      {selfDrawResultNotice ? (
+        <section className="self-draw-result-notice">
+          <div className="self-draw-result-card">
+            <p className="text-xs font-black tracking-[4px] text-[#c22832]">抽签确认</p>
+            <p className="self-draw-result-number mt-3">
+              {String(selfDrawResultNotice.orderIndex + 1).padStart(2, "0")}
+            </p>
+            <h2 className="mt-4 truncate text-3xl font-black text-[#0f2040]">
+              {selfDrawResultNotice.targetName}
+            </h2>
+            <p className="mt-3 text-base font-bold text-slate-500">已进入左侧路演顺序，等待下一次抽签</p>
           </div>
         </section>
       ) : null}

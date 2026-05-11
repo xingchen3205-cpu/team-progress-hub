@@ -2,6 +2,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { randomInt } from "node:crypto";
 
 import { createAuditLogEntry } from "@/lib/audit-log";
+import { getSessionUser } from "@/lib/auth";
+import { assertRole } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { hashReviewScreenToken } from "@/lib/review-screen-session";
 
@@ -50,6 +52,7 @@ export async function POST(
 ) {
   const { sessionId } = await params;
   const token = request.nextUrl.searchParams.get("token")?.trim();
+  const user = await getSessionUser(request);
   if (!token) {
     return NextResponse.json({ message: "缺少访问令牌" }, { status: 401 });
   }
@@ -97,6 +100,14 @@ export async function POST(
 
   if (!session || session.tokenHash !== hashReviewScreenToken(token)) {
     return NextResponse.json({ message: "链接无效" }, { status: 404 });
+  }
+  if (!user) {
+    return NextResponse.json({ message: "请使用管理员账号打开大屏后再操作" }, { status: 401 });
+  }
+  try {
+    assertRole(user.role, ["admin", "school_admin"]);
+  } catch {
+    return NextResponse.json({ message: "无权限" }, { status: 403 });
   }
 
   if (session.tokenExpiresAt.getTime() <= Date.now()) {
@@ -197,7 +208,7 @@ export async function POST(
 
     await createAuditLogEntry({
       tx,
-      operator: session.creator,
+      operator: user,
       action: "review_screen_session.self_drawn",
       objectType: "review_screen_session",
       objectId: sessionId,
@@ -211,7 +222,7 @@ export async function POST(
         projectOrder: toOrderAuditRows(rows),
       },
       metadata: {
-        triggeredBy: "screen_token",
+        triggeredBy: "admin_screen",
         method: "screen_self_draw",
         drawnPackageId: packageId,
         pickedOrderIndex,

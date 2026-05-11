@@ -277,7 +277,9 @@ describe("roadshow review screen session", () => {
     const adminTabSource = readSource("src/components/tabs/expert-review-tab-content.tsx");
 
     assert.match(adminTabSource, /本轮项目/);
-    assert.match(adminTabSource, /切换到该项目/);
+    assert.match(adminTabSource, /项目卡片只展示顺序、提交和分数/);
+    assert.match(adminTabSource, /等待按顺序推进/);
+    assert.doesNotMatch(adminTabSource, /切换到该项目/);
     assert.doesNotMatch(adminTabSource, /路演组/);
     assert.doesNotMatch(adminTabSource, /查看该路演组/);
     assert.doesNotMatch(adminTabSource, /多个路演组/);
@@ -469,7 +471,8 @@ describe("roadshow review screen session", () => {
     assert.match(adminTabSource, /正常结束本轮/);
     assert.match(adminTabSource, /结束本轮评审/);
     assert.match(adminTabSource, /force: true/);
-    assert.match(adminTabSource, /取消本阶段评审配置/);
+    assert.match(adminTabSource, /关闭当前大屏链接/);
+    assert.match(adminTabSource, /重置本轮配置/);
     assert.match(phaseRouteSource, /forceFinish/);
     assert.match(adminTabSource, /changeReviewScreenPhase\(group, "finished"/);
     assert.match(adminTabSource, /currentPhase === "finished"/);
@@ -564,14 +567,15 @@ describe("roadshow review screen session", () => {
     assert.match(sessionRouteSource, /screenDisplay/);
     assert.doesNotMatch(sessionRouteSource, /shuffleArray\(orderedStageReviewPackages\)/);
     assert.doesNotMatch(sessionRouteSource, /self-draw queue/);
-    assert.match(sessionRouteSource, /currentPackageId:\s*screenDisplay\.selfDrawEnabled\s*\?\s*null\s*:/);
+    assert.match(sessionRouteSource, /currentPackageId:\s*drawMode === "self" \? null : firstPackageId/);
     assert.match(settingsRouteSource, /screenDisplay/);
     assert.match(drawRouteSource, /review_screen_session\.random_drawn/);
     assert.match(drawRouteSource, /createAuditLogEntry/);
     assert.match(drawRouteSource, /crypto\.randomInt/);
     assert.match(drawRouteSource, /hashReviewScreenToken/);
     assert.match(drawRouteSource, /tokenAuthorized/);
-    assert.match(drawRouteSource, /operator = user \?\? session\.creator/);
+    assert.match(drawRouteSource, /const operator = user/);
+    assert.match(drawRouteSource, /请使用管理员账号打开大屏后再操作/);
     assert.match(drawRouteSource, /beforeState/);
     assert.match(drawRouteSource, /afterState/);
     assert.match(orderRouteSource, /review_screen_session\.order_updated/);
@@ -644,6 +648,55 @@ describe("roadshow review screen session", () => {
     assert.match(screenPageSource, /drawAnimationDuration =/);
     assert.match(screenPageSource, /screenDisplay\.showFinalScoreOnScreen && phase === "reveal"/);
     assert.doesNotMatch(screenPageSource, /等待管理员点击随机抽签/);
+  });
+
+  it("separates roadshow order mode from screen display settings before generating the projection link", () => {
+    const adminTabSource = readSource("src/components/tabs/expert-review-tab-content.tsx");
+    const sessionRouteSource = readSource("src/app/api/review-screen/sessions/route.ts");
+
+    assert.match(adminTabSource, /type ScreenDrawMode = "manual" \| "random" \| "self"/);
+    assert.match(adminTabSource, /screenDrawModeDrafts/);
+    assert.match(adminTabSource, /drawModeOptions/);
+    assert.match(adminTabSource, /手动排序/);
+    assert.match(adminTabSource, /大屏随机抽签/);
+    assert.match(adminTabSource, /大屏自助抽签/);
+    assert.match(adminTabSource, /updateScreenDrawModeDraft/);
+    assert.match(adminTabSource, /drawMode: getScreenDrawMode\(group\.key\)/);
+    assert.doesNotMatch(adminTabSource, /\["selfDrawEnabled",\s*"开启项目自助抽签"\]/);
+    assert.match(sessionRouteSource, /drawMode\?:\s*"manual" \| "random" \| "self"/);
+    assert.match(sessionRouteSource, /const rawScreenDisplay = normalizeReviewScreenDisplaySettings\(body\?\.screenDisplay\)/);
+    assert.match(sessionRouteSource, /const drawMode = body\?\.drawMode === "self" \|\| rawScreenDisplay\.selfDrawEnabled/);
+    assert.match(sessionRouteSource, /selfDrawEnabled:\s*drawMode === "self"/);
+    assert.match(sessionRouteSource, /phaseStartedAt:\s*drawMode === "manual" \? now : null/);
+  });
+
+  it("makes self draw look publicly fair with a rolling number and a result confirmation", () => {
+    const screenPageSource = readSource("src/app/review-screen/session/[sessionId]/page.tsx");
+
+    assert.match(screenPageSource, /selfDrawResultNotice/);
+    assert.match(screenPageSource, /self-draw-slot-wheel/);
+    assert.match(screenPageSource, /抽签确认/);
+    assert.match(screenPageSource, /待抽取/);
+    assert.match(screenPageSource, /项目池滚动中/);
+    assert.doesNotMatch(screenPageSource, /空槽位/);
+  });
+
+  it("requires an administrator login for all screen-side draw mutations even when the token is valid", () => {
+    const drawRouteSource = readSource("src/app/api/review-screen/sessions/[sessionId]/draw/route.ts");
+    const selfDrawRouteSource = readSource("src/app/api/review-screen/sessions/[sessionId]/self-draw/route.ts");
+    const selfDrawCandidateRouteSource = readSource(
+      "src/app/api/review-screen/sessions/[sessionId]/self-draw/candidate/route.ts",
+    );
+
+    for (const source of [drawRouteSource, selfDrawRouteSource, selfDrawCandidateRouteSource]) {
+      assert.match(source, /const user = await getSessionUser\(request\)/);
+      assert.match(source, /assertRole\(user\.role, \["admin", "school_admin"\]\)/);
+      assert.match(source, /请使用管理员账号打开大屏后再操作/);
+    }
+
+    assert.doesNotMatch(drawRouteSource, /const operator = user \?\? session\.creator/);
+    assert.doesNotMatch(selfDrawRouteSource, /operator:\s*session\.creator/);
+    assert.doesNotMatch(selfDrawCandidateRouteSource, /operator:\s*session\.creator/);
   });
 
   it("lets administrators regenerate a screen link for testing even after the old review deadline", () => {

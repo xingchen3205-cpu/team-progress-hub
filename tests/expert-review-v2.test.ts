@@ -443,7 +443,7 @@ describe("expert review v2 constraints", () => {
     assert.match(assignmentItemRouteSource, /已有评分记录，请先完成二次确认后重置评审包/);
     assert.match(assignmentItemRouteSource, /expertReviewPackage\.deleteMany/);
     assert.match(teamScopeSource, /status:\s*\{\s*not:\s*"cancelled"(?:\s+as const)?\s*\}/);
-    assert.match(tabSource, /取消本阶段评审配置/);
+    assert.match(tabSource, /重置本轮配置/);
     assert.match(tabSource, /重置并重新配置本阶段/);
     assert.match(tabSource, /已配置/);
     assert.match(tabSource, /未配置/);
@@ -468,6 +468,43 @@ describe("expert review v2 constraints", () => {
     assert.match(tabSource, /openReviewAssignmentModal\(undefined,\s*activeProjectStage\.id/);
   });
 
+  it("keeps roadshow configuration guidance unambiguous and resets local locked screen state", () => {
+    const tabSource = readSource("src/components/tabs/expert-review-tab-content.tsx");
+    const contextSource = readSource("src/components/workspace-context.tsx");
+
+    assert.match(tabSource, /screenSession\s*\?\s*\{\s*label:\s*"查看配置"/);
+    assert.doesNotMatch(tabSource, /label:\s*guideStepKey === "config" \? "配置本轮" : "查看配置"/);
+    assert.match(tabSource, /重置本轮配置/);
+    assert.match(tabSource, /resetRoadshowStageLocalState/);
+    assert.match(tabSource, /closeReviewScreenSession/);
+    assert.match(tabSource, /关闭当前大屏链接/);
+    assert.match(tabSource, /phase:\s*"finished"/);
+    assert.match(tabSource, /force:\s*true/);
+    assert.match(tabSource, /setReviewScreenSessions/);
+    assert.match(tabSource, /setScreenLiveData/);
+    assert.match(tabSource, /onSuccess:\s*\(\)\s*=>\s*resetRoadshowStageLocalState\(group\)/);
+    assert.match(contextSource, /onSuccess\?:\s*\(\) => void/);
+    assert.match(contextSource, /options\?\.onSuccess\?\.\(\)/);
+  });
+
+  it("ignores stale projection project orders that do not match the current roadshow stage", () => {
+    const tabSource = readSource("src/components/tabs/expert-review-tab-content.tsx");
+
+    assert.match(tabSource, /isProjectOrderAlignedWithGroup/);
+    assert.match(tabSource, /liveOrder\?\.length && isProjectOrderAlignedWithGroup\(group,\s*liveOrder\)/);
+    assert.match(tabSource, /const rawLiveData = screenLiveData\[group\.key\]/);
+    assert.match(tabSource, /rawLiveData && isProjectOrderAlignedWithGroup\(group,\s*rawLiveData\.projectOrder\)/);
+    assert.match(tabSource, /投屏项目数与当前本轮项目不一致/);
+  });
+
+  it("shows roadshow project cards as status cards rather than project switching controls", () => {
+    const tabSource = readSource("src/components/tabs/expert-review-tab-content.tsx");
+
+    assert.match(tabSource, /项目卡片只展示顺序、提交和分数/);
+    assert.doesNotMatch(tabSource, /onClick=\{\(\) => setActiveGroupKey\(group\.key\)\}/);
+    assert.doesNotMatch(tabSource, /切换到该项目/);
+  });
+
   it("deletes review configuration by project stage instead of only the active roadshow group", () => {
     const assignmentItemRouteSource = readSource("src/app/api/expert-reviews/assignments/[id]/route.ts");
     const contextSource = readSource("src/components/workspace-context.tsx");
@@ -490,7 +527,8 @@ describe("expert review v2 constraints", () => {
     assert.match(tabSource, /roadshowGroupCards/);
     assert.match(tabSource, /activeRoadshowConsoleFinished/);
     assert.match(tabSource, /本轮已结束，已收起现场控制台/);
-    assert.match(tabSource, /切换到该项目/);
+    assert.match(tabSource, /当前控制中/);
+    assert.match(tabSource, /等待按顺序推进/);
     assert.match(tabSource, /renderRoadshowGroupCards/);
     assert.doesNotMatch(tabSource, /activeGroupIsRoadshow && activeGroup \? \(\s*<main className="space-y-5">\s*\{renderReviewScreenConsole\(activeGroup\)\}/);
   });

@@ -29,14 +29,15 @@ assert.doesNotMatch(screenPageSource, />校徽</);
 
 assert.match(reviewScreenSessionSource, /randomInt/);
 assert.doesNotMatch(reviewScreenSessionSource, /Math\.random/);
-assert.match(sessionRouteSource, /currentPackageId:\s*screenDisplay\.selfDrawEnabled\s*\?\s*null\s*:/);
+assert.match(sessionRouteSource, /currentPackageId:\s*drawMode === "self" \? null : firstPackageId/);
 assert.doesNotMatch(sessionRouteSource, /shuffleArray\(orderedStageReviewPackages\)/);
 assert.doesNotMatch(sessionRouteSource, /self-draw queue/);
 assert.match(publicRouteSource, /currentPackageId = session\.currentPackageId/);
 
 assert.match(drawRouteSource, /hashReviewScreenToken/);
 assert.match(drawRouteSource, /tokenAuthorized/);
-assert.match(drawRouteSource, /operator = user \?\? session\.creator/);
+assert.match(drawRouteSource, /const operator = user/);
+assert.match(drawRouteSource, /请使用管理员账号打开大屏后再操作/);
 assert.match(drawRouteSource, /review_screen_session\.random_drawn/);
 assert.match(drawRouteSource, /phaseStartedAt/);
 

@@ -113,6 +113,7 @@ export async function POST(request: NextRequest) {
         scoringSeconds?: number;
         roadshowGroupSizes?: number[];
         packageIds?: string[];
+        drawMode?: "manual" | "random" | "self";
         screenDisplay?: Partial<{
           scoringEnabled: unknown;
           showScoresOnScreen: unknown;
@@ -255,7 +256,16 @@ export async function POST(request: NextRequest) {
   const presentationSeconds = clampInteger(body?.presentationSeconds, 480, 60, 1800);
   const qaSeconds = clampInteger(body?.qaSeconds, 420, 60, 1800);
   const scoringSeconds = clampInteger(body?.scoringSeconds, 60, 10, 600);
-  const screenDisplay = normalizeReviewScreenDisplaySettings(body?.screenDisplay);
+  const rawScreenDisplay = normalizeReviewScreenDisplaySettings(body?.screenDisplay);
+  const drawMode = body?.drawMode === "self" || rawScreenDisplay.selfDrawEnabled
+    ? "self"
+    : body?.drawMode === "manual"
+      ? "manual"
+      : "random";
+  const screenDisplay = normalizeReviewScreenDisplaySettings({
+    ...rawScreenDisplay,
+    selfDrawEnabled: drawMode === "self",
+  });
   let projectOrderRows: ReturnType<typeof buildRoadshowProjectOrderRows<typeof orderedStageReviewPackages[number]>>;
   try {
     projectOrderRows = buildRoadshowProjectOrderRows(orderedStageReviewPackages, body?.roadshowGroupSizes);
@@ -272,7 +282,7 @@ export async function POST(request: NextRequest) {
     const createdSession = await tx.reviewDisplaySession.create({
       data: {
         packageId: reviewPackage.id,
-        currentPackageId: screenDisplay.selfDrawEnabled ? null : firstPackageId,
+        currentPackageId: drawMode === "self" ? null : firstPackageId,
         tokenHash,
         startsAt,
         tokenExpiresAt,
@@ -283,6 +293,7 @@ export async function POST(request: NextRequest) {
         qaSeconds,
         scoringSeconds,
         ...screenDisplay,
+        phaseStartedAt: drawMode === "manual" ? now : null,
         createdById: user.id,
       },
       select: {
@@ -304,6 +315,7 @@ export async function POST(request: NextRequest) {
         status: true,
         screenPhase: true,
         currentPackageId: true,
+        phaseStartedAt: true,
       },
     });
 
@@ -315,7 +327,7 @@ export async function POST(request: NextRequest) {
         groupName: row.groupName,
         groupIndex: row.groupIndex,
         groupSlotIndex: row.groupSlotIndex,
-        selfDrawnAt: screenDisplay.selfDrawEnabled ? null : now,
+        selfDrawnAt: drawMode === "self" ? null : now,
       })),
     });
 
@@ -356,7 +368,7 @@ export async function POST(request: NextRequest) {
         tokenExpiresAt,
         projectCount: projectOrderRows.length,
         seatCount: createdSeats.length,
-        drawMode: screenDisplay.selfDrawEnabled ? "self_draw_two_step" : "configured_order",
+        drawMode,
       },
     });
 
@@ -374,6 +386,7 @@ export async function POST(request: NextRequest) {
         tokenExpiresAt: session.tokenExpiresAt.toISOString(),
         projectReviewStageType: "roadshow",
         screenDisplay: pickReviewScreenDisplaySettings(session),
+        phaseStartedAt: session.phaseStartedAt?.toISOString() ?? null,
       },
       seats: seats.map((seat) => ({
         ...seat,
@@ -389,7 +402,7 @@ export async function POST(request: NextRequest) {
         groupName: row.groupName,
         groupIndex: row.groupIndex,
         groupSlotIndex: row.groupSlotIndex,
-        selfDrawnAt: screenDisplay.selfDrawEnabled ? null : now.toISOString(),
+        selfDrawnAt: drawMode === "self" ? null : now.toISOString(),
         revealedAt: null,
       })),
       projectReviewStageId: reviewPackage.projectReviewStageId,

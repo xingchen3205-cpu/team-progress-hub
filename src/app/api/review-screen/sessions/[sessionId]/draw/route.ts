@@ -100,17 +100,17 @@ export async function POST(
 
   const tokenAuthorized = Boolean(token && session.tokenHash === hashReviewScreenToken(token));
   if (!tokenAuthorized) {
-    if (!user) {
-      return NextResponse.json({ message: "未登录" }, { status: 401 });
-    }
-
-    try {
-      assertRole(user.role, ["admin", "school_admin"]);
-    } catch {
-      return NextResponse.json({ message: "无权限" }, { status: 403 });
-    }
+    return NextResponse.json({ message: "链接无效" }, { status: 404 });
   }
-  const operator = user ?? session.creator;
+  if (!user) {
+    return NextResponse.json({ message: "请使用管理员账号打开大屏后再操作" }, { status: 401 });
+  }
+  try {
+    assertRole(user.role, ["admin", "school_admin"]);
+  } catch {
+    return NextResponse.json({ message: "无权限" }, { status: 403 });
+  }
+  const operator = user;
 
   if (session.tokenExpiresAt.getTime() <= Date.now()) {
     return NextResponse.json({ message: "大屏链接已过期" }, { status: 409 });
