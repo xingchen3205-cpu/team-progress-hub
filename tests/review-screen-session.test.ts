@@ -642,7 +642,7 @@ describe("roadshow review screen session", () => {
     assert.match(screenPageSource, /上台中/);
     assert.match(screenPageSource, /待定/);
     assert.match(screenPageSource, /自助抽签/);
-    assert.match(screenPageSource, /drawRevealBatches/);
+    assert.match(screenPageSource, /drawTheaterRows/);
     assert.match(screenPageSource, /公开抽签结果/);
     assert.match(screenPageSource, /drawAnimationDuration =/);
     assert.match(screenPageSource, /screenDisplay\.showFinalScoreOnScreen && phase === "reveal"/);
@@ -863,6 +863,19 @@ describe("roadshow review screen session", () => {
     assert.match(rankingStageSource, /最终得分/);
     assert.match(screenPageSource, /screen-full-countdown/);
     assert.match(screenPageSource, /draw-sequence-overlay/);
+    assert.match(screenPageSource, /draw-theater-dots/);
+    assert.match(screenPageSource, /draw-theater-stage/);
+    assert.match(screenPageSource, /draw-theater-namebox/);
+    assert.match(screenPageSource, /draw-theater-numbox/);
+    assert.match(screenPageSource, /buildDrawTheaterNumberStrip/);
+    assert.match(screenPageSource, /drawTheaterNumberStripItems/);
+    assert.match(screenPageSource, /draw-theater-number-strip/);
+    assert.match(screenPageSource, /draw-theater-recent/);
+    assert.match(screenPageSource, /draw-theater-finale/);
+    assert.match(screenPageSource, /最近抽中/);
+    assert.match(screenPageSource, /最终路演顺序/);
+    assert.doesNotMatch(screenPageSource, /drawTheaterRollingNumber/);
+    assert.doesNotMatch(screenPageSource, /抽签结果正在分批揭示/);
     assert.match(screenPageSource, /phase-panel/);
     assert.match(screenPageSource, /drawOverlayActive/);
     assert.match(screenPageSource, /score-reveal-overlay/);

@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import Image from "next/image";
 import { useParams, useSearchParams } from "next/navigation";
 import { CheckCircle2, Clock, ShieldCheck } from "lucide-react";
@@ -122,6 +122,9 @@ const SELF_DRAW_NAME_DURATION_MS = 2400;
 const SELF_DRAW_NUMBER_DURATION_MS = 2600;
 const SELF_DRAW_REEL_EASING = "cubic-bezier(0.15, 0.7, 0.15, 1)";
 const SELF_DRAW_FOCUS_EASING = "cubic-bezier(0.4, 0, 0.2, 1)";
+const DRAW_THEATER_NAME_ITEM_HEIGHT = 96;
+const DRAW_THEATER_NUMBER_ITEM_HEIGHT = 132;
+const DRAW_THEATER_ROLL_EASING = "cubic-bezier(0.15, 0.7, 0.15, 1)";
 
 const fallbackSeats: ScreenSeat[] = [
   { assignmentId: "fallback-1", seatNo: 1, displayName: "专家 1", avatarText: "1", status: "pending", scoreText: null },
@@ -147,6 +150,62 @@ const buildSelfDrawReelItems = (winner: string, pool: string[]): SelfDrawReelIte
     value: visualPool[Math.floor(Math.random() * visualPool.length)] ?? winner,
     dim: true,
   });
+  return items;
+};
+
+const pickNonRepeatingValue = <T,>(pool: T[], fallback: T, previous: T | null, cursor: number) => {
+  if (pool.length === 0) return fallback;
+  let value = pool[((cursor % pool.length) + pool.length) % pool.length] ?? fallback;
+  if (Object.is(value, previous) && pool.length > 1) {
+    value = pool[(((cursor + 1) % pool.length) + pool.length) % pool.length] ?? fallback;
+  }
+  return value;
+};
+
+const buildDrawTheaterNameStrip = (
+  winner: ProjectOrderItem,
+  rows: ProjectOrderItem[],
+  seed: number,
+) => {
+  const pool = rows.filter((item) => item.packageId !== winner.packageId).map((item) => item.targetName);
+  const items: string[] = [];
+  let previous: string | null = null;
+  for (let index = 0; index < 12; index += 1) {
+    const picked: string = pickNonRepeatingValue<string>(
+      pool,
+      winner.targetName,
+      previous,
+      seed * 7 + index * 5 + Math.floor(index / 2),
+    );
+    items.push(picked);
+    previous = picked;
+  }
+  if (items[items.length - 1] === winner.targetName && pool.length > 0) {
+    items[items.length - 1] = pool[(seed + 3) % pool.length] ?? items[items.length - 1];
+  }
+  items.push(winner.targetName);
+  return items;
+};
+
+const buildDrawTheaterNumberStrip = (winner: number, total: number, seed: number) => {
+  const safeTotal = Math.max(total, winner, 1);
+  const pool = Array.from({ length: safeTotal }, (_, index) => index + 1).filter((value) => value !== winner);
+  const items: number[] = [];
+  let previous: number | null = null;
+  for (let index = 0; index < 14; index += 1) {
+    const picked: number = pickNonRepeatingValue<number>(
+      pool,
+      winner,
+      previous,
+      seed * 11 + index * 7 + Math.floor(index / 2),
+    );
+    items.push(picked);
+    previous = picked;
+  }
+  if (items[items.length - 1] === winner && pool.length > 0) {
+    items[items.length - 1] = pool[(seed + 5) % pool.length] ?? items[items.length - 1];
+  }
+  items.push(winner);
   return items;
 };
 
@@ -450,21 +509,28 @@ export default function ReviewScreenSessionPage() {
     }
     return map;
   }, [activeFinalScore?.droppedSeatReasons]);
-  const drawRevealBatchSize =
-    projectOrder.length >= 36 ? 8 : projectOrder.length >= 24 ? 6 : projectOrder.length >= 12 ? 4 : 3;
-  const drawRevealBatches = useMemo(() => {
-    const batches: ProjectOrderItem[][] = [];
-    for (let index = 0; index < projectOrder.length; index += drawRevealBatchSize) {
-      batches.push(projectOrder.slice(index, index + drawRevealBatchSize));
-    }
-    return batches;
-  }, [drawRevealBatchSize, projectOrder]);
-  const drawIntroDuration = projectOrder.length >= 30 ? 980 : 860;
-  const drawBatchInterval = projectOrder.length >= 36 ? 420 : projectOrder.length >= 24 ? 480 : 560;
-  const drawHoldDuration = 980;
+  const drawTheaterRows = useMemo(
+    () => [...projectOrder].sort((left, right) => left.orderIndex - right.orderIndex),
+    [projectOrder],
+  );
+  const drawTheaterIntroDuration = 520;
+  const drawTheaterNameDuration = projectOrder.length >= 36 ? 360 : projectOrder.length >= 24 ? 430 : 520;
+  const drawTheaterNumberDuration = projectOrder.length >= 36 ? 400 : projectOrder.length >= 24 ? 480 : 560;
+  const drawTheaterSettleDuration = projectOrder.length >= 36 ? 180 : projectOrder.length >= 24 ? 220 : 260;
+  const drawTheaterRoundDuration =
+    drawTheaterNameDuration + drawTheaterNumberDuration + drawTheaterSettleDuration;
+  const drawTheaterFinaleLeadDuration = 720;
+  const drawTheaterFinaleRowStagger = projectOrder.length >= 36 ? 18 : projectOrder.length >= 24 ? 26 : 42;
+  const drawTheaterFinaleScanGap = projectOrder.length >= 36 ? 18 : projectOrder.length >= 24 ? 26 : 40;
+  const drawTheaterFinaleDuration =
+    drawTheaterFinaleLeadDuration +
+    drawTheaterRows.length * drawTheaterFinaleRowStagger +
+    360 +
+    drawTheaterRows.length * drawTheaterFinaleScanGap +
+    260;
   const drawAnimationDuration =
-    projectOrder.length > 0
-      ? drawIntroDuration + Math.max(1, drawRevealBatches.length) * drawBatchInterval + drawHoldDuration
+    drawTheaterRows.length > 0
+      ? drawTheaterIntroDuration + drawTheaterRows.length * drawTheaterRoundDuration + drawTheaterFinaleDuration
       : 0;
 
   useEffect(() => {
@@ -680,20 +746,81 @@ export default function ReviewScreenSessionPage() {
     projectOrder.length > 0 &&
     drawAnimationStartedAt !== null &&
     drawElapsed < drawAnimationDuration;
-  const drawRevealElapsed = Math.max(0, drawElapsed - drawIntroDuration);
-  const drawVisibleBatchCount = drawElapsed < drawIntroDuration
-    ? 0
-    : Math.min(drawRevealBatches.length, Math.floor(drawRevealElapsed / drawBatchInterval) + 1);
-  const visibleDrawRevealBatches = drawRevealBatches.slice(0, drawVisibleBatchCount);
-  const drawRevealedCount = visibleDrawRevealBatches.reduce((count, batch) => count + batch.length, 0);
-  const drawOverlayRolling = drawElapsed < drawIntroDuration;
-  const drawRollingNumber = projectOrder.length > 0
-    ? ((Math.floor(drawFrameTime / 62) % projectOrder.length) + 1)
-    : 1;
-  const drawRollingProject = projectOrder[drawRollingNumber - 1] ?? null;
-  const drawOverlayFinishing =
-    drawVisibleBatchCount >= drawRevealBatches.length &&
-    drawElapsed >= drawAnimationDuration - drawHoldDuration;
+  const drawTheaterElapsed = Math.max(0, drawElapsed - drawTheaterIntroDuration);
+  const drawTheaterSequenceDuration = drawTheaterRows.length * drawTheaterRoundDuration;
+  const drawTheaterFinaleVisible = drawTheaterRows.length > 0 && drawTheaterElapsed >= drawTheaterSequenceDuration;
+  const drawTheaterRoundTotalElapsed = Math.min(
+    Math.max(0, drawTheaterElapsed),
+    Math.max(0, drawTheaterSequenceDuration - 1),
+  );
+  const drawTheaterRoundIndex = drawTheaterRows.length
+    ? Math.min(drawTheaterRows.length - 1, Math.floor(drawTheaterRoundTotalElapsed / drawTheaterRoundDuration))
+    : 0;
+  const drawTheaterRoundElapsed =
+    drawTheaterRoundTotalElapsed - drawTheaterRoundIndex * drawTheaterRoundDuration;
+  const drawTheaterStep =
+    drawElapsed < drawTheaterIntroDuration
+      ? "ready"
+      : drawTheaterFinaleVisible
+        ? "finale"
+        : drawTheaterRoundElapsed < drawTheaterNameDuration
+          ? "name"
+          : drawTheaterRoundElapsed < drawTheaterNameDuration + drawTheaterNumberDuration
+            ? "number"
+            : "settle";
+  const drawTheaterCurrentProject = drawTheaterRows[drawTheaterRoundIndex] ?? null;
+  const drawTheaterNameStripItems = useMemo(
+    () =>
+      drawTheaterCurrentProject
+        ? buildDrawTheaterNameStrip(drawTheaterCurrentProject, drawTheaterRows, drawTheaterRoundIndex)
+        : [],
+    [drawTheaterCurrentProject, drawTheaterRoundIndex, drawTheaterRows],
+  );
+  const drawTheaterNumberStripItems = useMemo(
+    () =>
+      drawTheaterCurrentProject
+        ? buildDrawTheaterNumberStrip(
+            drawTheaterCurrentProject.orderIndex + 1,
+            drawTheaterRows.length,
+            drawTheaterRoundIndex,
+          )
+        : [],
+    [drawTheaterCurrentProject, drawTheaterRoundIndex, drawTheaterRows.length],
+  );
+  const drawTheaterNameStripTarget = Math.max(
+    0,
+    (drawTheaterNameStripItems.length - 1) * DRAW_THEATER_NAME_ITEM_HEIGHT,
+  );
+  const drawTheaterNumberStripTarget = Math.max(
+    0,
+    (drawTheaterNumberStripItems.length - 1) * DRAW_THEATER_NUMBER_ITEM_HEIGHT,
+  );
+  const drawTheaterAnnouncedCount = drawTheaterFinaleVisible
+    ? drawTheaterRows.length
+    : Math.min(
+        drawTheaterRows.length,
+        drawTheaterRoundIndex + (drawTheaterStep === "settle" ? 1 : 0),
+      );
+  const drawTheaterRecentRows = drawTheaterRows.slice(0, drawTheaterAnnouncedCount).slice(-3).reverse();
+  const drawTheaterFinaleElapsed = Math.max(0, drawTheaterElapsed - drawTheaterSequenceDuration);
+  const drawTheaterFinaleRowsVisible =
+    drawTheaterFinaleElapsed < drawTheaterFinaleLeadDuration
+      ? 0
+      : Math.min(
+          drawTheaterRows.length,
+          Math.floor((drawTheaterFinaleElapsed - drawTheaterFinaleLeadDuration) / drawTheaterFinaleRowStagger) + 1,
+        );
+  const drawTheaterFinaleScanElapsed =
+    drawTheaterFinaleElapsed -
+    drawTheaterFinaleLeadDuration -
+    drawTheaterRows.length * drawTheaterFinaleRowStagger -
+    360;
+  const drawTheaterFinaleScanIndex =
+    drawTheaterFinaleScanElapsed >= 0 && drawTheaterRows.length > 0
+      ? Math.min(drawTheaterRows.length - 1, Math.floor(drawTheaterFinaleScanElapsed / drawTheaterFinaleScanGap))
+      : null;
+  const drawTheaterFinaleColumns =
+    drawTheaterRows.length <= 20 ? 2 : drawTheaterRows.length <= 40 ? 3 : 4;
   const hasPendingSelfDrawProjects =
     selfDrawModeActive && pendingSelfDrawProjects.length > 0;
   const isWaitingNextProject =
@@ -1168,8 +1295,8 @@ export default function ReviewScreenSessionPage() {
           display: flex;
           align-items: center;
           justify-content: center;
-          background: rgba(26, 34, 54, 0.84);
-          backdrop-filter: blur(16px);
+          background: rgba(240, 244, 249, 0.92);
+          backdrop-filter: blur(10px);
         }
         .draw-sequence-card {
           position: relative;
@@ -1190,73 +1317,324 @@ export default function ReviewScreenSessionPage() {
           height: 5px;
           background: linear-gradient(135deg, #1a3a6e, #2856a0 48%, #c22832, #d93440);
         }
-        .draw-sequence-number {
-          min-height: 92px;
-          color: #204585;
-          font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
-          font-size: clamp(64px, 8vw, 104px);
-          font-weight: 900;
-          line-height: 1;
-          font-variant-numeric: tabular-nums;
-        }
-        .draw-sequence-number.rolling {
-          animation: draw-roll .32s cubic-bezier(.16,1,.3,1) infinite;
-        }
-        .draw-result-grid {
-          display: grid;
-          grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-          gap: 10px;
-          max-height: min(58vh, 520px);
-          overflow-y: auto;
-          padding: 2px;
-          scrollbar-width: thin;
-          scrollbar-color: #94a3b8 #eef2f7;
-        }
-        .draw-result-grid::-webkit-scrollbar { width: 8px; }
-        .draw-result-grid::-webkit-scrollbar-track { background: #eef2f7; border-radius: 999px; }
-        .draw-result-grid::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 999px; }
-        .draw-result-item {
-          display: grid;
-          grid-template-columns: 42px minmax(0, 1fr);
-          gap: 12px;
-          align-items: center;
-          border: 1px solid #dbe5f2;
-          border-radius: 14px;
-          background: #f8fbff;
-          padding: 12px 14px;
-          text-align: left;
-          animation: draw-result-in .34s cubic-bezier(.16,1,.3,1) both;
-        }
-        .draw-result-index {
+        .draw-theater-dots {
           display: flex;
-          height: 42px;
-          width: 42px;
+          flex-wrap: wrap;
+          gap: 6px;
+          margin-top: 18px;
+          padding-bottom: 18px;
+          border-bottom: 1px solid #e2e8f0;
+        }
+        .draw-theater-dot {
+          width: 9px;
+          height: 9px;
+          border-radius: 999px;
+          background: #dbe5f2;
+          transition: transform .35s, background .35s, box-shadow .35s;
+        }
+        .draw-theater-dot.done {
+          background: #1f4ea7;
+        }
+        .draw-theater-dot.current {
+          transform: scale(1.45);
+          background: #c22832;
+          box-shadow: 0 0 0 4px rgba(194, 40, 50, .14);
+        }
+        .draw-theater-stage {
+          position: relative;
+          display: flex;
+          min-height: 330px;
+          flex-direction: column;
           align-items: center;
           justify-content: center;
+          padding: 22px 0 16px;
+        }
+        .draw-theater-eyebrow {
+          min-height: 18px;
+          margin-bottom: 16px;
+          color: #64748b;
+          font-size: 12px;
+          font-weight: 900;
+          letter-spacing: .18em;
+        }
+        .draw-theater-namebox,
+        .draw-theater-numbox {
+          position: relative;
+          overflow: hidden;
+          mask-image: linear-gradient(to bottom, transparent 0, black 28px, black calc(100% - 28px), transparent 100%);
+          -webkit-mask-image: linear-gradient(to bottom, transparent 0, black 28px, black calc(100% - 28px), transparent 100%);
+        }
+        .draw-theater-namebox {
+          width: min(100%, 760px);
+          height: 96px;
+        }
+        .draw-theater-numbox {
+          width: 270px;
+          height: 132px;
+          margin-top: 16px;
+          opacity: .35;
+          transform: translateY(8px);
+          transition: opacity .35s ease, transform .35s ease;
+        }
+        .draw-theater-numbox.show {
+          opacity: 1;
+          transform: translateY(0);
+        }
+        .draw-theater-name-strip,
+        .draw-theater-number-strip {
+          position: absolute;
+          top: 0;
+          right: 0;
+          left: 0;
+          will-change: transform;
+        }
+        .draw-theater-name-strip {
+          transform: translateY(calc(var(--draw-name-target) * -1));
+        }
+        .draw-theater-name-strip.rolling {
+          animation-name: draw-theater-name-roll;
+          animation-timing-function: ${DRAW_THEATER_ROLL_EASING};
+          animation-fill-mode: both;
+        }
+        .draw-theater-number-strip {
+          transform: translateY(calc(var(--draw-number-target) * -1));
+        }
+        .draw-theater-number-strip.rolling {
+          animation-name: draw-theater-number-roll;
+          animation-timing-function: ${DRAW_THEATER_ROLL_EASING};
+          animation-fill-mode: both;
+        }
+        .draw-theater-name-item {
+          display: flex;
+          height: 96px;
+          align-items: center;
+          justify-content: center;
+          padding: 0 22px;
+          text-align: center;
+          color: #0f2040;
+          font-size: clamp(34px, 4.3vw, 58px);
+          font-weight: 900;
+          line-height: 1.08;
+          overflow-wrap: anywhere;
+        }
+        .draw-theater-name-item.dim {
+          color: #64748b;
+          font-weight: 800;
+          opacity: .42;
+        }
+        .draw-theater-number-item {
+          display: flex;
+          height: 132px;
+          align-items: baseline;
+          justify-content: center;
+          gap: 12px;
+          font-variant-numeric: tabular-nums;
+        }
+        .draw-theater-number-prefix,
+        .draw-theater-number-suffix {
+          align-self: center;
+          color: #64748b;
+          font-size: 18px;
+          font-weight: 900;
+        }
+        .draw-theater-number-digit {
+          color: #1f4ea7;
+          font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+          font-size: clamp(82px, 9vw, 126px);
+          font-weight: 900;
+          line-height: 1;
+        }
+        .draw-theater-number-item.dim .draw-theater-number-digit,
+        .draw-theater-number-item.dim .draw-theater-number-prefix,
+        .draw-theater-number-item.dim .draw-theater-number-suffix {
+          opacity: .38;
+        }
+        .draw-theater-glow {
+          position: absolute;
+          top: 50%;
+          left: 50%;
+          width: 560px;
+          height: 190px;
+          transform: translate(-50%, -50%);
+          background: radial-gradient(ellipse, rgba(31, 78, 167, .18) 0%, transparent 65%);
+          opacity: 0;
+          pointer-events: none;
+        }
+        .draw-theater-stage.settle .draw-theater-glow {
+          animation: draw-theater-glow .8s ease-out;
+        }
+        .draw-theater-recent {
+          min-height: 104px;
+          border-top: 1px solid #e2e8f0;
+          padding-top: 14px;
+          text-align: left;
+        }
+        .draw-theater-recent-title {
+          margin-bottom: 10px;
+          color: #64748b;
+          font-size: 12px;
+          font-weight: 900;
+          letter-spacing: .12em;
+        }
+        .draw-theater-recent-list {
+          display: flex;
+          flex-direction: column;
+          gap: 7px;
+        }
+        .draw-theater-recent-item {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+          border: 1px solid #dbe5f2;
           border-radius: 12px;
+          background: #f8fbff;
+          padding: 8px 12px;
+          color: #0f2040;
+          font-size: 13px;
+          font-weight: 900;
+          animation: draw-result-in .32s cubic-bezier(.16,1,.3,1) both;
+        }
+        .draw-theater-recent-item.fresh {
+          border-color: #bcd2ff;
+          background: #eef5ff;
+        }
+        .draw-theater-recent-num {
+          display: flex;
+          width: 30px;
+          height: 30px;
+          flex-shrink: 0;
+          align-items: center;
+          justify-content: center;
+          border-radius: 999px;
           background: #1f4ea7;
           color: #fff;
           font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
-          font-size: 16px;
+          font-size: 12px;
           font-weight: 900;
           font-variant-numeric: tabular-nums;
         }
-        .draw-result-title {
-          overflow: hidden;
-          text-overflow: ellipsis;
-          white-space: nowrap;
-          color: #0f2040;
-          font-size: 15px;
-          font-weight: 900;
+        .draw-theater-finale {
+          position: absolute;
+          inset: 0;
+          display: flex;
+          flex-direction: column;
+          background: #fff;
+          padding: 34px 42px 38px;
+          opacity: 0;
+          pointer-events: none;
+          transition: opacity .7s ease-out;
         }
-        .draw-result-meta {
-          margin-top: 3px;
+        .draw-theater-finale.show {
+          opacity: 1;
+          pointer-events: auto;
+        }
+        .draw-theater-finale-head {
+          margin-bottom: 18px;
+          text-align: center;
+        }
+        .draw-theater-finale-eyebrow {
+          margin-bottom: 8px;
+          color: #c22832;
+          font-size: 12px;
+          font-weight: 900;
+          letter-spacing: .18em;
+          opacity: 0;
+          transform: translateY(-6px);
+          transition: opacity .6s .1s, transform .6s .1s;
+        }
+        .draw-theater-finale-title {
+          margin-bottom: 6px;
+          color: #0f2040;
+          font-size: 32px;
+          font-weight: 900;
+          opacity: 0;
+          transform: translateY(10px);
+          transition: opacity .7s .25s, transform .7s .25s;
+        }
+        .draw-theater-finale-sub {
+          color: #64748b;
+          font-size: 13px;
+          font-weight: 800;
+          opacity: 0;
+          transition: opacity .6s .5s;
+        }
+        .draw-theater-finale-divider {
+          width: 60px;
+          height: 1px;
+          margin: 14px auto 18px;
+          background: #94a3b8;
+          opacity: 0;
+          transform: scaleX(0);
+          transition: opacity .5s .6s, transform .6s .6s;
+        }
+        .draw-theater-finale.show .draw-theater-finale-eyebrow,
+        .draw-theater-finale.show .draw-theater-finale-title {
+          opacity: 1;
+          transform: translateY(0);
+        }
+        .draw-theater-finale.show .draw-theater-finale-sub {
+          opacity: 1;
+        }
+        .draw-theater-finale.show .draw-theater-finale-divider {
+          opacity: 1;
+          transform: scaleX(1);
+        }
+        .draw-theater-finale-grid {
+          display: grid;
+          flex: 1;
+          min-height: 0;
+          gap: 6px 12px;
+          overflow: hidden;
+        }
+        .draw-theater-finale-row {
+          display: flex;
+          min-width: 0;
+          align-items: center;
+          gap: 10px;
+          border: 1px solid #dbe5f2;
+          border-radius: 10px;
+          background: #f8fbff;
+          padding: 7px 10px;
+          color: #0f2040;
+          opacity: 0;
+          transform: translateX(-10px);
+          transition: opacity .35s, transform .35s, background .3s, color .3s, box-shadow .3s;
+        }
+        .draw-theater-finale-row.show {
+          opacity: 1;
+          transform: translateX(0);
+        }
+        .draw-theater-finale-row.pulse {
+          background: #1f4ea7;
+          color: #fff;
+          box-shadow: 0 0 0 2px #378add;
+        }
+        .draw-theater-finale-num {
+          display: flex;
+          width: 24px;
+          height: 24px;
+          flex-shrink: 0;
+          align-items: center;
+          justify-content: center;
+          border-radius: 999px;
+          background: #0f2040;
+          color: #fff;
+          font-size: 11px;
+          font-weight: 900;
+          font-variant-numeric: tabular-nums;
+          transition: background .3s, color .3s;
+        }
+        .draw-theater-finale-row.pulse .draw-theater-finale-num {
+          background: #fff;
+          color: #1f4ea7;
+        }
+        .draw-theater-finale-name {
+          min-width: 0;
           overflow: hidden;
           text-overflow: ellipsis;
           white-space: nowrap;
-          color: #64748b;
           font-size: 12px;
-          font-weight: 700;
+          font-weight: 900;
         }
         .draw-overlay-card {
           animation: draw-settle 0.72s cubic-bezier(.16,1,.3,1);
@@ -2152,6 +2530,19 @@ export default function ReviewScreenSessionPage() {
           from { filter: blur(4px); transform: translateY(-6px); }
           to { filter: blur(0); transform: translateY(0); }
         }
+        @keyframes draw-theater-name-roll {
+          from { transform: translateY(0); filter: blur(2px); }
+          to { transform: translateY(calc(var(--draw-name-target) * -1)); filter: blur(0); }
+        }
+        @keyframes draw-theater-number-roll {
+          from { transform: translateY(0); filter: blur(2px); }
+          to { transform: translateY(calc(var(--draw-number-target) * -1)); filter: blur(0); }
+        }
+        @keyframes draw-theater-glow {
+          0% { opacity: 0; transform: translate(-50%, -50%) scale(.85); }
+          30% { opacity: 1; transform: translate(-50%, -50%) scale(1); }
+          100% { opacity: 0; transform: translate(-50%, -50%) scale(1.08); }
+        }
         @keyframes draw-settle {
           from { transform: translateY(10px); opacity: .4; }
           to { transform: translateY(0); opacity: 1; }
@@ -2606,55 +2997,134 @@ export default function ReviewScreenSessionPage() {
             <div className="flex items-start justify-between gap-6 text-left">
               <div>
                 <p className="text-sm font-black tracking-[3px] text-[#c22832]">公开抽签结果</p>
-                <h2 className="mt-2 text-3xl font-black text-[#0f2040]">本轮路演顺序生成中</h2>
+                <h2 className="mt-2 text-3xl font-black text-[#0f2040]">本轮路演顺序剧场抽签</h2>
                 <p className="mt-2 text-sm font-bold text-slate-500">
                   共 {projectOrder.length} 个项目 · 随机抽签结果同步大屏并写入审计日志
                 </p>
               </div>
               <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-right">
-                <p className="text-xs font-black text-blue-500">已揭示</p>
+                <p className="text-xs font-black text-blue-500">当前进度</p>
                 <p className="mt-1 font-mono text-2xl font-black text-blue-700 tabular-nums">
-                  {drawRevealedCount}/{projectOrder.length}
+                  {drawTheaterAnnouncedCount}/{projectOrder.length}
                 </p>
               </div>
             </div>
 
-            {drawOverlayRolling ? (
-              <div className="mt-12 flex flex-col items-center justify-center">
-                <p className={`draw-sequence-number rolling`}>
-                  {String(drawRollingNumber).padStart(2, "0")}
-                </p>
-                <p className="mt-4 min-h-7 max-w-[620px] truncate text-xl font-black text-slate-900">
-                  {drawRollingProject?.targetName ?? "项目顺序滚动中"}
-                </p>
-                <p className="mt-2 text-sm font-bold text-blue-500">正在随机生成路演顺序</p>
-              </div>
-            ) : (
-              <div className="mt-8">
-                <div className="draw-result-grid">
-                  {visibleDrawRevealBatches.flatMap((batch, batchIndex) =>
-                    batch.map((item, itemIndex) => (
-                      <div
-                        className="draw-result-item"
-                        key={item.packageId}
-                        style={{ animationDelay: `${itemIndex * 38}ms` }}
-                      >
-                        <span className="draw-result-index">{String(item.orderIndex + 1).padStart(2, "0")}</span>
-                        <div className="min-w-0">
-                          <p className="draw-result-title">{item.targetName}</p>
-                          <p className="draw-result-meta">
-                            {item.groupName || `第 ${batchIndex + 1} 批`} · {item.roundLabel || "项目路演"}
-                          </p>
-                        </div>
-                      </div>
-                    )),
-                  )}
+            <div className="draw-theater-dots">
+              {drawTheaterRows.map((item, index) => (
+                <span
+                  className={`draw-theater-dot ${
+                    index < drawTheaterAnnouncedCount ? "done" : index === drawTheaterRoundIndex ? "current" : ""
+                  }`}
+                  key={item.packageId}
+                />
+              ))}
+            </div>
+
+            <div className={`draw-theater-stage ${drawTheaterStep === "settle" ? "settle" : ""}`}>
+              <div className="draw-theater-glow" />
+              <p className="draw-theater-eyebrow">
+                {drawTheaterStep === "ready"
+                  ? "准备开始"
+                  : drawTheaterStep === "name"
+                    ? "第一步 · 抽取项目"
+                    : drawTheaterStep === "number"
+                      ? "第二步 · 抽取路演序号"
+                      : drawTheaterStep === "finale"
+                        ? "抽签完成"
+                        : "结果确认"}
+              </p>
+
+              <div className="draw-theater-namebox">
+                <div
+                  className={`draw-theater-name-strip ${drawTheaterStep === "name" ? "rolling" : ""}`}
+                  key={`draw-name-${drawTheaterCurrentProject?.packageId ?? "idle"}`}
+                  style={{
+                    "--draw-name-target": `${drawTheaterNameStripTarget}px`,
+                    animationDuration: `${drawTheaterNameDuration}ms`,
+                  } as CSSProperties}
+                >
+                  {drawTheaterNameStripItems.map((name, index) => (
+                    <div
+                      className={`draw-theater-name-item ${index === drawTheaterNameStripItems.length - 1 ? "" : "dim"}`}
+                      key={`${name}-${index}`}
+                    >
+                      {name}
+                    </div>
+                  ))}
                 </div>
-                <p className={`mt-6 text-center text-sm font-black ${drawOverlayFinishing ? "text-emerald-600" : "text-blue-600"}`}>
-                  {drawOverlayFinishing ? "抽签结果已生成，等待管理员开始路演" : "抽签结果正在分批揭示"}
-                </p>
               </div>
-            )}
+
+              <div className={`draw-theater-numbox ${drawTheaterStep === "number" || drawTheaterStep === "settle" ? "show" : ""}`}>
+                <div
+                  className={`draw-theater-number-strip ${drawTheaterStep === "number" ? "rolling" : ""}`}
+                  key={`draw-number-${drawTheaterCurrentProject?.packageId ?? "idle"}`}
+                  style={{
+                    "--draw-number-target": `${drawTheaterNumberStripTarget}px`,
+                    animationDuration: `${drawTheaterNumberDuration}ms`,
+                  } as CSSProperties}
+                >
+                  {drawTheaterNumberStripItems.map((number, index) => (
+                    <div
+                      className={`draw-theater-number-item ${index === drawTheaterNumberStripItems.length - 1 ? "" : "dim"}`}
+                      key={`${number}-${index}`}
+                    >
+                      <span className="draw-theater-number-prefix">第</span>
+                      <span className="draw-theater-number-digit">{String(number).padStart(2, "0")}</span>
+                      <span className="draw-theater-number-suffix">位</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            <div className="draw-theater-recent">
+              <p className="draw-theater-recent-title">最近抽中</p>
+              <div className="draw-theater-recent-list">
+                {drawTheaterRecentRows.length ? (
+                  drawTheaterRecentRows.map((item, index) => (
+                    <div className={`draw-theater-recent-item ${index === 0 ? "fresh" : ""}`} key={item.packageId}>
+                      <span className="draw-theater-recent-num">{String(item.orderIndex + 1).padStart(2, "0")}</span>
+                      <span className="min-w-0 truncate">{item.targetName}</span>
+                    </div>
+                  ))
+                ) : (
+                  <div className="draw-theater-recent-item">
+                    <span className="draw-theater-recent-num">—</span>
+                    <span>等待抽签开始</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className={`draw-theater-finale ${drawTheaterFinaleVisible ? "show" : ""}`}>
+              <div className="draw-theater-finale-head">
+                <p className="draw-theater-finale-eyebrow">— 抽签完成 —</p>
+                <h2 className="draw-theater-finale-title">最终路演顺序</h2>
+                <p className="draw-theater-finale-sub">共 {drawTheaterRows.length} 个项目 · 全程随机抽取</p>
+                <div className="draw-theater-finale-divider" />
+              </div>
+              <div
+                className="draw-theater-finale-grid"
+                style={{ gridTemplateColumns: `repeat(${drawTheaterFinaleColumns}, minmax(0, 1fr))` }}
+              >
+                {drawTheaterRows.map((item, index) => {
+                  const inScanTail =
+                    drawTheaterFinaleScanIndex !== null &&
+                    index <= drawTheaterFinaleScanIndex &&
+                    index >= drawTheaterFinaleScanIndex - 2;
+                  return (
+                    <div
+                      className={`draw-theater-finale-row ${index < drawTheaterFinaleRowsVisible ? "show" : ""} ${inScanTail ? "pulse" : ""}`}
+                      key={item.packageId}
+                    >
+                      <span className="draw-theater-finale-num">{item.orderIndex + 1}</span>
+                      <span className="draw-theater-finale-name">{item.targetName}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           </div>
         </section>
       ) : null}
