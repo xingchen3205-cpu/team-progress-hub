@@ -5,6 +5,7 @@ import { createAuditLogEntry } from "@/lib/audit-log";
 import { getSessionUser } from "@/lib/auth";
 import { assertRole } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import { pickReviewScreenDisplaySettings } from "@/lib/review-screen-display-settings";
 import { hashReviewScreenToken } from "@/lib/review-screen-session";
 
 export async function POST(
@@ -68,7 +69,8 @@ export async function POST(
     return NextResponse.json({ message: "大屏链接已过期" }, { status: 409 });
   }
 
-  if (!session.selfDrawEnabled) {
+  const screenDisplay = pickReviewScreenDisplaySettings(session);
+  if (!(session.selfDrawEnabled || screenDisplay.selfDrawEnabled)) {
     return NextResponse.json({ message: "管理员未开启项目自助抽签" }, { status: 409 });
   }
 

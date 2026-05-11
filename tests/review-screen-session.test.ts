@@ -599,12 +599,16 @@ describe("roadshow review screen session", () => {
     assert.match(orderExportRouteSource, /assertRole\(user\.role, \["admin", "school_admin"\]\)/);
     assert.match(selfDrawRouteSource, /hashReviewScreenToken/);
     assert.match(selfDrawRouteSource, /selfDrawEnabled/);
+    assert.match(selfDrawRouteSource, /pickReviewScreenDisplaySettings\(session\)/);
+    assert.match(selfDrawRouteSource, /session\.selfDrawEnabled \|\| screenDisplay\.selfDrawEnabled/);
     assert.match(selfDrawRouteSource, /selfDrawnAt/);
     assert.match(selfDrawRouteSource, /availableOrderIndexes/);
     assert.match(selfDrawRouteSource, /filter\(\(order\) => !order\.selfDrawnAt\)/);
     assert.match(selfDrawRouteSource, /review_screen_session\.self_drawn/);
     assert.match(selfDrawRouteSource, /createAuditLogEntry/);
     assert.match(selfDrawCandidateRouteSource, /randomInt/);
+    assert.match(selfDrawCandidateRouteSource, /pickReviewScreenDisplaySettings\(session\)/);
+    assert.match(selfDrawCandidateRouteSource, /session\.selfDrawEnabled \|\| screenDisplay\.selfDrawEnabled/);
     assert.match(selfDrawCandidateRouteSource, /review_screen_session\.self_draw_candidate_selected/);
     assert.match(selfDrawCandidateRouteSource, /currentPackageId:\s*pickedProject\.packageId/);
     assert.match(selfDrawCandidateRouteSource, /createAuditLogEntry/);
@@ -687,6 +691,7 @@ describe("roadshow review screen session", () => {
 
     assert.match(screenPageSource, /selfDrawResultNotice/);
     assert.match(screenPageSource, /selfDrawModeActive/);
+    assert.match(screenPageSource, /const selfDrawModeActive = selfDrawEnabled/);
     assert.match(screenPageSource, /pendingSelfDrawProjects\.length > 0/);
     assert.match(screenPageSource, /SELF_DRAW_SPIN_COUNT\s*=\s*22/);
     assert.match(screenPageSource, /SELF_DRAW_ITEM_HEIGHT\s*=\s*56/);
@@ -715,6 +720,10 @@ describe("roadshow review screen session", () => {
     assert.match(screenPageSource, /抽下一位上台/);
     assert.match(screenPageSource, /抽路演序号/);
     assert.match(screenPageSource, /抽签确认/);
+    assert.match(screenPageSource, /getSelfDrawNameStyle/);
+    assert.match(screenPageSource, /self-draw-project-name/);
+    assert.match(screenPageSource, /drawTheaterStep !== "ready" && drawTheaterStep !== "name" \? "locked"/);
+    assert.doesNotMatch(screenPageSource, /<h2 className="mt-4 truncate/);
     assert.doesNotMatch(screenPageSource, /toggleSelfDrawCandidateRolling/);
     assert.doesNotMatch(screenPageSource, /toggleSelfDrawSlotRolling/);
     assert.doesNotMatch(screenPageSource, /self-draw-candidate-wheel/);

@@ -122,6 +122,7 @@ const SELF_DRAW_NAME_DURATION_MS = 2400;
 const SELF_DRAW_NUMBER_DURATION_MS = 2600;
 const SELF_DRAW_REEL_EASING = "cubic-bezier(0.15, 0.7, 0.15, 1)";
 const SELF_DRAW_FOCUS_EASING = "cubic-bezier(0.4, 0, 0.2, 1)";
+const SELF_DRAW_REEL_PLACEHOLDER = "抽取中";
 const DRAW_THEATER_NAME_ITEM_HEIGHT = 96;
 const DRAW_THEATER_NUMBER_ITEM_HEIGHT = 132;
 const DRAW_THEATER_ROLL_EASING = "cubic-bezier(0.15, 0.7, 0.15, 1)";
@@ -157,13 +158,14 @@ const buildNonRepeatingReelValues = <T,>(pool: T[], count: number, seed: number,
 
 const buildSelfDrawReelItems = (winner: string, pool: string[], seed = 0): SelfDrawReelItem[] => {
   const distractors = pool.filter((value) => value !== winner);
+  const reelPool = distractors.length > 0 ? distractors : [SELF_DRAW_REEL_PLACEHOLDER];
   const beforeWinner = buildNonRepeatingReelValues(
-    distractors,
+    reelPool,
     SELF_DRAW_SPIN_COUNT,
     seed,
-    winner,
+    SELF_DRAW_REEL_PLACEHOLDER,
   );
-  const afterWinner = buildNonRepeatingReelValues(distractors, 2, seed + SELF_DRAW_SPIN_COUNT + 1, winner);
+  const afterWinner = buildNonRepeatingReelValues(reelPool, 2, seed + SELF_DRAW_SPIN_COUNT + 1, SELF_DRAW_REEL_PLACEHOLDER);
   return [
     ...beforeWinner.map((value) => ({ value, dim: true })),
     { value: winner, dim: false },
@@ -219,6 +221,22 @@ const getDrawTheaterNameFontSize = (name: string) => {
 const getDrawTheaterNameStyle = (name: string) =>
   ({
     "--draw-name-font-size": `${getDrawTheaterNameFontSize(name)}px`,
+  }) as CSSProperties;
+
+const getSelfDrawNameFontSize = (name: string) => {
+  const visualUnits = Array.from(name.trim()).reduce((total, char) => {
+    if (/^[\x00-\x7F]$/.test(char)) return total + 0.62;
+    if (/^[\s·,，.。:：;；'"“”‘’()（）[\]【】《》<>+\-_/|]$/.test(char)) return total + 0.44;
+    return total + 1;
+  }, 0);
+
+  const estimatedSize = Math.floor(430 / Math.max(visualUnits, 1));
+  return Math.max(13, Math.min(17, estimatedSize));
+};
+
+const getSelfDrawNameStyle = (name: string) =>
+  ({
+    "--self-draw-name-font-size": `${getSelfDrawNameFontSize(name)}px`,
   }) as CSSProperties;
 
 const buildDrawTheaterNumberStrip = (winner: number, total: number, seed: number) => {
@@ -376,7 +394,6 @@ export default function ReviewScreenSessionPage() {
   const [drawFrameTime, setDrawFrameTime] = useState(() => Date.now());
   const [drawOrderSubmitting, setDrawOrderSubmitting] = useState(false);
   const [selfDrawCandidatePackageId, setSelfDrawCandidatePackageId] = useState<string | null>(null);
-  const [selfDrawModeSeen, setSelfDrawModeSeen] = useState(false);
   const [selfDrawStagePhase, setSelfDrawStagePhase] = useState<SelfDrawStagePhase>("pickName");
   const [selfDrawReelMode, setSelfDrawReelMode] = useState<SelfDrawReelMode>("name");
   const [selfDrawReelItems, setSelfDrawReelItems] = useState<SelfDrawReelItem[]>([
@@ -480,8 +497,7 @@ export default function ReviewScreenSessionPage() {
     () => projectOrder.filter((project) => !project.selfDrawnAt),
     [projectOrder],
   );
-  const selfDrawModeActive =
-    selfDrawEnabled || (selfDrawModeSeen && phase === "draw" && !hasDrawStarted && projectOrder.length > 0);
+  const selfDrawModeActive = selfDrawEnabled;
   const drawEnabled = selfDrawModeActive || (phase === "draw" && hasDrawStarted);
   const screenStateLabels = [
     drawEnabled ? "抽签分组" : null,
@@ -611,15 +627,6 @@ export default function ReviewScreenSessionPage() {
     frameId = window.requestAnimationFrame(tick);
     return () => window.cancelAnimationFrame(frameId);
   }, [drawAnimationDuration, drawAnimationStartedAt]);
-
-  useEffect(() => {
-    if (selfDrawEnabled && phase === "draw" && !hasDrawStarted) {
-      setSelfDrawModeSeen(true);
-    }
-    if (phase !== "draw" || hasDrawStarted) {
-      setSelfDrawModeSeen(false);
-    }
-  }, [hasDrawStarted, phase, selfDrawEnabled]);
 
   useEffect(() => {
     if (!selfDrawModeActive || phase !== "draw") {
@@ -1450,6 +1457,9 @@ export default function ReviewScreenSessionPage() {
           will-change: transform;
         }
         .draw-theater-name-strip {
+          transform: translateY(0);
+        }
+        .draw-theater-name-strip.locked {
           transform: translateY(calc(var(--draw-name-target) * -1));
         }
         .draw-theater-name-strip.rolling {
@@ -1837,15 +1847,15 @@ export default function ReviewScreenSessionPage() {
           color: #1f4ea7;
         }
         .self-draw-who {
-          min-height: 30px;
-          max-width: 100%;
+          min-height: 54px;
+          max-width: min(100%, 640px);
           overflow: hidden;
           text-align: center;
-          text-overflow: ellipsis;
-          white-space: nowrap;
           color: #0f2040;
           font-size: 20px;
           font-weight: 900;
+          line-height: 1.28;
+          overflow-wrap: anywhere;
         }
         .self-draw-sub {
           min-height: 20px;
@@ -1866,7 +1876,7 @@ export default function ReviewScreenSessionPage() {
           transition: width .3s ease;
         }
         .self-draw-reel-box.name-mode {
-          width: min(100%, 300px);
+          width: min(100%, 540px);
         }
         .self-draw-reel-box.num-mode {
           width: 180px;
@@ -1921,8 +1931,11 @@ export default function ReviewScreenSessionPage() {
           color: #0f2040;
         }
         .self-draw-strip-item.name {
-          font-size: 15px;
+          overflow: hidden;
+          font-size: var(--self-draw-name-font-size, 15px);
           font-weight: 900;
+          line-height: 1.14;
+          overflow-wrap: anywhere;
         }
         .self-draw-strip-item.num {
           font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
@@ -2177,7 +2190,7 @@ export default function ReviewScreenSessionPage() {
           animation: notice-fade .24s ease-out both;
         }
         .self-draw-result-card {
-          width: min(560px, calc(100vw - 96px));
+          width: min(760px, calc(100vw - 96px));
           border: 1px solid rgba(191, 219, 254, .9);
           border-radius: 28px;
           background: rgba(255, 255, 255, .98);
@@ -2193,6 +2206,15 @@ export default function ReviewScreenSessionPage() {
           font-weight: 900;
           line-height: .95;
           font-variant-numeric: tabular-nums;
+        }
+        .self-draw-project-name {
+          display: -webkit-box;
+          min-width: 0;
+          overflow: hidden;
+          line-height: 1.35;
+          overflow-wrap: anywhere;
+          -webkit-box-orient: vertical;
+          -webkit-line-clamp: 2;
         }
         .screen-full-countdown {
           position: fixed;
@@ -2727,7 +2749,7 @@ export default function ReviewScreenSessionPage() {
                             className={`self-draw-project-row ${assigned ? "assigned" : ""} ${onstage ? "onstage" : ""}`}
                             key={item.packageId}
                           >
-                            <span className="min-w-0 truncate">{item.targetName}</span>
+                            <span className="self-draw-project-name">{item.targetName}</span>
                             <span className="self-draw-project-badge">
                               {assigned ? `第 ${item.orderIndex + 1} 位` : onstage ? "上台中" : "待抽"}
                             </span>
@@ -2779,7 +2801,10 @@ export default function ReviewScreenSessionPage() {
                           <div
                             className={`self-draw-strip-item ${selfDrawReelMode} ${item.dim ? "dim" : ""}`}
                             key={`${item.value}-${index}`}
-                            style={{ top: index * SELF_DRAW_ITEM_HEIGHT - SELF_DRAW_ITEM_HEIGHT / 2 }}
+                            style={{
+                              top: index * SELF_DRAW_ITEM_HEIGHT - SELF_DRAW_ITEM_HEIGHT / 2,
+                              ...(selfDrawReelMode === "name" ? getSelfDrawNameStyle(item.value) : {}),
+                            }}
                           >
                             {item.value}
                           </div>
@@ -2853,7 +2878,7 @@ export default function ReviewScreenSessionPage() {
                             key={item.packageId}
                           >
                             <span className="self-draw-order-num">{item.orderIndex + 1}</span>
-                            <span className="min-w-0 truncate">{filled ? item.targetName : "待定"}</span>
+                            <span className="self-draw-project-name">{filled ? item.targetName : "待定"}</span>
                           </div>
                         );
                       })}
@@ -3096,7 +3121,7 @@ export default function ReviewScreenSessionPage() {
 
               <div className="draw-theater-namebox">
                 <div
-                  className={`draw-theater-name-strip ${drawTheaterStep === "name" ? "rolling" : ""}`}
+                  className={`draw-theater-name-strip ${drawTheaterStep === "name" ? "rolling" : ""} ${drawTheaterStep !== "ready" && drawTheaterStep !== "name" ? "locked" : ""}`}
                   key={`draw-name-${drawTheaterCurrentProject?.packageId ?? "idle"}`}
                   style={{
                     "--draw-name-target": `${drawTheaterNameStripTarget}px`,
@@ -3196,7 +3221,7 @@ export default function ReviewScreenSessionPage() {
             <p className="self-draw-result-number mt-3">
               {String(selfDrawResultNotice.orderIndex + 1).padStart(2, "0")}
             </p>
-            <h2 className="mt-4 truncate text-3xl font-black text-[#0f2040]">
+            <h2 className="mx-auto mt-4 max-w-[min(78vw,620px)] break-words text-center text-3xl font-black leading-tight text-[#0f2040]">
               {selfDrawResultNotice.targetName}
             </h2>
             <p className="mt-3 text-base font-bold text-slate-500">已进入左侧路演顺序，等待下一次抽签</p>
