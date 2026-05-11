@@ -2924,49 +2924,6 @@ export default function ExpertReviewTab() {
 
         <article className="rounded-xl border border-[var(--line)] bg-white p-4">
           <div className="flex items-center justify-between gap-3">
-            <div>
-              <p className="text-sm font-extrabold text-slate-950">本轮进度</p>
-              <p className="mt-1 text-[11px] text-slate-400">按项目顺序串行推进</p>
-            </div>
-          </div>
-          <div className="mt-3 space-y-2">
-            {projectProgressItems.map((project, index) => {
-              const status = getProjectStatus(project, index);
-              return (
-                <div
-                  className="project-progress-row lane rounded-lg border border-slate-100 bg-slate-50 px-3 py-3"
-                  key={project.packageId}
-                >
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="min-w-0 flex flex-1 items-center gap-3">
-                      <span className="project-progress-order flex h-8 w-9 shrink-0 items-center justify-center rounded-lg bg-white font-mono text-xs font-extrabold text-slate-600 ring-1 ring-slate-100">
-                        {String(index + 1).padStart(2, "0")}
-                      </span>
-                      <div className="min-w-0">
-                        <p className="truncate text-xs font-extrabold text-slate-800">{project.targetName}</p>
-                        <p className="mt-0.5 truncate text-[10px] font-semibold text-slate-400">
-                          路演顺序 {index + 1} · {project.roundLabel || "项目路演"}
-                        </p>
-                      </div>
-                    </div>
-                    <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
-                      status === "done"
-                        ? "bg-emerald-50 text-emerald-700"
-                        : status === "current"
-                          ? "bg-blue-50 text-blue-700"
-                          : "bg-white text-slate-400"
-                    }`}>
-                      {status === "done" ? "已完成" : status === "current" ? "进行中" : "待开始"}
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </article>
-
-        <article className="rounded-xl border border-[var(--line)] bg-white p-4">
-          <div className="flex items-center justify-between gap-3">
             <h3 className="text-sm font-extrabold text-slate-950">专家席位</h3>
             <span className="rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-bold text-blue-700">固定席位 {monitorSeats.length}</span>
           </div>

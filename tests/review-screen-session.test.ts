@@ -429,7 +429,7 @@ describe("roadshow review screen session", () => {
     assert.doesNotMatch(adminTabSource, /现场检查/);
     assert.doesNotMatch(adminTabSource, /下一步建议/);
     assert.match(adminTabSource, /流程控制/);
-    assert.match(adminTabSource, /本轮进度/);
+    assert.doesNotMatch(adminTabSource, /本轮进度/);
     assert.match(adminTabSource, /projectProgressItems/);
     assert.match(adminTabSource, /max-h-\[520px\]/);
     assert.doesNotMatch(adminTabSource, /当前项目最终得分/);
@@ -722,12 +722,14 @@ describe("roadshow review screen session", () => {
     assert.doesNotMatch(screenPageSource, /空槽位/);
   });
 
-  it("renders project progress with separate order badges instead of merged index and project text", () => {
+  it("keeps project progress in the top track instead of duplicating it in the sidebar", () => {
     const adminTabSource = readSource("src/components/tabs/expert-review-tab-content.tsx");
 
-    assert.match(adminTabSource, /project-progress-row/);
-    assert.match(adminTabSource, /project-progress-order/);
+    assert.match(adminTabSource, /review-track-view/);
+    assert.match(adminTabSource, /本轮项目进度/);
     assert.match(adminTabSource, /路演顺序/);
+    assert.doesNotMatch(adminTabSource, /project-progress-row/);
+    assert.doesNotMatch(adminTabSource, /project-progress-order/);
     assert.doesNotMatch(adminTabSource, /\{index \+ 1\}\. \{project\.targetName\}/);
   });
 
