@@ -2922,11 +2922,22 @@ export default function ExpertReviewTab() {
             {projectProgressItems.map((project, index) => {
               const status = getProjectStatus(project, index);
               return (
-                <div className="lane rounded-lg border border-slate-100 bg-slate-50 px-3 py-3" key={project.packageId}>
+                <div
+                  className="project-progress-row lane rounded-lg border border-slate-100 bg-slate-50 px-3 py-3"
+                  key={project.packageId}
+                >
                   <div className="flex items-center justify-between gap-3">
-                    <p className="truncate text-xs font-extrabold text-slate-800">
-                      {index + 1}. {project.targetName}
-                    </p>
+                    <div className="min-w-0 flex flex-1 items-center gap-3">
+                      <span className="project-progress-order flex h-8 w-9 shrink-0 items-center justify-center rounded-lg bg-white font-mono text-xs font-extrabold text-slate-600 ring-1 ring-slate-100">
+                        {String(index + 1).padStart(2, "0")}
+                      </span>
+                      <div className="min-w-0">
+                        <p className="truncate text-xs font-extrabold text-slate-800">{project.targetName}</p>
+                        <p className="mt-0.5 truncate text-[10px] font-semibold text-slate-400">
+                          路演顺序 {index + 1} · {project.roundLabel || "项目路演"}
+                        </p>
+                      </div>
+                    </div>
                     <span className={`rounded-full px-2 py-0.5 text-[10px] font-bold ${
                       status === "done"
                         ? "bg-emerald-50 text-emerald-700"

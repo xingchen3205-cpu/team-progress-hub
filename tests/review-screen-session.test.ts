@@ -674,11 +674,25 @@ describe("roadshow review screen session", () => {
     const screenPageSource = readSource("src/app/review-screen/session/[sessionId]/page.tsx");
 
     assert.match(screenPageSource, /selfDrawResultNotice/);
+    assert.match(screenPageSource, /selfDrawModeActive/);
+    assert.match(screenPageSource, /pendingSelfDrawProjects\.length > 0/);
     assert.match(screenPageSource, /self-draw-slot-wheel/);
+    assert.match(screenPageSource, /self-draw-candidate-wheel/);
+    assert.match(screenPageSource, /self-draw-candidate-number/);
     assert.match(screenPageSource, /抽签确认/);
     assert.match(screenPageSource, /待抽取/);
     assert.match(screenPageSource, /项目池滚动中/);
+    assert.doesNotMatch(screenPageSource, /\.self-draw-slot-wheel\.rolling[\s\S]{0,240}draw-roll/);
     assert.doesNotMatch(screenPageSource, /空槽位/);
+  });
+
+  it("renders project progress with separate order badges instead of merged index and project text", () => {
+    const adminTabSource = readSource("src/components/tabs/expert-review-tab-content.tsx");
+
+    assert.match(adminTabSource, /project-progress-row/);
+    assert.match(adminTabSource, /project-progress-order/);
+    assert.match(adminTabSource, /路演顺序/);
+    assert.doesNotMatch(adminTabSource, /\{index \+ 1\}\. \{project\.targetName\}/);
   });
 
   it("requires an administrator login for all screen-side draw mutations even when the token is valid", () => {

@@ -232,6 +232,7 @@ export default function ReviewScreenSessionPage() {
   const [selfDrawCandidateRolling, setSelfDrawCandidateRolling] = useState(false);
   const [selfDrawCandidateFrameTime, setSelfDrawCandidateFrameTime] = useState(() => Date.now());
   const [selfDrawCandidateSubmitting, setSelfDrawCandidateSubmitting] = useState(false);
+  const [selfDrawModeSeen, setSelfDrawModeSeen] = useState(false);
   const [selfDrawRollingPackageId, setSelfDrawRollingPackageId] = useState<string | null>(null);
   const [selfDrawRollFrameTime, setSelfDrawRollFrameTime] = useState(() => Date.now());
   const [selfDrawSubmitting, setSelfDrawSubmitting] = useState(false);
@@ -293,7 +294,13 @@ export default function ReviewScreenSessionPage() {
   );
   const projectResults = useMemo(() => payload?.projectResults ?? [], [payload?.projectResults]);
   const hasDrawStarted = phase !== "draw" || Boolean(payload?.session.phaseStartedAt);
-  const drawEnabled = selfDrawEnabled || (phase === "draw" && hasDrawStarted);
+  const pendingSelfDrawProjects = useMemo(
+    () => projectOrder.filter((project) => !project.selfDrawnAt),
+    [projectOrder],
+  );
+  const selfDrawModeActive =
+    selfDrawEnabled || (selfDrawModeSeen && phase === "draw" && !hasDrawStarted && projectOrder.length > 0);
+  const drawEnabled = selfDrawModeActive || (phase === "draw" && hasDrawStarted);
   const screenStateLabels = [
     drawEnabled ? "抽签分组" : null,
     "评审打分",
@@ -317,11 +324,7 @@ export default function ReviewScreenSessionPage() {
         projects: group.projects.sort((left, right) => left.groupSlotIndex - right.groupSlotIndex),
       }));
   }, [projectOrder]);
-  const visibleDrawGroups = drawEnabled && (hasDrawStarted || screenDisplay.selfDrawEnabled) ? drawGroups : [];
-  const pendingSelfDrawProjects = useMemo(
-    () => projectOrder.filter((project) => !project.selfDrawnAt),
-    [projectOrder],
-  );
+  const visibleDrawGroups = drawEnabled && (hasDrawStarted || selfDrawModeActive) ? drawGroups : [];
   const pendingSelfDrawKey = useMemo(
     () => pendingSelfDrawProjects.map((project) => project.packageId).join("|"),
     [pendingSelfDrawProjects],
@@ -331,10 +334,15 @@ export default function ReviewScreenSessionPage() {
     pendingSelfDrawProjects.find((project) => project.packageId === selfDrawCandidatePackageId) ??
     pendingSelfDrawProjects.find((project) => project.packageId === persistedSelfDrawCandidateId) ??
     null;
-  const rollingSelfDrawCandidate =
+  const rollingSelfDrawCandidateIndex =
     selfDrawCandidateRolling && pendingSelfDrawProjects.length
-      ? pendingSelfDrawProjects[Math.floor(selfDrawCandidateFrameTime / 78) % pendingSelfDrawProjects.length]
-      : null;
+      ? Math.floor(selfDrawCandidateFrameTime / 82) % pendingSelfDrawProjects.length
+      : -1;
+  const rollingSelfDrawCandidate =
+    rollingSelfDrawCandidateIndex >= 0 ? pendingSelfDrawProjects[rollingSelfDrawCandidateIndex] : null;
+  const selectedSelfDrawCandidateIndex = selectedSelfDrawProject
+    ? pendingSelfDrawProjects.findIndex((project) => project.packageId === selectedSelfDrawProject.packageId)
+    : -1;
   const selfDrawAvailableSlotIndexes = useMemo(
     () => projectOrder.filter((project) => !project.selfDrawnAt).map((project) => project.orderIndex),
     [projectOrder],
@@ -425,7 +433,16 @@ export default function ReviewScreenSessionPage() {
   }, [drawAnimationDuration, drawAnimationStartedAt]);
 
   useEffect(() => {
-    if (!selfDrawEnabled || phase !== "draw") {
+    if (selfDrawEnabled && phase === "draw" && !hasDrawStarted) {
+      setSelfDrawModeSeen(true);
+    }
+    if (phase !== "draw" || hasDrawStarted) {
+      setSelfDrawModeSeen(false);
+    }
+  }, [hasDrawStarted, phase, selfDrawEnabled]);
+
+  useEffect(() => {
+    if (!selfDrawModeActive || phase !== "draw") {
       setSelfDrawCandidatePackageId(null);
       setSelfDrawCandidateRolling(false);
       setSelfDrawRollingPackageId(null);
@@ -445,15 +462,15 @@ export default function ReviewScreenSessionPage() {
     ) {
       setSelfDrawCandidatePackageId(null);
     }
-  }, [pendingSelfDrawKey, pendingSelfDrawProjects, phase, selfDrawCandidatePackageId, selfDrawEnabled]);
+  }, [pendingSelfDrawKey, pendingSelfDrawProjects, phase, selfDrawCandidatePackageId, selfDrawModeActive]);
 
   useEffect(() => {
-    if (!selfDrawEnabled || phase !== "draw") return;
+    if (!selfDrawModeActive || phase !== "draw") return;
     const currentPackageId = payload?.session.currentPackageId ?? null;
     if (currentPackageId && pendingSelfDrawProjects.some((project) => project.packageId === currentPackageId)) {
       setSelfDrawCandidatePackageId(currentPackageId);
     }
-  }, [payload?.session.currentPackageId, pendingSelfDrawProjects, phase, selfDrawEnabled]);
+  }, [payload?.session.currentPackageId, pendingSelfDrawProjects, phase, selfDrawModeActive]);
 
   useEffect(() => {
     if (!selfDrawCandidateRolling) return;
@@ -583,7 +600,7 @@ export default function ReviewScreenSessionPage() {
     drawVisibleBatchCount >= drawRevealBatches.length &&
     drawElapsed >= drawAnimationDuration - drawHoldDuration;
   const hasPendingSelfDrawProjects =
-    selfDrawEnabled && projectOrder.some((project) => !project.selfDrawnAt);
+    selfDrawModeActive && pendingSelfDrawProjects.length > 0;
   const isWaitingNextProject =
     drawEnabled &&
     phase === "draw" &&
@@ -594,7 +611,7 @@ export default function ReviewScreenSessionPage() {
     !hasPendingSelfDrawProjects;
 
   const drawReviewScreenOrderFromScreen = async () => {
-    if (!params.sessionId || !token || selfDrawEnabled || phase !== "draw" || drawOrderSubmitting) {
+    if (!params.sessionId || !token || selfDrawModeActive || phase !== "draw" || drawOrderSubmitting) {
       return;
     }
 
@@ -644,7 +661,7 @@ export default function ReviewScreenSessionPage() {
   };
 
   const drawSelfDrawCandidate = async () => {
-    if (!params.sessionId || !token || !selfDrawEnabled || phase !== "draw") {
+    if (!params.sessionId || !token || !selfDrawModeActive || phase !== "draw") {
       return;
     }
 
@@ -689,7 +706,7 @@ export default function ReviewScreenSessionPage() {
   };
 
   const selfDrawProject = async (packageId: string) => {
-    if (!params.sessionId || !token || !screenDisplay.selfDrawEnabled || phase !== "draw") {
+    if (!params.sessionId || !token || !selfDrawModeActive || phase !== "draw") {
       return;
     }
 
@@ -1018,9 +1035,33 @@ export default function ReviewScreenSessionPage() {
         .self-draw-action.rolling {
           animation: self-draw-action-pulse 1.1s ease-in-out infinite;
         }
+        .self-draw-candidate-wheel {
+          overflow: hidden;
+          border: 1px solid #bfdbfe;
+          border-radius: 20px;
+          background: linear-gradient(135deg, #f8fbff 0%, #edf5ff 100%);
+          padding: 18px 18px 16px;
+          text-align: center;
+          transition: transform .22s ease, border-color .22s ease, background .22s ease, box-shadow .22s ease;
+        }
+        .self-draw-candidate-wheel.rolling {
+          border-color: rgba(31, 78, 167, .46);
+          background: linear-gradient(135deg, #f5f9ff 0%, #e8f1ff 100%);
+          animation: self-draw-wheel-pulse .72s ease-in-out infinite;
+        }
+        .self-draw-candidate-number {
+          color: #1f4ea7;
+          font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+          font-size: clamp(64px, 8.5vw, 118px);
+          font-weight: 900;
+          font-variant-numeric: tabular-nums;
+          letter-spacing: .02em;
+          line-height: .95;
+          text-shadow: 0 10px 30px rgba(31, 78, 167, .12);
+        }
         .self-draw-slot-wheel {
           display: flex;
-          min-height: 132px;
+          min-height: 118px;
           align-items: center;
           justify-content: center;
           border: 1px solid #bfdbfe;
@@ -1036,10 +1077,10 @@ export default function ReviewScreenSessionPage() {
         }
         .self-draw-slot-wheel.rolling {
           transform: translateY(-2px) scale(1.02);
-          border-color: rgba(194, 40, 50, .36);
-          background: linear-gradient(135deg, #fff7f7 0%, #eff6ff 100%);
-          color: #c22832;
-          animation: draw-roll .28s cubic-bezier(.16,1,.3,1) infinite;
+          border-color: rgba(31, 78, 167, .46);
+          background: linear-gradient(135deg, #f5f9ff 0%, #e8f1ff 100%);
+          color: #1f4ea7;
+          animation: self-draw-wheel-pulse .72s ease-in-out infinite;
         }
         .self-draw-result-notice {
           position: fixed;
@@ -1482,6 +1523,10 @@ export default function ReviewScreenSessionPage() {
           0%, 100% { box-shadow: 0 10px 22px rgba(194,40,50,.18); }
           50% { box-shadow: 0 14px 30px rgba(194,40,50,.3); }
         }
+        @keyframes self-draw-wheel-pulse {
+          0%, 100% { transform: translateY(0) scale(1); box-shadow: 0 12px 30px rgba(31,78,167,.10); }
+          50% { transform: translateY(-3px) scale(1.015); box-shadow: 0 18px 40px rgba(31,78,167,.18); }
+        }
         @keyframes notice-fade {
           from { opacity: 0; }
           to { opacity: 1; }
@@ -1528,7 +1573,7 @@ export default function ReviewScreenSessionPage() {
             <div className="waiting-stage-content">
               <h2 className="waiting-stage-title">{waitingScreen.title}</h2>
               <p className="waiting-stage-description">{waitingScreen.description}</p>
-              {phase === "draw" && !selfDrawEnabled && !hasDrawStarted && projectOrder.length > 0 ? (
+              {phase === "draw" && !selfDrawModeActive && !hasDrawStarted && projectOrder.length > 0 ? (
                 <button
                   className="mt-9 rounded-2xl bg-[#1f4ea7] px-10 py-5 text-2xl font-black text-white shadow-[0_18px_42px_rgba(31,78,167,0.25)] transition hover:-translate-y-0.5 hover:bg-[#1a3f86] disabled:cursor-not-allowed disabled:bg-slate-300"
                   disabled={drawOrderSubmitting}
@@ -1570,7 +1615,7 @@ export default function ReviewScreenSessionPage() {
               </div>
             ) : null}
 
-            {selfDrawEnabled && !hasDrawStarted ? (
+            {selfDrawModeActive && !hasDrawStarted ? (
               <div className="self-draw-board flex-1 overflow-hidden">
                 <article className="self-draw-panel">
                   <div className="flex items-center justify-between border-b border-slate-200 bg-[linear-gradient(135deg,rgba(26,58,110,0.06),rgba(194,40,50,0.04))] px-5 py-4">
@@ -1616,22 +1661,47 @@ export default function ReviewScreenSessionPage() {
                   </div>
 
                   <div className="my-5 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-4">
-                    <p className="text-xs font-black text-blue-500">当前上台项目</p>
-                    <p className="mt-2 min-h-8 truncate text-xl font-black text-[#0f2040]">
-                      {(rollingSelfDrawCandidate ?? selectedSelfDrawProject)?.targetName ?? "等待抽取上台项目"}
-                    </p>
-                    <div className={`self-draw-slot-wheel mt-4 ${selfDrawRollingPackageId ? "rolling" : ""}`}>
-                      {selfDrawRollingPackageId && selfDrawRollingSlotIndex !== null
-                        ? String(selfDrawRollingSlotIndex + 1).padStart(2, "0")
-                        : selectedSelfDrawProject
-                          ? "--"
-                          : pendingSelfDrawProjects.length
-                            ? "待抽取"
-                            : "完成"}
+                    <div className={`self-draw-candidate-wheel ${selfDrawCandidateRolling ? "rolling" : ""}`}>
+                      <p className="text-[11px] font-black tracking-[2px] text-blue-500">候抽编号</p>
+                      <p className="self-draw-candidate-number">
+                        {rollingSelfDrawCandidateIndex >= 0
+                          ? String(rollingSelfDrawCandidateIndex + 1).padStart(2, "0")
+                          : selectedSelfDrawCandidateIndex >= 0
+                            ? String(selectedSelfDrawCandidateIndex + 1).padStart(2, "0")
+                            : "--"}
+                      </p>
+                      <p className="mt-3 min-h-7 truncate text-xl font-black text-[#0f2040]">
+                        {(rollingSelfDrawCandidate ?? selectedSelfDrawProject)?.targetName ?? "等待抽取上台项目"}
+                      </p>
                     </div>
-                    <p className="mt-2 min-h-5 text-sm font-bold text-blue-700">
+                    <div className="mt-4 grid grid-cols-[minmax(0,1fr)_180px] gap-3">
+                      <div className={`self-draw-slot-wheel ${selfDrawRollingPackageId ? "rolling" : ""}`}>
+                        {selfDrawRollingPackageId && selfDrawRollingSlotIndex !== null
+                          ? String(selfDrawRollingSlotIndex + 1).padStart(2, "0")
+                          : selectedSelfDrawProject
+                            ? "--"
+                            : pendingSelfDrawProjects.length
+                              ? "--"
+                              : "完成"}
+                      </div>
+                      <div className="flex flex-col justify-center rounded-2xl border border-blue-100 bg-white px-4">
+                        <p className="text-[11px] font-black tracking-[1px] text-blue-500">路演顺序号</p>
+                        <p className="mt-2 min-h-10 text-sm font-black leading-5 text-blue-700">
+                          {selfDrawRollingPackageId
+                            ? `滚动中 ${selfDrawRollingSlotIndex === null ? "--" : String(selfDrawRollingSlotIndex + 1).padStart(2, "0")}`
+                            : selfDrawCandidateRolling
+                              ? "项目池滚动中"
+                              : selectedSelfDrawProject
+                                ? "等待抽取顺序"
+                                : pendingSelfDrawProjects.length
+                                  ? "先抽上台项目"
+                                  : "抽签已完成"}
+                        </p>
+                      </div>
+                    </div>
+                    <p className="mt-3 min-h-5 text-sm font-bold text-blue-700">
                       {selfDrawRollingPackageId
-                        ? `顺序槽位滚动中：${selfDrawRollingSlotIndex === null ? "--" : String(selfDrawRollingSlotIndex + 1).padStart(2, "0")}`
+                        ? "请现场停下并确认路演顺序"
                         : selfDrawCandidateRolling
                           ? "项目池滚动中，请现场停下确认"
                           : selectedSelfDrawProject
@@ -1691,7 +1761,7 @@ export default function ReviewScreenSessionPage() {
                       </span>
                     </div>
                     <div className="self-draw-pool space-y-2">
-                      {pendingSelfDrawProjects.map((item) => {
+                      {pendingSelfDrawProjects.map((item, index) => {
                         const selected =
                           item.packageId === selectedSelfDrawProject?.packageId ||
                           item.packageId === rollingSelfDrawCandidate?.packageId;
@@ -1700,8 +1770,15 @@ export default function ReviewScreenSessionPage() {
                             className={`self-draw-project-button ${selected ? "selected" : ""}`}
                             key={item.packageId}
                           >
-                            <p className="truncate text-sm font-black text-slate-950">{item.targetName}</p>
-                            <p className="mt-1 truncate text-xs font-bold text-slate-400">{item.roundLabel || "项目路演"}</p>
+                            <div className="flex items-center gap-3">
+                              <span className="flex h-9 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 font-mono text-sm font-black text-blue-700">
+                                {String(index + 1).padStart(2, "0")}
+                              </span>
+                              <div className="min-w-0">
+                                <p className="truncate text-sm font-black text-slate-950">{item.targetName}</p>
+                                <p className="mt-1 truncate text-xs font-bold text-slate-400">{item.roundLabel || "项目路演"}</p>
+                              </div>
+                            </div>
                           </div>
                         );
                       })}
