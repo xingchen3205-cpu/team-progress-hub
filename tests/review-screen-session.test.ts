@@ -948,4 +948,15 @@ describe("roadshow review screen session", () => {
     assert.doesNotMatch(screenPageSource, /items\.push\(winner\);\s*return items;/);
     assert.doesNotMatch(screenPageSource, /drawTheaterCurrentProject\?\.targetName/);
   });
+
+  it("keeps the draw theater up immediately and waits for manual next after the final order", () => {
+    const screenPageSource = readSource("src/app/review-screen/session/[sessionId]/page.tsx");
+
+    assert.match(screenPageSource, /drawAnimationAwaitingStart/);
+    assert.match(screenPageSource, /drawFinaleAcknowledged/);
+    assert.match(screenPageSource, /drawTheaterFinaleReadyForNext/);
+    assert.match(screenPageSource, /继续下一步/);
+    assert.match(screenPageSource, /setDrawFinaleAcknowledged\(true\)/);
+    assert.doesNotMatch(screenPageSource, /drawElapsed < drawAnimationDuration;/);
+  });
 });

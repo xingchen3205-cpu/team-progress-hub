@@ -389,6 +389,7 @@ export default function ReviewScreenSessionPage() {
   const [drawAnimationStartedAt, setDrawAnimationStartedAt] = useState<number | null>(null);
   const [drawFrameTime, setDrawFrameTime] = useState(() => Date.now());
   const [drawOrderSubmitting, setDrawOrderSubmitting] = useState(false);
+  const [drawFinaleAcknowledged, setDrawFinaleAcknowledged] = useState(false);
   const [selfDrawCandidatePackageId, setSelfDrawCandidatePackageId] = useState<string | null>(null);
   const [selfDrawStagePhase, setSelfDrawStagePhase] = useState<SelfDrawStagePhase>("pickName");
   const [selfDrawReelMode, setSelfDrawReelMode] = useState<SelfDrawReelMode>("name");
@@ -604,6 +605,7 @@ export default function ReviewScreenSessionPage() {
   useEffect(() => {
     if (drawEnabled && phase === "draw" && hasDrawStarted && projectOrder.length > 0) {
       const startedAt = Date.now();
+      setDrawFinaleAcknowledged(false);
       setDrawAnimationStartedAt(startedAt);
       setDrawFrameTime(startedAt);
     }
@@ -796,14 +798,20 @@ export default function ReviewScreenSessionPage() {
       ? "draw"
       : getTabState(phase);
 
+  const drawAnimationAwaitingStart =
+    drawEnabled &&
+    phase === "draw" &&
+    hasDrawStarted &&
+    projectOrder.length > 0 &&
+    drawAnimationStartedAt === null;
   const drawElapsed = drawAnimationStartedAt === null ? 0 : drawFrameTime - drawAnimationStartedAt;
   const drawOverlayActive =
     drawEnabled &&
     phase === "draw" &&
     hasDrawStarted &&
     projectOrder.length > 0 &&
-    drawAnimationStartedAt !== null &&
-    drawElapsed < drawAnimationDuration;
+    !drawFinaleAcknowledged &&
+    (drawAnimationAwaitingStart || drawAnimationStartedAt !== null);
   const drawTheaterElapsed = Math.max(0, drawElapsed - drawTheaterIntroDuration);
   const drawTheaterSequenceDuration = drawTheaterRevealRows.length * drawTheaterRoundDuration;
   const drawTheaterFinaleVisible =
@@ -879,6 +887,11 @@ export default function ReviewScreenSessionPage() {
     drawTheaterFinaleScanElapsed >= 0 && drawTheaterRows.length > 0
       ? Math.min(drawTheaterRows.length - 1, Math.floor(drawTheaterFinaleScanElapsed / drawTheaterFinaleScanGap))
       : null;
+  const drawTheaterFinaleReadyForNext =
+    drawTheaterFinaleVisible &&
+    drawTheaterRows.length > 0 &&
+    drawTheaterFinaleRowsVisible >= drawTheaterRows.length &&
+    drawTheaterFinaleScanElapsed >= drawTheaterRows.length * drawTheaterFinaleScanGap;
   const drawTheaterFinaleColumns =
     drawTheaterRows.length <= 20 ? 2 : drawTheaterRows.length <= 40 ? 3 : 4;
   const hasPendingSelfDrawProjects =
@@ -1736,6 +1749,31 @@ export default function ReviewScreenSessionPage() {
           white-space: nowrap;
           font-size: 12px;
           font-weight: 900;
+        }
+        .draw-theater-next-button {
+          position: absolute;
+          right: 42px;
+          bottom: 30px;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 999px;
+          background: #1f4ea7;
+          padding: 12px 24px;
+          color: #fff;
+          font-size: 14px;
+          font-weight: 900;
+          box-shadow: 0 10px 24px rgba(31, 78, 167, .26);
+          opacity: 0;
+          transform: translateY(8px);
+          transition: opacity .35s ease, transform .35s ease, background .2s ease;
+        }
+        .draw-theater-next-button.show {
+          opacity: 1;
+          transform: translateY(0);
+        }
+        .draw-theater-next-button:hover {
+          background: #183f8a;
         }
         .draw-overlay-card {
           animation: draw-settle 0.72s cubic-bezier(.16,1,.3,1);
@@ -3254,6 +3292,14 @@ export default function ReviewScreenSessionPage() {
                   );
                 })}
               </div>
+              <button
+                className={`draw-theater-next-button ${drawTheaterFinaleReadyForNext ? "show" : ""}`}
+                disabled={!drawTheaterFinaleReadyForNext}
+                onClick={() => setDrawFinaleAcknowledged(true)}
+                type="button"
+              >
+                继续下一步
+              </button>
             </div>
           </div>
         </section>
