@@ -885,6 +885,8 @@ describe("roadshow review screen session", () => {
     assert.match(screenPageSource, /drawTheaterCurrentProject = drawTheaterRevealRows/);
     assert.match(screenPageSource, /draw-theater-stage/);
     assert.match(screenPageSource, /draw-theater-namebox/);
+    assert.match(screenPageSource, /getDrawTheaterNameFontSize/);
+    assert.match(screenPageSource, /--draw-name-font-size/);
     assert.match(screenPageSource, /draw-theater-numbox/);
     assert.match(screenPageSource, /buildDrawTheaterNumberStrip/);
     assert.match(screenPageSource, /drawTheaterNumberStripItems/);

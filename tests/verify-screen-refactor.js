@@ -50,6 +50,8 @@ assert.match(screenPageSource, /drawTheaterRows/);
 assert.match(screenPageSource, /buildDrawTheaterRevealRows/);
 assert.match(screenPageSource, /drawTheaterRevealRows/);
 assert.match(screenPageSource, /路演抽签/);
+assert.match(screenPageSource, /getDrawTheaterNameFontSize/);
+assert.match(screenPageSource, /--draw-name-font-size/);
 
 assert.match(selfDrawCandidateRouteSource, /randomInt/);
 assert.match(selfDrawCandidateRouteSource, /review_screen_session\.self_draw_candidate_selected/);

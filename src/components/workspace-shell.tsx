@@ -3,9 +3,10 @@
 import Image from "next/image";
 import Link from "next/link";
 import dynamic from "next/dynamic";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ChangeEvent, type ClipboardEvent, type ReactNode } from "react";
 import type { TeamRoleLabel, DocumentDraft } from "@/components/workspace-context";
 import * as Workspace from "@/components/workspace-context";
+import { parseCustomReviewTargetNames } from "@/lib/custom-review-targets";
 
 const PdfPreview = dynamic(() => import("@/components/pdf-preview").then((mod) => mod.PdfPreview), {
   ssr: false,
@@ -259,6 +260,13 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
   const selectedReviewExpertCount = reviewAssignmentDraft.expertUserIds.length;
   const dropHighestCount = Number(reviewAssignmentDraft.dropHighestCount || 0);
   const dropLowestCount = Number(reviewAssignmentDraft.dropLowestCount || 0);
+  const customRoadshowProjectFileInputRef = useRef<HTMLInputElement>(null);
+  const customRoadshowProjectImageInputRef = useRef<HTMLInputElement>(null);
+  const [customRoadshowOcrOpen, setCustomRoadshowOcrOpen] = useState(false);
+  const [customRoadshowOcrText, setCustomRoadshowOcrText] = useState("");
+  const [customRoadshowOcrError, setCustomRoadshowOcrError] = useState<string | null>(null);
+  const [customRoadshowOcrLoading, setCustomRoadshowOcrLoading] = useState(false);
+  const customRoadshowProjectNames = parseCustomReviewTargetNames(reviewAssignmentDraft.customTargetNames);
   const remainingReviewScoreCount = Math.max(
     0,
     selectedReviewExpertCount - Math.max(0, dropHighestCount) - Math.max(0, dropLowestCount),
@@ -281,6 +289,85 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
         return allowedTeamGroupIds.length === 0 || allowedTeamGroupIds.includes(group.id);
       })
     : [];
+
+  const appendCustomRoadshowProjectNames = (source: string) => {
+    const parsedNames = parseCustomReviewTargetNames(source);
+    if (parsedNames.length === 0) {
+      setLoadError("没有识别到项目名称。请复制包含“项目名称”列的 Excel/WPS 表格，或导入 CSV。");
+      return;
+    }
+
+    setReviewAssignmentDraft((current) => ({
+      ...current,
+      customTargetNames: [...new Set([...parseCustomReviewTargetNames(current.customTargetNames), ...parsedNames])],
+    }));
+  };
+
+  const handleCustomRoadshowProjectPaste = (event: ClipboardEvent<HTMLTextAreaElement>) => {
+    const text = event.clipboardData.getData("text/plain");
+    if (!text.includes("\t") && !text.includes(",")) return;
+    event.preventDefault();
+    appendCustomRoadshowProjectNames(text);
+  };
+
+  const handleCustomRoadshowProjectFileImport = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+
+    if (!/\.(csv|tsv|txt)$/i.test(file.name)) {
+      setLoadError("请导入 CSV/TSV/TXT，或直接从 Excel/WPS 复制表格后粘贴到项目框。");
+      return;
+    }
+
+    appendCustomRoadshowProjectNames(await file.text());
+  };
+
+  const handleCustomRoadshowProjectImageImport = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+
+    if (!/^image\/(png|jpeg|webp)$/.test(file.type)) {
+      setLoadError("请上传 PNG、JPG 或 WebP 格式的项目名称列截图。");
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("file", file);
+    setCustomRoadshowOcrLoading(true);
+    setCustomRoadshowOcrError(null);
+    try {
+      const response = await fetch("/api/expert-reviews/custom-targets/ocr", {
+        method: "POST",
+        body: formData,
+      });
+      const payload = (await response.json().catch(() => null)) as { projectNames?: string[]; message?: string } | null;
+      if (!response.ok) {
+        throw new Error(payload?.message || "截图识别失败");
+      }
+      const names = parseCustomReviewTargetNames(payload?.projectNames ?? []);
+      if (names.length === 0) {
+        setCustomRoadshowOcrError("没有识别到项目名称。请只截“项目名称”这一列，并保证文字清晰。");
+        setCustomRoadshowOcrText("");
+      } else {
+        setCustomRoadshowOcrText(names.join("\n"));
+        setCustomRoadshowOcrOpen(true);
+      }
+    } catch (error) {
+      setCustomRoadshowOcrError(error instanceof Error ? error.message : "截图识别失败");
+      setCustomRoadshowOcrOpen(true);
+    } finally {
+      setCustomRoadshowOcrLoading(false);
+    }
+  };
+
+  const confirmCustomRoadshowOcrImport = () => {
+    appendCustomRoadshowProjectNames(customRoadshowOcrText);
+    setCustomRoadshowOcrOpen(false);
+    setCustomRoadshowOcrText("");
+    setCustomRoadshowOcrError(null);
+  };
 
   const getSidebarUserMeta = () => {
     if (currentRole === "admin" || currentRole === "school_admin") {
@@ -1585,7 +1672,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
         <Modal
           title={isEditingReviewAssignment ? "编辑专家评审设置" : "分配专家评审"}
           onClose={closeReviewAssignmentModal}
-          panelClassName="max-w-[min(96vw,920px)]"
+          panelClassName="max-w-[min(96vw,1120px)]"
         >
           <div className="space-y-4">
             {isEditingReviewAssignment ? (
@@ -1679,19 +1766,20 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
 
             {!isEditingReviewAssignment ? (
               selectedReviewStage?.type === "roadshow" ? (
-                <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                <div className="rounded-3xl border border-blue-100 bg-blue-50/40 p-5">
                   <div className="flex items-center justify-between gap-3">
                     <div>
-                      <p className="text-sm font-semibold text-slate-700">选择路演项目组</p>
-                      <p className="mt-1 text-xs text-slate-400">
-                        路演不要求上传材料，只按项目组生成现场打分任务。
+                      <p className="text-xs font-bold text-blue-600">步骤 2 · 确认本轮路演项目</p>
+                      <p className="mt-1 text-base font-bold text-slate-950">选择项目组，或批量加入自定义项目</p>
+                      <p className="mt-1 text-xs text-slate-500">
+                        最终名单会用于抽签、大屏展示、专家评分和顺序表导出，保存前请核对项目名称。
                       </p>
                     </div>
                     <span className="text-xs text-slate-400">
-                      已选 {reviewAssignmentDraft.teamGroupIds.length} 组
+                      项目组 {reviewAssignmentDraft.teamGroupIds.length} 个 · 自定义 {customRoadshowProjectNames.length} 个
                     </span>
                   </div>
-                  <div className="mt-3 grid max-h-56 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
+                  <div className="mt-4 grid max-h-52 gap-2 overflow-y-auto pr-1 sm:grid-cols-2 lg:grid-cols-3">
                     {selectedReviewStageTeamGroups.length > 0 ? (
                       selectedReviewStageTeamGroups.map((group) => (
                         <label
@@ -1722,11 +1810,68 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                       </p>
                     )}
                   </div>
+                  <div className="mt-5 rounded-2xl border border-white bg-white p-4">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <p className="text-sm font-bold text-slate-800">新增自定义路演项目</p>
+                        <p className="mt-1 text-xs leading-5 text-slate-500">
+                          推荐从 Excel/WPS 复制项目名称列或整张表格粘贴；截图识别会先生成可编辑预览。
+                        </p>
+                      </div>
+                      <div className="flex flex-wrap items-center justify-end gap-2">
+                        <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
+                          已识别 {customRoadshowProjectNames.length} 个
+                        </span>
+                        <input
+                          accept=".csv,.tsv,.txt,text/csv,text/plain"
+                          className="hidden"
+                          onChange={(event) => void handleCustomRoadshowProjectFileImport(event)}
+                          ref={customRoadshowProjectFileInputRef}
+                          type="file"
+                        />
+                        <input
+                          accept="image/png,image/jpeg,image/webp"
+                          className="hidden"
+                          onChange={(event) => void handleCustomRoadshowProjectImageImport(event)}
+                          ref={customRoadshowProjectImageInputRef}
+                          type="file"
+                        />
+                        <button
+                          className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
+                          onClick={() => customRoadshowProjectFileInputRef.current?.click()}
+                          type="button"
+                        >
+                          导入 CSV
+                        </button>
+                        <button
+                          className="rounded-xl border border-blue-200 bg-blue-50 px-3 py-2 text-xs font-semibold text-blue-700 transition hover:border-blue-300 hover:bg-blue-100 disabled:cursor-wait disabled:opacity-60"
+                          disabled={customRoadshowOcrLoading}
+                          onClick={() => customRoadshowProjectImageInputRef.current?.click()}
+                          type="button"
+                        >
+                          {customRoadshowOcrLoading ? "识别中..." : "识别截图"}
+                        </button>
+                      </div>
+                    </div>
+                    <div className="mt-4 grid gap-3 text-xs text-slate-500 sm:grid-cols-3">
+                      <div className="rounded-2xl border border-slate-100 bg-slate-50 px-3 py-2">
+                        <p className="font-bold text-slate-700">方式 A · 复制表格</p>
+                        <p className="mt-1 leading-5">直接复制 Excel/WPS 表格，系统优先读取“项目名称”列。</p>
+                      </div>
+                      <div className="rounded-2xl border border-slate-100 bg-slate-50 px-3 py-2">
+                        <p className="font-bold text-slate-700">方式 B · 截图识别</p>
+                        <p className="mt-1 leading-5">只截项目名称列，识别后先预览、可编辑、再确认加入。</p>
+                      </div>
+                      <div className="rounded-2xl border border-slate-100 bg-slate-50 px-3 py-2">
+                        <p className="font-bold text-slate-700">方式 C · 手动输入</p>
+                        <p className="mt-1 leading-5">一行一个项目，适合临时补录和少量项目。</p>
+                      </div>
+                    </div>
                   <label className="mt-4 block text-sm text-slate-500">
-                    新增自定义路演项目
                     <textarea
-                      className={`${textareaClassName} mt-2 min-h-24 bg-white text-[13px] leading-6`}
-                      placeholder="一行一个项目名称，可连续新增多个项目"
+                      className={`${textareaClassName} mt-2 min-h-40 bg-white text-[13px] leading-6`}
+                      onPaste={handleCustomRoadshowProjectPaste}
+                      placeholder={"可直接粘贴 Excel/WPS 表格，系统会自动读取“项目名称”列；也可一行一个项目名称。截图请只截项目名称列，识别后可编辑确认。"}
                       value={reviewAssignmentDraft.customTargetNames.join("\n")}
                       onChange={(event) =>
                         setReviewAssignmentDraft((current) => ({
@@ -1736,9 +1881,10 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                       }
                     />
                     <span className="mt-1 block text-xs leading-5 text-slate-400">
-                      已选项目组会保留，自定义项目会追加到本轮路演；长项目名显示空间已加宽，复制断行时会自动合并明显续行。
+                      已选项目组会保留，自定义项目会追加到本轮路演；支持复制整张 Excel/WPS 表格、CSV/TSV 文本，截图识别结果会先预览确认。
                     </span>
                   </label>
+                  </div>
                 </div>
               ) : (
                 <div className="rounded-2xl border border-slate-200 bg-slate-50 p-4">
@@ -1902,6 +2048,43 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                 variant="primary"
               >
                 {isEditingReviewAssignment ? "保存修改" : "保存评审任务"}
+              </ActionButton>
+            </ModalActions>
+          </div>
+        </Modal>
+      ) : null}
+
+      {customRoadshowOcrOpen ? (
+        <Modal title="截图识别结果预览" onClose={() => setCustomRoadshowOcrOpen(false)} panelClassName="max-w-[min(92vw,760px)]">
+          <div className="space-y-4">
+            <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm leading-6 text-blue-800">
+              系统只会把下方确认后的项目名称加入本轮路演。请逐行核对，必要时直接修改、删除或合并后再确认。
+            </div>
+            {customRoadshowOcrError ? (
+              <div className="rounded-2xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm text-rose-700">
+                {customRoadshowOcrError}
+              </div>
+            ) : null}
+            <label className="block text-sm font-semibold text-slate-700">
+              识别到的项目名称
+              <textarea
+                className={`${textareaClassName} mt-2 min-h-72 bg-white text-[14px] leading-7`}
+                placeholder="识别结果会显示在这里，一行一个项目名称"
+                value={customRoadshowOcrText}
+                onChange={(event) => setCustomRoadshowOcrText(event.target.value)}
+              />
+            </label>
+            <p className="text-xs leading-5 text-slate-400">
+              当前预览识别 {parseCustomReviewTargetNames(customRoadshowOcrText).length} 个项目。确认后会追加到“新增自定义路演项目”框里，不会覆盖已选项目组。
+            </p>
+            <ModalActions>
+              <ActionButton onClick={() => setCustomRoadshowOcrOpen(false)}>取消</ActionButton>
+              <ActionButton
+                disabled={parseCustomReviewTargetNames(customRoadshowOcrText).length === 0}
+                onClick={confirmCustomRoadshowOcrImport}
+                variant="primary"
+              >
+                确认加入项目名单
               </ActionButton>
             </ModalActions>
           </div>

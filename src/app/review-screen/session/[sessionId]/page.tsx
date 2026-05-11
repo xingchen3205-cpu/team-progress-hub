@@ -205,6 +205,22 @@ const buildDrawTheaterNameStrip = (
   return items;
 };
 
+const getDrawTheaterNameFontSize = (name: string) => {
+  const visualUnits = Array.from(name.trim()).reduce((total, char) => {
+    if (/^[\x00-\x7F]$/.test(char)) return total + 0.58;
+    if (/^[\s·,，.。:：;；'"“”‘’()（）[\]【】《》<>+\-_/|]$/.test(char)) return total + 0.45;
+    return total + 1;
+  }, 0);
+
+  const estimatedSize = Math.floor(1080 / Math.max(visualUnits, 1));
+  return Math.max(22, Math.min(58, estimatedSize));
+};
+
+const getDrawTheaterNameStyle = (name: string) =>
+  ({
+    "--draw-name-font-size": `${getDrawTheaterNameFontSize(name)}px`,
+  }) as CSSProperties;
+
 const buildDrawTheaterNumberStrip = (winner: number, total: number, seed: number) => {
   const safeTotal = Math.max(total, winner, 1);
   const pool = Array.from({ length: safeTotal }, (_, index) => index + 1).filter((value) => value !== winner);
@@ -1410,7 +1426,7 @@ export default function ReviewScreenSessionPage() {
           -webkit-mask-image: linear-gradient(to bottom, transparent 0, black 28px, black calc(100% - 28px), transparent 100%);
         }
         .draw-theater-namebox {
-          width: min(100%, 760px);
+          width: min(100%, 1080px);
           height: 96px;
         }
         .draw-theater-numbox {
@@ -1454,13 +1470,15 @@ export default function ReviewScreenSessionPage() {
           height: 96px;
           align-items: center;
           justify-content: center;
-          padding: 0 22px;
+          width: 100%;
+          max-width: 100%;
+          padding: 0 28px;
           text-align: center;
           color: #0f2040;
-          font-size: clamp(34px, 4.3vw, 58px);
+          font-size: var(--draw-name-font-size, clamp(34px, 4.3vw, 58px));
           font-weight: 900;
           line-height: 1.08;
-          overflow-wrap: anywhere;
+          white-space: nowrap;
         }
         .draw-theater-name-item.dim {
           color: #64748b;
@@ -3089,6 +3107,7 @@ export default function ReviewScreenSessionPage() {
                     <div
                       className={`draw-theater-name-item ${index === drawTheaterNameStripItems.length - 1 ? "" : "dim"}`}
                       key={`${name}-${index}`}
+                      style={getDrawTheaterNameStyle(name)}
                     >
                       {name}
                     </div>

@@ -302,12 +302,19 @@ describe("expert review v2 constraints", () => {
     const shellSource = readSource("src/components/workspace-shell.tsx");
     const contextSource = readSource("src/components/workspace-context.tsx");
     const routeSource = readSource("src/app/api/expert-reviews/assignments/route.ts");
+    const ocrRouteSource = readSource("src/app/api/expert-reviews/custom-targets/ocr/route.ts");
+    const ocrLibSource = readSource("src/lib/custom-review-target-ocr.ts");
 
     assert.match(shellSource, /新增自定义路演项目/);
     assert.match(shellSource, /customTargetNames/);
     assert.match(shellSource, /一行一个项目名称/);
-    assert.match(shellSource, /max-w-\[min\(96vw,920px\)\]/);
-    assert.match(shellSource, /复制断行时会自动合并明显续行/);
+    assert.match(shellSource, /导入 CSV/);
+    assert.match(shellSource, /识别截图/);
+    assert.match(shellSource, /截图识别结果预览/);
+    assert.match(shellSource, /handleCustomRoadshowProjectFileImport/);
+    assert.match(shellSource, /handleCustomRoadshowProjectImageImport/);
+    assert.match(shellSource, /max-w-\[min\(96vw,1120px\)\]/);
+    assert.match(shellSource, /系统会自动读取“项目名称”列/);
     assert.match(contextSource, /customTargetNames:\s*\[\]/);
     assert.match(contextSource, /parseCustomReviewTargetNames\(reviewAssignmentDraft\.customTargetNames\)/);
     assert.match(contextSource, /请至少选择一个路演项目组或填写一个自定义项目/);
@@ -315,6 +322,12 @@ describe("expert review v2 constraints", () => {
     assert.match(routeSource, /parseCustomReviewTargetNames\(body\.customTargetNames\)/);
     assert.match(routeSource, /teamGroupId:\s*null/);
     assert.doesNotMatch(routeSource, /teamGroupId:\s*\{\s*in:\s*packageTargets\.map/);
+    assert.match(ocrRouteSource, /assertRole\(user\.role, \["admin", "school_admin"\]\)/);
+    assert.match(ocrRouteSource, /image\/png/);
+    assert.match(ocrRouteSource, /recognizeCustomReviewTargetNamesFromImage/);
+    assert.match(ocrLibSource, /files\/upload/);
+    assert.match(ocrLibSource, /transfer_method:\s*"local_file"/);
+    assert.match(ocrLibSource, /projectNames/);
   });
 
   it("uses an independent expert review window instead of the project material upload window", () => {
