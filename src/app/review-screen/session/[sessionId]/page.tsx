@@ -108,11 +108,47 @@ type RankingRow = {
   isFinished: boolean;
 };
 
+type SelfDrawStagePhase = "pickName" | "awaitNum" | "pickNum" | "done";
+type SelfDrawReelMode = "name" | "num";
+type SelfDrawReelItem = {
+  value: string;
+  dim: boolean;
+};
+
+const SELF_DRAW_ITEM_HEIGHT = 56;
+const SELF_DRAW_VIEWPORT_HEIGHT = 460;
+const SELF_DRAW_SPIN_COUNT = 22;
+const SELF_DRAW_NAME_DURATION_MS = 2400;
+const SELF_DRAW_NUMBER_DURATION_MS = 2600;
+const SELF_DRAW_REEL_EASING = "cubic-bezier(0.15, 0.7, 0.15, 1)";
+const SELF_DRAW_FOCUS_EASING = "cubic-bezier(0.4, 0, 0.2, 1)";
+
 const fallbackSeats: ScreenSeat[] = [
   { assignmentId: "fallback-1", seatNo: 1, displayName: "专家 1", avatarText: "1", status: "pending", scoreText: null },
   { assignmentId: "fallback-2", seatNo: 2, displayName: "专家 2", avatarText: "2", status: "pending", scoreText: null },
   { assignmentId: "fallback-3", seatNo: 3, displayName: "专家 3", avatarText: "3", status: "pending", scoreText: null },
 ];
+
+const buildSelfDrawReelItems = (winner: string, pool: string[]): SelfDrawReelItem[] => {
+  const visualPool = pool.length > 0 ? pool : [winner];
+  const items: SelfDrawReelItem[] = [];
+  for (let index = 0; index < SELF_DRAW_SPIN_COUNT; index += 1) {
+    items.push({
+      value: visualPool[Math.floor(Math.random() * visualPool.length)] ?? winner,
+      dim: true,
+    });
+  }
+  items.push({ value: winner, dim: false });
+  items.push({
+    value: visualPool[Math.floor(Math.random() * visualPool.length)] ?? winner,
+    dim: true,
+  });
+  items.push({
+    value: visualPool[Math.floor(Math.random() * visualPool.length)] ?? winner,
+    dim: true,
+  });
+  return items;
+};
 
 const formatSeconds = (seconds: number) => {
   const safeSeconds = Math.max(0, Math.floor(seconds));
@@ -229,17 +265,40 @@ export default function ReviewScreenSessionPage() {
   const [drawFrameTime, setDrawFrameTime] = useState(() => Date.now());
   const [drawOrderSubmitting, setDrawOrderSubmitting] = useState(false);
   const [selfDrawCandidatePackageId, setSelfDrawCandidatePackageId] = useState<string | null>(null);
-  const [selfDrawCandidateRolling, setSelfDrawCandidateRolling] = useState(false);
-  const [selfDrawCandidateFrameTime, setSelfDrawCandidateFrameTime] = useState(() => Date.now());
-  const [selfDrawCandidateSubmitting, setSelfDrawCandidateSubmitting] = useState(false);
   const [selfDrawModeSeen, setSelfDrawModeSeen] = useState(false);
-  const [selfDrawRollingPackageId, setSelfDrawRollingPackageId] = useState<string | null>(null);
-  const [selfDrawRollFrameTime, setSelfDrawRollFrameTime] = useState(() => Date.now());
-  const [selfDrawSubmitting, setSelfDrawSubmitting] = useState(false);
+  const [selfDrawStagePhase, setSelfDrawStagePhase] = useState<SelfDrawStagePhase>("pickName");
+  const [selfDrawReelMode, setSelfDrawReelMode] = useState<SelfDrawReelMode>("name");
+  const [selfDrawReelItems, setSelfDrawReelItems] = useState<SelfDrawReelItem[]>([
+    { value: "—", dim: true },
+  ]);
+  const [selfDrawReelTransition, setSelfDrawReelTransition] = useState("none");
+  const [selfDrawReelTranslateY, setSelfDrawReelTranslateY] = useState(0);
+  const [selfDrawReelSpinning, setSelfDrawReelSpinning] = useState(false);
+  const [selfDrawMainSubmitting, setSelfDrawMainSubmitting] = useState(false);
+  const [selfDrawFlashKey, setSelfDrawFlashKey] = useState(0);
+  const [selfDrawJustFilledOrderIndex, setSelfDrawJustFilledOrderIndex] = useState<number | null>(null);
   const [selfDrawResultNotice, setSelfDrawResultNotice] = useState<{
     targetName: string;
     orderIndex: number;
   } | null>(null);
+  const [selfDrawRevealRows, setSelfDrawRevealRows] = useState<ProjectOrderItem[]>([]);
+  const [selfDrawRevealStageHidden, setSelfDrawRevealStageHidden] = useState(false);
+  const [selfDrawRevealVisible, setSelfDrawRevealVisible] = useState(false);
+  const [selfDrawRevealHeaderVisible, setSelfDrawRevealHeaderVisible] = useState(false);
+  const [selfDrawRevealRowsVisible, setSelfDrawRevealRowsVisible] = useState(0);
+  const [selfDrawRevealScanIndex, setSelfDrawRevealScanIndex] = useState<number | null>(null);
+  const selfDrawReelRef = useRef<HTMLDivElement | null>(null);
+  const selfDrawProjectPoolRef = useRef<HTMLDivElement | null>(null);
+  const selfDrawOrderBoardRef = useRef<HTMLDivElement | null>(null);
+  const selfDrawReelSpinningRef = useRef(false);
+  const selfDrawMutationLockedRef = useRef(false);
+  const selfDrawAutoScrollRef = useRef({
+    active: false,
+    frameId: 0,
+    leftScrollPos: 0,
+    rightScrollPos: 0,
+    lastTime: 0,
+  });
 
   useEffect(() => {
     let cancelled = false;
@@ -262,6 +321,14 @@ export default function ReviewScreenSessionPage() {
         }
 
         if (!cancelled) {
+          if (
+            (selfDrawReelSpinningRef.current || selfDrawMutationLockedRef.current) &&
+            data &&
+            "session" in data &&
+            data.session.screenPhase === "draw"
+          ) {
+            return;
+          }
           setPayload(data as ScreenPayload);
           setErrorMessage("");
         }
@@ -280,6 +347,10 @@ export default function ReviewScreenSessionPage() {
       window.clearInterval(timer);
     };
   }, [params.sessionId, token]);
+
+  useEffect(() => {
+    selfDrawReelSpinningRef.current = selfDrawReelSpinning;
+  }, [selfDrawReelSpinning]);
 
   const phase = payload?.session.screenPhase ?? "draw";
   const serverClockOffsetRef = useServerClockOffset(payload?.serverTime);
@@ -329,28 +400,15 @@ export default function ReviewScreenSessionPage() {
     () => pendingSelfDrawProjects.map((project) => project.packageId).join("|"),
     [pendingSelfDrawProjects],
   );
-  const persistedSelfDrawCandidateId = payload?.session.currentPackageId ?? null;
+  const persistedSelfDrawCandidateId = selfDrawReelSpinning ? null : payload?.session.currentPackageId ?? null;
   const selectedSelfDrawProject =
     pendingSelfDrawProjects.find((project) => project.packageId === selfDrawCandidatePackageId) ??
     pendingSelfDrawProjects.find((project) => project.packageId === persistedSelfDrawCandidateId) ??
     null;
-  const rollingSelfDrawCandidateIndex =
-    selfDrawCandidateRolling && pendingSelfDrawProjects.length
-      ? Math.floor(selfDrawCandidateFrameTime / 82) % pendingSelfDrawProjects.length
-      : -1;
-  const rollingSelfDrawCandidate =
-    rollingSelfDrawCandidateIndex >= 0 ? pendingSelfDrawProjects[rollingSelfDrawCandidateIndex] : null;
-  const selectedSelfDrawCandidateIndex = selectedSelfDrawProject
-    ? pendingSelfDrawProjects.findIndex((project) => project.packageId === selectedSelfDrawProject.packageId)
-    : -1;
   const selfDrawAvailableSlotIndexes = useMemo(
     () => projectOrder.filter((project) => !project.selfDrawnAt).map((project) => project.orderIndex),
     [projectOrder],
   );
-  const selfDrawRollingSlotIndex =
-    selfDrawRollingPackageId && selfDrawAvailableSlotIndexes.length
-      ? selfDrawAvailableSlotIndexes[Math.floor(selfDrawRollFrameTime / 86) % selfDrawAvailableSlotIndexes.length]
-      : null;
   const activeProjectResult =
     projectResults.find((project) => project.reviewPackage.id === payload?.session.currentPackageId) ??
     projectResults.find((project) => !project.finalScore.ready) ??
@@ -444,17 +502,36 @@ export default function ReviewScreenSessionPage() {
   useEffect(() => {
     if (!selfDrawModeActive || phase !== "draw") {
       setSelfDrawCandidatePackageId(null);
-      setSelfDrawCandidateRolling(false);
-      setSelfDrawRollingPackageId(null);
+      setSelfDrawStagePhase("pickName");
+      setSelfDrawReelMode("name");
+      setSelfDrawReelItems([{ value: "—", dim: true }]);
+      setSelfDrawReelTranslateY(0);
+      setSelfDrawRevealRows([]);
+      setSelfDrawRevealStageHidden(false);
+      setSelfDrawRevealVisible(false);
+      setSelfDrawRevealHeaderVisible(false);
+      setSelfDrawRevealRowsVisible(0);
+      setSelfDrawRevealScanIndex(null);
       return;
     }
 
     if (!pendingSelfDrawProjects.length) {
       setSelfDrawCandidatePackageId(null);
-      setSelfDrawCandidateRolling(false);
-      setSelfDrawRollingPackageId(null);
+      if (!selfDrawReelSpinning) {
+        setSelfDrawStagePhase("done");
+        setSelfDrawReelMode("num");
+        setSelfDrawReelItems([{ value: "完成", dim: true }]);
+        setSelfDrawReelTranslateY(0);
+      }
       return;
     }
+
+    setSelfDrawRevealRows([]);
+    setSelfDrawRevealStageHidden(false);
+    setSelfDrawRevealVisible(false);
+    setSelfDrawRevealHeaderVisible(false);
+    setSelfDrawRevealRowsVisible(0);
+    setSelfDrawRevealScanIndex(null);
 
     if (
       selfDrawCandidatePackageId &&
@@ -462,39 +539,57 @@ export default function ReviewScreenSessionPage() {
     ) {
       setSelfDrawCandidatePackageId(null);
     }
-  }, [pendingSelfDrawKey, pendingSelfDrawProjects, phase, selfDrawCandidatePackageId, selfDrawModeActive]);
+  }, [
+    pendingSelfDrawKey,
+    pendingSelfDrawProjects,
+    phase,
+    selfDrawCandidatePackageId,
+    selfDrawModeActive,
+    selfDrawReelSpinning,
+  ]);
 
   useEffect(() => {
-    if (!selfDrawModeActive || phase !== "draw") return;
+    if (!selfDrawModeActive || phase !== "draw" || selfDrawReelSpinning) return;
     const currentPackageId = payload?.session.currentPackageId ?? null;
     if (currentPackageId && pendingSelfDrawProjects.some((project) => project.packageId === currentPackageId)) {
       setSelfDrawCandidatePackageId(currentPackageId);
     }
-  }, [payload?.session.currentPackageId, pendingSelfDrawProjects, phase, selfDrawModeActive]);
+  }, [payload?.session.currentPackageId, pendingSelfDrawProjects, phase, selfDrawModeActive, selfDrawReelSpinning]);
 
   useEffect(() => {
-    if (!selfDrawCandidateRolling) return;
-
-    let frameId = 0;
-    const tick = () => {
-      setSelfDrawCandidateFrameTime(Date.now());
-      frameId = window.requestAnimationFrame(tick);
-    };
-    frameId = window.requestAnimationFrame(tick);
-    return () => window.cancelAnimationFrame(frameId);
-  }, [selfDrawCandidateRolling]);
+    if (!selfDrawModeActive || phase !== "draw" || selfDrawReelSpinning) return;
+    if (!pendingSelfDrawProjects.length) {
+      setSelfDrawStagePhase("done");
+      return;
+    }
+    if (selectedSelfDrawProject) {
+      setSelfDrawStagePhase("awaitNum");
+      setSelfDrawReelMode("num");
+      setSelfDrawReelItems([{ value: "?", dim: true }]);
+      setSelfDrawReelTranslateY(0);
+      setSelfDrawReelTransition("none");
+      return;
+    }
+    setSelfDrawStagePhase("pickName");
+    setSelfDrawReelMode("name");
+    setSelfDrawReelItems([{ value: "—", dim: true }]);
+    setSelfDrawReelTranslateY(0);
+    setSelfDrawReelTransition("none");
+  }, [
+    pendingSelfDrawProjects.length,
+    phase,
+    selectedSelfDrawProject,
+    selfDrawModeActive,
+    selfDrawReelSpinning,
+  ]);
 
   useEffect(() => {
-    if (!selfDrawRollingPackageId) return;
-
-    let frameId = 0;
-    const tick = () => {
-      setSelfDrawRollFrameTime(Date.now());
-      frameId = window.requestAnimationFrame(tick);
-    };
-    frameId = window.requestAnimationFrame(tick);
-    return () => window.cancelAnimationFrame(frameId);
-  }, [selfDrawRollingPackageId]);
+    if (selfDrawJustFilledOrderIndex === null) return;
+    const timer = window.setTimeout(() => {
+      setSelfDrawJustFilledOrderIndex(null);
+    }, 700);
+    return () => window.clearTimeout(timer);
+  }, [selfDrawJustFilledOrderIndex]);
 
   useEffect(() => {
     if (!selfDrawResultNotice) return;
@@ -609,6 +704,174 @@ export default function ReviewScreenSessionPage() {
     Boolean(payload?.session.currentPackageId) &&
     !drawOverlayActive &&
     !hasPendingSelfDrawProjects;
+  const selfDrawOrderSlots = useMemo(
+    () => [...projectOrder].sort((left, right) => left.orderIndex - right.orderIndex),
+    [projectOrder],
+  );
+  const selfDrawAssignedCount = projectOrder.length - pendingSelfDrawProjects.length;
+  const selfDrawButtonText =
+    selfDrawMainSubmitting || selfDrawReelSpinning
+      ? "抽取中…"
+      : selfDrawStagePhase === "done"
+        ? "抽签完成"
+        : selectedSelfDrawProject
+          ? "抽路演序号"
+          : "抽下一位上台";
+  const selfDrawStageTitle =
+    selfDrawStagePhase === "done"
+      ? "全部项目抽签完成"
+      : selectedSelfDrawProject
+        ? `${selectedSelfDrawProject.targetName} 上台`
+        : "点击按钮开始抽签";
+  const selfDrawStageSubTitle =
+    selfDrawStagePhase === "done"
+      ? "路演顺序已确认，可导出顺序表留档"
+      : selectedSelfDrawProject
+        ? "点击「抽路演序号」由该项目抽取顺序"
+        : "老师不介入选择，全程随机";
+
+  const stopSelfDrawAutoScroll = () => {
+    const state = selfDrawAutoScrollRef.current;
+    state.active = false;
+    if (state.frameId) {
+      window.cancelAnimationFrame(state.frameId);
+      state.frameId = 0;
+    }
+  };
+
+  const startSelfDrawAutoScroll = () => {
+    const state = selfDrawAutoScrollRef.current;
+    if (state.active || selfDrawReelSpinning) return;
+    state.active = true;
+    state.lastTime = performance.now();
+    if (selfDrawProjectPoolRef.current) {
+      selfDrawProjectPoolRef.current.style.transition = "none";
+    }
+    if (selfDrawOrderBoardRef.current) {
+      selfDrawOrderBoardRef.current.style.transition = "none";
+    }
+
+    const tick = (now: number) => {
+      if (!state.active) return;
+      const delta = now - state.lastTime;
+      state.lastTime = now;
+      const advance = 0.25 * (delta / 16.67);
+
+      const scrollPanel = (panel: HTMLDivElement | null, key: "leftScrollPos" | "rightScrollPos") => {
+        if (!panel) return;
+        const maxScroll = Math.max(0, panel.scrollHeight - SELF_DRAW_VIEWPORT_HEIGHT);
+        if (maxScroll <= 0) return;
+        state[key] += advance;
+        if (state[key] > maxScroll + 30) {
+          state[key] = -30;
+        }
+        panel.style.transform = `translateY(${-state[key]}px)`;
+      };
+
+      scrollPanel(selfDrawProjectPoolRef.current, "leftScrollPos");
+      scrollPanel(selfDrawOrderBoardRef.current, "rightScrollPos");
+      state.frameId = window.requestAnimationFrame(tick);
+    };
+
+    state.frameId = window.requestAnimationFrame(tick);
+  };
+
+  const focusSelfDrawPanel = (panel: "left" | "right", index: number) => {
+    stopSelfDrawAutoScroll();
+    const inner = panel === "left" ? selfDrawProjectPoolRef.current : selfDrawOrderBoardRef.current;
+    if (!inner) return;
+    window.requestAnimationFrame(() => {
+      const child = inner.children[index] as HTMLElement | undefined;
+      if (!child) return;
+      const targetScroll = child.offsetTop - SELF_DRAW_VIEWPORT_HEIGHT / 2 + child.offsetHeight / 2;
+      const maxScroll = Math.max(0, inner.scrollHeight - SELF_DRAW_VIEWPORT_HEIGHT);
+      const clamped = Math.max(0, Math.min(maxScroll, targetScroll));
+      inner.style.transition = `transform 0.9s ${SELF_DRAW_FOCUS_EASING}`;
+      inner.style.transform = `translateY(${-clamped}px)`;
+      if (panel === "left") {
+        selfDrawAutoScrollRef.current.leftScrollPos = clamped;
+      } else {
+        selfDrawAutoScrollRef.current.rightScrollPos = clamped;
+      }
+    });
+  };
+
+  const spinToSelfDrawWinner = ({
+    winner,
+    mode,
+    durationMs,
+    pool,
+    focus,
+  }: {
+    winner: string;
+    mode: SelfDrawReelMode;
+    durationMs: number;
+    pool: string[];
+    focus?: () => void;
+  }) =>
+    new Promise<void>((resolve) => {
+      stopSelfDrawAutoScroll();
+      const items = buildSelfDrawReelItems(winner, pool);
+      setSelfDrawReelMode(mode);
+      setSelfDrawReelItems(items);
+      setSelfDrawReelTransition("none");
+      setSelfDrawReelTranslateY(0);
+      setSelfDrawReelSpinning(true);
+
+      const focusTimer = window.setTimeout(() => focus?.(), 1500);
+      window.requestAnimationFrame(() => {
+        if (selfDrawReelRef.current) {
+          void selfDrawReelRef.current.offsetHeight;
+        }
+        setSelfDrawReelTransition(`transform ${durationMs}ms ${SELF_DRAW_REEL_EASING}`);
+        setSelfDrawReelTranslateY(-SELF_DRAW_SPIN_COUNT * SELF_DRAW_ITEM_HEIGHT);
+      });
+
+      window.setTimeout(() => {
+        window.clearTimeout(focusTimer);
+        setSelfDrawFlashKey((value) => value + 1);
+        setSelfDrawReelSpinning(false);
+        resolve();
+      }, durationMs + 50);
+    });
+
+  const sleep = (ms: number) => new Promise<void>((resolve) => window.setTimeout(resolve, ms));
+
+  const runFinalReveal = async (finalProjectOrder: ProjectOrderItem[]) => {
+    const finalRows = [...finalProjectOrder]
+      .filter((project) => project.selfDrawnAt)
+      .sort((left, right) => left.orderIndex - right.orderIndex);
+
+    setSelfDrawRevealRows(finalRows);
+    setSelfDrawRevealRowsVisible(0);
+    setSelfDrawRevealScanIndex(null);
+    stopSelfDrawAutoScroll();
+    await sleep(40);
+
+    setSelfDrawRevealStageHidden(true);
+    await sleep(500);
+
+    setSelfDrawRevealVisible(true);
+    await sleep(150);
+
+    setSelfDrawRevealHeaderVisible(true);
+    await sleep(900);
+
+    for (let index = 0; index < finalRows.length; index += 1) {
+      setSelfDrawRevealRowsVisible(index + 1);
+      await sleep(70);
+    }
+
+    await sleep(400);
+
+    for (let index = 0; index < finalRows.length; index += 1) {
+      setSelfDrawRevealScanIndex(index);
+      await sleep(40);
+    }
+
+    await sleep(120);
+    setSelfDrawRevealScanIndex(null);
+  };
 
   const drawReviewScreenOrderFromScreen = async () => {
     if (!params.sessionId || !token || selfDrawModeActive || phase !== "draw" || drawOrderSubmitting) {
@@ -662,143 +925,211 @@ export default function ReviewScreenSessionPage() {
 
   const drawSelfDrawCandidate = async () => {
     if (!params.sessionId || !token || !selfDrawModeActive || phase !== "draw") {
-      return;
+      return null;
     }
 
-    try {
-      const response = await fetch(
-        `/api/review-screen/sessions/${params.sessionId}/self-draw/candidate?token=${encodeURIComponent(token)}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({}),
-        },
-      );
-      const data = (await response.json().catch(() => null)) as
-        | {
-            candidate?: { packageId: string };
-            session?: { currentPackageId?: string | null };
-            message?: string;
-          }
-        | null;
-      if (!response.ok) {
-        throw new Error(data?.message ?? "抽取上台项目失败，请重试");
-      }
-      const candidatePackageId = data?.candidate?.packageId ?? data?.session?.currentPackageId ?? null;
-      if (!candidatePackageId) {
-        throw new Error("抽取上台项目失败，请重试");
-      }
-      setSelfDrawCandidatePackageId(candidatePackageId);
-      setPayload((current) =>
-        current
-          ? {
-              ...current,
-              session: {
-                ...current.session,
-                currentPackageId: data?.session?.currentPackageId ?? candidatePackageId,
-              },
-            }
-          : current,
-      );
-    } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "抽取上台项目失败，请重试");
+    const response = await fetch(
+      `/api/review-screen/sessions/${params.sessionId}/self-draw/candidate?token=${encodeURIComponent(token)}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      },
+    );
+    const data = (await response.json().catch(() => null)) as
+      | {
+          candidate?: { packageId: string };
+          session?: { currentPackageId?: string | null };
+          message?: string;
+        }
+      | null;
+    if (!response.ok) {
+      throw new Error(data?.message ?? "抽取上台项目失败，请重试");
     }
+    const candidatePackageId = data?.candidate?.packageId ?? data?.session?.currentPackageId ?? null;
+    if (!candidatePackageId) {
+      throw new Error("抽取上台项目失败，请重试");
+    }
+    return {
+      candidatePackageId,
+      currentPackageId: data?.session?.currentPackageId ?? candidatePackageId,
+    };
   };
 
   const selfDrawProject = async (packageId: string) => {
     if (!params.sessionId || !token || !selfDrawModeActive || phase !== "draw") {
+      return null;
+    }
+
+    const response = await fetch(
+      `/api/review-screen/sessions/${params.sessionId}/self-draw?token=${encodeURIComponent(token)}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ packageId }),
+      },
+    );
+    const data = (await response.json().catch(() => null)) as
+      | {
+          session?: { currentPackageId?: string | null };
+          projectOrder?: ProjectOrderItem[];
+          pickedOrderIndex?: number;
+          remainingCount?: number;
+          message?: string;
+        }
+      | null;
+    if (!response.ok) {
+      throw new Error(data?.message ?? "抽签失败，请重试");
+    }
+    if (!data?.projectOrder) {
+      throw new Error("抽签失败，请重试");
+    }
+    return data;
+  };
+
+  const handleSelfDrawMainAction = async () => {
+    if (
+      selfDrawMainSubmitting ||
+      selfDrawReelSpinning ||
+      selfDrawStagePhase === "done" ||
+      !selfDrawModeActive ||
+      phase !== "draw"
+    ) {
       return;
     }
 
+    setErrorMessage("");
+    setSelfDrawMainSubmitting(true);
+    selfDrawMutationLockedRef.current = true;
     try {
-      const response = await fetch(
-        `/api/review-screen/sessions/${params.sessionId}/self-draw?token=${encodeURIComponent(token)}`,
-        {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ packageId }),
-        },
-      );
-      const data = (await response.json().catch(() => null)) as
-        | {
-            session?: { currentPackageId?: string | null };
-            projectOrder?: ProjectOrderItem[];
-            message?: string;
-          }
-        | null;
-      if (!response.ok) {
-        throw new Error(data?.message ?? "抽签失败，请重试");
-      }
-      if (data?.projectOrder) {
-        const confirmedOrder = data.projectOrder.find((project) => project.packageId === packageId);
+      if (!selectedSelfDrawProject) {
+        setSelfDrawStagePhase("pickName");
+        setSelfDrawReelMode("name");
+        const candidate = await drawSelfDrawCandidate();
+        if (!candidate) return;
+        const winnerProject =
+          pendingSelfDrawProjects.find((project) => project.packageId === candidate.candidatePackageId) ??
+          projectOrder.find((project) => project.packageId === candidate.candidatePackageId);
+        if (!winnerProject) {
+          throw new Error("抽取上台项目失败，请重试");
+        }
+        const winnerPool = pendingSelfDrawProjects.map((project) => project.targetName);
+        const winnerIndex = projectOrder.findIndex((project) => project.packageId === winnerProject.packageId);
+
+        await spinToSelfDrawWinner({
+          winner: winnerProject.targetName,
+          mode: "name",
+          durationMs: SELF_DRAW_NAME_DURATION_MS,
+          pool: winnerPool,
+          focus: () => focusSelfDrawPanel("left", winnerIndex),
+        });
+
+        setSelfDrawCandidatePackageId(winnerProject.packageId);
         setPayload((current) =>
           current
             ? {
                 ...current,
-                projectOrder: data.projectOrder,
                 session: {
                   ...current.session,
-                  currentPackageId: data.session?.currentPackageId ?? current.session.currentPackageId,
+                  currentPackageId: candidate.currentPackageId,
                 },
               }
             : current,
         );
-        if (confirmedOrder) {
-          setSelfDrawResultNotice({
-            targetName: confirmedOrder.targetName,
-            orderIndex: confirmedOrder.orderIndex,
-          });
-        }
-        setSelfDrawCandidatePackageId(null);
-        setSelfDrawRollingPackageId(null);
-        setSelfDrawRollFrameTime(Date.now());
+        setSelfDrawStagePhase("awaitNum");
+        focusSelfDrawPanel("left", winnerIndex);
+        return;
+      }
+
+      setSelfDrawStagePhase("pickNum");
+      setSelfDrawReelMode("num");
+      setSelfDrawReelItems([{ value: "?", dim: true }]);
+      const data = await selfDrawProject(selectedSelfDrawProject.packageId);
+      if (!data) return;
+      const finalProjectOrder = data.projectOrder ?? [];
+      if (!finalProjectOrder.length) {
+        throw new Error("抽签失败，请重试");
+      }
+      const confirmedOrder = finalProjectOrder.find(
+        (project) => project.packageId === selectedSelfDrawProject.packageId,
+      );
+      if (!confirmedOrder) {
+        throw new Error("抽签失败，请重试");
+      }
+      const winnerOrderNumber = String(confirmedOrder.orderIndex + 1);
+      const numberPool = selfDrawAvailableSlotIndexes.map((index) => String(index + 1));
+
+      await spinToSelfDrawWinner({
+        winner: winnerOrderNumber,
+        mode: "num",
+        durationMs: SELF_DRAW_NUMBER_DURATION_MS,
+        pool: numberPool,
+        focus: () => focusSelfDrawPanel("right", confirmedOrder.orderIndex),
+      });
+
+      const remainingCount = data.remainingCount ?? finalProjectOrder.filter((project) => !project.selfDrawnAt).length;
+      const finalDraw = remainingCount === 0;
+
+      setPayload((current) =>
+        current
+          ? {
+              ...current,
+              projectOrder: finalProjectOrder,
+              session: {
+                ...current.session,
+                currentPackageId: data.session?.currentPackageId ?? current.session.currentPackageId,
+              },
+            }
+          : current,
+      );
+      setSelfDrawJustFilledOrderIndex(confirmedOrder.orderIndex);
+      if (!finalDraw) {
+        setSelfDrawResultNotice({
+          targetName: confirmedOrder.targetName,
+          orderIndex: confirmedOrder.orderIndex,
+        });
+      }
+      setSelfDrawCandidatePackageId(null);
+      setSelfDrawStagePhase(finalDraw ? "done" : "pickName");
+      focusSelfDrawPanel("right", confirmedOrder.orderIndex);
+      focusSelfDrawPanel("left", projectOrder.findIndex((project) => project.packageId === confirmedOrder.packageId));
+      if (finalDraw) {
+        await runFinalReveal(finalProjectOrder);
+      } else {
+        window.setTimeout(() => {
+          setSelfDrawReelMode("name");
+          setSelfDrawReelItems([{ value: "—", dim: true }]);
+          setSelfDrawReelTranslateY(0);
+          setSelfDrawReelTransition("none");
+          startSelfDrawAutoScroll();
+        }, 2000);
       }
     } catch (error) {
       setErrorMessage(error instanceof Error ? error.message : "抽签失败，请重试");
-      setSelfDrawRollingPackageId(null);
-    }
-  };
-
-  const toggleSelfDrawCandidateRolling = async () => {
-    if (selfDrawCandidateSubmitting || selfDrawSubmitting || selfDrawRollingPackageId || selectedSelfDrawProject) {
-      return;
-    }
-
-    if (!selfDrawCandidateRolling) {
-      setErrorMessage("");
-      setSelfDrawCandidateRolling(true);
-      setSelfDrawCandidateFrameTime(Date.now());
-      return;
-    }
-
-    setSelfDrawCandidateSubmitting(true);
-    try {
-      await drawSelfDrawCandidate();
     } finally {
-      setSelfDrawCandidateRolling(false);
-      setSelfDrawCandidateSubmitting(false);
+      selfDrawMutationLockedRef.current = false;
+      setSelfDrawMainSubmitting(false);
     }
   };
 
-  const toggleSelfDrawSlotRolling = async () => {
-    if (!selectedSelfDrawProject || selfDrawSubmitting || selfDrawCandidateRolling || selfDrawCandidateSubmitting) {
+  useEffect(() => {
+    if (!selfDrawModeActive || phase !== "draw" || hasDrawStarted || selfDrawReelSpinning) {
+      stopSelfDrawAutoScroll();
       return;
     }
-
-    if (!selfDrawRollingPackageId) {
-      setErrorMessage("");
-      setSelfDrawRollingPackageId(selectedSelfDrawProject.packageId);
-      setSelfDrawRollFrameTime(Date.now());
-      return;
-    }
-
-    setSelfDrawSubmitting(true);
-    try {
-      await selfDrawProject(selfDrawRollingPackageId);
-    } finally {
-      setSelfDrawSubmitting(false);
-    }
-  };
+    const timer = window.setTimeout(() => startSelfDrawAutoScroll(), 1500);
+    return () => {
+      window.clearTimeout(timer);
+      stopSelfDrawAutoScroll();
+    };
+  }, [
+    hasDrawStarted,
+    pendingSelfDrawKey,
+    phase,
+    projectOrderKey,
+    selfDrawModeActive,
+    selfDrawReelSpinning,
+  ]);
 
   return (
     <main className="min-h-screen overflow-hidden bg-[#f0f4f9] text-slate-900">
@@ -933,11 +1264,12 @@ export default function ReviewScreenSessionPage() {
         .draw-roll-number {
           animation: draw-roll 1.2s steps(8, end);
         }
-        .self-draw-board {
+        .self-draw-grid {
           display: grid;
-          grid-template-columns: minmax(0, 1.16fr) minmax(380px, .84fr);
-          gap: 18px;
+          grid-template-columns: minmax(250px, .9fr) minmax(360px, 1.16fr) minmax(250px, .9fr);
+          gap: 14px;
           min-height: 0;
+          flex: 1;
         }
         .self-draw-panel {
           min-height: 0;
@@ -947,140 +1279,449 @@ export default function ReviewScreenSessionPage() {
           background: #fff;
           box-shadow: 0 1px 4px rgba(15, 32, 64, 0.05);
         }
-        .self-draw-slots {
-          display: grid;
-          grid-template-columns: repeat(auto-fill, minmax(210px, 1fr));
-          gap: 12px;
-          max-height: calc(100vh - 270px);
-          overflow-y: auto;
-          padding: 16px;
-          scrollbar-width: thin;
-          scrollbar-color: #94a3b8 #eef2f7;
-        }
-        .self-draw-slots::-webkit-scrollbar,
-        .self-draw-pool::-webkit-scrollbar { width: 8px; }
-        .self-draw-slots::-webkit-scrollbar-track,
-        .self-draw-pool::-webkit-scrollbar-track { background: #eef2f7; border-radius: 999px; }
-        .self-draw-slots::-webkit-scrollbar-thumb,
-        .self-draw-pool::-webkit-scrollbar-thumb { background: #94a3b8; border-radius: 999px; }
-        .self-draw-slot {
-          display: grid;
-          grid-template-columns: 46px minmax(0, 1fr);
-          gap: 12px;
-          align-items: center;
-          min-height: 72px;
-          border: 1px solid #dbe5f2;
-          border-radius: 14px;
-          background: #f8fbff;
-          padding: 12px;
-          transition: transform .18s ease, border-color .18s ease, background .18s ease, box-shadow .18s ease;
-        }
-        .self-draw-slot.filled {
-          background: #ffffff;
-          border-color: #bfdbfe;
-        }
-        .self-draw-slot.rolling {
-          transform: translateY(-2px) scale(1.015);
-          border-color: #2563eb;
-          background: #eff6ff;
-          box-shadow: 0 0 0 3px rgba(37, 99, 235, .12), 0 12px 24px rgba(37, 99, 235, .16);
-        }
-        .self-draw-slot.just-filled {
-          animation: draw-result-in .42s cubic-bezier(.16,1,.3,1) both;
-        }
-        .self-draw-index {
+        .self-draw-panel-title {
           display: flex;
-          height: 46px;
-          width: 46px;
           align-items: center;
-          justify-content: center;
+          justify-content: space-between;
+          border-bottom: 1px solid #e2e8f0;
+          padding: 14px 16px;
+          color: #64748b;
+          font-size: 12px;
+          font-weight: 800;
+        }
+        .self-draw-count {
+          border-radius: 999px;
+          background: #eef5ff;
+          padding: 3px 9px;
+          color: #1f4ea7;
+          font-size: 11px;
+          font-weight: 900;
+        }
+        .self-draw-scroll-viewport {
+          height: min(460px, calc(100vh - 250px));
+          overflow: hidden;
+          padding: 14px;
+          mask-image: linear-gradient(to bottom, transparent 0, black 24px, black calc(100% - 24px), transparent 100%);
+          -webkit-mask-image: linear-gradient(to bottom, transparent 0, black 24px, black calc(100% - 24px), transparent 100%);
+        }
+        .self-draw-scroll-inner {
+          display: flex;
+          flex-direction: column;
+          gap: 7px;
+          will-change: transform;
+        }
+        .self-draw-project-row {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          gap: 10px;
+          border: 1px solid #dbe5f2;
           border-radius: 12px;
+          background: #f8fbff;
+          padding: 10px 12px;
+          color: #0f2040;
+          font-size: 13px;
+          font-weight: 800;
+          transition: background .4s, opacity .4s, transform .4s, padding .4s, box-shadow .4s, border-color .4s;
+        }
+        .self-draw-project-row.assigned {
+          opacity: .36;
+        }
+        .self-draw-project-row.onstage {
+          transform: scale(1.04);
+          border-color: #378add;
           background: #1f4ea7;
           color: #fff;
-          font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
-          font-size: 17px;
+          box-shadow: 0 0 0 2px #378add;
+        }
+        .self-draw-project-badge {
+          flex-shrink: 0;
+          border-radius: 999px;
+          background: #eef2f7;
+          padding: 3px 8px;
+          color: #94a3b8;
+          font-size: 10px;
           font-weight: 900;
-          font-variant-numeric: tabular-nums;
         }
-        .self-draw-pool {
-          max-height: calc(100vh - 430px);
-          overflow-y: auto;
-          padding-right: 4px;
+        .self-draw-project-row.assigned .self-draw-project-badge {
+          background: #0f2040;
+          color: #fff;
         }
-        .self-draw-project-button {
-          width: 100%;
-          border: 1px solid #dbe5f2;
-          border-radius: 14px;
-          background: #fff;
-          padding: 12px 14px;
-          text-align: left;
-          transition: transform .16s ease, border-color .16s ease, background .16s ease, box-shadow .16s ease;
+        .self-draw-project-row.onstage .self-draw-project-badge {
+          background: rgba(255,255,255,.24);
+          color: inherit;
         }
-        .self-draw-project-button:hover {
-          transform: translateY(-1px);
-          border-color: #93c5fd;
-          background: #f8fbff;
-        }
-        .self-draw-project-button.selected {
-          border-color: #2563eb;
-          background: #eff6ff;
-          box-shadow: 0 0 0 3px rgba(37, 99, 235, .10);
-        }
-        .self-draw-action {
-          transition: transform .16s ease, background .16s ease;
-        }
-        .self-draw-action:active {
-          transform: scale(.985);
-        }
-        .self-draw-action.rolling {
-          animation: self-draw-action-pulse 1.1s ease-in-out infinite;
-        }
-        .self-draw-candidate-wheel {
-          overflow: hidden;
-          border: 1px solid #bfdbfe;
-          border-radius: 20px;
-          background: linear-gradient(135deg, #f8fbff 0%, #edf5ff 100%);
-          padding: 18px 18px 16px;
-          text-align: center;
-          transition: transform .22s ease, border-color .22s ease, background .22s ease, box-shadow .22s ease;
-        }
-        .self-draw-candidate-wheel.rolling {
-          border-color: rgba(31, 78, 167, .46);
-          background: linear-gradient(135deg, #f5f9ff 0%, #e8f1ff 100%);
-          animation: self-draw-wheel-pulse .72s ease-in-out infinite;
-        }
-        .self-draw-candidate-number {
-          color: #1f4ea7;
-          font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
-          font-size: clamp(64px, 8.5vw, 118px);
-          font-weight: 900;
-          font-variant-numeric: tabular-nums;
-          letter-spacing: .02em;
-          line-height: .95;
-          text-shadow: 0 10px 30px rgba(31, 78, 167, .12);
-        }
-        .self-draw-slot-wheel {
+        .self-draw-stage {
+          position: relative;
           display: flex;
-          min-height: 118px;
+          flex-direction: column;
           align-items: center;
           justify-content: center;
-          border: 1px solid #bfdbfe;
-          border-radius: 20px;
-          background: linear-gradient(135deg, #f8fbff 0%, #eff6ff 100%);
+          padding: 22px 18px 18px;
+        }
+        .self-draw-stage-main {
+          position: relative;
+          z-index: 1;
+          display: flex;
+          width: 100%;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          transition: opacity .6s ease-out, transform .6s ease-out;
+        }
+        .self-draw-stage-main.hide {
+          opacity: 0;
+          transform: scale(.95);
+          pointer-events: none;
+        }
+        .self-draw-step-tabs {
+          display: flex;
+          gap: 8px;
+          margin-bottom: 18px;
+          font-size: 12px;
+          font-weight: 900;
+        }
+        .self-draw-step-tab {
+          border-radius: 999px;
+          background: #eef2f7;
+          padding: 6px 14px;
+          color: #94a3b8;
+        }
+        .self-draw-step-tab.active {
+          background: #0f2040;
+          color: #fff;
+        }
+        .self-draw-step-tab.done {
+          background: #e6f1fb;
           color: #1f4ea7;
+        }
+        .self-draw-who {
+          min-height: 30px;
+          max-width: 100%;
+          overflow: hidden;
+          text-align: center;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          color: #0f2040;
+          font-size: 20px;
+          font-weight: 900;
+        }
+        .self-draw-sub {
+          min-height: 20px;
+          margin-top: 5px;
+          margin-bottom: 18px;
+          color: #64748b;
+          font-size: 13px;
+          font-weight: 800;
+          text-align: center;
+        }
+        .self-draw-reel-box {
+          position: relative;
+          height: 200px;
+          overflow: hidden;
+          border: 1px solid #dbe5f2;
+          border-radius: 18px;
+          background: #f8fbff;
+          transition: width .3s ease;
+        }
+        .self-draw-reel-box.name-mode {
+          width: min(100%, 300px);
+        }
+        .self-draw-reel-box.num-mode {
+          width: 180px;
+        }
+        .self-draw-reel-box::before,
+        .self-draw-reel-box::after {
+          content: "";
+          position: absolute;
+          right: 0;
+          left: 0;
+          z-index: 2;
+          height: 60px;
+          pointer-events: none;
+        }
+        .self-draw-reel-box::before {
+          top: 0;
+          background: linear-gradient(to bottom, #f8fbff, rgba(248,251,255,0));
+        }
+        .self-draw-reel-box::after {
+          bottom: 0;
+          background: linear-gradient(to top, #f8fbff, rgba(248,251,255,0));
+        }
+        .self-draw-reel-window {
+          position: absolute;
+          top: 50%;
+          right: 10px;
+          left: 10px;
+          z-index: 1;
+          height: 56px;
+          transform: translateY(-50%);
+          border-top: 1px solid #cbd5e1;
+          border-bottom: 1px solid #cbd5e1;
+          pointer-events: none;
+        }
+        .self-draw-strip {
+          position: absolute;
+          top: 50%;
+          right: 0;
+          left: 0;
+          will-change: transform;
+        }
+        .self-draw-strip-item {
+          position: absolute;
+          right: 0;
+          left: 0;
+          display: flex;
+          height: 56px;
+          align-items: center;
+          justify-content: center;
+          padding: 0 12px;
+          text-align: center;
+          color: #0f2040;
+        }
+        .self-draw-strip-item.name {
+          font-size: 15px;
+          font-weight: 900;
+        }
+        .self-draw-strip-item.num {
           font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
-          font-size: clamp(54px, 7.2vw, 96px);
+          font-size: 44px;
           font-weight: 900;
           font-variant-numeric: tabular-nums;
-          letter-spacing: .02em;
-          transition: transform .18s ease, color .18s ease, border-color .18s ease, background .18s ease;
         }
-        .self-draw-slot-wheel.rolling {
-          transform: translateY(-2px) scale(1.02);
-          border-color: rgba(31, 78, 167, .46);
-          background: linear-gradient(135deg, #f5f9ff 0%, #e8f1ff 100%);
+        .self-draw-strip-item.dim {
+          color: #94a3b8;
+          font-weight: 700;
+        }
+        .self-draw-flash {
+          position: absolute;
+          inset: 0;
+          z-index: 3;
+          border-radius: 18px;
+          background: #1f4ea7;
+          opacity: 0;
+          pointer-events: none;
+        }
+        .self-draw-flash.fire {
+          animation: self-draw-flash .7s ease-out;
+        }
+        .self-draw-reel-label {
+          margin-top: 9px;
+          color: #94a3b8;
+          font-size: 12px;
+          font-weight: 900;
+          text-align: center;
+        }
+        .self-draw-controls {
+          display: flex;
+          justify-content: center;
+          margin-top: 18px;
+        }
+        .self-draw-final-reveal {
+          position: absolute;
+          inset: 0;
+          z-index: 2;
+          display: flex;
+          flex-direction: column;
+          padding: 24px 20px;
+          opacity: 0;
+          pointer-events: none;
+          transition: opacity .7s ease-out;
+        }
+        .self-draw-final-reveal.show {
+          opacity: 1;
+          pointer-events: auto;
+        }
+        .self-draw-reveal-title-row {
+          margin-bottom: 16px;
+          text-align: center;
+        }
+        .self-draw-reveal-eyebrow {
+          margin-bottom: 6px;
+          color: #94a3b8;
+          font-size: 12px;
+          font-weight: 900;
+          letter-spacing: .15em;
+          opacity: 0;
+          transform: translateY(-6px);
+          transition: opacity .6s .1s, transform .6s .1s;
+        }
+        .self-draw-reveal-main {
+          margin-bottom: 4px;
+          color: #0f2040;
+          font-size: 24px;
+          font-weight: 900;
+          opacity: 0;
+          transform: translateY(10px);
+          transition: opacity .7s .25s, transform .7s .25s;
+        }
+        .self-draw-reveal-sub {
+          color: #64748b;
+          font-size: 12px;
+          font-weight: 800;
+          opacity: 0;
+          transition: opacity .6s .5s;
+        }
+        .self-draw-reveal-divider {
+          width: 50px;
+          height: 1px;
+          margin: 10px auto 14px;
+          background: #94a3b8;
+          opacity: 0;
+          transform: scaleX(0);
+          transition: opacity .5s .6s, transform .6s .6s;
+        }
+        .self-draw-reveal-eyebrow.show,
+        .self-draw-reveal-main.show {
+          opacity: 1;
+          transform: translateY(0);
+        }
+        .self-draw-reveal-sub.show {
+          opacity: 1;
+        }
+        .self-draw-reveal-divider.show {
+          opacity: 1;
+          transform: scaleX(1);
+        }
+        .self-draw-reveal-grid {
+          display: grid;
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+          gap: 5px 10px;
+          width: 100%;
+          min-height: 0;
+          overflow: hidden;
+        }
+        .self-draw-reveal-row {
+          display: flex;
+          min-width: 0;
+          align-items: center;
+          gap: 10px;
+          border: .5px solid #dbe5f2;
+          border-radius: 12px;
+          background: #f8fbff;
+          padding: 7px 10px;
+          color: #0f2040;
+          opacity: 0;
+          transform: translateX(-12px);
+          transition:
+            opacity .4s ease-out,
+            transform .4s ease-out,
+            background .3s,
+            box-shadow .3s,
+            color .3s;
+        }
+        .self-draw-reveal-row.show {
+          opacity: 1;
+          transform: translateX(0);
+        }
+        .self-draw-reveal-row.pulse {
+          background: #1f4ea7;
+          color: #fff;
+          box-shadow: 0 0 0 2px #378add;
+        }
+        .self-draw-reveal-num {
+          display: flex;
+          width: 22px;
+          height: 22px;
+          flex-shrink: 0;
+          align-items: center;
+          justify-content: center;
+          border-radius: 999px;
+          background: #0f2040;
+          color: #fff;
+          font-size: 11px;
+          font-weight: 900;
+          font-variant-numeric: tabular-nums;
+          transition: background .3s, color .3s;
+        }
+        .self-draw-reveal-row.pulse .self-draw-reveal-num {
+          background: #fff;
           color: #1f4ea7;
-          animation: self-draw-wheel-pulse .72s ease-in-out infinite;
+        }
+        .self-draw-reveal-name {
+          min-width: 0;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+          font-size: 12px;
+          font-weight: 900;
+        }
+        .self-draw-main-button {
+          border: 0;
+          border-radius: 12px;
+          background: #1f4ea7;
+          padding: 13px 28px;
+          color: #fff;
+          font-size: 15px;
+          font-weight: 900;
+          transition: opacity .2s ease, transform .1s ease, background .2s ease;
+        }
+        .self-draw-main-button:active:not(:disabled) {
+          transform: scale(.97);
+        }
+        .self-draw-main-button:disabled {
+          cursor: not-allowed;
+          opacity: .38;
+        }
+        .self-draw-order-slot {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          border-radius: 12px;
+          padding: 10px 12px;
+          font-size: 13px;
+          font-weight: 800;
+          transition: all .4s;
+        }
+        .self-draw-order-slot.empty {
+          background: #f1f5f9;
+          color: #94a3b8;
+          opacity: .7;
+        }
+        .self-draw-order-slot.filled {
+          border: 1px solid #dbe5f2;
+          background: #fff;
+          color: #0f2040;
+        }
+        .self-draw-order-slot.just-filled {
+          animation: self-draw-pop .6s ease-out;
+          background: #1f4ea7;
+          color: #fff;
+        }
+        .self-draw-order-num {
+          display: flex;
+          width: 26px;
+          height: 26px;
+          flex-shrink: 0;
+          align-items: center;
+          justify-content: center;
+          border-radius: 999px;
+          font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+          font-size: 11px;
+          font-weight: 900;
+          font-variant-numeric: tabular-nums;
+        }
+        .self-draw-order-slot.empty .self-draw-order-num {
+          border: 1px dashed #cbd5e1;
+          color: #94a3b8;
+        }
+        .self-draw-order-slot.filled .self-draw-order-num {
+          background: #0f2040;
+          color: #fff;
+        }
+        .self-draw-order-slot.just-filled .self-draw-order-num {
+          background: rgba(255,255,255,.25);
+          color: inherit;
+        }
+        @keyframes self-draw-flash {
+          0% { opacity: 0; }
+          30% { opacity: .4; }
+          100% { opacity: 0; }
+        }
+        @keyframes self-draw-pop {
+          0% { transform: scale(.9); }
+          50% { transform: scale(1.06); }
+          100% { transform: scale(1); }
         }
         .self-draw-result-notice {
           position: fixed;
@@ -1616,169 +2257,149 @@ export default function ReviewScreenSessionPage() {
             ) : null}
 
             {selfDrawModeActive && !hasDrawStarted ? (
-              <div className="self-draw-board flex-1 overflow-hidden">
+              <div className="self-draw-grid overflow-hidden">
                 <article className="self-draw-panel">
-                  <div className="flex items-center justify-between border-b border-slate-200 bg-[linear-gradient(135deg,rgba(26,58,110,0.06),rgba(194,40,50,0.04))] px-5 py-4">
-                    <div>
-                      <h3 className="text-base font-black text-[#0f2040]">顺序槽位</h3>
-                      <p className="mt-1 text-xs font-bold text-slate-500">抽中后落入左侧顺序；这一步只确定路演顺序，不开始评审。</p>
-                    </div>
-                    <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-blue-700 ring-1 ring-blue-100">
-                      已抽 {projectOrder.length - pendingSelfDrawProjects.length}/{projectOrder.length}
-                    </span>
+                  <div className="self-draw-panel-title">
+                    <span>项目池</span>
+                    <span className="self-draw-count">{pendingSelfDrawProjects.length} 待抽</span>
                   </div>
-                  <div className="self-draw-slots">
-                    {projectOrder.map((item) => {
-                      const isFilled = Boolean(item.selfDrawnAt);
-                      const isRolling = selfDrawRollingSlotIndex === item.orderIndex;
-                      return (
-                        <div
-                          className={`self-draw-slot ${isFilled ? "filled just-filled" : ""} ${isRolling ? "rolling" : ""}`}
-                          key={item.packageId}
-                        >
-                          <span className="self-draw-index">{String(item.orderIndex + 1).padStart(2, "0")}</span>
-                          <div className="min-w-0">
-                            <p className={`truncate text-sm font-black ${isFilled ? "text-slate-950" : "text-slate-400"}`}>
-                              {isFilled ? item.targetName : isRolling ? "滚动抽取中" : "等待抽签落位"}
-                            </p>
-                            <p className="mt-1 truncate text-xs font-bold text-slate-400">
-                              {isFilled ? item.roundLabel || "项目路演" : "待抽取"}
-                            </p>
+                  <div className="self-draw-scroll-viewport">
+                    <div className="self-draw-scroll-inner self-draw-project-pool" ref={selfDrawProjectPoolRef}>
+                      {projectOrder.map((item) => {
+                        const assigned = Boolean(item.selfDrawnAt);
+                        const onstage = item.packageId === selectedSelfDrawProject?.packageId && !assigned;
+                        return (
+                          <div
+                            className={`self-draw-project-row ${assigned ? "assigned" : ""} ${onstage ? "onstage" : ""}`}
+                            key={item.packageId}
+                          >
+                            <span className="min-w-0 truncate">{item.targetName}</span>
+                            <span className="self-draw-project-badge">
+                              {assigned ? `第 ${item.orderIndex + 1} 位` : onstage ? "上台中" : "待抽"}
+                            </span>
                           </div>
-                        </div>
-                      );
-                    })}
+                        );
+                      })}
+                    </div>
                   </div>
                 </article>
 
-                <article className="self-draw-panel flex min-h-0 flex-col p-5">
-                  <div className="shrink-0">
-                    <p className="text-xs font-black tracking-[2px] text-[#c22832]">自助抽签</p>
-                    <h3 className="mt-1 text-2xl font-black text-[#0f2040]">候抽项目池</h3>
-                    <p className="mt-2 text-sm font-bold text-slate-500">
-                      第一步随机抽取上台项目；第二步由上台项目抽取路演顺序。抽签只确定顺序，不开始评审。
-                    </p>
-                  </div>
-
-                  <div className="my-5 rounded-2xl border border-blue-100 bg-blue-50 px-4 py-4">
-                    <div className={`self-draw-candidate-wheel ${selfDrawCandidateRolling ? "rolling" : ""}`}>
-                      <p className="text-[11px] font-black tracking-[2px] text-blue-500">候抽编号</p>
-                      <p className="self-draw-candidate-number">
-                        {rollingSelfDrawCandidateIndex >= 0
-                          ? String(rollingSelfDrawCandidateIndex + 1).padStart(2, "0")
-                          : selectedSelfDrawCandidateIndex >= 0
-                            ? String(selectedSelfDrawCandidateIndex + 1).padStart(2, "0")
-                            : "--"}
-                      </p>
-                      <p className="mt-3 min-h-7 truncate text-xl font-black text-[#0f2040]">
-                        {(rollingSelfDrawCandidate ?? selectedSelfDrawProject)?.targetName ?? "等待抽取上台项目"}
-                      </p>
-                    </div>
-                    <div className="mt-4 grid grid-cols-[minmax(0,1fr)_180px] gap-3">
-                      <div className={`self-draw-slot-wheel ${selfDrawRollingPackageId ? "rolling" : ""}`}>
-                        {selfDrawRollingPackageId && selfDrawRollingSlotIndex !== null
-                          ? String(selfDrawRollingSlotIndex + 1).padStart(2, "0")
-                          : selectedSelfDrawProject
-                            ? "--"
-                            : pendingSelfDrawProjects.length
-                              ? "--"
-                              : "完成"}
-                      </div>
-                      <div className="flex flex-col justify-center rounded-2xl border border-blue-100 bg-white px-4">
-                        <p className="text-[11px] font-black tracking-[1px] text-blue-500">路演顺序号</p>
-                        <p className="mt-2 min-h-10 text-sm font-black leading-5 text-blue-700">
-                          {selfDrawRollingPackageId
-                            ? `滚动中 ${selfDrawRollingSlotIndex === null ? "--" : String(selfDrawRollingSlotIndex + 1).padStart(2, "0")}`
-                            : selfDrawCandidateRolling
-                              ? "项目池滚动中"
-                              : selectedSelfDrawProject
-                                ? "等待抽取顺序"
-                                : pendingSelfDrawProjects.length
-                                  ? "先抽上台项目"
-                                  : "抽签已完成"}
-                        </p>
-                      </div>
-                    </div>
-                    <p className="mt-3 min-h-5 text-sm font-bold text-blue-700">
-                      {selfDrawRollingPackageId
-                        ? "请现场停下并确认路演顺序"
-                        : selfDrawCandidateRolling
-                          ? "项目池滚动中，请现场停下确认"
-                          : selectedSelfDrawProject
-                            ? "请由该项目抽取路演顺序"
-                            : pendingSelfDrawProjects.length
-                              ? "等待抽取上台项目"
-                              : "请等待管理员确认后续路演安排"}
-                    </p>
-                  </div>
-
-                  <div className="grid shrink-0 grid-cols-2 gap-3">
-                    <button
-                      className={`self-draw-action rounded-2xl px-5 py-4 text-base font-black text-white ${
-                        selfDrawCandidateRolling ? "rolling bg-[#c22832]" : "bg-[#1f4ea7]"
-                      } disabled:cursor-not-allowed disabled:bg-slate-300`}
-                      disabled={
-                        !pendingSelfDrawProjects.length ||
-                        Boolean(selectedSelfDrawProject) ||
-                        selfDrawCandidateSubmitting ||
-                        selfDrawSubmitting ||
-                        Boolean(selfDrawRollingPackageId)
-                      }
-                      onClick={() => void toggleSelfDrawCandidateRolling()}
-                      type="button"
-                    >
-                      {selfDrawCandidateSubmitting
-                        ? "正在确认上台项目"
-                        : selfDrawCandidateRolling
-                          ? "确定上台项目"
-                          : pendingSelfDrawProjects.length
-                            ? "抽取上台项目"
-                            : "抽签已完成"}
-                    </button>
-                    <button
-                      className={`self-draw-action rounded-2xl px-5 py-4 text-base font-black text-white ${
-                        selfDrawRollingPackageId ? "rolling bg-[#c22832]" : "bg-[#1f4ea7]"
-                      } disabled:cursor-not-allowed disabled:bg-slate-300`}
-                      disabled={!selectedSelfDrawProject || selfDrawSubmitting || selfDrawCandidateRolling}
-                      onClick={() => void toggleSelfDrawSlotRolling()}
-                      type="button"
-                    >
-                      {selfDrawSubmitting
-                        ? "正在确认路演号"
-                        : selfDrawRollingPackageId
-                          ? "停下并确认路演号"
-                          : selectedSelfDrawProject
-                            ? "开始抽路演顺序"
-                            : "等待上台项目"}
-                    </button>
-                  </div>
-
-                  <div className="mt-5 min-h-0 flex-1">
-                    <div className="mb-3 flex items-center justify-between">
-                      <span className="text-sm font-black text-slate-900">候抽项目</span>
-                      <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-500">
-                        剩余 {pendingSelfDrawProjects.length} 项
+                <article aria-label="自助抽签" className="self-draw-panel self-draw-stage">
+                  <div className={`self-draw-stage-main ${selfDrawRevealStageHidden ? "hide" : ""}`}>
+                    <div className="self-draw-step-tabs">
+                      <span
+                        className={`self-draw-step-tab ${
+                          selectedSelfDrawProject || selfDrawStagePhase === "pickNum" || selfDrawStagePhase === "done"
+                            ? "done"
+                            : "active"
+                        }`}
+                      >
+                        ① 抽上台项目
+                      </span>
+                      <span
+                        className={`self-draw-step-tab ${
+                          selfDrawStagePhase === "awaitNum" || selfDrawStagePhase === "pickNum"
+                            ? "active"
+                            : selfDrawStagePhase === "done"
+                              ? "done"
+                              : ""
+                        }`}
+                      >
+                        ② 抽路演序号
                       </span>
                     </div>
-                    <div className="self-draw-pool space-y-2">
-                      {pendingSelfDrawProjects.map((item, index) => {
-                        const selected =
-                          item.packageId === selectedSelfDrawProject?.packageId ||
-                          item.packageId === rollingSelfDrawCandidate?.packageId;
+                    <p className="self-draw-who">{selfDrawStageTitle}</p>
+                    <p className="self-draw-sub">{selfDrawStageSubTitle}</p>
+
+                    <div className={`self-draw-reel-box ${selfDrawReelMode === "name" ? "name-mode" : "num-mode"}`}>
+                      <div className="self-draw-reel-window" />
+                      <div
+                        className="self-draw-strip"
+                        ref={selfDrawReelRef}
+                        style={{
+                          transform: `translateY(${selfDrawReelTranslateY}px)`,
+                          transition: selfDrawReelTransition,
+                        }}
+                      >
+                        {selfDrawReelItems.map((item, index) => (
+                          <div
+                            className={`self-draw-strip-item ${selfDrawReelMode} ${item.dim ? "dim" : ""}`}
+                            key={`${item.value}-${index}`}
+                            style={{ top: index * SELF_DRAW_ITEM_HEIGHT - SELF_DRAW_ITEM_HEIGHT / 2 }}
+                          >
+                            {item.value}
+                          </div>
+                        ))}
+                      </div>
+                      <div className={`self-draw-flash ${selfDrawFlashKey ? "fire" : ""}`} key={selfDrawFlashKey} />
+                    </div>
+                    <p className="self-draw-reel-label">
+                      {selfDrawReelMode === "name" ? "— 上台项目 —" : "— 路演顺序号 —"}
+                    </p>
+
+                    <div className="self-draw-controls">
+                      <button
+                        className="self-draw-main-button"
+                        disabled={selfDrawMainSubmitting || selfDrawReelSpinning || selfDrawStagePhase === "done"}
+                        onClick={() => void handleSelfDrawMainAction()}
+                        type="button"
+                      >
+                        {selfDrawButtonText}
+                      </button>
+                    </div>
+                  </div>
+
+                  <div className={`self-draw-final-reveal ${selfDrawRevealVisible ? "show" : ""}`}>
+                    <div className="self-draw-reveal-title-row">
+                      <p className={`self-draw-reveal-eyebrow ${selfDrawRevealHeaderVisible ? "show" : ""}`}>
+                        — 抽签完成 —
+                      </p>
+                      <h2 className={`self-draw-reveal-main ${selfDrawRevealHeaderVisible ? "show" : ""}`}>
+                        最终路演顺序
+                      </h2>
+                      <p className={`self-draw-reveal-sub ${selfDrawRevealHeaderVisible ? "show" : ""}`}>
+                        共 {selfDrawRevealRows.length || projectOrder.length} 个项目 · 全程随机抽取
+                      </p>
+                      <div className={`self-draw-reveal-divider ${selfDrawRevealHeaderVisible ? "show" : ""}`} />
+                    </div>
+
+                    <div className="self-draw-reveal-grid">
+                      {selfDrawRevealRows.map((item, index) => {
+                        const inScanTail =
+                          selfDrawRevealScanIndex !== null &&
+                          index <= selfDrawRevealScanIndex &&
+                          index >= selfDrawRevealScanIndex - 2;
                         return (
                           <div
-                            className={`self-draw-project-button ${selected ? "selected" : ""}`}
+                            className={`self-draw-reveal-row ${index < selfDrawRevealRowsVisible ? "show" : ""} ${inScanTail ? "pulse" : ""}`}
                             key={item.packageId}
                           >
-                            <div className="flex items-center gap-3">
-                              <span className="flex h-9 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 font-mono text-sm font-black text-blue-700">
-                                {String(index + 1).padStart(2, "0")}
-                              </span>
-                              <div className="min-w-0">
-                                <p className="truncate text-sm font-black text-slate-950">{item.targetName}</p>
-                                <p className="mt-1 truncate text-xs font-bold text-slate-400">{item.roundLabel || "项目路演"}</p>
-                              </div>
-                            </div>
+                            <span className="self-draw-reveal-num">{item.orderIndex + 1}</span>
+                            <span className="self-draw-reveal-name">{item.targetName}</span>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                </article>
+
+                <article className="self-draw-panel">
+                  <div className="self-draw-panel-title">
+                    <span>路演顺序</span>
+                    <span className="self-draw-count">{selfDrawAssignedCount} / {projectOrder.length}</span>
+                  </div>
+                  <div className="self-draw-scroll-viewport">
+                    <div className="self-draw-scroll-inner self-draw-order-board" ref={selfDrawOrderBoardRef}>
+                      {selfDrawOrderSlots.map((item) => {
+                        const filled = Boolean(item.selfDrawnAt);
+                        const justFilled = selfDrawJustFilledOrderIndex === item.orderIndex;
+                        return (
+                          <div
+                            className={`self-draw-order-slot ${filled ? "filled" : "empty"} ${justFilled ? "just-filled" : ""}`}
+                            key={item.packageId}
+                          >
+                            <span className="self-draw-order-num">{item.orderIndex + 1}</span>
+                            <span className="min-w-0 truncate">{filled ? item.targetName : "待定"}</span>
                           </div>
                         );
                       })}

@@ -634,14 +634,13 @@ describe("roadshow review screen session", () => {
     assert.match(screenPageSource, /showRankingOnScreen/);
     assert.match(screenPageSource, /selfDrawProject/);
     assert.match(screenPageSource, /drawSelfDrawCandidate/);
-    assert.match(screenPageSource, /toggleSelfDrawCandidateRolling/);
-    assert.match(screenPageSource, /toggleSelfDrawSlotRolling/);
-    assert.match(screenPageSource, /候抽项目池/);
-    assert.match(screenPageSource, /抽取上台项目/);
-    assert.match(screenPageSource, /确定上台项目/);
-    assert.match(screenPageSource, /开始抽路演顺序/);
-    assert.match(screenPageSource, /停下并确认路演号/);
-    assert.match(screenPageSource, /顺序槽位/);
+    assert.match(screenPageSource, /handleSelfDrawMainAction/);
+    assert.match(screenPageSource, /项目池/);
+    assert.match(screenPageSource, /路演顺序/);
+    assert.match(screenPageSource, /抽下一位上台/);
+    assert.match(screenPageSource, /抽路演序号/);
+    assert.match(screenPageSource, /上台中/);
+    assert.match(screenPageSource, /待定/);
     assert.match(screenPageSource, /自助抽签/);
     assert.match(screenPageSource, /drawRevealBatches/);
     assert.match(screenPageSource, /公开抽签结果/);
@@ -670,19 +669,43 @@ describe("roadshow review screen session", () => {
     assert.match(sessionRouteSource, /phaseStartedAt:\s*drawMode === "manual" \? now : null/);
   });
 
-  it("makes self draw look publicly fair with a rolling number and a result confirmation", () => {
+  it("implements self draw as a strict three-column reel workflow", () => {
     const screenPageSource = readSource("src/app/review-screen/session/[sessionId]/page.tsx");
 
     assert.match(screenPageSource, /selfDrawResultNotice/);
     assert.match(screenPageSource, /selfDrawModeActive/);
     assert.match(screenPageSource, /pendingSelfDrawProjects\.length > 0/);
-    assert.match(screenPageSource, /self-draw-slot-wheel/);
-    assert.match(screenPageSource, /self-draw-candidate-wheel/);
-    assert.match(screenPageSource, /self-draw-candidate-number/);
+    assert.match(screenPageSource, /SELF_DRAW_SPIN_COUNT\s*=\s*22/);
+    assert.match(screenPageSource, /SELF_DRAW_ITEM_HEIGHT\s*=\s*56/);
+    assert.match(screenPageSource, /spinToSelfDrawWinner/);
+    assert.match(screenPageSource, /2400/);
+    assert.match(screenPageSource, /2600/);
+    assert.match(screenPageSource, /cubic-bezier\(0\.15,\s*0\.7,\s*0\.15,\s*1\)/);
+    assert.match(screenPageSource, /focusSelfDrawPanel/);
+    assert.match(screenPageSource, /startSelfDrawAutoScroll/);
+    assert.match(screenPageSource, /self-draw-grid/);
+    assert.match(screenPageSource, /self-draw-project-pool/);
+    assert.match(screenPageSource, /self-draw-stage/);
+    assert.match(screenPageSource, /self-draw-order-board/);
+    assert.match(screenPageSource, /self-draw-reel-box/);
+    assert.match(screenPageSource, /self-draw-strip/);
+    assert.match(screenPageSource, /self-draw-flash/);
+    assert.match(screenPageSource, /runFinalReveal/);
+    assert.match(screenPageSource, /self-draw-stage-main/);
+    assert.match(screenPageSource, /self-draw-final-reveal/);
+    assert.match(screenPageSource, /最终路演顺序/);
+    assert.match(screenPageSource, /全程随机抽取/);
+    assert.match(screenPageSource, /await sleep\(70\)/);
+    assert.match(screenPageSource, /await sleep\(40\)/);
+    assert.match(screenPageSource, /finalProjectOrder/);
+    assert.match(screenPageSource, /sort\(\(left, right\) => left\.orderIndex - right\.orderIndex\)/);
+    assert.match(screenPageSource, /抽下一位上台/);
+    assert.match(screenPageSource, /抽路演序号/);
     assert.match(screenPageSource, /抽签确认/);
-    assert.match(screenPageSource, /待抽取/);
-    assert.match(screenPageSource, /项目池滚动中/);
-    assert.doesNotMatch(screenPageSource, /\.self-draw-slot-wheel\.rolling[\s\S]{0,240}draw-roll/);
+    assert.doesNotMatch(screenPageSource, /toggleSelfDrawCandidateRolling/);
+    assert.doesNotMatch(screenPageSource, /toggleSelfDrawSlotRolling/);
+    assert.doesNotMatch(screenPageSource, /self-draw-candidate-wheel/);
+    assert.doesNotMatch(screenPageSource, /self-draw-slot-wheel/);
     assert.doesNotMatch(screenPageSource, /空槽位/);
   });
 
