@@ -216,6 +216,35 @@ const buildDrawTheaterNumberStrip = (winner: number, total: number, seed: number
   return items;
 };
 
+const getDrawTheaterRevealSeed = (rows: ProjectOrderItem[]) =>
+  rows.reduce((seed, row, index) => {
+    const text = `${row.packageId}:${row.targetName}:${row.orderIndex}:${index}`;
+    return (
+      seed +
+      Array.from(text).reduce((sum, char, charIndex) => sum + char.charCodeAt(0) * (charIndex + 1), 0)
+    );
+  }, rows.length * 97);
+
+const buildDrawTheaterRevealRows = (rows: ProjectOrderItem[]) => {
+  if (rows.length <= 1) return rows;
+  const result = [...rows];
+  let seed = getDrawTheaterRevealSeed(rows);
+
+  for (let index = result.length - 1; index > 0; index -= 1) {
+    seed = (seed * 1664525 + 1013904223) >>> 0;
+    const swapIndex = seed % (index + 1);
+    const current = result[index];
+    const swap = result[swapIndex];
+    if (!current || !swap) continue;
+    result[index] = swap;
+    result[swapIndex] = current;
+  }
+
+  const sameAsFinalOrder = result.every((row, index) => row.packageId === rows[index]?.packageId);
+  const firstResult = result[0];
+  return sameAsFinalOrder && firstResult ? [...result.slice(1), firstResult] : result;
+};
+
 const formatSeconds = (seconds: number) => {
   const safeSeconds = Math.max(0, Math.floor(seconds));
   const minutes = Math.floor(safeSeconds / 60);
@@ -520,10 +549,14 @@ export default function ReviewScreenSessionPage() {
     () => [...projectOrder].sort((left, right) => left.orderIndex - right.orderIndex),
     [projectOrder],
   );
+  const drawTheaterRevealRows = useMemo(
+    () => buildDrawTheaterRevealRows(drawTheaterRows),
+    [drawTheaterRows],
+  );
   const drawTheaterIntroDuration = 520;
-  const drawTheaterNameDuration = projectOrder.length >= 36 ? 360 : projectOrder.length >= 24 ? 430 : 520;
-  const drawTheaterNumberDuration = projectOrder.length >= 36 ? 400 : projectOrder.length >= 24 ? 480 : 560;
-  const drawTheaterSettleDuration = projectOrder.length >= 36 ? 180 : projectOrder.length >= 24 ? 220 : 260;
+  const drawTheaterNameDuration = projectOrder.length >= 36 ? 390 : projectOrder.length >= 24 ? 470 : 560;
+  const drawTheaterNumberDuration = projectOrder.length >= 36 ? 430 : projectOrder.length >= 24 ? 520 : 610;
+  const drawTheaterSettleDuration = projectOrder.length >= 36 ? 200 : projectOrder.length >= 24 ? 240 : 280;
   const drawTheaterRoundDuration =
     drawTheaterNameDuration + drawTheaterNumberDuration + drawTheaterSettleDuration;
   const drawTheaterFinaleLeadDuration = 720;
@@ -537,7 +570,7 @@ export default function ReviewScreenSessionPage() {
     260;
   const drawAnimationDuration =
     drawTheaterRows.length > 0
-      ? drawTheaterIntroDuration + drawTheaterRows.length * drawTheaterRoundDuration + drawTheaterFinaleDuration
+      ? drawTheaterIntroDuration + drawTheaterRevealRows.length * drawTheaterRoundDuration + drawTheaterFinaleDuration
       : 0;
 
   useEffect(() => {
@@ -753,14 +786,15 @@ export default function ReviewScreenSessionPage() {
     drawAnimationStartedAt !== null &&
     drawElapsed < drawAnimationDuration;
   const drawTheaterElapsed = Math.max(0, drawElapsed - drawTheaterIntroDuration);
-  const drawTheaterSequenceDuration = drawTheaterRows.length * drawTheaterRoundDuration;
-  const drawTheaterFinaleVisible = drawTheaterRows.length > 0 && drawTheaterElapsed >= drawTheaterSequenceDuration;
+  const drawTheaterSequenceDuration = drawTheaterRevealRows.length * drawTheaterRoundDuration;
+  const drawTheaterFinaleVisible =
+    drawTheaterRevealRows.length > 0 && drawTheaterElapsed >= drawTheaterSequenceDuration;
   const drawTheaterRoundTotalElapsed = Math.min(
     Math.max(0, drawTheaterElapsed),
     Math.max(0, drawTheaterSequenceDuration - 1),
   );
-  const drawTheaterRoundIndex = drawTheaterRows.length
-    ? Math.min(drawTheaterRows.length - 1, Math.floor(drawTheaterRoundTotalElapsed / drawTheaterRoundDuration))
+  const drawTheaterRoundIndex = drawTheaterRevealRows.length
+    ? Math.min(drawTheaterRevealRows.length - 1, Math.floor(drawTheaterRoundTotalElapsed / drawTheaterRoundDuration))
     : 0;
   const drawTheaterRoundElapsed =
     drawTheaterRoundTotalElapsed - drawTheaterRoundIndex * drawTheaterRoundDuration;
@@ -774,7 +808,7 @@ export default function ReviewScreenSessionPage() {
           : drawTheaterRoundElapsed < drawTheaterNameDuration + drawTheaterNumberDuration
             ? "number"
             : "settle";
-  const drawTheaterCurrentProject = drawTheaterRows[drawTheaterRoundIndex] ?? null;
+  const drawTheaterCurrentProject = drawTheaterRevealRows[drawTheaterRoundIndex] ?? null;
   const drawTheaterNameStripItems = useMemo(
     () =>
       drawTheaterCurrentProject
@@ -787,11 +821,11 @@ export default function ReviewScreenSessionPage() {
       drawTheaterCurrentProject
         ? buildDrawTheaterNumberStrip(
             drawTheaterCurrentProject.orderIndex + 1,
-            drawTheaterRows.length,
+            drawTheaterRevealRows.length,
             drawTheaterRoundIndex,
           )
         : [],
-    [drawTheaterCurrentProject, drawTheaterRoundIndex, drawTheaterRows.length],
+    [drawTheaterCurrentProject, drawTheaterRoundIndex, drawTheaterRevealRows.length],
   );
   const drawTheaterNameStripTarget = Math.max(
     0,
@@ -802,12 +836,12 @@ export default function ReviewScreenSessionPage() {
     (drawTheaterNumberStripItems.length - 1) * DRAW_THEATER_NUMBER_ITEM_HEIGHT,
   );
   const drawTheaterAnnouncedCount = drawTheaterFinaleVisible
-    ? drawTheaterRows.length
+    ? drawTheaterRevealRows.length
     : Math.min(
-        drawTheaterRows.length,
+        drawTheaterRevealRows.length,
         drawTheaterRoundIndex + (drawTheaterStep === "settle" ? 1 : 0),
       );
-  const drawTheaterRecentRows = drawTheaterRows.slice(0, drawTheaterAnnouncedCount).slice(-3).reverse();
+  const drawTheaterRecentRows = drawTheaterRevealRows.slice(0, drawTheaterAnnouncedCount).slice(-3).reverse();
   const drawTheaterFinaleElapsed = Math.max(0, drawTheaterElapsed - drawTheaterSequenceDuration);
   const drawTheaterFinaleRowsVisible =
     drawTheaterFinaleElapsed < drawTheaterFinaleLeadDuration
@@ -3005,20 +3039,20 @@ export default function ReviewScreenSessionPage() {
             <div className="flex items-start justify-between gap-6 text-left">
               <div>
                 <p className="text-sm font-black tracking-[3px] text-[#c22832]">路演抽签</p>
-                <h2 className="mt-2 text-3xl font-black text-[#0f2040]">本轮路演顺序剧场抽签</h2>
+                <h2 className="mt-2 text-3xl font-black text-[#0f2040]">本轮路演顺序抽签</h2>
                 <p className="mt-2 text-sm font-bold text-slate-500">
                   共 {projectOrder.length} 个项目
                 </p>
               </div>
               <div className="rounded-2xl border border-blue-100 bg-blue-50 px-4 py-3 text-right">
                 <p className="mt-1 font-mono text-2xl font-black text-blue-700 tabular-nums">
-                  {drawTheaterAnnouncedCount}/{projectOrder.length}
+                  {drawTheaterAnnouncedCount}/{drawTheaterRevealRows.length}
                 </p>
               </div>
             </div>
 
             <div className="draw-theater-dots">
-              {drawTheaterRows.map((item, index) => (
+              {drawTheaterRevealRows.map((item, index) => (
                 <span
                   className={`draw-theater-dot ${
                     index < drawTheaterAnnouncedCount ? "done" : index === drawTheaterRoundIndex ? "current" : ""
@@ -3032,14 +3066,14 @@ export default function ReviewScreenSessionPage() {
               <div className="draw-theater-glow" />
               <p className="draw-theater-eyebrow">
                 {drawTheaterStep === "ready"
-                  ? "准备开始"
+                  ? "准备"
                   : drawTheaterStep === "name"
                     ? "抽项目"
                     : drawTheaterStep === "number"
-                      ? "抽序号"
+                      ? "抽顺序"
                       : drawTheaterStep === "finale"
-                        ? "抽签完成"
-                        : "确认"}
+                        ? "完成"
+                        : "落位"}
               </p>
 
               <div className="draw-theater-namebox">

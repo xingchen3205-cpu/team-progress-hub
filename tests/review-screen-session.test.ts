@@ -584,6 +584,8 @@ describe("roadshow review screen session", () => {
     assert.match(drawRouteSource, /请使用管理员账号打开大屏后再操作/);
     assert.match(drawRouteSource, /beforeState/);
     assert.match(drawRouteSource, /afterState/);
+    assert.match(drawRouteSource, /sameAsOriginalOrder/);
+    assert.match(drawRouteSource, /randomizedStagePackages/);
     assert.match(orderRouteSource, /review_screen_session\.order_updated/);
     assert.match(orderRouteSource, /createAuditLogEntry/);
     assert.match(orderExportRouteSource, /application\/vnd\.ms-excel/);
@@ -650,6 +652,8 @@ describe("roadshow review screen session", () => {
     assert.match(screenPageSource, /待定/);
     assert.match(screenPageSource, /自助抽签/);
     assert.match(screenPageSource, /drawTheaterRows/);
+    assert.match(screenPageSource, /buildDrawTheaterRevealRows/);
+    assert.match(screenPageSource, /drawTheaterRevealRows/);
     assert.match(screenPageSource, /路演抽签/);
     assert.match(screenPageSource, /drawAnimationDuration =/);
     assert.match(screenPageSource, /buildNonRepeatingReelValues/);
@@ -873,6 +877,8 @@ describe("roadshow review screen session", () => {
     assert.match(screenPageSource, /screen-full-countdown/);
     assert.match(screenPageSource, /draw-sequence-overlay/);
     assert.match(screenPageSource, /draw-theater-dots/);
+    assert.match(screenPageSource, /drawTheaterRevealRows\.map/);
+    assert.match(screenPageSource, /drawTheaterCurrentProject = drawTheaterRevealRows/);
     assert.match(screenPageSource, /draw-theater-stage/);
     assert.match(screenPageSource, /draw-theater-namebox/);
     assert.match(screenPageSource, /draw-theater-numbox/);

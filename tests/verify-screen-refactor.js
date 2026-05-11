@@ -40,11 +40,15 @@ assert.match(drawRouteSource, /const operator = user/);
 assert.match(drawRouteSource, /请使用管理员账号打开大屏后再操作/);
 assert.match(drawRouteSource, /review_screen_session\.random_drawn/);
 assert.match(drawRouteSource, /phaseStartedAt/);
+assert.match(drawRouteSource, /sameAsOriginalOrder/);
+assert.match(drawRouteSource, /randomizedStagePackages/);
 
 assert.match(screenPageSource, /drawReviewScreenOrderFromScreen/);
 assert.match(screenPageSource, /开始随机抽签/);
 assert.match(screenPageSource, /draw-sequence-overlay/);
 assert.match(screenPageSource, /drawTheaterRows/);
+assert.match(screenPageSource, /buildDrawTheaterRevealRows/);
+assert.match(screenPageSource, /drawTheaterRevealRows/);
 assert.match(screenPageSource, /路演抽签/);
 
 assert.match(selfDrawCandidateRouteSource, /randomInt/);

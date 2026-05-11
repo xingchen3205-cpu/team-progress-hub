@@ -157,9 +157,12 @@ export async function POST(
   }
 
   const shuffled = shuffleArray(stagePackages);
-  let projectOrderRows: ReturnType<typeof buildRoadshowProjectOrderRows<typeof shuffled[number]>>;
+  const sameAsOriginalOrder =
+    shuffled.length > 1 && shuffled.every((project, index) => project.id === stagePackages[index]?.id);
+  const randomizedStagePackages = sameAsOriginalOrder ? [...shuffled.slice(1), shuffled[0]] : shuffled;
+  let projectOrderRows: ReturnType<typeof buildRoadshowProjectOrderRows<typeof randomizedStagePackages[number]>>;
   try {
-    projectOrderRows = buildRoadshowProjectOrderRows(shuffled, body?.roadshowGroupSizes);
+    projectOrderRows = buildRoadshowProjectOrderRows(randomizedStagePackages, body?.roadshowGroupSizes);
   } catch (error) {
     return NextResponse.json(
       { message: error instanceof Error ? error.message : "路演分组设置无效" },
@@ -244,6 +247,7 @@ export async function POST(
       metadata: {
         method: "crypto.randomInt Fisher-Yates",
         projectCount: projectOrderRows.length,
+        originalOrderAvoided: sameAsOriginalOrder,
         roadshowGroupSizes: body?.roadshowGroupSizes ?? null,
       },
     });
