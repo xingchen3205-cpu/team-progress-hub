@@ -272,7 +272,7 @@ export async function POST(request: NextRequest) {
     const createdSession = await tx.reviewDisplaySession.create({
       data: {
         packageId: reviewPackage.id,
-        currentPackageId: firstPackageId,
+        currentPackageId: screenDisplay.selfDrawEnabled ? null : firstPackageId,
         tokenHash,
         startsAt,
         tokenExpiresAt,
@@ -356,6 +356,7 @@ export async function POST(request: NextRequest) {
         tokenExpiresAt,
         projectCount: projectOrderRows.length,
         seatCount: createdSeats.length,
+        drawMode: screenDisplay.selfDrawEnabled ? "self_draw_two_step" : "configured_order",
       },
     });
 

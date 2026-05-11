@@ -9,6 +9,7 @@ import {
   ChevronRight,
   Clock3,
   Copy,
+  Download,
   ExternalLink,
   Monitor,
   Plus,
@@ -1006,7 +1007,7 @@ export default function ExpertReviewTab() {
       const nextSessionState: ReviewScreenSessionState = {
           sessionId: payload.session.id,
           screenUrl: payload.screenUrl,
-        message: "本轮路演大屏链接已生成，可复制或打开。",
+        message: "本轮路演大屏链接已生成；当前只锁定配置和顺序，评审尚未开始，可先导出顺序表。",
           startedAt: payload.session.startedAt ?? null,
           screenDisplay: normalizeReviewScreenDisplaySettings(payload.session.screenDisplay),
           seats: payload.seats,
@@ -1028,7 +1029,7 @@ export default function ExpertReviewTab() {
               phaseRemainingSeconds: 0,
               currentProjectIndex: 0,
               totalProjectCount: payload.projectOrder?.length ?? 0,
-              currentPackageId: payload.session.currentPackageId ?? payload.projectOrder?.[0]?.packageId ?? null,
+              currentPackageId: payload.session.currentPackageId ?? null,
               reviewPackage: { targetName: payload.projectOrder?.[0]?.targetName ?? group.targetName },
               screenDisplay: normalizeReviewScreenDisplaySettings(payload.session.screenDisplay),
               seats: payload.seats,
@@ -1053,6 +1054,20 @@ export default function ExpertReviewTab() {
     window.setTimeout(() => {
       setCopiedScreenGroupKey((current) => (current === groupKey ? null : current));
     }, 2000);
+  };
+
+  const exportReviewScreenOrder = (group: ReviewGroup) => {
+    const screenSession = reviewScreenSessions[group.key];
+    if (!screenSession) {
+      setLoadError("请先生成现场大屏链接，再导出路演顺序表");
+      return;
+    }
+
+    window.open(
+      `/api/review-screen/sessions/${screenSession.sessionId}/order/export`,
+      "_blank",
+      "noopener,noreferrer",
+    );
   };
 
   const voidReviewScreenSeat = async (group: ReviewGroup, seatId: string) => {
@@ -1173,52 +1188,6 @@ export default function ExpertReviewTab() {
     }
   };
 
-  const drawReviewScreenSession = async (group: ReviewGroup) => {
-    const screenSession = reviewScreenSessions[group.key];
-    if (!screenSession) {
-      setLoadError("请先生成现场大屏链接");
-      return;
-    }
-    setReviewScreenActionKey(`${group.key}:draw`);
-    try {
-      const roadshowGroupSizes = getRoadshowGroupSizesPayload(group);
-      const payload = await requestJson<{
-        projectOrder: ReviewScreenProjectOrderItem[];
-        session: { currentPackageId: string | null };
-      }>(`/api/review-screen/sessions/${screenSession.sessionId}/draw`, {
-        method: "POST",
-        body: JSON.stringify({ roadshowGroupSizes }),
-      });
-      setReviewScreenSessions((current) => {
-        const next = { ...current };
-        for (const [key, value] of Object.entries(next)) {
-          if (value.sessionId === screenSession.sessionId) {
-            next[key] = { ...value, message: "随机抽签顺序已生成，大屏已同步。" };
-          }
-        }
-        return next;
-      });
-      setScreenLiveData((current) => {
-        const next = { ...current };
-        for (const [key, value] of Object.entries(next)) {
-          if (reviewScreenSessions[key]?.sessionId === screenSession.sessionId) {
-            next[key] = {
-              ...value,
-              currentPackageId: payload.session.currentPackageId,
-              currentProjectIndex: 0,
-              projectOrder: payload.projectOrder,
-            };
-          }
-        }
-        return next;
-      });
-    } catch (error) {
-      setLoadError(error instanceof Error ? error.message : "抽签生成失败");
-    } finally {
-      setReviewScreenActionKey(null);
-    }
-  };
-
   const reorderReviewScreenProjects = async (group: ReviewGroup, packageIds: string[]) => {
     const screenSession = reviewScreenSessions[group.key];
     if (!screenSession) {
@@ -1240,7 +1209,7 @@ export default function ExpertReviewTab() {
         const next = { ...current };
         for (const [key, value] of Object.entries(next)) {
           if (value.sessionId === screenSession.sessionId) {
-            next[key] = { ...value, message: "路演顺序已调整，大屏已同步。" };
+            next[key] = { ...value, message: "路演顺序已调整，大屏已同步；评审尚未开始，可导出顺序表留档。" };
           }
         }
         return next;
@@ -1700,7 +1669,9 @@ export default function ExpertReviewTab() {
       phaseRemainingSeconds % 60,
     ).padStart(2, "0")}`;
     const isScreenSessionFinished = currentPhase === "finished";
-    const drawControlsVisible = screenDisplay.selfDrawEnabled;
+    const selfDrawControlsVisible = screenDisplay.selfDrawEnabled;
+    const drawControlsVisible = Boolean(screenSession) && currentPhase === "draw";
+    const screenDrawUrl = screenSession?.screenUrl ?? "";
     const getConsolePhaseLabel = (phase: string) => {
       if (phase === "draw" && !screenDisplay.selfDrawEnabled) return "待开始";
       if (phase === "reveal" && !screenDisplay.showFinalScoreOnScreen) return "成绩已锁定";
@@ -1932,14 +1903,14 @@ export default function ExpertReviewTab() {
       !screenSession
         ? {
             label: "配置本轮",
-            description: "设置抽签、顺序、时长和大屏显示，确认后生成链接并锁定。",
+            description: "先确定项目顺序、抽签方式、时长和大屏显示；生成链接后只锁定配置，不会自动开始评审。",
             disabled: false,
             onClick: () => setReviewConfigModalGroupKey(group.key),
           }
         : guideStepKey === "config"
           ? {
-              label: "开始路演",
-              description: "确认顺序、时长和投屏设置后，进入当前项目路演展示。",
+              label: "正式开始当前项目路演",
+              description: "抽签/排序已完成并可导出留档；评审尚未开始，等现场准备好后再进入当前项目路演展示。",
               disabled: !canStartPresentation || reviewScreenActionKey?.startsWith(`${group.key}:`),
               onClick: workflowSteps[0].onClick,
             }
@@ -1992,6 +1963,13 @@ export default function ExpertReviewTab() {
             label: "打开大屏",
             disabled: false,
             onClick: () => window.open(screenSession.screenUrl, "_blank", "noopener,noreferrer"),
+          }
+        : null,
+      screenSession
+        ? {
+            label: "导出顺序表",
+            disabled: false,
+            onClick: () => exportReviewScreenOrder(group),
           }
         : null,
     ].filter((action): action is { label: string; disabled: boolean; onClick: () => void } => Boolean(action));
@@ -2061,6 +2039,11 @@ export default function ExpertReviewTab() {
                 {compactGuideNote}
               </span>
             </div>
+            {screenSession && guideStepKey === "config" ? (
+              <div className="mt-3 rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-800">
+                当前处于“顺序已确认、评审未开始”状态。可以先导出 Excel 顺序表，正式现场开始时再点击“正式开始当前项目路演”。
+              </div>
+            ) : null}
           </div>
           <div className="flex flex-col gap-2 sm:flex-row xl:justify-end">
             {secondaryGuideActions.map((action) => (
@@ -2469,27 +2452,36 @@ export default function ExpertReviewTab() {
               <div>
                 <p className="text-sm font-extrabold text-slate-950">路演顺序</p>
                 <p className="mt-1 text-xs text-slate-400">
-                  {drawControlsVisible ? "自助抽签开启后，项目可在投屏页完成抽签；后台仍可手动序号兜底。" : "不需要抽签时，只保留手动序号和上下移动。"}
-                  {!drawControlsVisible ? " 仅开启“项目自助抽签”时显示随机抽签入口。" : ""}
+                  随机抽签和自助抽签都在大屏窗口完成，后台只同步结果和导出顺序表；抽签完成后只锁定顺序，不会自动开始评审。
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
-                {drawControlsVisible ? (
+                {selfDrawControlsVisible ? (
                   <span className="inline-flex items-center justify-center rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-700">
                     自助抽签
                   </span>
                 ) : null}
-                {drawControlsVisible ? (
-                  <button
-                    className="inline-flex items-center justify-center gap-1 rounded-lg border border-indigo-100 bg-white px-3 py-2 text-xs font-bold text-indigo-700 transition hover:bg-indigo-50 disabled:cursor-not-allowed disabled:opacity-45"
-                    disabled={!screenSession || reviewScreenActionKey === `${group.key}:draw`}
-                    onClick={() => void drawReviewScreenSession(group)}
-                    type="button"
-                  >
-                    <Shuffle className="h-3.5 w-3.5" />
-                    随机抽签
-                  </button>
-                ) : null}
+                <button
+                  className="inline-flex items-center justify-center gap-1 rounded-lg border border-indigo-100 bg-white px-3 py-2 text-xs font-bold text-indigo-700 transition hover:bg-indigo-50 disabled:cursor-not-allowed disabled:opacity-45"
+                  disabled={!screenDrawUrl || !drawControlsVisible}
+                  onClick={() => {
+                    if (!screenDrawUrl) return;
+                    window.open(screenDrawUrl, "_blank", "noopener,noreferrer");
+                  }}
+                  type="button"
+                >
+                  <Shuffle className="h-3.5 w-3.5" />
+                  打开大屏抽签
+                </button>
+                <button
+                  className="inline-flex items-center justify-center gap-1 rounded-lg border border-emerald-100 bg-white px-3 py-2 text-xs font-bold text-emerald-700 transition hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-45"
+                  disabled={!screenSession}
+                  onClick={() => exportReviewScreenOrder(group)}
+                  type="button"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  导出顺序表
+                </button>
                 <button
                   className="inline-flex items-center justify-center rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-bold text-slate-700 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-45"
                   disabled={reviewScreenActionKey === `${group.key}:order`}
@@ -2752,7 +2744,7 @@ export default function ExpertReviewTab() {
             readOnly
             value={screenSession?.screenUrl ?? "请先生成投屏链接"}
           />
-          <div className="mt-3 grid grid-cols-3 gap-2">
+          <div className="mt-3 grid grid-cols-2 gap-2">
             <button
               className="inline-flex items-center justify-center gap-1 rounded-lg border border-blue-100 bg-blue-50 px-2 py-2 text-[11px] font-bold text-blue-700 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
               disabled={reviewScreenActionKey === group.key}
@@ -2763,14 +2755,6 @@ export default function ExpertReviewTab() {
               {copiedScreenGroupKey === group.key ? "已复制" : "复制"}
             </button>
             <button
-              className="rounded-lg border border-slate-200 bg-white px-2 py-2 text-[11px] font-bold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
-              disabled={reviewScreenActionKey === group.key}
-              onClick={() => void createReviewScreenSession(group)}
-              type="button"
-            >
-              重生成
-            </button>
-            <button
               className="inline-flex items-center justify-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-2 text-[11px] font-bold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
               disabled={!screenSession}
               onClick={() => screenSession && window.open(screenSession.screenUrl, "_blank", "noopener,noreferrer")}
@@ -2778,6 +2762,23 @@ export default function ExpertReviewTab() {
             >
               <ExternalLink className="h-3.5 w-3.5" />
               打开
+            </button>
+            <button
+              className="inline-flex items-center justify-center gap-1 rounded-lg border border-emerald-100 bg-emerald-50 px-2 py-2 text-[11px] font-bold text-emerald-700 transition hover:bg-emerald-100 disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={!screenSession}
+              onClick={() => exportReviewScreenOrder(group)}
+              type="button"
+            >
+              <Download className="h-3.5 w-3.5" />
+              顺序表
+            </button>
+            <button
+              className="rounded-lg border border-slate-200 bg-white px-2 py-2 text-[11px] font-bold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={reviewScreenActionKey === group.key}
+              onClick={() => void createReviewScreenSession(group)}
+              type="button"
+            >
+              重生成
             </button>
           </div>
         </article>

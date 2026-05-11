@@ -1,9 +1,49 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { createAuditLogEntry } from "@/lib/audit-log";
 import { getSessionUser } from "@/lib/auth";
 import { assertRole } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { buildRoadshowProjectOrderRows } from "@/lib/roadshow-screen-groups";
+
+type OrderAuditRow = {
+  packageId: string;
+  orderIndex: number;
+  groupName: string | null;
+  groupIndex: number;
+  groupSlotIndex: number;
+  targetName: string;
+  roundLabel: string | null;
+  selfDrawnAt: string | null;
+  revealedAt: string | null;
+};
+
+const toOrderAuditRows = (
+  rows: Array<{
+    packageId: string;
+    orderIndex: number;
+    groupName: string | null;
+    groupIndex: number;
+    groupSlotIndex: number;
+    selfDrawnAt: Date | null;
+    revealedAt: Date | null;
+    reviewPackage: {
+      targetName: string;
+      roundLabel: string | null;
+    };
+  }>,
+): OrderAuditRow[] =>
+  rows.map((row) => ({
+    packageId: row.packageId,
+    orderIndex: row.orderIndex,
+    groupName: row.groupName,
+    groupIndex: row.groupIndex,
+    groupSlotIndex: row.groupSlotIndex,
+    targetName: row.reviewPackage.targetName,
+    roundLabel: row.reviewPackage.roundLabel,
+    selfDrawnAt: row.selfDrawnAt?.toISOString() ?? null,
+    revealedAt: row.revealedAt?.toISOString() ?? null,
+  }));
 
 export async function POST(
   request: NextRequest,
@@ -38,8 +78,27 @@ export async function POST(
       reviewPackage: {
         select: {
           id: true,
+          teamGroupId: true,
           projectReviewStageId: true,
           targetName: true,
+        },
+      },
+      projectOrders: {
+        orderBy: [{ orderIndex: "asc" }, { createdAt: "asc" }],
+        select: {
+          packageId: true,
+          orderIndex: true,
+          groupName: true,
+          groupIndex: true,
+          groupSlotIndex: true,
+          selfDrawnAt: true,
+          revealedAt: true,
+          reviewPackage: {
+            select: {
+              targetName: true,
+              roundLabel: true,
+            },
+          },
         },
       },
     },
@@ -115,6 +174,18 @@ export async function POST(
   }
   const firstPackage = projectOrderRows[0]?.project ?? null;
   const orderedAt = new Date();
+  const beforeOrder = toOrderAuditRows(session.projectOrders);
+  const afterOrder = projectOrderRows.map((row) => ({
+    packageId: row.project.id,
+    orderIndex: row.orderIndex,
+    groupName: row.groupName,
+    groupIndex: row.groupIndex,
+    groupSlotIndex: row.groupSlotIndex,
+    targetName: row.project.targetName,
+    roundLabel: row.project.roundLabel ?? null,
+    selfDrawnAt: orderedAt.toISOString(),
+    revealedAt: null,
+  }));
 
   const updatedSession = await prisma.$transaction(async (tx) => {
     await tx.reviewDisplayProjectOrder.deleteMany({
@@ -159,6 +230,28 @@ export async function POST(
         }),
       );
     }
+
+    await createAuditLogEntry({
+      tx,
+      operator: user,
+      action: "review_screen_session.order_updated",
+      objectType: "review_screen_session",
+      objectId: sessionId,
+      teamGroupId: session.reviewPackage.teamGroupId,
+      beforeState: {
+        currentPackageId: session.currentPackageId,
+        projectOrder: beforeOrder,
+      },
+      afterState: {
+        currentPackageId: firstPackage?.id ?? session.packageId,
+        projectOrder: afterOrder,
+      },
+      metadata: {
+        method: "manual_order",
+        projectCount: projectOrderRows.length,
+        roadshowGroupSizes: body?.roadshowGroupSizes ?? null,
+      },
+    });
 
     return tx.reviewDisplaySession.update({
       where: { id: sessionId },

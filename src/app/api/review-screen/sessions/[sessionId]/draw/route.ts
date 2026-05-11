@@ -1,38 +1,94 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { createAuditLogEntry } from "@/lib/audit-log";
 import { getSessionUser } from "@/lib/auth";
 import { assertRole } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { buildRoadshowProjectOrderRows } from "@/lib/roadshow-screen-groups";
-import { shuffleArray } from "@/lib/review-screen-session";
+import { hashReviewScreenToken, shuffleArray } from "@/lib/review-screen-session";
+
+type OrderAuditRow = {
+  packageId: string;
+  orderIndex: number;
+  groupName: string | null;
+  groupIndex: number;
+  groupSlotIndex: number;
+  targetName: string;
+  roundLabel: string | null;
+  selfDrawnAt: string | null;
+  revealedAt: string | null;
+};
+
+const toOrderAuditRows = (
+  rows: Array<{
+    packageId: string;
+    orderIndex: number;
+    groupName: string | null;
+    groupIndex: number;
+    groupSlotIndex: number;
+    selfDrawnAt: Date | null;
+    revealedAt: Date | null;
+    reviewPackage: {
+      targetName: string;
+      roundLabel: string | null;
+    };
+  }>,
+): OrderAuditRow[] =>
+  rows.map((row) => ({
+    packageId: row.packageId,
+    orderIndex: row.orderIndex,
+    groupName: row.groupName,
+    groupIndex: row.groupIndex,
+    groupSlotIndex: row.groupSlotIndex,
+    targetName: row.reviewPackage.targetName,
+    roundLabel: row.reviewPackage.roundLabel,
+    selfDrawnAt: row.selfDrawnAt?.toISOString() ?? null,
+    revealedAt: row.revealedAt?.toISOString() ?? null,
+  }));
 
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ sessionId: string }> },
 ) {
-  const user = await getSessionUser(request);
-  if (!user) {
-    return NextResponse.json({ message: "未登录" }, { status: 401 });
-  }
-
-  try {
-    assertRole(user.role, ["admin", "school_admin"]);
-  } catch {
-    return NextResponse.json({ message: "无权限" }, { status: 403 });
-  }
-
   const { sessionId } = await params;
+  const token = request.nextUrl.searchParams.get("token")?.trim();
+  const user = await getSessionUser(request);
   const body = (await request.json().catch(() => null)) as { roadshowGroupSizes?: number[] } | null;
 
   const session = await prisma.reviewDisplaySession.findUnique({
     where: { id: sessionId },
     include: {
+      creator: {
+        select: {
+          id: true,
+          role: true,
+        },
+      },
       reviewPackage: {
         select: {
           id: true,
+          teamGroupId: true,
           projectReviewStageId: true,
           targetName: true,
           roundLabel: true,
+        },
+      },
+      projectOrders: {
+        orderBy: [{ orderIndex: "asc" }, { createdAt: "asc" }],
+        select: {
+          packageId: true,
+          orderIndex: true,
+          groupName: true,
+          groupIndex: true,
+          groupSlotIndex: true,
+          selfDrawnAt: true,
+          revealedAt: true,
+          reviewPackage: {
+            select: {
+              targetName: true,
+              roundLabel: true,
+            },
+          },
         },
       },
     },
@@ -41,6 +97,20 @@ export async function POST(
   if (!session) {
     return NextResponse.json({ message: "大屏会话不存在" }, { status: 404 });
   }
+
+  const tokenAuthorized = Boolean(token && session.tokenHash === hashReviewScreenToken(token));
+  if (!tokenAuthorized) {
+    if (!user) {
+      return NextResponse.json({ message: "未登录" }, { status: 401 });
+    }
+
+    try {
+      assertRole(user.role, ["admin", "school_admin"]);
+    } catch {
+      return NextResponse.json({ message: "无权限" }, { status: 403 });
+    }
+  }
+  const operator = user ?? session.creator;
 
   if (session.tokenExpiresAt.getTime() <= Date.now()) {
     return NextResponse.json({ message: "大屏链接已过期" }, { status: 409 });
@@ -98,6 +168,18 @@ export async function POST(
   }
   const firstPackageId = projectOrderRows[0]?.project.id ?? null;
   const drawnAt = new Date();
+  const beforeOrder = toOrderAuditRows(session.projectOrders);
+  const afterOrder = projectOrderRows.map((row) => ({
+    packageId: row.project.id,
+    orderIndex: row.orderIndex,
+    groupName: row.groupName,
+    groupIndex: row.groupIndex,
+    groupSlotIndex: row.groupSlotIndex,
+    targetName: row.project.targetName,
+    roundLabel: row.project.roundLabel ?? null,
+    selfDrawnAt: drawnAt.toISOString(),
+    revealedAt: null,
+  }));
 
   const updatedSession = await prisma.$transaction(async (tx) => {
     await tx.reviewDisplayProjectOrder.deleteMany({
@@ -143,6 +225,28 @@ export async function POST(
         }),
       );
     }
+
+    await createAuditLogEntry({
+      tx,
+      operator,
+      action: "review_screen_session.random_drawn",
+      objectType: "review_screen_session",
+      objectId: sessionId,
+      teamGroupId: session.reviewPackage.teamGroupId,
+      beforeState: {
+        currentPackageId: session.currentPackageId,
+        projectOrder: beforeOrder,
+      },
+      afterState: {
+        currentPackageId: firstPackageId,
+        projectOrder: afterOrder,
+      },
+      metadata: {
+        method: "crypto.randomInt Fisher-Yates",
+        projectCount: projectOrderRows.length,
+        roadshowGroupSizes: body?.roadshowGroupSizes ?? null,
+      },
+    });
 
     return tx.reviewDisplaySession.update({
       where: { id: sessionId },

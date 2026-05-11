@@ -1,7 +1,48 @@
 import { NextRequest, NextResponse } from "next/server";
+import { randomInt } from "node:crypto";
 
+import { createAuditLogEntry } from "@/lib/audit-log";
 import { prisma } from "@/lib/prisma";
 import { hashReviewScreenToken } from "@/lib/review-screen-session";
+
+type OrderAuditRow = {
+  packageId: string;
+  orderIndex: number;
+  groupName: string | null;
+  groupIndex: number;
+  groupSlotIndex: number;
+  targetName: string;
+  roundLabel: string | null;
+  selfDrawnAt: string | null;
+  revealedAt: string | null;
+};
+
+const toOrderAuditRows = (
+  rows: Array<{
+    packageId: string;
+    orderIndex: number;
+    groupName: string | null;
+    groupIndex: number;
+    groupSlotIndex: number;
+    selfDrawnAt: Date | null;
+    revealedAt: Date | null;
+    reviewPackage: {
+      targetName: string;
+      roundLabel: string | null;
+    };
+  }>,
+): OrderAuditRow[] =>
+  rows.map((row) => ({
+    packageId: row.packageId,
+    orderIndex: row.orderIndex,
+    groupName: row.groupName,
+    groupIndex: row.groupIndex,
+    groupSlotIndex: row.groupSlotIndex,
+    targetName: row.reviewPackage.targetName,
+    roundLabel: row.reviewPackage.roundLabel,
+    selfDrawnAt: row.selfDrawnAt?.toISOString() ?? null,
+    revealedAt: row.revealedAt?.toISOString() ?? null,
+  }));
 
 export async function POST(
   request: NextRequest,
@@ -22,6 +63,17 @@ export async function POST(
   const session = await prisma.reviewDisplaySession.findUnique({
     where: { id: sessionId },
     include: {
+      creator: {
+        select: {
+          id: true,
+          role: true,
+        },
+      },
+      reviewPackage: {
+        select: {
+          teamGroupId: true,
+        },
+      },
       projectOrders: {
         orderBy: [{ selfDrawnAt: "asc" }, { groupIndex: "asc" }, { groupSlotIndex: "asc" }, { createdAt: "asc" }],
         select: {
@@ -66,14 +118,18 @@ export async function POST(
   if (targetOrder.selfDrawnAt) {
     return NextResponse.json({ message: "该项目已完成抽签" }, { status: 409 });
   }
+  if (session.currentPackageId !== packageId) {
+    return NextResponse.json({ message: "请先在大屏上抽取上台项目，再抽取路演顺序" }, { status: 409 });
+  }
 
   const remainingSlots = session.projectOrders.filter((order) => !order.selfDrawnAt);
   const remainingOrderIndexes = remainingSlots.map((order) => order.orderIndex);
-  const pickedSlot = remainingSlots[Math.floor(Math.random() * remainingSlots.length)] ?? targetOrder;
+  const pickedSlot = remainingSlots[randomInt(remainingSlots.length)] ?? targetOrder;
   const pickedOrderIndex = remainingOrderIndexes.includes(pickedSlot.orderIndex) ? pickedSlot.orderIndex : targetOrder.orderIndex;
   const restSlots = remainingSlots.filter((order) => order.packageId !== pickedSlot.packageId);
   const now = new Date();
   const undrawnOrders = session.projectOrders.filter((order) => !order.selfDrawnAt && order.packageId !== packageId);
+  const beforeOrder = toOrderAuditRows(session.projectOrders);
 
   const updatedProjectOrder = await prisma.$transaction(async (tx) => {
     await tx.reviewDisplayProjectOrder.update({
@@ -131,19 +187,51 @@ export async function POST(
       },
     });
 
-    const firstPackageId = rows[0]?.packageId ?? session.currentPackageId;
+    const nextCurrentPackageId = rows.some((order) => !order.selfDrawnAt)
+      ? null
+      : rows[0]?.packageId ?? null;
     await tx.reviewDisplaySession.update({
       where: { id: sessionId },
-      data: { currentPackageId: firstPackageId },
+      data: { currentPackageId: nextCurrentPackageId },
+    });
+
+    await createAuditLogEntry({
+      tx,
+      operator: session.creator,
+      action: "review_screen_session.self_drawn",
+      objectType: "review_screen_session",
+      objectId: sessionId,
+      teamGroupId: session.reviewPackage.teamGroupId,
+      beforeState: {
+        currentPackageId: session.currentPackageId,
+        projectOrder: beforeOrder,
+      },
+      afterState: {
+        currentPackageId: nextCurrentPackageId,
+        projectOrder: toOrderAuditRows(rows),
+      },
+      metadata: {
+        triggeredBy: "screen_token",
+        method: "screen_self_draw",
+        drawnPackageId: packageId,
+        pickedOrderIndex,
+        projectCount: rows.length,
+      },
     });
 
     return rows;
   });
+  const nextCurrentPackageId = updatedProjectOrder.some((order) => !order.selfDrawnAt)
+    ? null
+    : updatedProjectOrder[0]?.packageId ?? null;
 
   return NextResponse.json({
     drawnPackageId: packageId,
     pickedOrderIndex,
     remainingCount: updatedProjectOrder.filter((order) => !order.selfDrawnAt).length,
+    session: {
+      currentPackageId: nextCurrentPackageId,
+    },
     projectOrder: updatedProjectOrder.map((order) => ({
       orderIndex: order.orderIndex,
       packageId: order.packageId,

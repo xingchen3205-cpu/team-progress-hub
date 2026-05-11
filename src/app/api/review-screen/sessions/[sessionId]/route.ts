@@ -312,13 +312,14 @@ export async function GET(
     };
   });
 
-  // Determine active project: use currentPackageId if available, otherwise fallback
+  // Determine active project: self draw can intentionally have no current project until the next team is drawn.
   const screenPhase: ReviewScreenPhase = session.screenPhase ?? "draw";
   const canSelfDrawOnScreen = screenDisplay.selfDrawEnabled && screenPhase === "draw";
-  const currentPackageId = session.currentPackageId ?? session.reviewPackage.id;
+  const currentPackageId = session.currentPackageId;
+  const activeLookupPackageId = currentPackageId ?? session.reviewPackage.id;
 
   const activeProjectResult =
-    projectResults.find((project) => project.reviewPackage.id === currentPackageId) ??
+    projectResults.find((project) => project.reviewPackage.id === activeLookupPackageId) ??
     projectResults.find((project) => !project.finalScore.ready) ??
     projectResults.find((project) => project.reviewPackage.id === session.reviewPackage.id) ??
     projectResults[0] ??
@@ -365,7 +366,7 @@ export async function GET(
   const maskedProjectResults = projectResults.map((project) => {
     const isRevealed =
       revealedPackageIds.has(project.reviewPackage.id) ||
-      (isRevealPhase && project.reviewPackage.id === currentPackageId);
+      (isRevealPhase && project.reviewPackage.id === activeLookupPackageId);
     if (adminCanSeeScores || (screenDisplay.showFinalScoreOnScreen && isRevealed)) return project;
     return {
       ...project,
@@ -386,7 +387,7 @@ export async function GET(
   });
 
   const activeProjectMasked = maskedProjectResults.find(
-    (project) => project.reviewPackage.id === currentPackageId,
+    (project) => project.reviewPackage.id === activeLookupPackageId,
   ) ?? activeProjectResult;
 
   const maskedActiveFinalScore = activeProjectMasked?.finalScore ??
