@@ -105,6 +105,7 @@ import {
   mapExpertReviewGradeToScore,
   expertReviewMaterialLabels,
 } from "@/lib/expert-review";
+import { parseCustomReviewTargetNames } from "@/lib/custom-review-targets";
 import {
   canTriggerDocumentReminder,
   getDocumentReminderLabel,
@@ -5595,13 +5596,7 @@ function useWorkspaceController({
 
     const selectedStage = projectStages.find((stage) => stage.id === reviewAssignmentDraft.stageId) ?? null;
     const isCustomReviewTarget = !reviewAssignmentDraft.stageId;
-    const customTargetNames = [
-      ...new Set(
-        reviewAssignmentDraft.customTargetNames
-          .map((name) => name.trim())
-          .filter(Boolean),
-      ),
-    ];
+    const customTargetNames = parseCustomReviewTargetNames(reviewAssignmentDraft.customTargetNames);
 
     if (isCustomReviewTarget && !reviewAssignmentDraft.targetName.trim()) {
       setLoadError("请填写自定义项目名称");
@@ -5656,7 +5651,7 @@ function useWorkspaceController({
           targetName: reviewAssignmentDraft.targetName.trim(),
           materialSubmissionIds: isCustomReviewTarget ? [] : reviewAssignmentDraft.materialSubmissionIds,
           teamGroupIds: isCustomReviewTarget ? [] : reviewAssignmentDraft.teamGroupIds,
-          customTargetNames: reviewAssignmentDraft.customTargetNames,
+          customTargetNames,
           expertUserIds: reviewAssignmentDraft.expertUserIds,
           roundLabel: reviewAssignmentDraft.roundLabel.trim(),
           overview: reviewAssignmentDraft.overview.trim(),

@@ -306,11 +306,13 @@ describe("expert review v2 constraints", () => {
     assert.match(shellSource, /新增自定义路演项目/);
     assert.match(shellSource, /customTargetNames/);
     assert.match(shellSource, /一行一个项目名称/);
+    assert.match(shellSource, /max-w-\[min\(96vw,920px\)\]/);
+    assert.match(shellSource, /复制断行时会自动合并明显续行/);
     assert.match(contextSource, /customTargetNames:\s*\[\]/);
-    assert.match(contextSource, /customTargetNames:\s*reviewAssignmentDraft\.customTargetNames/);
+    assert.match(contextSource, /parseCustomReviewTargetNames\(reviewAssignmentDraft\.customTargetNames\)/);
     assert.match(contextSource, /请至少选择一个路演项目组或填写一个自定义项目/);
     assert.match(routeSource, /customTargetNames\?:\s*string\[\]/);
-    assert.match(routeSource, /customTargetNames/);
+    assert.match(routeSource, /parseCustomReviewTargetNames\(body\.customTargetNames\)/);
     assert.match(routeSource, /teamGroupId:\s*null/);
     assert.doesNotMatch(routeSource, /teamGroupId:\s*\{\s*in:\s*packageTargets\.map/);
   });

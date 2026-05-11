@@ -5,6 +5,7 @@ import {
   redactExpertReviewAssignmentForRole,
   serializeExpertReviewAssignment,
 } from "@/lib/expert-review";
+import { parseCustomReviewTargetNames } from "@/lib/custom-review-targets";
 import { assertRole, hasGlobalAdminPrivileges } from "@/lib/permissions";
 import {
   canTeamGroupAccessProjectStage,
@@ -173,13 +174,7 @@ export async function POST(request: NextRequest) {
       ]
     : [];
   const customTargetNames = Array.isArray(body?.customTargetNames)
-    ? [
-        ...new Set(
-          body.customTargetNames
-            .filter((name): name is string => typeof name === "string" && Boolean(name.trim()))
-            .map((name) => name.trim()),
-        ),
-      ]
+    ? parseCustomReviewTargetNames(body.customTargetNames)
     : [];
   const expertUserId = body?.expertUserId?.trim();
   const targetName = body?.targetName?.trim();

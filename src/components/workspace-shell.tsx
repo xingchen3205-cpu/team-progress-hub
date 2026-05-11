@@ -1585,6 +1585,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
         <Modal
           title={isEditingReviewAssignment ? "编辑专家评审设置" : "分配专家评审"}
           onClose={closeReviewAssignmentModal}
+          panelClassName="max-w-[min(96vw,920px)]"
         >
           <div className="space-y-4">
             {isEditingReviewAssignment ? (
@@ -1724,7 +1725,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                   <label className="mt-4 block text-sm text-slate-500">
                     新增自定义路演项目
                     <textarea
-                      className={`${textareaClassName} mt-2 min-h-24 bg-white`}
+                      className={`${textareaClassName} mt-2 min-h-24 bg-white text-[13px] leading-6`}
                       placeholder="一行一个项目名称，可连续新增多个项目"
                       value={reviewAssignmentDraft.customTargetNames.join("\n")}
                       onChange={(event) =>
@@ -1735,7 +1736,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                       }
                     />
                     <span className="mt-1 block text-xs leading-5 text-slate-400">
-                      已选项目组会保留，自定义项目会追加到本轮路演，不需要先去项目管理创建项目组。
+                      已选项目组会保留，自定义项目会追加到本轮路演；长项目名显示空间已加宽，复制断行时会自动合并明显续行。
                     </span>
                   </label>
                 </div>
