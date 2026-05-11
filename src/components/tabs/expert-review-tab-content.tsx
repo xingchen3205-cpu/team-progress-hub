@@ -2320,7 +2320,7 @@ export default function ExpertReviewTab() {
       </div>
     );
     const renderTrackView = () => (
-      <div className="review-track-view sticky top-[224px] z-10 border-b border-[var(--line)] bg-white px-5 py-4 shadow-[0_2px_8px_rgba(15,23,42,0.03)]">
+      <div className="review-track-view border-b border-[var(--line)] bg-white px-5 py-4">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <p className="text-sm font-extrabold text-slate-950">本轮项目进度</p>
@@ -2359,12 +2359,6 @@ export default function ExpertReviewTab() {
               );
             })}
           </div>
-        </div>
-        <div className="mt-2 flex flex-wrap gap-4 text-[10px] text-slate-400">
-          <span>■ 已完成</span>
-          <span>■ 进行中</span>
-          <span>■ 下一个</span>
-          <span>□ 待评审</span>
         </div>
       </div>
     );

@@ -728,6 +728,8 @@ describe("roadshow review screen session", () => {
     assert.match(adminTabSource, /review-track-view/);
     assert.match(adminTabSource, /本轮项目进度/);
     assert.match(adminTabSource, /路演顺序/);
+    assert.doesNotMatch(adminTabSource, /review-track-view sticky/);
+    assert.doesNotMatch(adminTabSource, /■ 已完成/);
     assert.doesNotMatch(adminTabSource, /project-progress-row/);
     assert.doesNotMatch(adminTabSource, /project-progress-order/);
     assert.doesNotMatch(adminTabSource, /\{index \+ 1\}\. \{project\.targetName\}/);
