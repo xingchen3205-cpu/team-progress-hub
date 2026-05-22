@@ -347,9 +347,16 @@ const renderTraining = () => {
                           </span>
                           <h4 className="mt-3 text-base font-semibold leading-7 text-slate-900">{item.question}</h4>
                           <p className="mt-2 text-sm leading-7 text-slate-500">{item.answerPoints}</p>
-                          <p className="mt-2 text-xs text-slate-400">
-                            录入：{item.createdByName} · 更新：{item.updatedAt}
-                          </p>
+                          <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-400">
+                            <span>
+                              录入：{item.createdByName} · {item.createdAt}
+                            </span>
+                            {item.lastEditedByName && item.lastEditedAt ? (
+                              <span className="rounded-full bg-emerald-50 px-2.5 py-1 font-semibold text-emerald-700">
+                                最近修订：{item.lastEditedByName} · {item.lastEditedAt}
+                              </span>
+                            ) : null}
+                          </div>
                         </div>
                       </div>
                       <div className="flex flex-wrap gap-2 md:justify-end">

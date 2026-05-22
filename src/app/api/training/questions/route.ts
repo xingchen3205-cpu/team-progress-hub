@@ -5,6 +5,7 @@ import { assertMainWorkspaceRole, hasGlobalAdminPrivileges } from "@/lib/permiss
 import { prisma } from "@/lib/prisma";
 import { serializeTrainingQuestion } from "@/lib/api-serializers";
 import { buildTeamScopedResourceWhere } from "@/lib/team-scope";
+import { getTrainingQuestionRevisionMeta } from "@/lib/training-question-revisions";
 
 export async function GET(request: NextRequest) {
   const user = await getSessionUser(request);
@@ -34,7 +35,11 @@ export async function GET(request: NextRequest) {
     },
   });
 
-  return NextResponse.json({ questions: questions.map(serializeTrainingQuestion) });
+  const revisionMetaByQuestionId = await getTrainingQuestionRevisionMeta(questions.map((question) => question.id));
+
+  return NextResponse.json({
+    questions: questions.map((question) => serializeTrainingQuestion(question, revisionMetaByQuestionId.get(question.id))),
+  });
 }
 
 export async function POST(request: NextRequest) {

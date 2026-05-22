@@ -322,6 +322,9 @@ export type TrainingQuestionItem = {
   teamGroupName: string;
   createdAt: string;
   updatedAt: string;
+  lastEditedById: string | null;
+  lastEditedByName: string | null;
+  lastEditedAt: string | null;
 };
 
 export type TrainingSessionItem = {

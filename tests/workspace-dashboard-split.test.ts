@@ -112,12 +112,22 @@ test("system administrator has a question bank center and everyone can export vi
 test("question bank revisions notify the original question owner", () => {
   const questionBankTabSource = read("src/components/tabs/question-bank-tab.tsx");
   const updateRouteSource = read("src/app/api/training/questions/[id]/route.ts");
+  const questionsRouteSource = read("src/app/api/training/questions/route.ts");
+  const serializerSource = read("src/lib/api-serializers.ts");
+  const trainingTabSource = read("src/components/tabs/training-tab.tsx");
 
   assert.match(questionBankTabSource, /revisionTarget/);
   assert.match(questionBankTabSource, /修订答案/);
+  assert.match(questionBankTabSource, /最近修订/);
   assert.match(questionBankTabSource, /保存并通知原录入人/);
   assert.match(updateRouteSource, /createNotifications/);
+  assert.match(updateRouteSource, /createAuditLogEntry/);
+  assert.match(updateRouteSource, /trainingQuestionRevisionAction/);
   assert.match(updateRouteSource, /题库答案已被修订/);
   assert.match(updateRouteSource, /targetTab:\s*"training"/);
   assert.match(updateRouteSource, /userIds:\s*\[existingQuestion\.createdById\]/);
+  assert.match(questionsRouteSource, /getTrainingQuestionRevisionMeta/);
+  assert.match(serializerSource, /lastEditedByName/);
+  assert.match(serializerSource, /lastEditedAt/);
+  assert.match(trainingTabSource, /最近修订/);
 });

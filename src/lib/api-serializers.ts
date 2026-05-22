@@ -25,6 +25,7 @@ import type {
   TrainingSession,
   User,
 } from "@prisma/client";
+import type { TrainingQuestionRevisionMeta } from "@/lib/training-question-revisions";
 
 import { formatBeijingDateTime, formatBeijingTimeOnly } from "@/lib/date";
 import { approvalStatusLabels, roleLabels } from "@/lib/permissions";
@@ -496,6 +497,7 @@ export const serializeTrainingQuestion = (
     createdBy: Pick<User, "id" | "name">;
     teamGroup?: Pick<TeamGroup, "id" | "name"> | null;
   },
+  revision?: TrainingQuestionRevisionMeta | null,
 ) => ({
   id: question.id,
   category: question.category,
@@ -507,6 +509,9 @@ export const serializeTrainingQuestion = (
   teamGroupName: question.teamGroup?.name ?? "未分组题库",
   createdAt: formatDateTime(question.createdAt),
   updatedAt: formatDateTime(question.updatedAt),
+  lastEditedById: revision?.lastEditedById ?? null,
+  lastEditedByName: revision?.lastEditedByName ?? null,
+  lastEditedAt: revision ? formatDateTime(revision.lastEditedAt) : null,
 });
 
 export const serializeTrainingSession = (

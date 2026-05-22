@@ -5,6 +5,12 @@ import { assertMainWorkspaceRole, assertRole, hasGlobalAdminPrivileges } from "@
 import { prisma } from "@/lib/prisma";
 import { serializeTrainingQuestion } from "@/lib/api-serializers";
 import { createNotifications } from "@/lib/notifications";
+import { createAuditLogEntry } from "@/lib/audit-log";
+import {
+  getTrainingQuestionRevisionMeta,
+  trainingQuestionObjectType,
+  trainingQuestionRevisionAction,
+} from "@/lib/training-question-revisions";
 
 const canManageTrainingQuestion = (
   user: NonNullable<Awaited<ReturnType<typeof getSessionUser>>>,
@@ -71,24 +77,55 @@ export async function PATCH(
     return NextResponse.json({ message: "题目信息不完整" }, { status: 400 });
   }
 
-  const updatedQuestion = await prisma.trainingQuestion.update({
-    where: { id },
-    data: { category, question, answerPoints },
-    include: {
-      createdBy: {
-        select: { id: true, name: true },
-      },
-      teamGroup: {
-        select: { id: true, name: true },
-      },
-    },
-  });
-
   const changedFields = [
     existingQuestion.category !== category ? "分类" : null,
     existingQuestion.question !== question ? "问题" : null,
     existingQuestion.answerPoints !== answerPoints ? "答案要点" : null,
   ].filter(Boolean);
+  const { updatedQuestion, revisionLog } = await prisma.$transaction(async (tx) => {
+    const updatedQuestion = await tx.trainingQuestion.update({
+      where: { id },
+      data: { category, question, answerPoints },
+      include: {
+        createdBy: {
+          select: { id: true, name: true },
+        },
+        teamGroup: {
+          select: { id: true, name: true },
+        },
+      },
+    });
+
+    const revisionLog =
+      changedFields.length > 0
+        ? await createAuditLogEntry({
+            tx,
+            operator: {
+              id: user.id,
+              role: user.role,
+            },
+            action: trainingQuestionRevisionAction,
+            objectType: trainingQuestionObjectType,
+            objectId: id,
+            teamGroupId: existingQuestion.teamGroupId,
+            beforeState: {
+              answerPoints: existingQuestion.answerPoints,
+              category: existingQuestion.category,
+              question: existingQuestion.question,
+            },
+            afterState: {
+              answerPoints,
+              category,
+              question,
+            },
+            metadata: {
+              changedFields,
+            },
+          })
+        : null;
+
+    return { updatedQuestion, revisionLog };
+  });
 
   if (existingQuestion.createdById !== user.id && changedFields.length > 0) {
     const questionTitle = question.length > 32 ? `${question.slice(0, 32)}...` : question;
@@ -104,7 +141,15 @@ export async function PATCH(
     });
   }
 
-  return NextResponse.json({ question: serializeTrainingQuestion(updatedQuestion) });
+  const revisionMeta = revisionLog
+    ? {
+        lastEditedAt: revisionLog.createdAt,
+        lastEditedById: user.id,
+        lastEditedByName: user.name,
+      }
+    : (await getTrainingQuestionRevisionMeta([id])).get(id);
+
+  return NextResponse.json({ question: serializeTrainingQuestion(updatedQuestion, revisionMeta) });
 }
 
 export async function DELETE(

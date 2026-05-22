@@ -257,11 +257,18 @@ export default function QuestionBankTab() {
                           {question.category}
                         </span>
                         <span className="text-xs text-slate-400">{question.teamGroupName}</span>
+                        <span className="text-xs text-slate-400">
+                          录入：{question.createdByName} · {question.createdAt}
+                        </span>
+                        {question.lastEditedByName && question.lastEditedAt ? (
+                          <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+                            最近修订：{question.lastEditedByName} · {question.lastEditedAt}
+                          </span>
+                        ) : null}
                       </div>
                       <h4 className="mt-3 text-base font-semibold leading-7 text-slate-900">{question.question}</h4>
                     </div>
                     <div className="flex shrink-0 items-center gap-2">
-                      <span className="text-xs text-slate-400">录入：{question.createdByName}</span>
                       {canManageTrainingQuestion(question) ? (
                         <button
                           className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-blue-100 bg-blue-50 px-3 text-xs font-semibold text-blue-600 transition hover:border-blue-200 hover:bg-blue-100"
@@ -318,7 +325,14 @@ export default function QuestionBankTab() {
                     {revisionTarget.category}
                   </span>
                   <span className="text-xs text-slate-400">{revisionTarget.teamGroupName}</span>
-                  <span className="text-xs text-slate-400">录入：{revisionTarget.createdByName}</span>
+                  <span className="text-xs text-slate-400">
+                    录入：{revisionTarget.createdByName} · {revisionTarget.createdAt}
+                  </span>
+                  {revisionTarget.lastEditedByName && revisionTarget.lastEditedAt ? (
+                    <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+                      最近修订：{revisionTarget.lastEditedByName} · {revisionTarget.lastEditedAt}
+                    </span>
+                  ) : null}
                 </div>
                 <p className="mt-3 text-sm font-semibold leading-7 text-slate-900">{revisionTarget.question}</p>
               </div>

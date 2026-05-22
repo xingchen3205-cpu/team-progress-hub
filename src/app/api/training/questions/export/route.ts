@@ -5,6 +5,7 @@ import { formatBeijingDateTime } from "@/lib/date";
 import { assertMainWorkspaceRole } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { buildTeamScopedResourceWhere } from "@/lib/team-scope";
+import { getTrainingQuestionRevisionMeta } from "@/lib/training-question-revisions";
 
 const escapeHtml = (value: string) =>
   value
@@ -76,10 +77,13 @@ export async function GET(request: NextRequest) {
         ? "全部团队题库"
         : "当前可见题库";
   const now = formatBeijingDateTime(new Date());
+  const revisionMetaByQuestionId = await getTrainingQuestionRevisionMeta(filteredQuestions.map((question) => question.id));
 
   const rows = filteredQuestions
-    .map(
-      (item, index) => `
+    .map((item, index) => {
+      const revision = revisionMetaByQuestionId.get(item.id);
+
+      return `
         <tr>
           <td>${index + 1}</td>
           <td>${escapeHtml(item.teamGroup?.name ?? "未分组题库")}</td>
@@ -87,9 +91,10 @@ export async function GET(request: NextRequest) {
           <td>${escapeHtml(item.question)}</td>
           <td>${escapeHtml(item.answerPoints).replaceAll("\n", "<br />")}</td>
           <td>${escapeHtml(item.createdBy.name)}</td>
+          <td>${revision ? `${escapeHtml(revision.lastEditedByName)}<br />${escapeHtml(formatBeijingDateTime(revision.lastEditedAt))}` : "未修订"}</td>
         </tr>
-      `,
-    )
+      `;
+    })
     .join("");
 
   const html = `<!doctype html>
@@ -108,6 +113,7 @@ export async function GET(request: NextRequest) {
     td:nth-child(2) { width: 96px; }
     td:nth-child(3) { width: 76px; }
     td:nth-child(6) { width: 76px; }
+    td:nth-child(7) { width: 110px; }
   </style>
 </head>
 <body>
@@ -122,12 +128,13 @@ export async function GET(request: NextRequest) {
         <th>评委可能提问</th>
         <th>标准回答要点</th>
         <th>录入人</th>
+        <th>最近修订</th>
       </tr>
     </thead>
     <tbody>
       ${
         rows ||
-        `<tr><td colspan="6" style="text-align:center;color:#64748b;">当前范围内没有题目</td></tr>`
+        `<tr><td colspan="7" style="text-align:center;color:#64748b;">当前范围内没有题目</td></tr>`
       }
     </tbody>
   </table>
