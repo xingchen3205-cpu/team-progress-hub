@@ -1,11 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { getSessionUser } from "@/lib/auth";
-import { formatBeijingDateTime } from "@/lib/date";
 import { assertMainWorkspaceRole } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { buildTeamScopedResourceWhere } from "@/lib/team-scope";
-import { getTrainingQuestionRevisionMeta } from "@/lib/training-question-revisions";
 
 const escapeHtml = (value: string) =>
   value
@@ -76,25 +74,19 @@ export async function GET(request: NextRequest) {
       : user.role === "admin"
         ? "全部团队题库"
         : "当前可见题库";
-  const now = formatBeijingDateTime(new Date());
-  const revisionMetaByQuestionId = await getTrainingQuestionRevisionMeta(filteredQuestions.map((question) => question.id));
 
-  const rows = filteredQuestions
-    .map((item, index) => {
-      const revision = revisionMetaByQuestionId.get(item.id);
-
-      return `
-        <tr>
-          <td>${index + 1}</td>
-          <td>${escapeHtml(item.teamGroup?.name ?? "未分组题库")}</td>
-          <td>${escapeHtml(item.category)}</td>
-          <td>${escapeHtml(item.question)}</td>
-          <td>${escapeHtml(item.answerPoints).replaceAll("\n", "<br />")}</td>
-          <td>${escapeHtml(item.createdBy.name)}</td>
-          <td>${revision ? `${escapeHtml(revision.lastEditedByName)}<br />${escapeHtml(formatBeijingDateTime(revision.lastEditedAt))}` : "未修订"}</td>
-        </tr>
-      `;
-    })
+  const questionBlocks = filteredQuestions
+    .map(
+      (item, index) => `
+        <section class="question-block">
+          <p class="sequence">序号：${index + 1}</p>
+          <p><strong>题目类型：</strong>${escapeHtml(item.category)}</p>
+          <p><strong>题目：</strong>${escapeHtml(item.question)}</p>
+          <p><strong>标准答案：</strong></p>
+          <p class="answer">${escapeHtml(item.answerPoints).replaceAll("\n", "<br />")}</p>
+        </section>
+      `,
+    )
     .join("");
 
   const html = `<!doctype html>
@@ -104,44 +96,20 @@ export async function GET(request: NextRequest) {
   <title>${escapeHtml(scopeLabel)} - 答辩题库</title>
   <style>
     body { font-family: "Microsoft YaHei", SimSun, sans-serif; color: #111827; }
-    h1 { font-size: 22px; margin-bottom: 6px; }
-    .meta { color: #64748b; font-size: 12px; margin-bottom: 18px; }
-    table { width: 100%; border-collapse: collapse; table-layout: fixed; }
-    th, td { border: 1px solid #cbd5e1; padding: 8px; vertical-align: top; font-size: 11px; line-height: 1.6; }
-    th { background: #eef5ff; color: #0f2040; font-weight: 700; }
-    td:nth-child(1) { width: 36px; text-align: center; }
-    td:nth-child(2) { width: 96px; }
-    td:nth-child(3) { width: 76px; }
-    td:nth-child(6) { width: 76px; }
-    td:nth-child(7) { width: 110px; }
+    h1 { font-size: 22px; margin: 0 0 18px; text-align: center; }
+    p { font-size: 12pt; line-height: 1.8; margin: 4px 0; }
+    .question-block { margin: 0 0 18px; padding-bottom: 14px; border-bottom: 1px solid #d8dee9; page-break-inside: avoid; }
+    .sequence { font-weight: 700; }
+    .answer { margin-left: 2em; white-space: normal; }
   </style>
 </head>
 <body>
   <h1>${escapeHtml(scopeLabel)} - 答辩题库</h1>
-  <div class="meta">导出时间：${escapeHtml(now)}；题目数量：${filteredQuestions.length} 题${keyword ? `；关键词：${escapeHtml(keyword)}` : ""}${category ? `；分类：${escapeHtml(category)}` : ""}</div>
-  <table>
-    <thead>
-      <tr>
-        <th>序号</th>
-        <th>团队</th>
-        <th>分类</th>
-        <th>评委可能提问</th>
-        <th>标准回答要点</th>
-        <th>录入人</th>
-        <th>最近修订</th>
-      </tr>
-    </thead>
-    <tbody>
-      ${
-        rows ||
-        `<tr><td colspan="7" style="text-align:center;color:#64748b;">当前范围内没有题目</td></tr>`
-      }
-    </tbody>
-  </table>
+  ${questionBlocks || `<p>当前范围内没有题目</p>`}
 </body>
 </html>`;
 
-  const filename = `${normalizeFilename(scopeLabel)}-答辩题库-${new Date().toISOString().slice(0, 10)}.doc`;
+  const filename = `${normalizeFilename(scopeLabel)}-答辩题库.doc`;
 
   return new NextResponse(`\uFEFF${html}`, {
     headers: {

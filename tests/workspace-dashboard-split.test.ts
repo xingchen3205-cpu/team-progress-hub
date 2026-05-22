@@ -103,6 +103,11 @@ test("system administrator has a question bank center and everyone can export vi
   assert.match(exportRouteSource, /assertMainWorkspaceRole\(user\.role\)/);
   assert.match(exportRouteSource, /application\/msword/);
   assert.match(exportRouteSource, /filename\*=UTF-8''/);
+  assert.match(exportRouteSource, /题目类型/);
+  assert.match(exportRouteSource, /标准答案/);
+  assert.doesNotMatch(exportRouteSource, /<table/);
+  assert.doesNotMatch(exportRouteSource, /录入人/);
+  assert.doesNotMatch(exportRouteSource, /最近修订/);
   assert.match(exportRouteSource, /buildTeamScopedResourceWhere/);
   assert.match(exportRouteSource, /teamGroupId/);
   assert.match(exportRouteSource, /keyword/);
