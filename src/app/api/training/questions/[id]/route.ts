@@ -4,6 +4,7 @@ import { getSessionUser } from "@/lib/auth";
 import { assertMainWorkspaceRole, assertRole, hasGlobalAdminPrivileges } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { serializeTrainingQuestion } from "@/lib/api-serializers";
+import { createNotifications } from "@/lib/notifications";
 
 const canManageTrainingQuestion = (
   user: NonNullable<Awaited<ReturnType<typeof getSessionUser>>>,
@@ -37,7 +38,13 @@ export async function PATCH(
   const { id } = await params;
   const existingQuestion = await prisma.trainingQuestion.findUnique({
     where: { id },
-    select: { createdById: true, teamGroupId: true },
+    select: {
+      answerPoints: true,
+      category: true,
+      createdById: true,
+      question: true,
+      teamGroupId: true,
+    },
   });
 
   if (!existingQuestion) {
@@ -76,6 +83,26 @@ export async function PATCH(
       },
     },
   });
+
+  const changedFields = [
+    existingQuestion.category !== category ? "分类" : null,
+    existingQuestion.question !== question ? "问题" : null,
+    existingQuestion.answerPoints !== answerPoints ? "答案要点" : null,
+  ].filter(Boolean);
+
+  if (existingQuestion.createdById !== user.id && changedFields.length > 0) {
+    const questionTitle = question.length > 32 ? `${question.slice(0, 32)}...` : question;
+
+    await createNotifications({
+      userIds: [existingQuestion.createdById],
+      title: "题库答案已被修订",
+      detail: `${user.name} 修订了你录入的题目「${questionTitle}」的${changedFields.join("、")}，系统已替换为最新版本，请进入题库查看。`,
+      type: "training_question_revision",
+      targetTab: "training",
+      relatedId: id,
+      senderId: user.id,
+    });
+  }
 
   return NextResponse.json({ question: serializeTrainingQuestion(updatedQuestion) });
 }

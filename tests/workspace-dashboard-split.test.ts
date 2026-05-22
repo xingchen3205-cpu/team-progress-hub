@@ -94,6 +94,8 @@ test("system administrator has a question bank center and everyone can export vi
   assert.match(workspacePageSource, /validTabs\s*=\s*\[[\s\S]*?"questionBank"/);
   assert.match(questionBankTabSource, /题库中心/);
   assert.match(questionBankTabSource, /selectedTeamGroupId/);
+  assert.match(questionBankTabSource, /selectedCategoryFilter/);
+  assert.match(questionBankTabSource, /setSelectedCategoryFilter/);
   assert.match(questionBankTabSource, /团队题库/);
   assert.match(questionBankTabSource, /导出 Word/);
   assert.match(trainingTabSource, /exportTrainingQuestionsUrl/);
@@ -104,4 +106,18 @@ test("system administrator has a question bank center and everyone can export vi
   assert.match(exportRouteSource, /buildTeamScopedResourceWhere/);
   assert.match(exportRouteSource, /teamGroupId/);
   assert.match(exportRouteSource, /keyword/);
+  assert.match(exportRouteSource, /category/);
+});
+
+test("question bank revisions notify the original question owner", () => {
+  const questionBankTabSource = read("src/components/tabs/question-bank-tab.tsx");
+  const updateRouteSource = read("src/app/api/training/questions/[id]/route.ts");
+
+  assert.match(questionBankTabSource, /revisionTarget/);
+  assert.match(questionBankTabSource, /修订答案/);
+  assert.match(questionBankTabSource, /保存并通知原录入人/);
+  assert.match(updateRouteSource, /createNotifications/);
+  assert.match(updateRouteSource, /题库答案已被修订/);
+  assert.match(updateRouteSource, /targetTab:\s*"training"/);
+  assert.match(updateRouteSource, /userIds:\s*\[existingQuestion\.createdById\]/);
 });

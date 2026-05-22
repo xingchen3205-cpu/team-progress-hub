@@ -28,6 +28,7 @@ export async function GET(request: NextRequest) {
   }
 
   const keyword = request.nextUrl.searchParams.get("q")?.trim().toLowerCase() ?? "";
+  const category = request.nextUrl.searchParams.get("category")?.trim() ?? "";
   const teamGroupId = request.nextUrl.searchParams.get("teamGroupId")?.trim() ?? "visible";
   const systemAdminCanChooseTeam = user.role === "admin";
   const scopedWhere = buildTeamScopedResourceWhere({
@@ -63,17 +64,20 @@ export async function GET(request: NextRequest) {
           .some((value) => value.toLowerCase().includes(keyword)),
       )
     : questions;
+  const filteredQuestions = category
+    ? visibleQuestions.filter((item) => item.category === category)
+    : visibleQuestions;
   const scopeLabel =
     systemAdminCanChooseTeam && teamGroupId && teamGroupId !== "visible" && teamGroupId !== "all"
       ? teamGroupId === "unassigned"
         ? "未分组题库"
-        : visibleQuestions[0]?.teamGroup?.name ?? "团队题库"
+        : filteredQuestions[0]?.teamGroup?.name ?? visibleQuestions[0]?.teamGroup?.name ?? "团队题库"
       : user.role === "admin"
         ? "全部团队题库"
         : "当前可见题库";
   const now = formatBeijingDateTime(new Date());
 
-  const rows = visibleQuestions
+  const rows = filteredQuestions
     .map(
       (item, index) => `
         <tr>
@@ -108,7 +112,7 @@ export async function GET(request: NextRequest) {
 </head>
 <body>
   <h1>${escapeHtml(scopeLabel)} - 答辩题库</h1>
-  <div class="meta">导出时间：${escapeHtml(now)}；题目数量：${visibleQuestions.length} 题${keyword ? `；关键词：${escapeHtml(keyword)}` : ""}</div>
+  <div class="meta">导出时间：${escapeHtml(now)}；题目数量：${filteredQuestions.length} 题${keyword ? `；关键词：${escapeHtml(keyword)}` : ""}${category ? `；分类：${escapeHtml(category)}` : ""}</div>
   <table>
     <thead>
       <tr>
