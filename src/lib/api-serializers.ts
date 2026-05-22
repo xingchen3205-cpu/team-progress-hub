@@ -494,6 +494,7 @@ export const serializeDocument = (
 export const serializeTrainingQuestion = (
   question: TrainingQuestion & {
     createdBy: Pick<User, "id" | "name">;
+    teamGroup?: Pick<TeamGroup, "id" | "name"> | null;
   },
 ) => ({
   id: question.id,
@@ -502,6 +503,8 @@ export const serializeTrainingQuestion = (
   answerPoints: question.answerPoints,
   createdById: question.createdById,
   createdByName: question.createdBy.name,
+  teamGroupId: question.teamGroupId,
+  teamGroupName: question.teamGroup?.name ?? "未分组题库",
   createdAt: formatDateTime(question.createdAt),
   updatedAt: formatDateTime(question.updatedAt),
 });

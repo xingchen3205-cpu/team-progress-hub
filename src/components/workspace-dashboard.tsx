@@ -12,6 +12,7 @@ const loadOverviewTab = () => import("@/components/tabs/overview-tab");
 const loadTimelineTab = () => import("@/components/tabs/timeline-tab");
 const loadTasksTab = () => import("@/components/tabs/tasks-tab");
 const loadTrainingTab = () => import("@/components/tabs/training-tab");
+const loadQuestionBankTab = () => import("@/components/tabs/question-bank-tab");
 const loadScheduleTab = () => import("@/components/tabs/schedule-tab");
 const loadExpertOpinionTab = () => import("@/components/tabs/expert-opinion-tab");
 const loadExpertReviewTab = () => import("@/components/tabs/expert-review-tab");
@@ -32,6 +33,9 @@ const TasksTab = dynamic(loadTasksTab, {
   loading: () => <TabSkeleton variant="workspace" />,
 });
 const TrainingTab = dynamic(loadTrainingTab, {
+  loading: () => <TabSkeleton variant="workspace" />,
+});
+const QuestionBankTab = dynamic(loadQuestionBankTab, {
   loading: () => <TabSkeleton variant="workspace" />,
 });
 const ScheduleTab = dynamic(loadScheduleTab, {
@@ -67,6 +71,7 @@ const preloadWorkspaceTabComponents: Record<TabKey, () => Promise<unknown>> = {
   timeline: loadTimelineTab,
   board: loadTasksTab,
   training: loadTrainingTab,
+  questionBank: loadQuestionBankTab,
   reports: loadScheduleTab,
   experts: loadExpertOpinionTab,
   review: loadExpertReviewTab,
@@ -88,6 +93,7 @@ function WorkspaceDashboardContent() {
       {safeActiveTab === "timeline" && <TimelineTab />}
       {safeActiveTab === "board" && <TasksTab />}
       {safeActiveTab === "training" && <TrainingTab />}
+      {safeActiveTab === "questionBank" && <QuestionBankTab />}
       {safeActiveTab === "reports" && <ScheduleTab />}
       {safeActiveTab === "experts" && <ExpertOpinionTab />}
       {safeActiveTab === "review" && <ExpertReviewTab />}

@@ -318,6 +318,8 @@ export type TrainingQuestionItem = {
   answerPoints: string;
   createdById: string;
   createdByName: string;
+  teamGroupId: string | null;
+  teamGroupName: string;
   createdAt: string;
   updatedAt: string;
 };

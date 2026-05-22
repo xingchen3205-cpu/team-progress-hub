@@ -145,6 +145,7 @@ export type TabKey =
   | "timeline"
   | "board"
   | "training"
+  | "questionBank"
   | "reports"
   | "experts"
   | "review"
@@ -610,6 +611,12 @@ export const allTabs: TabItem[] = [
     icon: HelpCircle,
   },
   {
+    key: "questionBank",
+    label: "题库中心",
+    description: "按团队总览全系统答辩训练题库，并导出 Word 版本。",
+    icon: FileText,
+  },
+  {
     key: "reports",
     label: "日程汇报",
     description: "按成员与日期查看工作汇报，支持历史记录切换。",
@@ -937,6 +944,7 @@ export const rolePermissions = {
       "overview",
       "timeline",
       "board",
+      "questionBank",
       "reports",
       "experts",
       "review",
@@ -2624,6 +2632,8 @@ function useWorkspaceController({
           return ["tasks", "team"];
         case "training":
           return ["trainingQuestions", "trainingSessions"];
+        case "questionBank":
+          return ["trainingQuestions", "team"];
         case "reports":
           return ["team", "reports"];
         case "experts":

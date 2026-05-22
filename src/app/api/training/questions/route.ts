@@ -28,6 +28,9 @@ export async function GET(request: NextRequest) {
       createdBy: {
         select: { id: true, name: true },
       },
+      teamGroup: {
+        select: { id: true, name: true },
+      },
     },
   });
 
@@ -72,6 +75,9 @@ export async function POST(request: NextRequest) {
     },
     include: {
       createdBy: {
+        select: { id: true, name: true },
+      },
+      teamGroup: {
         select: { id: true, name: true },
       },
     },

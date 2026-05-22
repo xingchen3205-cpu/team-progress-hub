@@ -1,5 +1,7 @@
 "use client";
 
+import { useMemo, useState } from "react";
+
 import * as Workspace from "@/components/workspace-context";
 
 export default function TrainingTab() {
@@ -46,9 +48,11 @@ export default function TrainingTab() {
 
   const {
     HelpCircle,
+    Download,
     Pause,
     Play,
     RotateCcw,
+    Search,
     Shuffle,
     Timer,
     Upload,
@@ -63,6 +67,25 @@ export default function TrainingTab() {
     EmptyState,
     ActionButton,
   } = Workspace;
+
+  const [trainingQuestionSearch, setTrainingQuestionSearch] = useState("");
+  const normalizedTrainingQuestionSearch = trainingQuestionSearch.trim().toLowerCase();
+  const filteredTrainingQuestions = useMemo(() => {
+    if (!normalizedTrainingQuestionSearch) {
+      return trainingQuestions;
+    }
+
+    return trainingQuestions.filter((item) =>
+      [item.question, item.answerPoints, item.category, item.createdByName]
+        .filter(Boolean)
+        .some((value) => `${value}`.toLowerCase().includes(normalizedTrainingQuestionSearch)),
+    );
+  }, [normalizedTrainingQuestionSearch, trainingQuestions]);
+  const exportTrainingQuestionsUrl = `/api/training/questions/export${
+    trainingQuestionSearch.trim()
+      ? `?q=${encodeURIComponent(trainingQuestionSearch.trim())}`
+      : ""
+  }`;
 
 const renderTraining = () => {
     const remainingSeconds = Math.max(trainingTimerDuration - trainingTimerElapsed, 0);
@@ -264,14 +287,31 @@ const renderTraining = () => {
             </div>
 
             {trainingQuestions.length > 0 ? (
-              <div className="mt-5 flex flex-col gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 sm:flex-row sm:items-center sm:justify-between">
-                <div>
+              <div className="mt-5 grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 lg:grid-cols-[minmax(0,1fr)_minmax(260px,360px)_auto] lg:items-center">
+                <div className="min-w-0">
                   <p className="text-sm font-medium text-slate-900">题库管理</p>
                   <p className="mt-1 text-xs text-slate-500">
-                    已选择 {selectedTrainingQuestionIds.length} / {trainingQuestions.length} 题；列表固定高度滚动展示。
+                    已选择 {selectedTrainingQuestionIds.length} / {trainingQuestions.length} 题；当前显示 {filteredTrainingQuestions.length} 题。
                   </p>
                 </div>
+                <label className="relative block">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                  <input
+                    aria-label="搜索训练题库"
+                    className="h-10 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-300 focus:ring-4 focus:ring-blue-100"
+                    onChange={(event) => setTrainingQuestionSearch(event.target.value)}
+                    placeholder="搜索题目、回答要点或分类"
+                    value={trainingQuestionSearch}
+                  />
+                </label>
                 <div className="flex flex-wrap gap-2">
+                  <a
+                    className="depth-button-secondary inline-flex h-10 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-lg px-4 text-sm text-slate-900 shadow-sm transition duration-200 hover:-translate-y-px hover:border-white/70 hover:bg-white/70 hover:text-[#1a6fd4] active:translate-y-0 active:scale-[0.98]"
+                    href={exportTrainingQuestionsUrl}
+                  >
+                    <Download className="h-4 w-4" />
+                    导出 Word
+                  </a>
                   <ActionButton onClick={selectAllManageableTrainingQuestions}>
                     {selectedTrainingQuestionIds.length > 0 ? "取消选择" : "全选可删题目"}
                   </ActionButton>
@@ -287,8 +327,8 @@ const renderTraining = () => {
             ) : null}
 
             <div className="mt-5 max-h-[640px] space-y-3 overflow-y-auto pr-1">
-              {trainingQuestions.length > 0 ? (
-                trainingQuestions.map((item) => (
+              {filteredTrainingQuestions.length > 0 ? (
+                filteredTrainingQuestions.map((item) => (
                   <article className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm" key={item.id}>
                     <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                       <div className="flex min-w-0 gap-3">
@@ -328,6 +368,14 @@ const renderTraining = () => {
                     </div>
                   </article>
                 ))
+              ) : trainingQuestions.length > 0 ? (
+                <div className="rounded-lg border border-dashed border-slate-200">
+                  <EmptyState
+                    description="换一个关键词，或清空搜索后查看全部答辩训练题。"
+                    icon={Search}
+                    title="没有找到匹配的题目"
+                  />
+                </div>
               ) : (
                 <div className="rounded-lg border border-dashed border-slate-200">
                   <EmptyState

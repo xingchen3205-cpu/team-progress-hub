@@ -71,6 +71,9 @@ export async function PATCH(
       createdBy: {
         select: { id: true, name: true },
       },
+      teamGroup: {
+        select: { id: true, name: true },
+      },
     },
   });
 

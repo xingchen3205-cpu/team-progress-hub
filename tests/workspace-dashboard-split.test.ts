@@ -32,6 +32,7 @@ test("workspace tabs stay split and bounded by tab complexity", () => {
     "src/components/tabs/timeline-tab.tsx",
     "src/components/tabs/tasks-tab.tsx",
     "src/components/tabs/training-tab.tsx",
+    "src/components/tabs/question-bank-tab.tsx",
     "src/components/tabs/expert-opinion-tab.tsx",
     "src/components/tabs/expert-review-tab.tsx",
     "src/components/tabs/documents-tab.tsx",
@@ -60,4 +61,47 @@ test("tasks tab avoids a large fixed minimum height that leaves empty tails", ()
   const source = read("src/components/tabs/tasks-tab.tsx");
 
   assert.doesNotMatch(source, /min-h-\[420px\]/);
+});
+
+test("training tab includes keyword search for Q&A questions", () => {
+  const source = read("src/components/tabs/training-tab.tsx");
+
+  assert.match(source, /trainingQuestionSearch/);
+  assert.match(source, /filteredTrainingQuestions/);
+  assert.match(source, /搜索题目、回答要点或分类/);
+  assert.match(source, /item\.question/);
+  assert.match(source, /item\.answerPoints/);
+  assert.match(source, /item\.category/);
+  assert.match(source, /没有找到匹配的题目/);
+});
+
+test("system administrator has a question bank center and everyone can export visible question banks", () => {
+  const contextSource = read("src/components/workspace-context.tsx");
+  const dashboardSource = read("src/components/workspace-dashboard.tsx");
+  const workspacePageSource = read("src/app/workspace/page.tsx");
+  const questionBankTabSource = read("src/components/tabs/question-bank-tab.tsx");
+  const trainingTabSource = read("src/components/tabs/training-tab.tsx");
+  const exportRouteSource = read("src/app/api/training/questions/export/route.ts");
+  const schoolAdminBlock = contextSource.match(/school_admin:\s*\{[\s\S]*?\n  teacher:/)?.[0] ?? "";
+
+  assert.match(contextSource, /\|\s*"questionBank"/);
+  assert.match(contextSource, /key:\s*"questionBank"[\s\S]*?label:\s*"题库中心"/);
+  assert.match(contextSource, /admin:\s*\{[\s\S]*?"questionBank"/);
+  assert.doesNotMatch(schoolAdminBlock, /"questionBank"/);
+  assert.match(contextSource, /case "questionBank":[\s\S]*?return \["trainingQuestions", "team"\]/);
+  assert.match(dashboardSource, /QuestionBankTab/);
+  assert.match(dashboardSource, /safeActiveTab === "questionBank"/);
+  assert.match(workspacePageSource, /validTabs\s*=\s*\[[\s\S]*?"questionBank"/);
+  assert.match(questionBankTabSource, /题库中心/);
+  assert.match(questionBankTabSource, /selectedTeamGroupId/);
+  assert.match(questionBankTabSource, /团队题库/);
+  assert.match(questionBankTabSource, /导出 Word/);
+  assert.match(trainingTabSource, /exportTrainingQuestionsUrl/);
+  assert.match(trainingTabSource, /导出 Word/);
+  assert.match(exportRouteSource, /assertMainWorkspaceRole\(user\.role\)/);
+  assert.match(exportRouteSource, /application\/msword/);
+  assert.match(exportRouteSource, /filename\*=UTF-8''/);
+  assert.match(exportRouteSource, /buildTeamScopedResourceWhere/);
+  assert.match(exportRouteSource, /teamGroupId/);
+  assert.match(exportRouteSource, /keyword/);
 });

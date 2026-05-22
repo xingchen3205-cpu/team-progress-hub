@@ -10,6 +10,7 @@ const validTabs = [
   "timeline",
   "board",
   "training",
+  "questionBank",
   "reports",
   "experts",
   "review",
