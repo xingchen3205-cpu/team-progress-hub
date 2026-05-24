@@ -36,6 +36,10 @@ cp .env.example .env.local
 - `RESEND_API_KEY`（可选，用于邮件提醒）
 - `MAIL_FROM`（可选，邮件提醒发件人）
 - `CRON_SECRET`（可选，用于定时提醒接口校验）
+- `DINGTALK_CORP_ID`（可选，用于钉钉工作台入口）
+- `DINGTALK_AGENT_ID`（可选，用于钉钉工作台入口）
+- `DINGTALK_APP_KEY`（可选，用于钉钉免登服务端换取访问凭证）
+- `DINGTALK_APP_SECRET`（可选，用于钉钉免登服务端换取访问凭证）
 
 3. 初始化数据库结构并写入种子数据
 

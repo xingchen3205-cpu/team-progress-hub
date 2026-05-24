@@ -158,6 +158,7 @@ model User {
   sentNotifications         Notification[]              @relation("NotificationSender")
   aiPermission              AiPermission?
   aiConversations           AiConversation[]
+  dingTalkAccount           DingTalkAccount?
   pushDevices               PushDevice[]
   expertProfilesCreated     ExpertProfile[]             @relation("ExpertProfileCreator")
   expertProfile             ExpertProfile?              @relation("ExpertProfileAccount")
@@ -175,6 +176,22 @@ model User {
   projectMaterialsSubmitted ProjectMaterialSubmission[] @relation("ProjectMaterialSubmitter")
   projectMaterialsApproved  ProjectMaterialSubmission[] @relation("ProjectMaterialApprover")
   projectMaterialsRejected  ProjectMaterialSubmission[] @relation("ProjectMaterialRejecter")
+}
+
+model DingTalkAccount {
+  id           String   @id @default(cuid())
+  userId       String   @unique
+  corpId       String
+  userIdInCorp String
+  unionId      String?
+  name         String?
+  boundAt      DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([corpId, userIdInCorp])
+  @@index([unionId])
+  @@index([updatedAt])
 }
 
 model EmailVerificationCode {
