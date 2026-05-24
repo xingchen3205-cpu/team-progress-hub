@@ -54,7 +54,7 @@ const modeCopy: Record<FormMode, { title: string; subtitle: string; lead: string
   login: {
     title: "用户登录",
     subtitle: "USER LOGIN",
-    lead: "请输入账号信息进入管理系统",
+    lead: "请输入账号信息进入管理平台",
   },
   register: {
     title: "注册账号",
@@ -604,7 +604,7 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
               <div className="mx-auto max-w-[48rem] pb-8 pt-12 lg:min-w-[540px] lg:max-w-none lg:pb-0 lg:pt-0">
                 <h1 className="text-[1.9rem] font-extrabold leading-[1.18] tracking-normal text-white drop-shadow-[0_16px_34px_rgba(0,0,0,0.34)] sm:text-[3.25rem] sm:tracking-[0.025em] lg:text-[3.2rem] xl:text-[3.8rem] 2xl:text-[4.1rem]">
                   <span className="block whitespace-nowrap">南京铁道职业技术学院</span>
-                  <span className="mt-2 block whitespace-nowrap">大赛管理系统</span>
+                  <span className="mt-2 block whitespace-nowrap">大赛管理平台</span>
                 </h1>
                 <div className="mx-auto mt-7 h-px w-[28rem] max-w-full bg-gradient-to-r from-transparent via-white/75 to-transparent" />
                 <p
@@ -1269,7 +1269,7 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
           </div>
 
           <footer className="border-t border-[#e6ebf2] px-4 pt-6 text-center text-[13px] leading-6 text-[#8a96a8]">
-            <p>© 2026 中国国际大学生创新大赛管理系统</p>
+            <p>© 2026 南京铁道职业技术学院大赛管理平台</p>
             <p>
               用户单位：南京铁道职业技术学院
               <span className="mx-3 text-[#c4ccd8]">|</span>

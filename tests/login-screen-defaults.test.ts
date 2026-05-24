@@ -24,10 +24,10 @@ describe("login screen defaults", () => {
     assert.match(loginScreenSource, /login-campus\.jpg/);
     assert.match(loginScreenSource, /NANJING VOCATIONAL INSTITUTE OF RAILWAY TECHNOLOGY/);
     assert.match(loginScreenSource, /南京铁道职业技术学院/);
-    assert.match(loginScreenSource, /大赛管理系统/);
+    assert.match(loginScreenSource, /大赛管理平台/);
     assert.match(loginScreenSource, /以赛促学 · 以赛促教 · 以赛促创 · 以赛促用/);
     assert.match(loginScreenSource, /USER LOGIN/);
-    assert.match(loginScreenSource, /© 2026 中国国际大学生创新大赛管理系统/);
+    assert.match(loginScreenSource, /© 2026 南京铁道职业技术学院大赛管理平台/);
     assert.match(loginScreenSource, /用户单位：南京铁道职业技术学院/);
     assert.match(loginScreenSource, /支持单位：南京君如玉科技有限公司/);
   });
@@ -131,7 +131,7 @@ describe("login screen defaults", () => {
 
   it("keeps desktop title on two fixed lines with no-wrap", () => {
     assert.match(loginScreenSource, /南京铁道职业技术学院/);
-    assert.match(loginScreenSource, /大赛管理系统/);
+    assert.match(loginScreenSource, /大赛管理平台/);
     assert.match(loginScreenSource, /whitespace-nowrap/);
   });
 

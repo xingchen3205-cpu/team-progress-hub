@@ -1,6 +1,6 @@
 const appUrl = process.env.NEXT_PUBLIC_APP_URL || "https://xingchencxcy.com";
 
-export const systemEmailProductName = "南京铁道职业技术学院中国国际大学生创新大赛管理系统";
+export const systemEmailProductName = "南京铁道职业技术学院大赛管理平台";
 
 export const buildAppUrl = (path = "/") => {
   if (/^https?:\/\//.test(path)) {
