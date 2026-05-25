@@ -75,6 +75,30 @@ test("training tab includes keyword search for Q&A questions", () => {
   assert.match(source, /没有找到匹配的题目/);
 });
 
+test("training question bank controls stay readable and use bounded internal scrolling", () => {
+  const source = read("src/components/tabs/training-tab.tsx");
+
+  assert.doesNotMatch(source, /lg:grid-cols-\[minmax\(0,1fr\)_minmax\(260px,360px\)_auto\]/);
+  assert.match(source, /min-w-\[180px\]/);
+  assert.match(source, /max-h-\[min\(62vh,640px\)\]/);
+  assert.match(source, /overscroll-contain/);
+});
+
+test("training drill mode can draw from a selected question category", () => {
+  const contextSource = read("src/components/workspace-context.tsx");
+  const trainingTabSource = read("src/components/tabs/training-tab.tsx");
+
+  assert.match(contextSource, /selectedDrillCategory/);
+  assert.match(contextSource, /setSelectedDrillCategory/);
+  assert.match(contextSource, /getDrillQuestionPool/);
+  assert.match(contextSource, /question\.category === selectedDrillCategory/);
+  assert.match(contextSource, /当前分类暂无可抽查的问题/);
+  assert.match(trainingTabSource, /drillCategoryOptions/);
+  assert.match(trainingTabSource, /抽查范围/);
+  assert.match(trainingTabSource, /全部分类/);
+  assert.match(trainingTabSource, /setSelectedDrillCategory/);
+});
+
 test("system administrator has a question bank center and everyone can export visible question banks", () => {
   const contextSource = read("src/components/workspace-context.tsx");
   const dashboardSource = read("src/components/workspace-dashboard.tsx");

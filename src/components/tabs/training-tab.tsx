@@ -17,6 +17,8 @@ export default function TrainingTab() {
     editingTrainingQuestionId,
     selectedTrainingQuestionIds,
     setActiveDrillQuestionId,
+    selectedDrillCategory,
+    setSelectedDrillCategory,
     qaDrillStats,
     trainingTimerDuration,
     trainingTimerCustomMinutes,
@@ -56,6 +58,7 @@ export default function TrainingTab() {
     Shuffle,
     Timer,
     Upload,
+    allTrainingQuestionCategoriesLabel,
     trainingQuestionCategories,
     trainingTimerPresets,
     surfaceCardClassName,
@@ -69,6 +72,7 @@ export default function TrainingTab() {
   } = Workspace;
 
   const [trainingQuestionSearch, setTrainingQuestionSearch] = useState("");
+  const drillAllCategoryLabel = allTrainingQuestionCategoriesLabel || "全部分类";
   const normalizedTrainingQuestionSearch = trainingQuestionSearch.trim().toLowerCase();
   const filteredTrainingQuestions = useMemo(() => {
     if (!normalizedTrainingQuestionSearch) {
@@ -81,13 +85,37 @@ export default function TrainingTab() {
         .some((value) => `${value}`.toLowerCase().includes(normalizedTrainingQuestionSearch)),
     );
   }, [normalizedTrainingQuestionSearch, trainingQuestions]);
+  const drillCategoryOptions = useMemo(() => {
+    const categoryCounts = new Map<string, number>();
+    const knownCategories = trainingQuestionCategories as readonly string[];
+
+    for (const question of trainingQuestions) {
+      categoryCounts.set(question.category, (categoryCounts.get(question.category) ?? 0) + 1);
+    }
+
+    const knownOptions = trainingQuestionCategories
+      .map((category) => ({
+        category,
+        count: categoryCounts.get(category) ?? 0,
+      }))
+      .filter((item) => item.count > 0);
+    const customOptions = Array.from(categoryCounts.entries())
+      .filter(([category]) => !knownCategories.includes(category))
+      .map(([category, count]) => ({ category, count }));
+
+    return [
+      { category: drillAllCategoryLabel, count: trainingQuestions.length },
+      ...knownOptions,
+      ...customOptions,
+    ];
+  }, [drillAllCategoryLabel, trainingQuestionCategories, trainingQuestions]);
   const exportTrainingQuestionsUrl = `/api/training/questions/export${
     trainingQuestionSearch.trim()
       ? `?q=${encodeURIComponent(trainingQuestionSearch.trim())}`
       : ""
   }`;
 
-const renderTraining = () => {
+  const renderTraining = () => {
     const remainingSeconds = Math.max(trainingTimerDuration - trainingTimerElapsed, 0);
     const overtimeSeconds = Math.max(trainingTimerElapsed - trainingTimerDuration, 0);
     const timerProgress =
@@ -287,46 +315,50 @@ const renderTraining = () => {
             </div>
 
             {trainingQuestions.length > 0 ? (
-              <div className="mt-5 grid gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3 lg:grid-cols-[minmax(0,1fr)_minmax(260px,360px)_auto] lg:items-center">
-                <div className="min-w-0">
-                  <p className="text-sm font-medium text-slate-900">题库管理</p>
-                  <p className="mt-1 text-xs text-slate-500">
-                    已选择 {selectedTrainingQuestionIds.length} / {trainingQuestions.length} 题；当前显示 {filteredTrainingQuestions.length} 题。
-                  </p>
-                </div>
-                <label className="relative block">
-                  <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-                  <input
-                    aria-label="搜索训练题库"
-                    className="h-10 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-300 focus:ring-4 focus:ring-blue-100"
-                    onChange={(event) => setTrainingQuestionSearch(event.target.value)}
-                    placeholder="搜索题目、回答要点或分类"
-                    value={trainingQuestionSearch}
-                  />
-                </label>
-                <div className="flex flex-wrap gap-2">
-                  <a
-                    className="depth-button-secondary inline-flex h-10 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-lg px-4 text-sm text-slate-900 shadow-sm transition duration-200 hover:-translate-y-px hover:border-white/70 hover:bg-white/70 hover:text-[#1a6fd4] active:translate-y-0 active:scale-[0.98]"
-                    href={exportTrainingQuestionsUrl}
-                  >
-                    <Download className="h-4 w-4" />
-                    导出 Word
-                  </a>
-                  <ActionButton onClick={selectAllManageableTrainingQuestions}>
-                    {selectedTrainingQuestionIds.length > 0 ? "取消选择" : "全选可删题目"}
-                  </ActionButton>
-                  <ActionButton
-                    disabled={selectedTrainingQuestionIds.length === 0}
-                    onClick={deleteSelectedTrainingQuestions}
-                    variant="danger"
-                  >
-                    批量删除
-                  </ActionButton>
+              <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4">
+                <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+                  <div className="min-w-[180px] shrink-0">
+                    <p className="whitespace-nowrap text-sm font-medium text-slate-900">题库管理</p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      已选择 {selectedTrainingQuestionIds.length} / {trainingQuestions.length} 题；当前显示 {filteredTrainingQuestions.length} 题。
+                    </p>
+                  </div>
+                  <div className="flex w-full min-w-0 flex-col gap-2 sm:flex-row xl:max-w-[760px] xl:justify-end">
+                    <label className="relative block min-w-0 flex-1 sm:min-w-[260px]">
+                      <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+                      <input
+                        aria-label="搜索训练题库"
+                        className="h-10 w-full rounded-lg border border-slate-200 bg-white pl-9 pr-3 text-sm text-slate-900 outline-none transition placeholder:text-slate-400 focus:border-blue-300 focus:ring-4 focus:ring-blue-100"
+                        onChange={(event) => setTrainingQuestionSearch(event.target.value)}
+                        placeholder="搜索题目、回答要点或分类"
+                        value={trainingQuestionSearch}
+                      />
+                    </label>
+                    <div className="flex shrink-0 flex-wrap gap-2 sm:justify-end">
+                      <a
+                        className="depth-button-secondary inline-flex h-10 shrink-0 items-center justify-center gap-2 whitespace-nowrap rounded-lg px-4 text-sm text-slate-900 shadow-sm transition duration-200 hover:-translate-y-px hover:border-white/70 hover:bg-white/70 hover:text-[#1a6fd4] active:translate-y-0 active:scale-[0.98]"
+                        href={exportTrainingQuestionsUrl}
+                      >
+                        <Download className="h-4 w-4" />
+                        导出 Word
+                      </a>
+                      <ActionButton onClick={selectAllManageableTrainingQuestions}>
+                        {selectedTrainingQuestionIds.length > 0 ? "取消选择" : "全选可删题目"}
+                      </ActionButton>
+                      <ActionButton
+                        disabled={selectedTrainingQuestionIds.length === 0}
+                        onClick={deleteSelectedTrainingQuestions}
+                        variant="danger"
+                      >
+                        批量删除
+                      </ActionButton>
+                    </div>
+                  </div>
                 </div>
               </div>
             ) : null}
 
-            <div className="mt-5 max-h-[640px] space-y-3 overflow-y-auto pr-1">
+            <div className="mt-5 max-h-[min(62vh,640px)] space-y-3 overflow-y-auto overscroll-contain pr-1 scroll-smooth">
               {filteredTrainingQuestions.length > 0 ? (
                 filteredTrainingQuestions.map((item) => (
                   <article className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm" key={item.id}>
@@ -410,6 +442,41 @@ const renderTraining = () => {
                 </ActionButton>
               </div>
 
+              <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-3">
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-xs font-semibold text-slate-500">抽查范围</p>
+                  <span className="text-xs text-slate-400">
+                    {drillCategoryOptions.find((item) => item.category === selectedDrillCategory)?.count ?? 0} 题
+                  </span>
+                </div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {drillCategoryOptions.map((item) => {
+                    const selected = item.category === selectedDrillCategory;
+
+                    return (
+                      <button
+                        className={`rounded-full px-3 py-1.5 text-xs font-semibold transition ${
+                          selected
+                            ? "bg-blue-600 text-white shadow-sm"
+                            : "border border-slate-200 bg-white text-slate-600 hover:border-blue-200 hover:text-blue-600"
+                        }`}
+                        key={item.category}
+                        onClick={() => {
+                          setSelectedDrillCategory(item.category);
+                          setActiveDrillQuestionId(null);
+                        }}
+                        type="button"
+                      >
+                        {item.category}
+                        <span className={selected ? "ml-1 text-white/75" : "ml-1 text-slate-400"}>
+                          {item.count}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
               <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50/60 p-4">
                 {activeDrillQuestion ? (
                   <>
@@ -433,7 +500,11 @@ const renderTraining = () => {
                     </div>
                   </>
                 ) : (
-                  <p className="text-sm leading-7 text-slate-500">题库有内容后，点击“抽一题”开始训练。</p>
+                  <p className="text-sm leading-7 text-slate-500">
+                    {selectedDrillCategory === drillAllCategoryLabel
+                      ? "题库有内容后，点击“抽一题”开始训练。"
+                      : "当前分类暂无题目，换一个分类或先补充题库。"}
+                  </p>
                 )}
               </div>
 

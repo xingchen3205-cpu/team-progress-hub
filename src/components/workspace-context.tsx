@@ -534,6 +534,7 @@ export const imagePreviewExtensions = [".png", ".jpg", ".jpeg", ".gif", ".webp"]
 export const wordPreviewExtensions = [".docx"] as const;
 
 export const trainingQuestionCategories = ["商业模式", "技术壁垒", "市场与竞品", "财务数据", "团队分工", "综合答辩", "其他"] as const;
+export const allTrainingQuestionCategoriesLabel = "全部分类";
 
 export const defaultTrainingQuestionDraft: TrainingQuestionDraft = {
   category: "商业模式",
@@ -2105,6 +2106,7 @@ function useWorkspaceController({
   const [questionImportError, setQuestionImportError] = useState<string | null>(null);
   const [selectedTrainingQuestionIds, setSelectedTrainingQuestionIds] = useState<string[]>([]);
   const [activeDrillQuestionId, setActiveDrillQuestionId] = useState<string | null>(null);
+  const [selectedDrillCategory, setSelectedDrillCategory] = useState(allTrainingQuestionCategoriesLabel);
   const [qaDrillStats, setQaDrillStats] = useState({ total: 0, hit: 0 });
   const [trainingTimerDuration, setTrainingTimerDuration] = useState(8 * 60);
   const [trainingTimerCustomMinutes, setTrainingTimerCustomMinutes] = useState("8");
@@ -3889,8 +3891,13 @@ function useWorkspaceController({
   const canCreateReviewPackage = ["admin", "school_admin"].includes(currentRole);
   const canManageTrainingQuestion = (question: TrainingQuestionItem) =>
     ["admin", "school_admin", "teacher", "leader"].includes(currentRole) || question.createdById === currentMemberId;
+  const getDrillQuestionPool = () =>
+    selectedDrillCategory === allTrainingQuestionCategoriesLabel
+      ? trainingQuestions
+      : trainingQuestions.filter((question) => question.category === selectedDrillCategory);
+  const drillQuestionPool = getDrillQuestionPool();
   const activeDrillQuestion =
-    trainingQuestions.find((question) => question.id === activeDrillQuestionId) ?? trainingQuestions[0] ?? null;
+    drillQuestionPool.find((question) => question.id === activeDrillQuestionId) ?? drillQuestionPool[0] ?? null;
 
   const getDocumentActionButtons = (doc: DocumentItem): DocumentActionButton[] => {
     if ((permissions.canLeaderReviewDocument || hasGlobalAdminRole) && doc.statusKey === "pending") {
@@ -4711,15 +4718,20 @@ function useWorkspaceController({
   };
 
   const drawRandomTrainingQuestion = () => {
-    if (trainingQuestions.length === 0) {
-      setLoadError("题库里还没有可抽查的问题");
+    const questionPool = getDrillQuestionPool();
+    if (questionPool.length === 0) {
+      setLoadError(
+        selectedDrillCategory === allTrainingQuestionCategoriesLabel
+          ? "题库里还没有可抽查的问题"
+          : "当前分类暂无可抽查的问题",
+      );
       return;
     }
 
     const candidates =
-      trainingQuestions.length === 1
-        ? trainingQuestions
-        : trainingQuestions.filter((question) => question.id !== activeDrillQuestionId);
+      questionPool.length === 1
+        ? questionPool
+        : questionPool.filter((question) => question.id !== activeDrillQuestionId);
     const nextQuestion = candidates[Math.floor(Math.random() * candidates.length)];
     if (!nextQuestion) {
       return;
@@ -6786,6 +6798,8 @@ function useWorkspaceController({
     setSelectedTrainingQuestionIds,
     activeDrillQuestionId,
     setActiveDrillQuestionId,
+    selectedDrillCategory,
+    setSelectedDrillCategory,
     qaDrillStats,
     setQaDrillStats,
     trainingTimerDuration,
