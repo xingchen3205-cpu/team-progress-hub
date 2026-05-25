@@ -616,7 +616,8 @@ test("roadshow project stages may require no uploaded materials", () => {
   assert.match(stageItemRoute, /stageType,[\s\S]*description/);
   assert.match(assignmentRoute, /projectReviewStage\.type === "roadshow"/);
   assert.match(assignmentRoute, /teamGroupIds/);
-  assert.match(workspaceShell, /选择路演项目组/);
+  assert.match(workspaceShell, /选择项目组，或批量加入自定义项目/);
+  assert.match(workspaceShell, /新增自定义路演项目/);
   assert.match(workspaceShell, /selectedReviewStageTeamGroups/);
   assert.match(workspaceShell, /reviewAssignmentDraft\.teamGroupIds/);
 });

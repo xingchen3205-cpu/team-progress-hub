@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import Image from "next/image";
 import { useParams, useSearchParams } from "next/navigation";
 import { CheckCircle2, Clock, ShieldCheck } from "lucide-react";
@@ -930,16 +930,16 @@ export default function ReviewScreenSessionPage() {
         ? "点击「抽路演序号」由该项目抽取顺序"
         : "等待抽取";
 
-  const stopSelfDrawAutoScroll = () => {
+  const stopSelfDrawAutoScroll = useCallback(() => {
     const state = selfDrawAutoScrollRef.current;
     state.active = false;
     if (state.frameId) {
       window.cancelAnimationFrame(state.frameId);
       state.frameId = 0;
     }
-  };
+  }, []);
 
-  const startSelfDrawAutoScroll = () => {
+  const startSelfDrawAutoScroll = useCallback(() => {
     const state = selfDrawAutoScrollRef.current;
     if (state.active || selfDrawReelSpinning) return;
     state.active = true;
@@ -974,7 +974,7 @@ export default function ReviewScreenSessionPage() {
     };
 
     state.frameId = window.requestAnimationFrame(tick);
-  };
+  }, [selfDrawReelSpinning]);
 
   const focusSelfDrawPanel = (panel: "left" | "right", index: number) => {
     stopSelfDrawAutoScroll();
@@ -1334,6 +1334,8 @@ export default function ReviewScreenSessionPage() {
     projectOrderKey,
     selfDrawModeActive,
     selfDrawReelSpinning,
+    startSelfDrawAutoScroll,
+    stopSelfDrawAutoScroll,
   ]);
 
   return (

@@ -1826,7 +1826,6 @@ export default function ExpertReviewTab() {
       phaseRemainingSeconds % 60,
     ).padStart(2, "0")}`;
     const isScreenSessionFinished = currentPhase === "finished";
-    const selfDrawControlsVisible = drawMode === "self" && screenDisplay.selfDrawEnabled;
     const drawControlsVisible = Boolean(screenSession) && currentPhase === "draw";
     const screenDrawUrl = screenSession?.screenUrl ?? "";
     const getConsolePhaseLabel = (phase: string) => {

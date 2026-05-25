@@ -484,7 +484,7 @@ describe("roadshow review screen session", () => {
     assert.match(adminTabSource, /canEditConfigFields/);
     assert.match(adminTabSource, /投屏设置已锁定/);
     assert.match(adminTabSource, /drawControlsVisible/);
-    assert.match(adminTabSource, /selfDrawControlsVisible/);
+    assert.match(adminTabSource, /drawMode === "self"/);
     assert.match(adminTabSource, /screenDisplay\.selfDrawEnabled/);
     assert.match(adminTabSource, /随机抽签和自助抽签都在大屏窗口完成/);
     assert.doesNotMatch(adminTabSource, /项目列表只展示本轮顺序和后台分数/);
@@ -629,7 +629,8 @@ describe("roadshow review screen session", () => {
     assert.match(adminTabSource, /评审尚未开始/);
     assert.match(adminTabSource, /自助抽签/);
     assert.match(adminTabSource, /drawControlsVisible/);
-    assert.match(adminTabSource, /selfDrawControlsVisible/);
+    assert.match(adminTabSource, /drawMode === "self"/);
+    assert.match(adminTabSource, /screenDisplay\.selfDrawEnabled/);
     assert.match(adminTabSource, /随机抽签和自助抽签都在大屏窗口完成/);
     assert.match(adminTabSource, /打开大屏抽签/);
     assert.match(adminTabSource, /currentPackageId:\s*payload\.session\.currentPackageId \?\? null/);
