@@ -851,6 +851,193 @@ a:hover {
   color: var(--color-neutral);
 }
 
+.team-student-shell {
+  gap: 18px;
+}
+
+.team-student-hero {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 360px);
+  gap: 20px;
+  overflow: hidden;
+  border: 1px solid rgba(191, 219, 254, 0.76);
+  border-radius: 22px;
+  background:
+    linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(239, 246, 255, 0.9)),
+    radial-gradient(circle at 86% 12%, rgba(var(--color-primary-rgb), 0.12), transparent 32%);
+  padding: 28px 32px;
+  box-shadow:
+    0 1px 3px rgba(15, 17, 23, 0.035),
+    0 20px 50px rgba(var(--color-primary-rgb), 0.08);
+}
+
+.team-student-hero-copy {
+  min-width: 0;
+}
+
+.team-student-eyebrow,
+.team-student-section-head span,
+.team-student-self-label {
+  font-size: 12px;
+  font-weight: 750;
+  letter-spacing: 0.06em;
+  color: rgba(var(--color-primary-rgb), 0.85);
+}
+
+.team-student-hero h1 {
+  margin-top: 10px;
+  font-size: clamp(28px, 4vw, 42px);
+  font-weight: 850;
+  line-height: 1.12;
+  color: var(--color-ink);
+}
+
+.team-student-hero-copy p {
+  margin-top: 12px;
+  max-width: 680px;
+  font-size: 14px;
+  line-height: 1.85;
+  color: rgba(75, 85, 99, 0.9);
+}
+
+.team-student-self-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  align-self: stretch;
+  border: 1px solid rgba(219, 234, 254, 0.9);
+  border-radius: 18px;
+  background: rgba(255, 255, 255, 0.82);
+  padding: 18px;
+}
+
+.team-student-self-card h2 {
+  margin-top: 4px;
+  font-size: 19px;
+  font-weight: 800;
+  color: var(--color-ink);
+}
+
+.team-student-role-chip {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  border-radius: 999px;
+  border-width: 1px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.team-student-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.team-student-stat {
+  border: 1px solid rgba(226, 232, 240, 0.92);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.88);
+  padding: 18px 20px;
+}
+
+.team-student-stat span {
+  font-size: 13px;
+  font-weight: 700;
+  color: rgba(75, 85, 99, 0.86);
+}
+
+.team-student-stat strong {
+  display: block;
+  margin-top: 8px;
+  font-size: 30px;
+  font-weight: 850;
+  line-height: 1;
+  color: var(--color-primary);
+}
+
+.team-student-stat p {
+  margin-top: 8px;
+  font-size: 12px;
+  color: rgba(100, 116, 139, 0.8);
+}
+
+.team-student-member-section {
+  border: 1px solid rgba(226, 232, 240, 0.92);
+  border-radius: 22px;
+  background: rgba(255, 255, 255, 0.92);
+  padding: 24px;
+  box-shadow: 0 12px 32px rgba(15, 17, 23, 0.045);
+}
+
+.team-student-section-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 18px;
+}
+
+.team-student-section-head h2 {
+  margin-top: 5px;
+  font-size: 22px;
+  font-weight: 820;
+  color: var(--color-ink);
+}
+
+.team-student-section-head strong {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  background: rgba(var(--color-primary-rgb), 0.1);
+  padding: 7px 13px;
+  font-size: 13px;
+  color: var(--color-primary);
+}
+
+.team-member-card-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.team-member-profile-card {
+  display: flex;
+  min-width: 0;
+  gap: 14px;
+  border: 1px solid rgba(226, 232, 240, 0.92);
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(248, 250, 252, 0.82), rgba(255, 255, 255, 0.96));
+  padding: 16px;
+}
+
+.team-member-profile-card h3 {
+  max-width: 18rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 16px;
+  font-weight: 800;
+  color: var(--color-ink);
+}
+
+.team-member-profile-card p {
+  margin-top: 9px;
+  font-size: 13px;
+  line-height: 1.65;
+  color: rgba(100, 116, 139, 0.92);
+}
+
+.team-student-me-badge {
+  border-radius: 999px;
+  background: rgba(var(--color-primary-rgb), 0.12);
+  padding: 2px 8px;
+  font-size: 11px;
+  font-weight: 750;
+  color: var(--color-primary);
+}
+
 .team-page-actions {
   display: flex;
   flex-wrap: wrap;
@@ -1316,6 +1503,28 @@ a:hover {
   padding: 2px 8px;
   font-size: 11px;
   color: currentColor;
+}
+
+@media (max-width: 1023px) {
+  .team-student-hero,
+  .team-member-card-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 767px) {
+  .team-student-hero,
+  .team-student-member-section {
+    padding: 20px;
+  }
+
+  .team-student-summary-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .team-student-section-head {
+    flex-direction: column;
+  }
 }
 
 .expert-session-card:hover .expert-delete-button {

@@ -6,6 +6,7 @@ import * as Workspace from "@/components/workspace-context";
 
 export default function TeamTab() {
   const {
+    currentUser,
     teamGroups,
     setTeamSearch,
     teamRoleFilter,
@@ -103,6 +104,7 @@ export default function TeamTab() {
     Trash2,
     Users,
     X,
+    teamRoleSortOrder,
     teamRoleTagClassNames,
     EmptyState,
     ActionButton,
@@ -141,7 +143,115 @@ export default function TeamTab() {
     setTeamSearch("");
   }, [setTeamSearch]);
 
-const renderTeam = () => (
+  const isStudentTeamOverview = !hasGlobalAdminRole && !permissions.canManageTeam && !showTeamActions && !isExpertAccountView;
+  const showManagementTeamAccountSection = !isStudentTeamOverview;
+  const studentTeamMembers = useMemo(
+    () =>
+      [...visibleCoreTeamMembers].sort((left, right) => {
+        const roleOrder = teamRoleSortOrder[left.systemRole] - teamRoleSortOrder[right.systemRole];
+        if (roleOrder !== 0) {
+          return roleOrder;
+        }
+
+        return left.name.localeCompare(right.name, "zh-CN");
+      }),
+    [teamRoleSortOrder, visibleCoreTeamMembers],
+  );
+  const currentTeamMember = studentTeamMembers.find((member) => member.id === currentUser?.id) ?? null;
+  const studentTeamName =
+    currentUser?.teamGroupName ??
+    currentTeamMember?.teamGroupName ??
+    studentTeamMembers.find((member) => member.teamGroupName)?.teamGroupName ??
+    "我的团队";
+  const studentRoleDistribution = (["指导教师", "项目负责人", "团队成员"] as TeamRoleLabel[]).map((roleLabel) => ({
+    roleLabel,
+    count: studentTeamMembers.filter((member) => member.systemRole === roleLabel).length,
+  }));
+
+  const renderTeam = () => {
+    if (!showManagementTeamAccountSection) {
+      return (
+        <div className="team-page-shell team-student-shell">
+          <section className="team-student-hero">
+            <div className="team-student-hero-copy">
+              <span className="team-student-eyebrow">我的团队</span>
+              <h1>{studentTeamName}</h1>
+              <p>
+                查看本项目组的导师、负责人和团队成员。学生端只呈现必要协作信息，不展示账号名和后台管理控件。
+              </p>
+            </div>
+            <div className="team-student-self-card">
+              <UserAvatar
+                avatar={currentTeamMember?.avatar ?? currentUser?.avatar ?? ""}
+                avatarUrl={currentTeamMember?.avatarUrl ?? currentUser?.avatarUrl}
+                className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-blue-600 text-base font-semibold text-white"
+                name={currentTeamMember?.name ?? currentUser?.profile.name ?? "我"}
+                textClassName="text-base font-semibold text-white"
+              />
+              <div className="min-w-0">
+                <p className="team-student-self-label">当前身份</p>
+                <h2>{currentTeamMember?.name ?? currentUser?.profile.name ?? "我"}</h2>
+                <span className={`team-student-role-chip ${teamRoleTagClassNames[currentTeamMember?.systemRole ?? currentUser?.roleLabel ?? "团队成员"]}`}>
+                  {currentTeamMember?.systemRole ?? currentUser?.roleLabel ?? "团队成员"}
+                </span>
+              </div>
+            </div>
+          </section>
+
+          <section className="team-student-summary-grid" aria-label="团队角色分布">
+            {studentRoleDistribution.map((item) => (
+              <article className="team-student-stat" key={item.roleLabel}>
+                <span>{item.roleLabel}</span>
+                <strong>{item.count}</strong>
+                <p>团队角色分布</p>
+              </article>
+            ))}
+          </section>
+
+          <section className="team-student-member-section">
+            <div className="team-student-section-head">
+              <div>
+                <span>成员名单</span>
+                <h2>团队角色分布</h2>
+              </div>
+              <strong>{studentTeamMembers.length} 人</strong>
+            </div>
+
+            {studentTeamMembers.length > 0 ? (
+              <div className="team-member-card-grid">
+                {studentTeamMembers.map((member) => (
+                  <article className="team-member-profile-card" key={member.id}>
+                    <UserAvatar
+                      avatar={member.avatar}
+                      avatarUrl={member.avatarUrl}
+                      className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-blue-600 text-sm font-semibold text-white"
+                      name={member.name}
+                      textClassName="text-sm font-semibold text-white"
+                    />
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h3>{member.name}</h3>
+                        {member.id === currentUser?.id ? <span className="team-student-me-badge">我</span> : null}
+                      </div>
+                      <span className={`team-student-role-chip ${teamRoleTagClassNames[member.systemRole]}`}>
+                        {member.systemRole}
+                      </span>
+                      <p>{member.responsibility || "暂无职责备注"}</p>
+                    </div>
+                  </article>
+                ))}
+              </div>
+            ) : (
+              <div className="team-empty-inline">
+                当前还没有可展示的团队成员。请联系负责人或管理员完成项目组绑定。
+              </div>
+            )}
+          </section>
+        </div>
+      );
+    }
+
+    return (
     <div className="team-page-shell">
       <div className="team-page-top">
         <div>
@@ -1231,6 +1341,7 @@ const renderTeam = () => (
       </section>
     </div>
   );
+  };
 
   return renderTeam();
 }

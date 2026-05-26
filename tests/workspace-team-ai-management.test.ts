@@ -96,6 +96,16 @@ test("team management adopts the refined card and table visual system", () => {
   assert.match(teamSource, /team-account-table/);
 });
 
+test("student team management renders a dedicated read-only team overview", () => {
+  assert.match(teamSource, /isStudentTeamOverview/);
+  assert.match(teamSource, /team-student-hero/);
+  assert.match(teamSource, /我的团队/);
+  assert.match(teamSource, /团队角色分布/);
+  assert.match(teamSource, /team-member-card-grid/);
+  assert.match(teamSource, /team-member-profile-card/);
+  assert.match(teamSource, /!isStudentTeamOverview/);
+});
+
 test("expert account view is visually separate and omits group or AI controls", () => {
   assert.match(teamSource, /team-expert-summary-card/);
   assert.match(teamSource, /仅开放专家评审，不参与分组和 AI 助手/);
