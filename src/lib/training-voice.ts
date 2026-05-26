@@ -5,13 +5,19 @@ const SUPPORTED_TRAINING_AUDIO_TYPES = new Set([
   "audio/mp3",
   "audio/mp4",
   "audio/mp4a-latm",
+  "audio/m4a",
   "audio/wav",
   "audio/webm",
-  "audio/ogg",
   "audio/x-m4a",
 ]);
 
 const normalizeAudioMimeType = (value: string) => value.split(";")[0]?.trim().toLowerCase() ?? "";
+
+const DIFY_AUDIO_MIME_ALIASES: Record<string, string> = {
+  "audio/mp3": "audio/mpeg",
+  "audio/mp4a-latm": "audio/mp4",
+  "audio/x-m4a": "audio/m4a",
+};
 
 type DifyAudioToTextResponse = {
   text?: string;
@@ -69,6 +75,20 @@ export const validateTrainingAudioFile = (file: File | null) => {
   return null;
 };
 
+export const normalizeTrainingAudioFileForDify = (file: File) => {
+  const normalizedType = normalizeAudioMimeType(file.type);
+  const difyType = DIFY_AUDIO_MIME_ALIASES[normalizedType] ?? normalizedType;
+
+  if (!difyType || difyType === file.type) {
+    return file;
+  }
+
+  return new File([file], file.name, {
+    type: difyType,
+    lastModified: file.lastModified,
+  });
+};
+
 export async function transcribeTrainingAudio(input: { file: File | null; userId: string }) {
   const validationError = validateTrainingAudioFile(input.file);
   if (validationError) {
@@ -81,8 +101,9 @@ export async function transcribeTrainingAudio(input: { file: File | null; userId
   }
 
   const config = getDifySpeechConfig();
+  const difyFile = normalizeTrainingAudioFileForDify(file);
   const formData = new FormData();
-  formData.append("file", file);
+  formData.append("file", difyFile);
   formData.append("user", input.userId);
 
   const response = await fetch(`${config.baseUrl}/audio-to-text`, {

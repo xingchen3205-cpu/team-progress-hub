@@ -2,7 +2,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 import { buildTrainingJudgePrompt, parseTrainingJudgeResponse } from "../src/lib/training-ai-judge";
-import { normalizeDifySpeechErrorMessage, validateTrainingAudioFile } from "../src/lib/training-voice";
+import {
+  normalizeDifySpeechErrorMessage,
+  normalizeTrainingAudioFileForDify,
+  validateTrainingAudioFile,
+} from "../src/lib/training-voice";
 
 test("training judge prompt anchors feedback to source question and current follow-up", () => {
   const prompt = buildTrainingJudgePrompt({
@@ -69,6 +73,17 @@ test("training audio validation accepts Chrome webm recordings with codec parame
   });
 
   assert.equal(validateTrainingAudioFile(chromeWebm), null);
+});
+
+test("training voice service strips browser codec parameters before forwarding to Dify", () => {
+  const chromeWebm = new File([new Blob(["voice"])], "answer.webm", {
+    type: "audio/webm;codecs=opus",
+  });
+  const difyFile = normalizeTrainingAudioFileForDify(chromeWebm);
+
+  assert.equal(difyFile.name, "answer.webm");
+  assert.equal(difyFile.size, chromeWebm.size);
+  assert.equal(difyFile.type, "audio/webm");
 });
 
 test("training voice service maps disabled Dify speech setting to an actionable Chinese message", () => {

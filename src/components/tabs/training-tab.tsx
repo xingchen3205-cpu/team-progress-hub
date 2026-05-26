@@ -467,11 +467,15 @@ export default function TrainingTab() {
       aiJudgeStreamRef.current = stream;
       aiJudgeAudioChunksRef.current = [];
       const recorderOptions =
-        MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
-          ? { mimeType: "audio/webm;codecs=opus" }
-          : MediaRecorder.isTypeSupported("audio/webm")
+        MediaRecorder.isTypeSupported("audio/webm")
             ? { mimeType: "audio/webm" }
-            : undefined;
+            : MediaRecorder.isTypeSupported("audio/mp4")
+              ? { mimeType: "audio/mp4" }
+              : MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+                ? { mimeType: "audio/webm;codecs=opus" }
+                : MediaRecorder.isTypeSupported("audio/mp4;codecs=mp4a.40.2")
+                  ? { mimeType: "audio/mp4;codecs=mp4a.40.2" }
+                  : undefined;
       const recorder = new MediaRecorder(stream, recorderOptions);
       aiJudgeMediaRecorderRef.current = recorder;
       recorder.ondataavailable = (event) => {
