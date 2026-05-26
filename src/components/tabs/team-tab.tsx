@@ -176,9 +176,6 @@ export default function TeamTab() {
             <div className="team-student-hero-copy">
               <span className="team-student-eyebrow">我的团队</span>
               <h1>{studentTeamName}</h1>
-              <p>
-                查看本项目组的导师、负责人和团队成员。学生端只呈现必要协作信息，不展示账号名和后台管理控件。
-              </p>
             </div>
             <div className="team-student-self-card">
               <UserAvatar
@@ -203,7 +200,6 @@ export default function TeamTab() {
               <article className="team-student-stat" key={item.roleLabel}>
                 <span>{item.roleLabel}</span>
                 <strong>{item.count}</strong>
-                <p>团队角色分布</p>
               </article>
             ))}
           </section>
@@ -211,8 +207,8 @@ export default function TeamTab() {
           <section className="team-student-member-section">
             <div className="team-student-section-head">
               <div>
-                <span>成员名单</span>
-                <h2>团队角色分布</h2>
+                <span>团队成员</span>
+                <h2>成员名单</h2>
               </div>
               <strong>{studentTeamMembers.length} 人</strong>
             </div>
@@ -236,7 +232,6 @@ export default function TeamTab() {
                       <span className={`team-student-role-chip ${teamRoleTagClassNames[member.systemRole]}`}>
                         {member.systemRole}
                       </span>
-                      <p>{member.responsibility || "暂无职责备注"}</p>
                     </div>
                   </article>
                 ))}

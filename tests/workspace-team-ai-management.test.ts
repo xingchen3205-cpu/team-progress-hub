@@ -101,9 +101,13 @@ test("student team management renders a dedicated read-only team overview", () =
   assert.match(teamSource, /team-student-hero/);
   assert.match(teamSource, /我的团队/);
   assert.match(teamSource, /团队角色分布/);
+  assert.match(teamSource, /成员名单/);
   assert.match(teamSource, /team-member-card-grid/);
   assert.match(teamSource, /team-member-profile-card/);
   assert.match(teamSource, /!isStudentTeamOverview/);
+  assert.doesNotMatch(teamSource, /查看本项目组的导师/);
+  assert.doesNotMatch(teamSource, /暂无职责备注/);
+  assert.doesNotMatch(teamSource, /member\.responsibility/);
 });
 
 test("expert account view is visually separate and omits group or AI controls", () => {

@@ -872,7 +872,10 @@ a:hover {
 }
 
 .team-student-hero-copy {
+  display: flex;
   min-width: 0;
+  flex-direction: column;
+  justify-content: center;
 }
 
 .team-student-eyebrow,
@@ -890,14 +893,6 @@ a:hover {
   font-weight: 850;
   line-height: 1.12;
   color: var(--color-ink);
-}
-
-.team-student-hero-copy p {
-  margin-top: 12px;
-  max-width: 680px;
-  font-size: 14px;
-  line-height: 1.85;
-  color: rgba(75, 85, 99, 0.9);
 }
 
 .team-student-self-card {
@@ -936,10 +931,14 @@ a:hover {
 }
 
 .team-student-stat {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
   border: 1px solid rgba(226, 232, 240, 0.92);
   border-radius: 16px;
   background: rgba(255, 255, 255, 0.88);
-  padding: 18px 20px;
+  padding: 18px 22px;
 }
 
 .team-student-stat span {
@@ -950,17 +949,10 @@ a:hover {
 
 .team-student-stat strong {
   display: block;
-  margin-top: 8px;
   font-size: 30px;
   font-weight: 850;
   line-height: 1;
   color: var(--color-primary);
-}
-
-.team-student-stat p {
-  margin-top: 8px;
-  font-size: 12px;
-  color: rgba(100, 116, 139, 0.8);
 }
 
 .team-student-member-section {
@@ -1004,6 +996,7 @@ a:hover {
 
 .team-member-profile-card {
   display: flex;
+  align-items: center;
   min-width: 0;
   gap: 14px;
   border: 1px solid rgba(226, 232, 240, 0.92);
@@ -1022,11 +1015,8 @@ a:hover {
   color: var(--color-ink);
 }
 
-.team-member-profile-card p {
-  margin-top: 9px;
-  font-size: 13px;
-  line-height: 1.65;
-  color: rgba(100, 116, 139, 0.92);
+.team-member-profile-card .team-student-role-chip {
+  margin-top: 8px;
 }
 
 .team-student-me-badge {
