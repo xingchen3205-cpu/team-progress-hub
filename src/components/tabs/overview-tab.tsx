@@ -931,7 +931,7 @@ export default function OverviewTab() {
           <div className="min-w-0">
             <div className="mb-3 inline-flex items-center gap-2 rounded-full border border-white/20 bg-white/10 px-3 py-1 text-[12px] font-medium text-white/85">
               <Landmark className="h-3.5 w-3.5" />
-              <span>南京铁道职业技术学院大赛管理平台</span>
+              <span>南京铁道职业技术学院创新创业管理平台</span>
             </div>
             <h1 className="text-[22px] font-bold tracking-[-0.02em] text-white sm:text-[26px]">
               欢迎回来，{welcomeName}

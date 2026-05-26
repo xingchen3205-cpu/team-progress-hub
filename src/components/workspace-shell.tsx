@@ -511,7 +511,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
         <div aria-hidden className="workspace-orb-field" />
         <div className="relative z-[1] depth-card w-full max-w-[calc(100vw-2rem)] rounded-2xl px-5 py-6 sm:max-w-xl sm:px-8 sm:py-8">
           <div className="depth-emphasis inline-flex items-center px-3 py-1 text-xs font-medium tracking-[0.08em] text-[color:var(--color-primary)]">
-            南京铁道职业技术学院大赛管理平台
+            南京铁道职业技术学院创新创业管理平台
           </div>
           <div className="mt-5 flex items-start gap-4">
             <div className="relative flex h-12 w-12 items-center justify-center rounded-2xl bg-white shadow-[0_16px_34px_rgba(var(--color-primary-rgb),0.12)]">
@@ -557,7 +557,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                   </div>
                   <div className="mx-auto max-w-[18em] md:mx-0">
                     <h1 className="text-center text-[28px] font-bold leading-tight tracking-tight md:text-left md:text-3xl">
-                      南京铁道职业技术学院大赛管理平台
+                      南京铁道职业技术学院创新创业管理平台
                     </h1>
                     <p className="mt-2 text-center text-sm text-blue-100 md:text-left">专家评审入口</p>
                   </div>
@@ -688,7 +688,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                     <Image alt="南铁校徽" className="h-7 w-7 object-contain" height={77} src="/official-logo.png" width={430} />
                   </div>
                   <div className="min-w-0">
-                    <h1 className="school-name text-[15px] font-bold leading-tight tracking-[0.01em]">南京铁道职业技术学院大赛管理平台</h1>
+                    <h1 className="school-name text-[15px] font-bold leading-tight tracking-[0.01em]">南京铁道职业技术学院创新创业管理平台</h1>
                     <p className="school-sub mt-1">南京铁道职业技术学院</p>
                   </div>
                 </div>
@@ -750,7 +750,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                       <Image alt="南铁校徽" className="h-7 w-7 object-contain" height={77} src="/official-logo.png" width={430} />
                     </div>
                     <div className="min-w-0">
-                      <h1 className="school-name text-[15px] font-bold leading-tight tracking-[0.01em]">南京铁道职业技术学院大赛管理平台</h1>
+                      <h1 className="school-name text-[15px] font-bold leading-tight tracking-[0.01em]">南京铁道职业技术学院创新创业管理平台</h1>
                       <p className="school-sub mt-1">南京铁道职业技术学院</p>
                     </div>
                   </div>

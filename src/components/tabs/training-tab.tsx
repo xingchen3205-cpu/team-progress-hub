@@ -1,8 +1,65 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import * as Workspace from "@/components/workspace-context";
+import type { AiPermissionState } from "@/components/assistant/assistant-types";
+
+type TrainingJudgeFeedback = {
+  score: number;
+  summary: string;
+  hitPoints: string[];
+  missingPoints: string[];
+  expressionRisks: string[];
+  improvedAnswer: string;
+  followUpQuestion: string;
+};
+
+type TrainingJudgeTurn = {
+  prompt: string;
+  transcript: string;
+  summary?: string;
+};
+
+type TrainingJudgeStage = "idle" | "recording" | "transcribing" | "editing" | "judging" | "feedback";
+
+type BrowserSpeechRecognitionEvent = {
+  results: ArrayLike<{
+    0?: {
+      transcript?: string;
+    };
+  }>;
+};
+
+type BrowserSpeechRecognitionErrorEvent = {
+  error?: string;
+};
+
+type BrowserSpeechRecognition = {
+  continuous: boolean;
+  interimResults: boolean;
+  lang: string;
+  onend: (() => void) | null;
+  onerror: ((event: BrowserSpeechRecognitionErrorEvent) => void) | null;
+  onresult: ((event: BrowserSpeechRecognitionEvent) => void) | null;
+  start: () => void;
+  stop: () => void;
+};
+
+type BrowserSpeechRecognitionConstructor = new () => BrowserSpeechRecognition;
+
+const getBrowserSpeechRecognition = () => {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  const windowWithSpeechRecognition = window as Window & {
+    SpeechRecognition?: BrowserSpeechRecognitionConstructor;
+    webkitSpeechRecognition?: BrowserSpeechRecognitionConstructor;
+  };
+
+  return windowWithSpeechRecognition.SpeechRecognition ?? windowWithSpeechRecognition.webkitSpeechRecognition ?? null;
+};
 
 export default function TrainingTab() {
   const {
@@ -73,18 +130,17 @@ export default function TrainingTab() {
 
   const [trainingQuestionSearch, setTrainingQuestionSearch] = useState("");
   const drillAllCategoryLabel = allTrainingQuestionCategoriesLabel || "全部分类";
+  const [trainingQuestionCategoryFilter, setTrainingQuestionCategoryFilter] = useState(drillAllCategoryLabel);
   const normalizedTrainingQuestionSearch = trainingQuestionSearch.trim().toLowerCase();
   const filteredTrainingQuestions = useMemo(() => {
-    if (!normalizedTrainingQuestionSearch) {
-      return trainingQuestions;
-    }
-
     return trainingQuestions.filter((item) =>
-      [item.question, item.answerPoints, item.category, item.createdByName]
-        .filter(Boolean)
-        .some((value) => `${value}`.toLowerCase().includes(normalizedTrainingQuestionSearch)),
+      (trainingQuestionCategoryFilter === drillAllCategoryLabel || item.category === trainingQuestionCategoryFilter) &&
+      (!normalizedTrainingQuestionSearch ||
+        [item.question, item.answerPoints, item.category, item.createdByName]
+          .filter(Boolean)
+          .some((value) => `${value}`.toLowerCase().includes(normalizedTrainingQuestionSearch))),
     );
-  }, [normalizedTrainingQuestionSearch, trainingQuestions]);
+  }, [drillAllCategoryLabel, normalizedTrainingQuestionSearch, trainingQuestionCategoryFilter, trainingQuestions]);
   const drillCategoryOptions = useMemo(() => {
     const categoryCounts = new Map<string, number>();
     const knownCategories = trainingQuestionCategories as readonly string[];
@@ -109,11 +165,432 @@ export default function TrainingTab() {
       ...customOptions,
     ];
   }, [drillAllCategoryLabel, trainingQuestionCategories, trainingQuestions]);
+  useEffect(() => {
+    if (drillCategoryOptions.some((item) => item.category === trainingQuestionCategoryFilter)) {
+      return;
+    }
+
+    setTrainingQuestionCategoryFilter(drillAllCategoryLabel);
+  }, [drillAllCategoryLabel, drillCategoryOptions, trainingQuestionCategoryFilter]);
+
+  const exportTrainingQuestionQueryParts = [
+    trainingQuestionSearch.trim() ? `q=${encodeURIComponent(trainingQuestionSearch.trim())}` : "",
+    trainingQuestionCategoryFilter !== drillAllCategoryLabel
+      ? `category=${encodeURIComponent(trainingQuestionCategoryFilter)}`
+      : "",
+  ].filter(Boolean);
   const exportTrainingQuestionsUrl = `/api/training/questions/export${
-    trainingQuestionSearch.trim()
-      ? `?q=${encodeURIComponent(trainingQuestionSearch.trim())}`
-      : ""
+    exportTrainingQuestionQueryParts.length > 0 ? `?${exportTrainingQuestionQueryParts.join("&")}` : ""
   }`;
+  const [aiJudgeStage, setAiJudgeStage] = useState<TrainingJudgeStage>("idle");
+  const [aiJudgeViewOpen, setAiJudgeViewOpen] = useState(false);
+  const [aiJudgeQuestionId, setAiJudgeQuestionId] = useState<string | null>(null);
+  const [aiJudgePrompt, setAiJudgePrompt] = useState("");
+  const [aiJudgeTranscript, setAiJudgeTranscript] = useState("");
+  const [aiJudgeTranscriptDraft, setAiJudgeTranscriptDraft] = useState("");
+  const [aiJudgeFeedback, setAiJudgeFeedback] = useState<TrainingJudgeFeedback | null>(null);
+  const [aiJudgeTurns, setAiJudgeTurns] = useState<TrainingJudgeTurn[]>([]);
+  const [aiJudgeError, setAiJudgeError] = useState("");
+  const [aiJudgePermission, setAiJudgePermission] = useState<AiPermissionState | null>(null);
+  const [aiJudgePermissionLoading, setAiJudgePermissionLoading] = useState(true);
+  const [aiJudgePermissionError, setAiJudgePermissionError] = useState("");
+  const [aiJudgeRecordingSeconds, setAiJudgeRecordingSeconds] = useState(0);
+  const aiJudgeSpeechRecognitionRef = useRef<BrowserSpeechRecognition | null>(null);
+  const aiJudgeSpeechTranscriptRef = useRef("");
+  const aiJudgeSpeechStopRequestedRef = useRef(false);
+  const aiJudgeSpeechErrorHandledRef = useRef(false);
+  const aiJudgeMediaRecorderRef = useRef<MediaRecorder | null>(null);
+  const aiJudgeAudioChunksRef = useRef<Blob[]>([]);
+  const aiJudgeStreamRef = useRef<MediaStream | null>(null);
+
+  const currentAiJudgeQuestion =
+    trainingQuestions.find((question) => question.id === aiJudgeQuestionId) ?? trainingQuestions[0] ?? null;
+  const currentAiJudgePrompt = aiJudgePrompt || currentAiJudgeQuestion?.question || "";
+  const aiJudgeAccessMessage = aiJudgePermissionLoading
+    ? "正在读取 AI 点评权限，请稍候。"
+    : aiJudgePermissionError
+      ? aiJudgePermissionError
+      : !aiJudgePermission?.isEnabled
+        ? "暂无 AI 点评权限，请联系管理员在团队管理中开启 AI 权限。"
+        : aiJudgePermission.remainingCount != null && aiJudgePermission.remainingCount <= 0
+          ? "AI 点评次数已用完，请联系管理员调整额度。"
+          : "";
+  const aiJudgeAccessBlocked = Boolean(aiJudgeAccessMessage);
+
+  useEffect(() => {
+    setAiJudgePrompt(currentAiJudgeQuestion?.question ?? "");
+    setAiJudgeTranscript("");
+    setAiJudgeTranscriptDraft("");
+    setAiJudgeFeedback(null);
+    setAiJudgeTurns([]);
+    setAiJudgeError("");
+    setAiJudgeStage("idle");
+  }, [currentAiJudgeQuestion?.id, currentAiJudgeQuestion?.question]);
+
+  useEffect(() => {
+    let active = true;
+
+    const loadAiJudgePermission = async () => {
+      setAiJudgePermissionLoading(true);
+      setAiJudgePermissionError("");
+
+      try {
+        const response = await fetch("/api/ai/permission", {
+          credentials: "same-origin",
+          cache: "no-store",
+        });
+        const payload = (await response.json().catch(() => null)) as
+          | { permission?: AiPermissionState; message?: string }
+          | null;
+
+        if (!response.ok || !payload?.permission) {
+          throw new Error(payload?.message || "AI 权限状态加载失败，请刷新后重试。");
+        }
+
+        if (active) {
+          setAiJudgePermission(payload.permission);
+        }
+      } catch (error) {
+        if (active) {
+          setAiJudgePermissionError(error instanceof Error ? error.message : "AI 权限状态加载失败，请刷新后重试。");
+        }
+      } finally {
+        if (active) {
+          setAiJudgePermissionLoading(false);
+        }
+      }
+    };
+
+    void loadAiJudgePermission();
+
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (aiJudgeStage !== "recording") {
+      return;
+    }
+
+    const intervalId = window.setInterval(() => {
+      setAiJudgeRecordingSeconds((current) => current + 1);
+    }, 1000);
+
+    return () => window.clearInterval(intervalId);
+  }, [aiJudgeStage]);
+
+  useEffect(
+    () => () => {
+      aiJudgeSpeechStopRequestedRef.current = true;
+      aiJudgeSpeechRecognitionRef.current?.stop();
+      const recorder = aiJudgeMediaRecorderRef.current;
+      if (recorder && recorder.state !== "inactive") {
+        recorder.stop();
+      }
+      aiJudgeStreamRef.current?.getTracks().forEach((track) => track.stop());
+    },
+    [],
+  );
+
+  const resetAiJudgeAnswer = () => {
+    setAiJudgeTranscript("");
+    setAiJudgeTranscriptDraft("");
+    setAiJudgeFeedback(null);
+    setAiJudgeError("");
+    setAiJudgeRecordingSeconds(0);
+    setAiJudgeStage("idle");
+  };
+
+  const enterManualAiJudgeAnswer = (message: string, transcript = "") => {
+    const nextTranscript = transcript.trim();
+    setAiJudgeTranscript(nextTranscript);
+    setAiJudgeTranscriptDraft(nextTranscript);
+    setAiJudgeError(message);
+    setAiJudgeStage("editing");
+  };
+
+  const requestAiJudgeMicrophonePermission = async () => {
+    if (typeof navigator === "undefined" || !navigator.mediaDevices?.getUserMedia) {
+      throw new Error("当前浏览器不支持网页录音，可直接输入回答后提交点评。");
+    }
+
+    return navigator.mediaDevices.getUserMedia({ audio: true });
+  };
+
+  const getAiJudgeMicrophoneErrorMessage = (error: unknown) => {
+    const errorName = typeof (error as { name?: unknown })?.name === "string" ? (error as { name: string }).name : "";
+    if (errorName === "NotAllowedError" || errorName === "SecurityError") {
+      return "麦克风未授权，请在浏览器地址栏允许麦克风权限后重试；也可直接输入回答后提交点评。";
+    }
+
+    return error instanceof Error ? `${error.message}，可直接输入回答后提交点评。` : "无法启动麦克风，可直接输入回答后提交点评。";
+  };
+
+  const drawRandomAiJudgeQuestion = () => {
+    if (trainingQuestions.length === 0) {
+      setAiJudgeError("题库里还没有可训练的问题，请先录入题库。");
+      return;
+    }
+
+    const currentQuestionId = currentAiJudgeQuestion?.id ?? null;
+    const candidates =
+      trainingQuestions.length === 1
+        ? trainingQuestions
+        : trainingQuestions.filter((question) => question.id !== currentQuestionId);
+    const nextQuestion = candidates[Math.floor(Math.random() * candidates.length)];
+    if (!nextQuestion) {
+      return;
+    }
+
+    setAiJudgeQuestionId(nextQuestion.id);
+    setAiJudgePrompt(nextQuestion.question);
+    resetAiJudgeAnswer();
+  };
+
+  const uploadAiJudgeAudio = async (blob: Blob) => {
+    const file = new File([blob], `ai-judge-answer-${Date.now()}.webm`, {
+      type: blob.type || "audio/webm",
+    });
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const response = await fetch("/api/training/voice-transcripts", {
+      method: "POST",
+      body: formData,
+      credentials: "same-origin",
+      cache: "no-store",
+    });
+    const payload = (await response.json().catch(() => null)) as { transcript?: string; message?: string } | null;
+    if (!response.ok) {
+      throw new Error(payload?.message || "语音转写失败");
+    }
+
+    return payload?.transcript?.trim() || "";
+  };
+
+  const finishAiJudgeBrowserSpeech = () => {
+    const transcript = aiJudgeSpeechTranscriptRef.current.trim();
+    aiJudgeSpeechRecognitionRef.current = null;
+    if (aiJudgeSpeechErrorHandledRef.current) {
+      aiJudgeSpeechErrorHandledRef.current = false;
+      return;
+    }
+
+    if (transcript) {
+      setAiJudgeTranscript(transcript);
+      setAiJudgeTranscriptDraft(transcript);
+      setAiJudgeStage("editing");
+      return;
+    }
+
+    enterManualAiJudgeAnswer("没有识别到有效语音内容，可直接输入回答后提交点评。");
+  };
+
+  const startAiJudgeBrowserSpeech = (SpeechRecognitionConstructor: BrowserSpeechRecognitionConstructor) => {
+    aiJudgeSpeechTranscriptRef.current = "";
+    aiJudgeSpeechStopRequestedRef.current = false;
+    aiJudgeSpeechErrorHandledRef.current = false;
+    const recognition = new SpeechRecognitionConstructor();
+    aiJudgeSpeechRecognitionRef.current = recognition;
+    recognition.lang = "zh-CN";
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.onresult = (event) => {
+      const transcriptParts: string[] = [];
+      for (let index = 0; index < event.results.length; index += 1) {
+        const transcript = event.results[index]?.[0]?.transcript?.trim();
+        if (transcript) {
+          transcriptParts.push(transcript);
+        }
+      }
+      aiJudgeSpeechTranscriptRef.current = transcriptParts.join(" ").trim();
+    };
+    recognition.onerror = (event) => {
+      if (aiJudgeSpeechStopRequestedRef.current) {
+        return;
+      }
+
+      const permissionError = event.error === "not-allowed";
+      const currentTranscript = aiJudgeSpeechTranscriptRef.current.trim();
+      aiJudgeSpeechErrorHandledRef.current = true;
+      aiJudgeSpeechRecognitionRef.current = null;
+      enterManualAiJudgeAnswer(
+        permissionError
+          ? "麦克风未授权，可直接输入回答后提交点评，或允许浏览器麦克风权限后重试。"
+          : "浏览器语音识别暂时不可用，可直接输入回答后提交点评。",
+        currentTranscript,
+      );
+    };
+    recognition.onend = finishAiJudgeBrowserSpeech;
+    recognition.start();
+    setAiJudgeStage("recording");
+  };
+
+  const startAiJudgeRecording = async () => {
+    if (!currentAiJudgeQuestion) {
+      setAiJudgeError("题库里还没有可训练的问题，请先录入题库。");
+      return;
+    }
+
+    if (aiJudgeAccessBlocked) {
+      setAiJudgeError(aiJudgeAccessMessage);
+      return;
+    }
+
+    setAiJudgeError("");
+    setAiJudgeTranscript("");
+    setAiJudgeTranscriptDraft("");
+    setAiJudgeFeedback(null);
+    setAiJudgeRecordingSeconds(0);
+
+    if (typeof MediaRecorder === "undefined") {
+      const SpeechRecognitionConstructor = getBrowserSpeechRecognition();
+      if (SpeechRecognitionConstructor) {
+        try {
+          const permissionStream = await requestAiJudgeMicrophonePermission();
+          permissionStream.getTracks().forEach((track) => track.stop());
+          startAiJudgeBrowserSpeech(SpeechRecognitionConstructor);
+        } catch (error) {
+          aiJudgeSpeechRecognitionRef.current = null;
+          enterManualAiJudgeAnswer(getAiJudgeMicrophoneErrorMessage(error));
+        }
+        return;
+      }
+
+      enterManualAiJudgeAnswer("当前浏览器不支持网页录音，也无法使用浏览器语音识别，可直接输入回答后提交点评。");
+      return;
+    }
+
+    try {
+      const stream = await requestAiJudgeMicrophonePermission();
+      aiJudgeStreamRef.current = stream;
+      aiJudgeAudioChunksRef.current = [];
+      const recorderOptions =
+        MediaRecorder.isTypeSupported("audio/webm;codecs=opus")
+          ? { mimeType: "audio/webm;codecs=opus" }
+          : MediaRecorder.isTypeSupported("audio/webm")
+            ? { mimeType: "audio/webm" }
+            : undefined;
+      const recorder = new MediaRecorder(stream, recorderOptions);
+      aiJudgeMediaRecorderRef.current = recorder;
+      recorder.ondataavailable = (event) => {
+        if (event.data.size > 0) {
+          aiJudgeAudioChunksRef.current.push(event.data);
+        }
+      };
+      recorder.onstop = async () => {
+        setAiJudgeStage("transcribing");
+        aiJudgeStreamRef.current?.getTracks().forEach((track) => track.stop());
+        aiJudgeStreamRef.current = null;
+        const blob = new Blob(aiJudgeAudioChunksRef.current, {
+          type: recorder.mimeType || "audio/webm",
+        });
+
+        try {
+          const transcript = await uploadAiJudgeAudio(blob);
+          if (!transcript) {
+            throw new Error("没有识别到有效语音内容");
+          }
+          setAiJudgeTranscript(transcript);
+          setAiJudgeTranscriptDraft(transcript);
+          setAiJudgeStage("editing");
+        } catch (error) {
+          enterManualAiJudgeAnswer(
+            error instanceof Error ? `${error.message}，可直接输入回答后提交点评。` : "语音转写失败，可直接输入回答后提交点评。",
+          );
+        }
+      };
+
+      recorder.start();
+      setAiJudgeStage("recording");
+    } catch (error) {
+      aiJudgeStreamRef.current?.getTracks().forEach((track) => track.stop());
+      aiJudgeStreamRef.current = null;
+      enterManualAiJudgeAnswer(getAiJudgeMicrophoneErrorMessage(error));
+    }
+  };
+
+  const stopAiJudgeRecording = () => {
+    if (aiJudgeSpeechRecognitionRef.current) {
+      aiJudgeSpeechStopRequestedRef.current = true;
+      aiJudgeSpeechRecognitionRef.current.stop();
+      return;
+    }
+
+    if (aiJudgeMediaRecorderRef.current?.state === "recording") {
+      aiJudgeMediaRecorderRef.current.stop();
+    }
+  };
+
+  const submitAiJudgeFeedback = async () => {
+    if (!currentAiJudgeQuestion) {
+      setAiJudgeError("请先选择一道训练题。");
+      return;
+    }
+
+    if (aiJudgeAccessBlocked) {
+      setAiJudgeError(aiJudgeAccessMessage);
+      return;
+    }
+
+    const transcript = aiJudgeTranscriptDraft.trim();
+    if (!transcript) {
+      setAiJudgeError("请先输入回答内容，或完成语音回答并确认转写内容。");
+      return;
+    }
+
+    setAiJudgeStage("judging");
+    setAiJudgeError("");
+
+    try {
+      const response = await fetch("/api/training/ai-judge", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        cache: "no-store",
+        body: JSON.stringify({
+          questionId: currentAiJudgeQuestion.id,
+          currentPrompt: currentAiJudgePrompt,
+          transcript,
+          previousTurns: aiJudgeTurns,
+        }),
+      });
+      const payload = (await response.json().catch(() => null)) as
+        | { feedback?: TrainingJudgeFeedback; message?: string; permission?: AiPermissionState }
+        | null;
+      if (!response.ok || !payload?.feedback) {
+        throw new Error(payload?.message || "AI 模拟评委暂时不可用");
+      }
+
+      if (payload.permission) {
+        setAiJudgePermission(payload.permission);
+      }
+      setAiJudgeTranscript(transcript);
+      setAiJudgeFeedback(payload.feedback);
+      setAiJudgeTurns((current) => [
+        ...current,
+        {
+          prompt: currentAiJudgePrompt,
+          transcript,
+          summary: payload.feedback?.summary,
+        },
+      ]);
+      setAiJudgeStage("feedback");
+    } catch (error) {
+      setAiJudgeError(error instanceof Error ? error.message : "AI 模拟评委暂时不可用");
+      setAiJudgeStage("editing");
+    }
+  };
+
+  const continueAiJudgeFollowUp = () => {
+    if (!aiJudgeFeedback?.followUpQuestion) {
+      return;
+    }
+
+    setAiJudgePrompt(aiJudgeFeedback.followUpQuestion);
+    resetAiJudgeAnswer();
+  };
 
   const renderTraining = () => {
     const remainingSeconds = Math.max(trainingTimerDuration - trainingTimerElapsed, 0);
@@ -215,8 +692,12 @@ export default function TrainingTab() {
           ))}
         </section>
 
-        <section className={`grid gap-4 ${trainingPanel === "qa" ? "xl:grid-cols-[minmax(0,1fr)_420px]" : "xl:grid-cols-1"}`}>
-          <article className={`${surfaceCardClassName} ${trainingPanel === "qa" ? "" : "hidden"}`}>
+        <section
+          className={`grid gap-4 ${
+            trainingPanel === "qa" && !aiJudgeViewOpen ? "xl:grid-cols-[minmax(0,1fr)_420px]" : "xl:grid-cols-1"
+          }`}
+        >
+          <article className={`${surfaceCardClassName} ${trainingPanel === "qa" && !aiJudgeViewOpen ? "" : "hidden"}`}>
             <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
               <div className="min-w-0 flex-1">
                 <span className="rounded-md bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-600">
@@ -228,6 +709,9 @@ export default function TrainingTab() {
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
+                <ActionButton onClick={() => setAiJudgeViewOpen(true)} variant="primary">
+                  进入 AI 模拟答辩
+                </ActionButton>
                 <ActionButton onClick={openQuestionImportModal}>
                   <span className="inline-flex items-center gap-2">
                     <Upload className="h-4 w-4" />
@@ -324,6 +808,20 @@ export default function TrainingTab() {
                     </p>
                   </div>
                   <div className="flex w-full min-w-0 flex-col gap-2 sm:flex-row xl:max-w-[760px] xl:justify-end">
+                    <label className="flex min-w-0 flex-col gap-1 text-xs font-medium text-slate-500 sm:w-[180px]">
+                      题库分类
+                      <select
+                        className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-blue-300 focus:ring-4 focus:ring-blue-100"
+                        onChange={(event) => setTrainingQuestionCategoryFilter(event.target.value)}
+                        value={trainingQuestionCategoryFilter}
+                      >
+                        {drillCategoryOptions.map((item) => (
+                          <option key={item.category} value={item.category}>
+                            {item.category}（{item.count}）
+                          </option>
+                        ))}
+                      </select>
+                    </label>
                     <label className="relative block min-w-0 flex-1 sm:min-w-[260px]">
                       <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                       <input
@@ -393,7 +891,7 @@ export default function TrainingTab() {
                       </div>
                       <div className="flex flex-wrap gap-2 md:justify-end">
                         <ActionButton onClick={() => setActiveDrillQuestionId(item.id)}>
-                          抽这题
+                          抽查这题
                         </ActionButton>
                         {canManageTrainingQuestion(item) ? (
                           <>
@@ -428,7 +926,207 @@ export default function TrainingTab() {
           </article>
 
           <div className="space-y-4">
-            <article className={`${surfaceCardClassName} ${trainingPanel === "qa" ? "" : "hidden"}`}>
+            <article className={`${surfaceCardClassName} ${trainingPanel === "qa" && aiJudgeViewOpen ? "" : "hidden"}`}>
+              <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                <div className="min-w-0">
+                  <span className="rounded-md bg-slate-950 px-2.5 py-1 text-xs font-semibold text-white">
+                    AI 模拟评委
+                  </span>
+                  <h3 className="mt-3 text-2xl font-semibold leading-8 text-slate-950">AI 模拟答辩工作台</h3>
+                  <p className="mt-2 max-w-3xl text-sm leading-6 text-slate-500">
+                    独立完成抽题、语音回答、转写确认、AI 点评和连续追问，不影响右侧抽查模式的题目。
+                  </p>
+                </div>
+                <div className="flex flex-wrap gap-2 lg:justify-end">
+                  <ActionButton onClick={() => setAiJudgeViewOpen(false)}>返回题库</ActionButton>
+                  <ActionButton
+                    disabled={aiJudgeStage === "recording" || aiJudgeStage === "transcribing" || aiJudgeStage === "judging"}
+                    onClick={drawRandomAiJudgeQuestion}
+                  >
+                    换一道题
+                  </ActionButton>
+                </div>
+              </div>
+
+              <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4">
+                {currentAiJudgeQuestion ? (
+                  <>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
+                        {currentAiJudgeQuestion.category}
+                      </span>
+                      <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-600">
+                        第 {aiJudgeTurns.length + 1} 轮
+                      </span>
+                    </div>
+                    <p className="mt-3 text-lg font-semibold leading-8 text-slate-950">{currentAiJudgePrompt}</p>
+                  </>
+                ) : (
+                  <p className="text-sm leading-7 text-slate-500">题库为空时无法开始 AI 模拟评委训练。</p>
+                )}
+              </div>
+
+              <div className="mt-4 grid gap-3 sm:grid-cols-[minmax(0,1fr)_auto] sm:items-center">
+                <div className="rounded-2xl border border-blue-100 bg-blue-50/60 px-4 py-3">
+                  <p className="text-xs font-semibold text-blue-600">录音转写回答</p>
+                  <p className="mt-1 text-sm text-slate-600">
+                    {aiJudgeStage === "recording"
+                      ? `正在录音 ${formatSeconds(aiJudgeRecordingSeconds)}，回答完请点“结束回答”。`
+                      : aiJudgeStage === "transcribing"
+                        ? "正在提交录音并进行服务端转写，请稍候。"
+                        : aiJudgeStage === "judging"
+                          ? "AI 正在对照题库要点点评，并准备下一轮追问。"
+                          : "点击开始回答，系统会录音并交由服务端转写为文字。"}
+                  </p>
+                </div>
+                {aiJudgeStage === "recording" ? (
+                  <ActionButton onClick={stopAiJudgeRecording} variant="danger">
+                    结束回答
+                  </ActionButton>
+                ) : (
+                  <ActionButton
+                    disabled={
+                      aiJudgeAccessBlocked ||
+                      aiJudgeStage === "transcribing" ||
+                      aiJudgeStage === "judging" ||
+                      !currentAiJudgeQuestion
+                    }
+                    onClick={startAiJudgeRecording}
+                    variant="primary"
+                  >
+                    开始回答
+                  </ActionButton>
+                )}
+              </div>
+
+              {aiJudgeAccessMessage ? (
+                <div className="mt-3 rounded-xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-700">
+                  {aiJudgeAccessMessage}
+                </div>
+              ) : null}
+
+              {aiJudgeError ? (
+                <div className="mt-3 rounded-xl border border-rose-100 bg-rose-50 px-4 py-3 text-sm leading-6 text-rose-700">
+                  {aiJudgeError}
+                </div>
+              ) : null}
+
+              {aiJudgeStage === "judging" ? (
+                <div className="mt-4 rounded-2xl border border-blue-100 bg-blue-50/70 px-4 py-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-sm font-semibold text-blue-700">AI 正在评估</p>
+                    <span className="text-xs font-medium text-blue-500">对照题库要点生成点评</span>
+                  </div>
+                  <div
+                    aria-label="AI 正在评估回答"
+                    aria-valuetext="AI 正在评估"
+                    className="mt-3 h-2 overflow-hidden rounded-full bg-white"
+                    role="progressbar"
+                  >
+                    <div className="h-full w-2/3 animate-pulse rounded-full bg-blue-600 shadow-[0_0_16px_rgba(37,99,235,0.45)]" />
+                  </div>
+                </div>
+              ) : null}
+
+              {aiJudgeStage === "editing" || aiJudgeStage === "feedback" || aiJudgeTranscript ? (
+                <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-sm font-semibold text-slate-900">确认转写</p>
+                    <span className="text-xs text-slate-400">仅修正语音识别错误；识别不可用时，也可以直接输入回答。</span>
+                  </div>
+                  <textarea
+                    className={`${textareaClassName} mt-3 min-h-[128px]`}
+                    disabled={aiJudgeAccessBlocked || aiJudgeStage === "judging" || aiJudgeStage === "transcribing"}
+                    onChange={(event) => setAiJudgeTranscriptDraft(event.target.value)}
+                    placeholder="语音识别失败时，可以直接在这里输入你的回答，再提交点评。"
+                    value={aiJudgeTranscriptDraft}
+                  />
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <ActionButton
+                      disabled={aiJudgeAccessBlocked || aiJudgeStage === "judging" || !aiJudgeTranscriptDraft.trim()}
+                      onClick={submitAiJudgeFeedback}
+                      variant="primary"
+                    >
+                      提交点评
+                    </ActionButton>
+                    <ActionButton disabled={aiJudgeStage === "judging"} onClick={resetAiJudgeAnswer}>
+                      重新回答
+                    </ActionButton>
+                  </div>
+                </div>
+              ) : null}
+
+              {aiJudgeFeedback ? (
+                <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">AI 点评</p>
+                      <p className="mt-1 text-sm leading-6 text-slate-600">{aiJudgeFeedback.summary}</p>
+                    </div>
+                    <div className="min-w-[112px] rounded-2xl bg-slate-950 px-5 py-4 text-center text-white">
+                      <p className="text-xs text-white/60">回答完整度</p>
+                      <p className="mt-1 text-2xl font-bold tabular-nums">{aiJudgeFeedback.score}</p>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 grid gap-3 lg:grid-cols-3">
+                    {[
+                      { title: "命中要点", items: aiJudgeFeedback.hitPoints, tone: "emerald" },
+                      { title: "遗漏重点", items: aiJudgeFeedback.missingPoints, tone: "amber" },
+                      { title: "表达风险", items: aiJudgeFeedback.expressionRisks, tone: "rose" },
+                    ].map((block) => (
+                      <div className="min-h-[160px] rounded-xl border border-slate-100 bg-slate-50 p-4" key={block.title}>
+                        <p
+                          className={`text-xs font-semibold ${
+                            block.tone === "emerald"
+                              ? "text-emerald-600"
+                              : block.tone === "amber"
+                                ? "text-amber-600"
+                                : "text-rose-600"
+                          }`}
+                        >
+                          {block.title}
+                        </p>
+                        <ul className="mt-3 space-y-2 text-sm leading-6 text-slate-600">
+                          {block.items.length > 0 ? (
+                            block.items.map((item) => (
+                              <li className="rounded-lg bg-white/70 px-3 py-2" key={item}>
+                                {item}
+                              </li>
+                            ))
+                          ) : (
+                            <li className="rounded-lg bg-white/70 px-3 py-2">暂无明显记录</li>
+                          )}
+                        </ul>
+                      </div>
+                    ))}
+                  </div>
+
+                  {aiJudgeFeedback.improvedAnswer ? (
+                    <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50/60 p-3">
+                      <p className="text-xs font-semibold text-blue-600">优化回答参考</p>
+                      <p className="mt-2 text-sm leading-7 text-slate-700">{aiJudgeFeedback.improvedAnswer}</p>
+                    </div>
+                  ) : null}
+
+                  {aiJudgeFeedback.followUpQuestion ? (
+                    <div className="mt-4 rounded-xl border border-slate-200 bg-white p-3">
+                      <p className="text-xs font-semibold text-slate-500">下一轮追问</p>
+                      <p className="mt-2 text-base font-semibold leading-7 text-slate-900">
+                        {aiJudgeFeedback.followUpQuestion}
+                      </p>
+                      <div className="mt-3">
+                        <ActionButton onClick={continueAiJudgeFollowUp} variant="primary">
+                          继续追问
+                        </ActionButton>
+                      </div>
+                    </div>
+                  ) : null}
+                </div>
+              ) : null}
+            </article>
+
+            <article className={`${surfaceCardClassName} ${trainingPanel === "qa" && !aiJudgeViewOpen ? "" : "hidden"}`}>
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <h3 className="text-base font-semibold text-slate-900">抽查模式</h3>

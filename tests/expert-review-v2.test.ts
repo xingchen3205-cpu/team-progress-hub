@@ -187,7 +187,7 @@ describe("expert review v2 constraints", () => {
     assert.doesNotMatch(tabSource, /系统会实时更新管理端和投屏数据/);
     assert.doesNotMatch(tabSource, /管理端和投屏数据已同步刷新/);
     assert.match(shellSource, /currentRole === "expert"/);
-    assert.match(shellSource, /南京铁道职业技术学院大赛管理平台/);
+    assert.match(shellSource, /南京铁道职业技术学院创新创业管理平台/);
     assert.doesNotMatch(shellSource, /EXPERT REVIEW PORTAL/);
   });
 
@@ -197,11 +197,11 @@ describe("expert review v2 constraints", () => {
     const layoutSource = readSource("src/app/layout.tsx");
 
     assert.match(shellSource, /currentRole === "expert"/);
-    assert.match(shellSource, /南京铁道职业技术学院大赛管理平台/);
+    assert.match(shellSource, /南京铁道职业技术学院创新创业管理平台/);
     assert.match(shellSource, /text-center/);
     assert.match(shellSource, /md:text-left/);
     assert.match(shellSource, /\/brand\/njrts-logo\.png/);
-    assert.match(layoutSource, /title:\s*"南京铁道职业技术学院大赛管理平台"/);
+    assert.match(layoutSource, /title:\s*"南京铁道职业技术学院创新创业管理平台"/);
     assert.doesNotMatch(shellSource, /EXPERT REVIEW PORTAL|大学生创新大赛评审系统|大赛评审系统/);
     assert.doesNotMatch(
       shellSource.match(/if \(currentRole === "expert"\)[\s\S]*?return \(/)?.[0] ?? "",

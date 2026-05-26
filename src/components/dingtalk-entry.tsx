@@ -140,7 +140,7 @@ export function DingTalkEntry({ config }: { config: DingTalkPublicConfig }) {
 
     if (!isDingTalkRuntime()) {
       setStatus("error");
-      setMessage("请从钉钉工作台打开“大赛管理平台”，不要使用普通浏览器访问。");
+      setMessage("请从钉钉工作台打开“创新创业管理平台”，不要使用普通浏览器访问。");
       return;
     }
 
@@ -151,7 +151,7 @@ export function DingTalkEntry({ config }: { config: DingTalkPublicConfig }) {
       const code = await requestAuthCode(config.corpId);
       setAuthCode(code);
 
-      setMessage("正在进入大赛管理平台...");
+      setMessage("正在进入创新创业管理平台...");
       const { response, data } = await postJson<DingTalkAuthResponse>("/api/dingtalk/auth", {
         authCode: code,
       });
@@ -241,7 +241,7 @@ export function DingTalkEntry({ config }: { config: DingTalkPublicConfig }) {
                 </div>
                 <h1 className="mt-8 text-3xl font-black leading-tight tracking-[-0.02em] sm:text-4xl">
                   南京铁道职业技术学院
-                  <span className="mt-2 block">大赛管理平台</span>
+                  <span className="mt-2 block">创新创业管理平台</span>
                 </h1>
                 <p className="mt-5 max-w-sm text-sm leading-7 text-white/78">
                   从钉钉工作台进入后，系统会识别当前钉钉账号。首次使用需要绑定一次平台账号，后续可免密进入。

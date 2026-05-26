@@ -19,7 +19,7 @@ export const securityHeaders = [
   },
   {
     key: "Permissions-Policy",
-    value: "geolocation=(), microphone=(), camera=()",
+    value: "geolocation=(), microphone=(self), camera=()",
   },
   {
     // Report-only first so we can harden the policy without risking a broken workbench.

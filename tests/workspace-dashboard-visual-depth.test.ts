@@ -24,7 +24,7 @@ test("overview-tab contains system full name", () => {
     path.join(process.cwd(), "src/components/tabs/overview-tab.tsx"),
     "utf8",
   );
-  assert.match(source, /南京铁道职业技术学院大赛管理平台/);
+  assert.match(source, /南京铁道职业技术学院创新创业管理平台/);
 });
 
 test("overview-tab keeps all required module titles", () => {
@@ -55,7 +55,7 @@ test("workspace-shell brand area contains full system name and school", () => {
     path.join(process.cwd(), "src/components/workspace-shell.tsx"),
     "utf8",
   );
-  assert.match(source, /南京铁道职业技术学院大赛管理平台/);
+  assert.match(source, /南京铁道职业技术学院创新创业管理平台/);
   assert.match(source, /南京铁道职业技术学院/);
   assert.match(source, /getSidebarUserMeta/);
   assert.match(source, /全校管理/);

@@ -37,7 +37,7 @@ test("DingTalk workbench entry page requests auth code and explains unbound acco
   assert.match(component, /\/api\/dingtalk\/auth/);
   assert.match(component, /\/api\/dingtalk\/bind/);
   assert.match(component, /当前钉钉账号尚未绑定/);
-  assert.match(component, /南京铁道职业技术学院[\s\S]*大赛管理平台/);
+  assert.match(component, /南京铁道职业技术学院[\s\S]*创新创业管理平台/);
 });
 
 test("DingTalk auth routes set the platform session cookie after bound login or password binding", () => {

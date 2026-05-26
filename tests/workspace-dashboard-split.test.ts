@@ -99,6 +99,106 @@ test("training drill mode can draw from a selected question category", () => {
   assert.match(trainingTabSource, /setSelectedDrillCategory/);
 });
 
+test("training center supports web voice AI judge practice", () => {
+  const trainingTabSource = read("src/components/tabs/training-tab.tsx");
+  const transcriptRouteSource = read("src/app/api/training/voice-transcripts/route.ts");
+  const judgeRouteSource = read("src/app/api/training/ai-judge/route.ts");
+  const voiceLibSource = read("src/lib/training-voice.ts");
+  const judgeLibSource = read("src/lib/training-ai-judge.ts");
+
+  assert.match(trainingTabSource, /AI 模拟评委/);
+  assert.match(trainingTabSource, /webkitSpeechRecognition/);
+  assert.match(trainingTabSource, /SpeechRecognition/);
+  assert.match(trainingTabSource, /MediaRecorder/);
+  assert.match(trainingTabSource, /开始回答/);
+  assert.match(trainingTabSource, /确认转写/);
+  assert.match(trainingTabSource, /提交点评/);
+  assert.match(trainingTabSource, /继续追问/);
+  assert.match(trainingTabSource, /仅修正语音识别错误/);
+  assert.match(trainingTabSource, /\/api\/training\/voice-transcripts/);
+  assert.match(trainingTabSource, /\/api\/training\/ai-judge/);
+
+  assert.match(transcriptRouteSource, /assertMainWorkspaceRole\(user\.role\)/);
+  assert.match(transcriptRouteSource, /request\.formData\(\)/);
+  assert.match(transcriptRouteSource, /transcribeTrainingAudio/);
+  assert.match(voiceLibSource, /\/audio-to-text/);
+  assert.match(voiceLibSource, /new FormData\(\)/);
+  assert.match(voiceLibSource, /DIFY_API_KEY/);
+
+  const securitySource = read("src/lib/security.ts");
+  assert.match(securitySource, /microphone=\(self\)/);
+  assert.doesNotMatch(securitySource, /microphone=\(\)/);
+
+  assert.match(judgeRouteSource, /assertMainWorkspaceRole\(user\.role\)/);
+  assert.match(judgeRouteSource, /buildTeamScopedResourceWhere/);
+  assert.match(judgeRouteSource, /generateTrainingJudgeFeedback/);
+  assert.match(judgeLibSource, /buildTrainingJudgePrompt/);
+  assert.match(judgeLibSource, /sendAiChatMessage/);
+  assert.match(judgeLibSource, /followUpQuestion/);
+  assert.match(judgeLibSource, /命中要点/);
+});
+
+test("training AI judge records audio before falling back to browser speech recognition", () => {
+  const trainingTabSource = read("src/components/tabs/training-tab.tsx");
+  const startRecordingIndex = trainingTabSource.indexOf("const startAiJudgeRecording = async () =>");
+  const mediaRecorderIndex = trainingTabSource.indexOf("typeof MediaRecorder", startRecordingIndex);
+  const speechRecognitionIndex = trainingTabSource.indexOf("getBrowserSpeechRecognition()", startRecordingIndex);
+
+  assert.ok(startRecordingIndex >= 0);
+  assert.ok(mediaRecorderIndex >= 0);
+  assert.ok(speechRecognitionIndex >= 0);
+  assert.ok(mediaRecorderIndex < speechRecognitionIndex);
+  assert.match(trainingTabSource, /录音转写回答/);
+  assert.match(trainingTabSource, /服务端转写/);
+});
+
+test("training voice fallback lets users type an answer when speech recognition is unavailable", () => {
+  const trainingTabSource = read("src/components/tabs/training-tab.tsx");
+  const judgeRouteSource = read("src/app/api/training/ai-judge/route.ts");
+  const voiceLibSource = read("src/lib/training-voice.ts");
+
+  assert.match(trainingTabSource, /enterManualAiJudgeAnswer/);
+  assert.match(trainingTabSource, /可直接输入回答后提交点评/);
+  assert.match(trainingTabSource, /语音识别失败时，可以直接在这里输入你的回答/);
+  assert.doesNotMatch(trainingTabSource, /没有识别到有效语音内容，请重新回答/);
+  assert.match(judgeRouteSource, /请先输入回答内容，或完成语音回答并确认转写内容/);
+  assert.doesNotMatch(judgeRouteSource, /请先完成语音回答并确认转写内容/);
+  assert.doesNotMatch(voiceLibSource, /没有识别到有效语音内容，请重新回答/);
+});
+
+test("training AI judge uses explicit microphone prompt and team AI permission gating", () => {
+  const trainingTabSource = read("src/components/tabs/training-tab.tsx");
+
+  assert.match(trainingTabSource, /requestAiJudgeMicrophonePermission/);
+  assert.match(trainingTabSource, /navigator\.mediaDevices\.getUserMedia\(\{ audio: true \}\)/);
+  assert.match(trainingTabSource, /\/api\/ai\/permission/);
+  assert.match(trainingTabSource, /aiJudgePermission/);
+  assert.match(trainingTabSource, /暂无 AI 点评权限/);
+  assert.match(trainingTabSource, /次数已用完/);
+});
+
+test("training AI judge question is independent from drill mode and bank can filter by category", () => {
+  const trainingTabSource = read("src/components/tabs/training-tab.tsx");
+
+  assert.match(trainingTabSource, /aiJudgeQuestionId/);
+  assert.match(trainingTabSource, /drawRandomAiJudgeQuestion/);
+  assert.doesNotMatch(trainingTabSource, /const currentAiJudgeQuestion = activeDrillQuestion/);
+  assert.match(trainingTabSource, /trainingQuestionCategoryFilter/);
+  assert.match(trainingTabSource, /题库分类/);
+  assert.match(trainingTabSource, /category=\$\{encodeURIComponent\(trainingQuestionCategoryFilter\)\}/);
+});
+
+test("training AI judge opens as a dedicated workspace with judging progress", () => {
+  const trainingTabSource = read("src/components/tabs/training-tab.tsx");
+
+  assert.match(trainingTabSource, /aiJudgeViewOpen/);
+  assert.match(trainingTabSource, /进入 AI 模拟答辩/);
+  assert.match(trainingTabSource, /返回题库/);
+  assert.match(trainingTabSource, /AI 正在评估/);
+  assert.match(trainingTabSource, /role="progressbar"/);
+  assert.match(trainingTabSource, /aiJudgeStage === "judging"/);
+});
+
 test("system administrator has a question bank center and everyone can export visible question banks", () => {
   const contextSource = read("src/components/workspace-context.tsx");
   const dashboardSource = read("src/components/workspace-dashboard.tsx");
