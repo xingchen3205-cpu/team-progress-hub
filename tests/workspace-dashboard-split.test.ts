@@ -152,6 +152,21 @@ test("training AI judge records audio before falling back to browser speech reco
   assert.match(trainingTabSource, /服务端转写/);
 });
 
+test("training AI judge shows live transcript preview while recording and keeps it as fallback", () => {
+  const trainingTabSource = read("src/components/tabs/training-tab.tsx");
+  const startRecordingIndex = trainingTabSource.indexOf("const startAiJudgeRecording = async () =>");
+  const recorderStartIndex = trainingTabSource.indexOf("recorder.start()", startRecordingIndex);
+  const livePreviewStartIndex = trainingTabSource.indexOf("startAiJudgeBrowserSpeech(SpeechRecognitionConstructor, \"preview\")", startRecordingIndex);
+
+  assert.ok(startRecordingIndex >= 0);
+  assert.ok(recorderStartIndex >= 0);
+  assert.ok(livePreviewStartIndex > recorderStartIndex);
+  assert.match(trainingTabSource, /aiJudgeLiveTranscript/);
+  assert.match(trainingTabSource, /实时转写预览/);
+  assert.match(trainingTabSource, /结束后可编辑确认/);
+  assert.match(trainingTabSource, /实时识别文本/);
+});
+
 test("training voice fallback lets users type an answer when speech recognition is unavailable", () => {
   const trainingTabSource = read("src/components/tabs/training-tab.tsx");
   const judgeRouteSource = read("src/app/api/training/ai-judge/route.ts");

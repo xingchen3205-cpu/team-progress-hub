@@ -47,6 +47,7 @@ type BrowserSpeechRecognition = {
 };
 
 type BrowserSpeechRecognitionConstructor = new () => BrowserSpeechRecognition;
+type BrowserSpeechRecognitionMode = "fallback" | "preview";
 
 const getBrowserSpeechRecognition = () => {
   if (typeof window === "undefined") {
@@ -188,6 +189,7 @@ export default function TrainingTab() {
   const [aiJudgePrompt, setAiJudgePrompt] = useState("");
   const [aiJudgeTranscript, setAiJudgeTranscript] = useState("");
   const [aiJudgeTranscriptDraft, setAiJudgeTranscriptDraft] = useState("");
+  const [aiJudgeLiveTranscript, setAiJudgeLiveTranscript] = useState("");
   const [aiJudgeFeedback, setAiJudgeFeedback] = useState<TrainingJudgeFeedback | null>(null);
   const [aiJudgeTurns, setAiJudgeTurns] = useState<TrainingJudgeTurn[]>([]);
   const [aiJudgeError, setAiJudgeError] = useState("");
@@ -197,6 +199,7 @@ export default function TrainingTab() {
   const [aiJudgeRecordingSeconds, setAiJudgeRecordingSeconds] = useState(0);
   const aiJudgeSpeechRecognitionRef = useRef<BrowserSpeechRecognition | null>(null);
   const aiJudgeSpeechTranscriptRef = useRef("");
+  const aiJudgeSpeechModeRef = useRef<BrowserSpeechRecognitionMode | null>(null);
   const aiJudgeSpeechStopRequestedRef = useRef(false);
   const aiJudgeSpeechErrorHandledRef = useRef(false);
   const aiJudgeMediaRecorderRef = useRef<MediaRecorder | null>(null);
@@ -221,6 +224,7 @@ export default function TrainingTab() {
     setAiJudgePrompt(currentAiJudgeQuestion?.question ?? "");
     setAiJudgeTranscript("");
     setAiJudgeTranscriptDraft("");
+    setAiJudgeLiveTranscript("");
     setAiJudgeFeedback(null);
     setAiJudgeTurns([]);
     setAiJudgeError("");
@@ -296,6 +300,8 @@ export default function TrainingTab() {
   const resetAiJudgeAnswer = () => {
     setAiJudgeTranscript("");
     setAiJudgeTranscriptDraft("");
+    setAiJudgeLiveTranscript("");
+    aiJudgeSpeechTranscriptRef.current = "";
     setAiJudgeFeedback(null);
     setAiJudgeError("");
     setAiJudgeRecordingSeconds(0);
@@ -306,6 +312,7 @@ export default function TrainingTab() {
     const nextTranscript = transcript.trim();
     setAiJudgeTranscript(nextTranscript);
     setAiJudgeTranscriptDraft(nextTranscript);
+    setAiJudgeLiveTranscript(nextTranscript);
     setAiJudgeError(message);
     setAiJudgeStage("editing");
   };
@@ -370,8 +377,15 @@ export default function TrainingTab() {
   };
 
   const finishAiJudgeBrowserSpeech = () => {
+    const mode = aiJudgeSpeechModeRef.current;
     const transcript = aiJudgeSpeechTranscriptRef.current.trim();
     aiJudgeSpeechRecognitionRef.current = null;
+    aiJudgeSpeechModeRef.current = null;
+    if (mode === "preview") {
+      aiJudgeSpeechErrorHandledRef.current = false;
+      return;
+    }
+
     if (aiJudgeSpeechErrorHandledRef.current) {
       aiJudgeSpeechErrorHandledRef.current = false;
       return;
@@ -387,10 +401,15 @@ export default function TrainingTab() {
     enterManualAiJudgeAnswer("没有识别到有效语音内容，可直接输入回答后提交点评。");
   };
 
-  const startAiJudgeBrowserSpeech = (SpeechRecognitionConstructor: BrowserSpeechRecognitionConstructor) => {
+  const startAiJudgeBrowserSpeech = (
+    SpeechRecognitionConstructor: BrowserSpeechRecognitionConstructor,
+    mode: BrowserSpeechRecognitionMode = "fallback",
+  ) => {
     aiJudgeSpeechTranscriptRef.current = "";
+    setAiJudgeLiveTranscript("");
     aiJudgeSpeechStopRequestedRef.current = false;
     aiJudgeSpeechErrorHandledRef.current = false;
+    aiJudgeSpeechModeRef.current = mode;
     const recognition = new SpeechRecognitionConstructor();
     aiJudgeSpeechRecognitionRef.current = recognition;
     recognition.lang = "zh-CN";
@@ -404,10 +423,18 @@ export default function TrainingTab() {
           transcriptParts.push(transcript);
         }
       }
-      aiJudgeSpeechTranscriptRef.current = transcriptParts.join(" ").trim();
+      const liveTranscript = transcriptParts.join(" ").trim();
+      aiJudgeSpeechTranscriptRef.current = liveTranscript;
+      setAiJudgeLiveTranscript(liveTranscript);
     };
     recognition.onerror = (event) => {
       if (aiJudgeSpeechStopRequestedRef.current) {
+        return;
+      }
+
+      if (mode === "preview") {
+        aiJudgeSpeechRecognitionRef.current = null;
+        aiJudgeSpeechModeRef.current = null;
         return;
       }
 
@@ -441,6 +468,8 @@ export default function TrainingTab() {
     setAiJudgeError("");
     setAiJudgeTranscript("");
     setAiJudgeTranscriptDraft("");
+    setAiJudgeLiveTranscript("");
+    aiJudgeSpeechTranscriptRef.current = "";
     setAiJudgeFeedback(null);
     setAiJudgeRecordingSeconds(0);
 
@@ -485,21 +514,35 @@ export default function TrainingTab() {
       };
       recorder.onstop = async () => {
         setAiJudgeStage("transcribing");
+        aiJudgeSpeechStopRequestedRef.current = true;
+        aiJudgeSpeechRecognitionRef.current?.stop();
         aiJudgeStreamRef.current?.getTracks().forEach((track) => track.stop());
         aiJudgeStreamRef.current = null;
         const blob = new Blob(aiJudgeAudioChunksRef.current, {
           type: recorder.mimeType || "audio/webm",
         });
+        const liveFallbackTranscript = aiJudgeSpeechTranscriptRef.current.trim();
 
         try {
           const transcript = await uploadAiJudgeAudio(blob);
-          if (!transcript) {
+          const confirmedTranscript = transcript || liveFallbackTranscript;
+          if (!confirmedTranscript) {
             throw new Error("没有识别到有效语音内容");
           }
-          setAiJudgeTranscript(transcript);
-          setAiJudgeTranscriptDraft(transcript);
+          setAiJudgeTranscript(confirmedTranscript);
+          setAiJudgeTranscriptDraft(confirmedTranscript);
+          setAiJudgeLiveTranscript(confirmedTranscript);
           setAiJudgeStage("editing");
         } catch (error) {
+          if (liveFallbackTranscript) {
+            setAiJudgeTranscript(liveFallbackTranscript);
+            setAiJudgeTranscriptDraft(liveFallbackTranscript);
+            setAiJudgeLiveTranscript(liveFallbackTranscript);
+            setAiJudgeError("服务端转写失败，已保留实时识别文本，可编辑后提交点评。");
+            setAiJudgeStage("editing");
+            return;
+          }
+
           enterManualAiJudgeAnswer(
             error instanceof Error ? `${error.message}，可直接输入回答后提交点评。` : "语音转写失败，可直接输入回答后提交点评。",
           );
@@ -508,6 +551,15 @@ export default function TrainingTab() {
 
       recorder.start();
       setAiJudgeStage("recording");
+      const SpeechRecognitionConstructor = getBrowserSpeechRecognition();
+      if (SpeechRecognitionConstructor) {
+        try {
+          startAiJudgeBrowserSpeech(SpeechRecognitionConstructor, "preview");
+        } catch {
+          aiJudgeSpeechRecognitionRef.current = null;
+          aiJudgeSpeechModeRef.current = null;
+        }
+      }
     } catch (error) {
       aiJudgeStreamRef.current?.getTracks().forEach((track) => track.stop());
       aiJudgeStreamRef.current = null;
@@ -516,14 +568,17 @@ export default function TrainingTab() {
   };
 
   const stopAiJudgeRecording = () => {
-    if (aiJudgeSpeechRecognitionRef.current) {
+    const recorder = aiJudgeMediaRecorderRef.current;
+    if (recorder?.state === "recording") {
       aiJudgeSpeechStopRequestedRef.current = true;
-      aiJudgeSpeechRecognitionRef.current.stop();
+      aiJudgeSpeechRecognitionRef.current?.stop();
+      recorder.stop();
       return;
     }
 
-    if (aiJudgeMediaRecorderRef.current?.state === "recording") {
-      aiJudgeMediaRecorderRef.current.stop();
+    if (aiJudgeSpeechRecognitionRef.current) {
+      aiJudgeSpeechStopRequestedRef.current = true;
+      aiJudgeSpeechRecognitionRef.current.stop();
     }
   };
 
@@ -1002,6 +1057,20 @@ export default function TrainingTab() {
                   </ActionButton>
                 )}
               </div>
+
+              {aiJudgeStage === "recording" ? (
+                <div className="mt-3 overflow-hidden rounded-2xl border border-blue-100 bg-white shadow-sm transition-all">
+                  <div className="flex flex-wrap items-center justify-between gap-2 border-b border-blue-50 px-4 py-3">
+                    <p className="text-sm font-semibold text-slate-900">实时转写预览</p>
+                    <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-600">
+                      结束后可编辑确认
+                    </span>
+                  </div>
+                  <p className="min-h-[88px] px-4 py-3 text-sm leading-7 text-slate-700">
+                    {aiJudgeLiveTranscript || "正在听取回答，若当前浏览器不支持实时识别，结束后仍会进行服务端转写。"}
+                  </p>
+                </div>
+              ) : null}
 
               {aiJudgeAccessMessage ? (
                 <div className="mt-3 rounded-xl border border-amber-100 bg-amber-50 px-4 py-3 text-sm leading-6 text-amber-700">

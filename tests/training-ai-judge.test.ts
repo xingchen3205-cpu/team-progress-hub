@@ -32,6 +32,8 @@ test("training judge prompt anchors feedback to source question and current foll
   assert.match(prompt, /核心算法、场景数据、验证结果/);
   assert.match(prompt, /历史追问记录/);
   assert.match(prompt, /followUpQuestion/);
+  assert.match(prompt, /不得编造/);
+  assert.match(prompt, /只能基于题库问题、标准回答要点和学生回答/);
   assert.match(prompt, /只返回 JSON/);
 });
 
