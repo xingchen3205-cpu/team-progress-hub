@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { validateRequiredEmail } from "@/lib/account-policy";
 import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { serializeUser } from "@/lib/api-serializers";
+import { serializeUserWithTeacherTrainingAccess } from "@/lib/teacher-training-access";
 
 export async function GET(request: NextRequest) {
   const user = await getSessionUser(request);
@@ -12,7 +12,7 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ message: "未登录" }, { status: 401 });
   }
 
-  return NextResponse.json({ user: serializeUser(user) });
+  return NextResponse.json({ user: await serializeUserWithTeacherTrainingAccess(user) });
 }
 
 export async function PATCH(request: NextRequest) {
@@ -104,5 +104,5 @@ export async function PATCH(request: NextRequest) {
     },
   });
 
-  return NextResponse.json({ user: serializeUser(updatedUser) });
+  return NextResponse.json({ user: await serializeUserWithTeacherTrainingAccess(updatedUser) });
 }

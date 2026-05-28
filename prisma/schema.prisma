@@ -122,67 +122,73 @@ enum ReviewDisplayScreenPhase {
 }
 
 model User {
-  id                         String                         @id @default(cuid())
-  name                       String
-  username                   String                         @unique
-  email                      String?                        @unique
-  password                   String
-  role                       Role
-  approvalStatus             UserApprovalStatus             @default(approved)
-  approvedAt                 DateTime?
-  approvedById               String?
-  teamGroupId                String?
-  emailVerifiedAt            DateTime?
-  college                    String?
-  className                  String?
-  studentId                  String?
-  employeeId                 String?
-  avatar                     String
-  avatarImagePath            String?
-  responsibility             String?
-  createdAt                  DateTime                       @default(now())
-  approvedBy                 User?                          @relation("UserApprovals", fields: [approvedById], references: [id])
-  approvedUsers              User[]                         @relation("UserApprovals")
-  teamGroup                  TeamGroup?                     @relation(fields: [teamGroupId], references: [id], onDelete: SetNull)
-  tasksAssigned              Task[]                         @relation("TaskAssignee")
-  taskAssignments            TaskAssignment[]               @relation("TaskAssignmentAssignee")
-  tasksCreated               Task[]                         @relation("TaskCreator")
-  tasksReviewed              Task[]                         @relation("TaskReviewer")
-  taskAttachments            TaskAttachment[]               @relation("TaskAttachmentUploader")
-  reports                    Report[]
-  announcements              Announcement[]
-  events                     Event[]                        @relation("EventCreator")
-  expertFeedbacks            ExpertFeedback[]               @relation("ExpertFeedbackCreator")
-  documents                  Document[]                     @relation("DocumentOwner")
-  documentEdits              DocumentVersion[]              @relation("DocumentVersionUploader")
-  notifications              Notification[]                 @relation("NotificationRecipient")
-  sentNotifications          Notification[]                 @relation("NotificationSender")
-  aiPermission               AiPermission?
-  aiConversations            AiConversation[]
-  dingTalkAccount            DingTalkAccount?
-  pushDevices                PushDevice[]
-  expertProfilesCreated      ExpertProfile[]                @relation("ExpertProfileCreator")
-  expertProfile              ExpertProfile?                 @relation("ExpertProfileAccount")
-  expertReviewPackages       ExpertReviewPackage[]          @relation("ExpertReviewPackageCreator")
-  expertAssignments          ExpertReviewAssignment[]       @relation("ExpertAssignmentUser")
-  expertScores               ExpertReviewScore[]            @relation("ExpertScoreReviewer")
-  reviewDisplaySessions      ReviewDisplaySession[]         @relation("ReviewDisplaySessionCreator")
-  reviewDisplaySeats         ReviewDisplaySeat[]            @relation("ReviewDisplaySeatExpert")
-  voidedReviewDisplaySeats   ReviewDisplaySeat[]            @relation("ReviewDisplaySeatVoider")
-  trainingQuestions          TrainingQuestion[]             @relation("TrainingQuestionCreator")
-  trainingSessions           TrainingSession[]              @relation("TrainingSessionCreator")
-  teacherTrainingCohorts     TeacherTrainingCohort[]        @relation("TeacherTrainingCohortCreator")
-  teacherTrainingCourseItems TeacherTrainingCourseSession[] @relation("TeacherTrainingCourseSessionCreator")
-  teacherTrainingAccounts    TeacherTrainingParticipant[]   @relation("TeacherTrainingParticipantAccount")
-  teacherTrainingMarks       TeacherTrainingAttendance[]    @relation("TeacherTrainingAttendanceMarker")
-  teacherTrainingTasks       TeacherTrainingTask[]          @relation("TeacherTrainingTaskCreator")
-  teacherTrainingSubmissions TeacherTrainingSubmission[]    @relation("TeacherTrainingSubmissionSubmitter")
-  passwordResetTokens        PasswordResetToken[]
-  reportEvaluations          ReportEvaluation[]             @relation("ReportEvaluationCreator")
-  projectReviewStages        ProjectReviewStage[]           @relation("ProjectReviewStageCreator")
-  projectMaterialsSubmitted  ProjectMaterialSubmission[]    @relation("ProjectMaterialSubmitter")
-  projectMaterialsApproved   ProjectMaterialSubmission[]    @relation("ProjectMaterialApprover")
-  projectMaterialsRejected   ProjectMaterialSubmission[]    @relation("ProjectMaterialRejecter")
+  id                                String                         @id @default(cuid())
+  name                              String
+  username                          String                         @unique
+  email                             String?                        @unique
+  password                          String
+  role                              Role
+  approvalStatus                    UserApprovalStatus             @default(approved)
+  approvedAt                        DateTime?
+  approvedById                      String?
+  teamGroupId                       String?
+  emailVerifiedAt                   DateTime?
+  college                           String?
+  className                         String?
+  studentId                         String?
+  employeeId                        String?
+  avatar                            String
+  avatarImagePath                   String?
+  responsibility                    String?
+  createdAt                         DateTime                       @default(now())
+  approvedBy                        User?                          @relation("UserApprovals", fields: [approvedById], references: [id])
+  approvedUsers                     User[]                         @relation("UserApprovals")
+  teamGroup                         TeamGroup?                     @relation(fields: [teamGroupId], references: [id], onDelete: SetNull)
+  tasksAssigned                     Task[]                         @relation("TaskAssignee")
+  taskAssignments                   TaskAssignment[]               @relation("TaskAssignmentAssignee")
+  tasksCreated                      Task[]                         @relation("TaskCreator")
+  tasksReviewed                     Task[]                         @relation("TaskReviewer")
+  taskAttachments                   TaskAttachment[]               @relation("TaskAttachmentUploader")
+  reports                           Report[]
+  announcements                     Announcement[]
+  events                            Event[]                        @relation("EventCreator")
+  expertFeedbacks                   ExpertFeedback[]               @relation("ExpertFeedbackCreator")
+  documents                         Document[]                     @relation("DocumentOwner")
+  documentEdits                     DocumentVersion[]              @relation("DocumentVersionUploader")
+  notifications                     Notification[]                 @relation("NotificationRecipient")
+  sentNotifications                 Notification[]                 @relation("NotificationSender")
+  aiPermission                      AiPermission?
+  aiConversations                   AiConversation[]
+  dingTalkAccount                   DingTalkAccount?
+  pushDevices                       PushDevice[]
+  expertProfilesCreated             ExpertProfile[]                @relation("ExpertProfileCreator")
+  expertProfile                     ExpertProfile?                 @relation("ExpertProfileAccount")
+  expertReviewPackages              ExpertReviewPackage[]          @relation("ExpertReviewPackageCreator")
+  expertAssignments                 ExpertReviewAssignment[]       @relation("ExpertAssignmentUser")
+  expertScores                      ExpertReviewScore[]            @relation("ExpertScoreReviewer")
+  reviewDisplaySessions             ReviewDisplaySession[]         @relation("ReviewDisplaySessionCreator")
+  reviewDisplaySeats                ReviewDisplaySeat[]            @relation("ReviewDisplaySeatExpert")
+  voidedReviewDisplaySeats          ReviewDisplaySeat[]            @relation("ReviewDisplaySeatVoider")
+  trainingQuestions                 TrainingQuestion[]             @relation("TrainingQuestionCreator")
+  trainingSessions                  TrainingSession[]              @relation("TrainingSessionCreator")
+  teacherTrainingCohorts            TeacherTrainingCohort[]        @relation("TeacherTrainingCohortCreator")
+  teacherTrainingCourseItems        TeacherTrainingCourseSession[] @relation("TeacherTrainingCourseSessionCreator")
+  teacherTrainingAccounts           TeacherTrainingParticipant[]   @relation("TeacherTrainingParticipantAccount")
+  teacherTrainingMarks              TeacherTrainingAttendance[]    @relation("TeacherTrainingAttendanceMarker")
+  teacherTrainingCheckIns           TeacherTrainingCheckInTask[]   @relation("TeacherTrainingCheckInTaskCreator")
+  teacherTrainingLeaveFlows         TeacherTrainingLeaveFlow[]     @relation("TeacherTrainingLeaveFlowCreator")
+  teacherTrainingLeaveSubmits       TeacherTrainingLeaveRequest[]  @relation("TeacherTrainingLeaveRequestSubmitter")
+  teacherTrainingLeaveReviews       TeacherTrainingLeaveApproval[] @relation("TeacherTrainingLeaveApprovalReviewer")
+  teacherTrainingManagedCohorts     TeacherTrainingCohortManager[] @relation("TeacherTrainingCohortManagerUser")
+  teacherTrainingManagerAssignments TeacherTrainingCohortManager[] @relation("TeacherTrainingCohortManagerCreator")
+  teacherTrainingTasks              TeacherTrainingTask[]          @relation("TeacherTrainingTaskCreator")
+  teacherTrainingSubmissions        TeacherTrainingSubmission[]    @relation("TeacherTrainingSubmissionSubmitter")
+  passwordResetTokens               PasswordResetToken[]
+  reportEvaluations                 ReportEvaluation[]             @relation("ReportEvaluationCreator")
+  projectReviewStages               ProjectReviewStage[]           @relation("ProjectReviewStageCreator")
+  projectMaterialsSubmitted         ProjectMaterialSubmission[]    @relation("ProjectMaterialSubmitter")
+  projectMaterialsApproved          ProjectMaterialSubmission[]    @relation("ProjectMaterialApprover")
+  projectMaterialsRejected          ProjectMaterialSubmission[]    @relation("ProjectMaterialRejecter")
 }
 
 model DingTalkAccount {
@@ -824,50 +830,176 @@ model TeacherTrainingCohort {
   courseSessions TeacherTrainingCourseSession[]
   participants   TeacherTrainingParticipant[]
   attendances    TeacherTrainingAttendance[]
+  checkInTasks   TeacherTrainingCheckInTask[]
+  leaveFlow      TeacherTrainingLeaveFlow?
+  leaveRequests  TeacherTrainingLeaveRequest[]
+  managers       TeacherTrainingCohortManager[]
   tasks          TeacherTrainingTask[]
 
   @@index([startDate, createdAt])
   @@index([createdById, createdAt])
 }
 
-model TeacherTrainingCourseSession {
+model TeacherTrainingCohortManager {
   id          String                @id @default(cuid())
   cohortId    String
-  title       String
-  courseDate  String
-  startTime   String?
-  endTime     String?
-  location    String?
-  instructor  String?
-  description String?
+  userId      String
+  title       String                @default("班主任")
   createdById String
   createdAt   DateTime              @default(now())
   updatedAt   DateTime              @updatedAt
   cohort      TeacherTrainingCohort @relation(fields: [cohortId], references: [id], onDelete: Cascade)
-  creator     User                  @relation("TeacherTrainingCourseSessionCreator", fields: [createdById], references: [id])
+  user        User                  @relation("TeacherTrainingCohortManagerUser", fields: [userId], references: [id], onDelete: Cascade)
+  createdBy   User                  @relation("TeacherTrainingCohortManagerCreator", fields: [createdById], references: [id])
+
+  @@unique([cohortId, userId])
+  @@index([userId, createdAt])
+  @@index([createdById, createdAt])
+}
+
+model TeacherTrainingCourseSession {
+  id           String                       @id @default(cuid())
+  cohortId     String
+  title        String
+  courseDate   String
+  startTime    String?
+  endTime      String?
+  location     String?
+  instructor   String?
+  description  String?
+  createdById  String
+  createdAt    DateTime                     @default(now())
+  updatedAt    DateTime                     @updatedAt
+  cohort       TeacherTrainingCohort        @relation(fields: [cohortId], references: [id], onDelete: Cascade)
+  creator      User                         @relation("TeacherTrainingCourseSessionCreator", fields: [createdById], references: [id])
+  checkInTasks TeacherTrainingCheckInTask[]
 
   @@index([cohortId, courseDate, startTime])
   @@index([createdById, createdAt])
 }
 
 model TeacherTrainingParticipant {
-  id            String                      @id @default(cuid())
-  cohortId      String
-  name          String
-  organization  String
-  phone         String?
-  groupName     String?
-  accountUserId String?
-  note          String?
-  createdAt     DateTime                    @default(now())
-  updatedAt     DateTime                    @updatedAt
-  cohort        TeacherTrainingCohort       @relation(fields: [cohortId], references: [id], onDelete: Cascade)
-  accountUser   User?                       @relation("TeacherTrainingParticipantAccount", fields: [accountUserId], references: [id], onDelete: SetNull)
-  attendances   TeacherTrainingAttendance[]
-  submissions   TeacherTrainingSubmission[]
+  id             String                         @id @default(cuid())
+  cohortId       String
+  name           String
+  organization   String
+  phone          String?
+  groupName      String?
+  accountUserId  String?
+  extraInfo      String?
+  note           String?
+  createdAt      DateTime                       @default(now())
+  updatedAt      DateTime                       @updatedAt
+  cohort         TeacherTrainingCohort          @relation(fields: [cohortId], references: [id], onDelete: Cascade)
+  accountUser    User?                          @relation("TeacherTrainingParticipantAccount", fields: [accountUserId], references: [id], onDelete: SetNull)
+  attendances    TeacherTrainingAttendance[]
+  checkInRecords TeacherTrainingCheckInRecord[]
+  leaveRequests  TeacherTrainingLeaveRequest[]
+  submissions    TeacherTrainingSubmission[]
 
   @@index([cohortId, name])
   @@index([accountUserId])
+}
+
+model TeacherTrainingCheckInTask {
+  id              String                         @id @default(cuid())
+  cohortId        String
+  courseSessionId String?
+  title           String
+  signDate        String
+  startTime       String?
+  endTime         String?
+  locationName    String?
+  latitude        Float?
+  longitude       Float?
+  radiusMeters    Int                            @default(300)
+  isActive        Boolean                        @default(true)
+  createdById     String
+  createdAt       DateTime                       @default(now())
+  updatedAt       DateTime                       @updatedAt
+  cohort          TeacherTrainingCohort          @relation(fields: [cohortId], references: [id], onDelete: Cascade)
+  courseSession   TeacherTrainingCourseSession?  @relation(fields: [courseSessionId], references: [id], onDelete: SetNull)
+  creator         User                           @relation("TeacherTrainingCheckInTaskCreator", fields: [createdById], references: [id])
+  records         TeacherTrainingCheckInRecord[]
+
+  @@index([cohortId, signDate, createdAt])
+  @@index([courseSessionId])
+  @@index([createdById, createdAt])
+}
+
+model TeacherTrainingCheckInRecord {
+  id             String                     @id @default(cuid())
+  checkInTaskId  String
+  participantId  String
+  latitude       Float?
+  longitude      Float?
+  accuracy       Float?
+  distanceMeters Float?
+  status         String                     @default("valid")
+  note           String?
+  signedAt       DateTime                   @default(now())
+  updatedAt      DateTime                   @updatedAt
+  checkInTask    TeacherTrainingCheckInTask @relation(fields: [checkInTaskId], references: [id], onDelete: Cascade)
+  participant    TeacherTrainingParticipant @relation(fields: [participantId], references: [id], onDelete: Cascade)
+
+  @@unique([checkInTaskId, participantId])
+  @@index([participantId, signedAt])
+}
+
+model TeacherTrainingLeaveFlow {
+  id            String                @id @default(cuid())
+  cohortId      String                @unique
+  approvalSteps String                @default("[]")
+  isEnabled     Boolean               @default(true)
+  createdById   String
+  createdAt     DateTime              @default(now())
+  updatedAt     DateTime              @updatedAt
+  cohort        TeacherTrainingCohort @relation(fields: [cohortId], references: [id], onDelete: Cascade)
+  creator       User                  @relation("TeacherTrainingLeaveFlowCreator", fields: [createdById], references: [id])
+
+  @@index([createdById, createdAt])
+}
+
+model TeacherTrainingLeaveRequest {
+  id                    String                         @id @default(cuid())
+  cohortId              String
+  participantId         String
+  submittedById         String
+  startDate             String
+  endDate               String
+  sessionLabel          String?
+  reason                String
+  status                String                         @default("pending")
+  currentStepIndex      Int                            @default(0)
+  approvalStepsSnapshot String                         @default("[]")
+  submittedAt           DateTime                       @default(now())
+  completedAt           DateTime?
+  updatedAt             DateTime                       @updatedAt
+  cohort                TeacherTrainingCohort          @relation(fields: [cohortId], references: [id], onDelete: Cascade)
+  participant           TeacherTrainingParticipant     @relation(fields: [participantId], references: [id], onDelete: Cascade)
+  submittedBy           User                           @relation("TeacherTrainingLeaveRequestSubmitter", fields: [submittedById], references: [id])
+  approvals             TeacherTrainingLeaveApproval[]
+
+  @@index([cohortId, status, submittedAt])
+  @@index([participantId, submittedAt])
+  @@index([submittedById, submittedAt])
+}
+
+model TeacherTrainingLeaveApproval {
+  id             String                      @id @default(cuid())
+  leaveRequestId String
+  stepKey        String
+  stepName       String
+  stepIndex      Int
+  approverId     String
+  decision       String
+  comment        String?
+  reviewedAt     DateTime                    @default(now())
+  leaveRequest   TeacherTrainingLeaveRequest @relation(fields: [leaveRequestId], references: [id], onDelete: Cascade)
+  approver       User                        @relation("TeacherTrainingLeaveApprovalReviewer", fields: [approverId], references: [id])
+
+  @@unique([leaveRequestId, stepKey, approverId])
+  @@index([approverId, reviewedAt])
 }
 
 model TeacherTrainingAttendance {

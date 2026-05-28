@@ -26,6 +26,7 @@ export async function POST(request: NextRequest) {
         organization?: string;
         phone?: string;
         groupName?: string;
+        extraInfo?: string;
         accountUsername?: string;
         accountPassword?: string;
         note?: string;
@@ -62,33 +63,36 @@ export async function POST(request: NextRequest) {
       where: {
         OR: [{ username: accountUsername }, { email: accountUsername }],
       },
-      select: { id: true },
+      select: { id: true, role: true },
     });
     if (existingAccount) {
-      return NextResponse.json({ message: "省培账号名已存在，请更换后再试" }, { status: 409 });
+      if (existingAccount.role === "expert") {
+        return NextResponse.json({ message: "评审专家账号不能绑定为省培参训教师" }, { status: 400 });
+      }
+      accountUserId = existingAccount.id;
+    } else {
+      temporaryPassword = providedPassword ? null : generateTemporaryPassword();
+      const passwordHash = await bcrypt.hash(providedPassword || temporaryPassword || generateTemporaryPassword(), 10);
+      const accountUser = await prisma.user.create({
+        data: {
+          name,
+          username: accountUsername,
+          email: null,
+          password: passwordHash,
+          role: "training_teacher",
+          approvalStatus: "approved",
+          approvedAt: new Date(),
+          approvedById: user.id,
+          avatar: name.slice(0, 1),
+          avatarImagePath: null,
+          responsibility: "江苏省职业院校创新创业教育（竞赛）指导能力提升培训参训教师",
+        },
+        select: {
+          id: true,
+        },
+      });
+      accountUserId = accountUser.id;
     }
-
-    temporaryPassword = providedPassword ? null : generateTemporaryPassword();
-    const passwordHash = await bcrypt.hash(providedPassword || temporaryPassword || generateTemporaryPassword(), 10);
-    const accountUser = await prisma.user.create({
-      data: {
-        name,
-        username: accountUsername,
-        email: null,
-        password: passwordHash,
-        role: "training_teacher",
-        approvalStatus: "approved",
-        approvedAt: new Date(),
-        approvedById: user.id,
-        avatar: name.slice(0, 1),
-        avatarImagePath: null,
-        responsibility: "江苏省职业院校创新创业教育（竞赛）指导能力提升培训参训教师",
-      },
-      select: {
-        id: true,
-      },
-    });
-    accountUserId = accountUser.id;
   }
 
   const participant = await prisma.teacherTrainingParticipant.create({
@@ -99,6 +103,7 @@ export async function POST(request: NextRequest) {
       phone: body?.phone?.trim() || null,
       groupName: body?.groupName?.trim() || null,
       accountUserId,
+      extraInfo: body?.extraInfo?.trim() || null,
       note: body?.note?.trim() || null,
     },
   });

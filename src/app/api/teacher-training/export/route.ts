@@ -2,11 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { getSessionUser } from "@/lib/auth";
 import { buildAttachmentDisposition } from "@/lib/downloads";
-import { assertRole } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import { hasTeacherTrainingCohortManageAccess } from "@/lib/teacher-training-access";
 import { buildTeacherTrainingCsv, serializeTeacherTrainingCohort } from "@/lib/teacher-training";
 
-const exportTypeSet = new Set(["participants", "attendance", "submissions"]);
+const exportTypeSet = new Set(["participants", "attendance", "checkIns", "submissions"]);
 
 export async function GET(request: NextRequest) {
   const user = await getSessionUser(request);
@@ -14,16 +14,13 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ message: "未登录" }, { status: 401 });
   }
 
-  try {
-    assertRole(user.role, ["admin", "school_admin"]);
-  } catch {
-    return NextResponse.json({ message: "无权限导出省培数据" }, { status: 403 });
-  }
-
   const cohortId = request.nextUrl.searchParams.get("cohortId")?.trim();
   const type = request.nextUrl.searchParams.get("type")?.trim() || "attendance";
   if (!cohortId || !exportTypeSet.has(type)) {
     return NextResponse.json({ message: "导出参数不完整" }, { status: 400 });
+  }
+  if (!(await hasTeacherTrainingCohortManageAccess(user, cohortId))) {
+    return NextResponse.json({ message: "无权限导出该省培班次数据" }, { status: 403 });
   }
 
   const cohort = await prisma.teacherTrainingCohort.findUnique({
@@ -43,10 +40,27 @@ export async function GET(request: NextRequest) {
           },
         },
       },
+      managers: {
+        include: {
+          user: { select: { id: true, name: true, username: true, role: true } },
+        },
+      },
       attendances: {
         orderBy: [{ sessionDate: "asc" }, { sessionLabel: "asc" }],
         include: {
           markedBy: { select: { name: true } },
+        },
+      },
+      checkInTasks: {
+        orderBy: [{ signDate: "asc" }, { startTime: "asc" }, { createdAt: "asc" }],
+        include: {
+          creator: { select: { name: true } },
+          records: {
+            orderBy: [{ signedAt: "asc" }],
+            include: {
+              participant: { select: { name: true } },
+            },
+          },
         },
       },
       tasks: {
@@ -72,11 +86,12 @@ export async function GET(request: NextRequest) {
   const serialized = serializeTeacherTrainingCohort(cohort);
   const csv = `\uFEFF${buildTeacherTrainingCsv({
     cohort: serialized,
-    type: type as "participants" | "attendance" | "submissions",
+    type: type as "participants" | "attendance" | "checkIns" | "submissions",
   })}`;
   const labelMap = {
     participants: "参训名单",
     attendance: "签到记录",
+    checkIns: "课程签到",
     submissions: "任务汇报",
   } as const;
   const fileName = `${serialized.title}-${labelMap[type as keyof typeof labelMap]}.csv`;

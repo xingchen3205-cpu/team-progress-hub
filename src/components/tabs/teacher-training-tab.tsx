@@ -38,6 +38,19 @@ const createDefaultCourseSessionDraft = (): Workspace.TeacherTrainingCourseSessi
   description: "",
 });
 
+const createDefaultCheckInTaskDraft = (): Workspace.TeacherTrainingCheckInTaskDraft => ({
+  cohortId: "",
+  courseSessionId: "",
+  title: "课程签到",
+  signDate: getDateInputValue(new Date()),
+  startTime: "08:30",
+  endTime: "09:00",
+  locationName: "",
+  latitude: "",
+  longitude: "",
+  radiusMeters: "300",
+});
+
 const statusStyleMap: Record<AttendanceStatus, string> = {
   present: "border-emerald-200 bg-emerald-50 text-emerald-700",
   leave: "border-amber-200 bg-amber-50 text-amber-700",
@@ -46,13 +59,25 @@ const statusStyleMap: Record<AttendanceStatus, string> = {
 
 export default function TeacherTrainingTab() {
   const {
+    currentUser,
     teacherTrainingCohorts,
+    teacherTrainingApproverOptions,
+    teacherTrainingManagerOptions,
+    hasGlobalAdminRole,
     canManageTeacherTraining,
     isSaving,
     createTeacherTrainingCohort,
     addTeacherTrainingParticipant,
     createTeacherTrainingCourseSession,
+    createTeacherTrainingCheckInTask,
+    signTeacherTrainingCheckIn,
     markTeacherTrainingAttendance,
+    generateTeacherTrainingAccountMessage,
+    assignTeacherTrainingCohortManager,
+    removeTeacherTrainingCohortManager,
+    updateTeacherTrainingLeaveFlow,
+    submitTeacherTrainingLeaveRequest,
+    reviewTeacherTrainingLeaveRequest,
     createTeacherTrainingTask,
     saveTeacherTrainingSubmission,
     updateTeacherTrainingProfile,
@@ -62,10 +87,13 @@ export default function TeacherTrainingTab() {
     CalendarDays,
     CheckCircle2,
     ClipboardCheck,
+    Copy,
     Download,
     EmptyState,
     FileCheck,
     FileText,
+    MapPin,
+    Navigation,
     Plus,
     SectionHeader,
     Send,
@@ -86,11 +114,32 @@ export default function TeacherTrainingTab() {
     groupName: "",
     accountUsername: "",
     accountPassword: "",
+    extraInfo: "",
     note: "",
+  });
+  const [managerDraft, setManagerDraft] = useState<Workspace.TeacherTrainingCohortManagerDraft>({
+    cohortId: "",
+    userId: "",
+    title: "班主任",
   });
   const [courseDraft, setCourseDraft] = useState<Workspace.TeacherTrainingCourseSessionDraft>(
     createDefaultCourseSessionDraft,
   );
+  const [checkInDraft, setCheckInDraft] = useState<Workspace.TeacherTrainingCheckInTaskDraft>(
+    createDefaultCheckInTaskDraft,
+  );
+  const [locationMessage, setLocationMessage] = useState("");
+  const [accountMessage, setAccountMessage] = useState("");
+  const [checkInSigningId, setCheckInSigningId] = useState("");
+  const [leaveFlowSteps, setLeaveFlowSteps] = useState<Workspace.TeacherTrainingLeaveFlowStep[]>([]);
+  const [leaveDraft, setLeaveDraft] = useState<Workspace.TeacherTrainingLeaveRequestDraft>({
+    participantId: "",
+    startDate: getDateInputValue(new Date()),
+    endDate: getDateInputValue(new Date()),
+    sessionLabel: "请假",
+    reason: "",
+  });
+  const [leaveReviewComment, setLeaveReviewComment] = useState("");
   const [profileDraft, setProfileDraft] = useState<Workspace.TeacherTrainingProfileDraft>({
     participantId: "",
     name: "",
@@ -143,6 +192,25 @@ export default function TeacherTrainingTab() {
     ? `/api/teacher-training/export?cohortId=${encodeURIComponent(selectedCohort.id)}`
     : "";
   const canManage = canManageTeacherTraining;
+  const canManageGlobal = hasGlobalAdminRole;
+  const defaultLeaveFlowSteps = useMemo<Workspace.TeacherTrainingLeaveFlowStep[]>(
+    () =>
+      [
+        { key: "step-1", name: "第一步审批", approverIds: teacherTrainingApproverOptions.slice(0, 1).map((item) => item.id), requiredCount: 1 },
+        { key: "step-2", name: "第二步审批", approverIds: teacherTrainingApproverOptions.slice(1, 2).map((item) => item.id), requiredCount: 1 },
+      ].filter((step) => step.approverIds.length > 0),
+    [teacherTrainingApproverOptions],
+  );
+  const pendingLeaveRequests = selectedCohort?.leaveRequests.filter((request) => request.status === "pending") ?? [];
+  const approverNameById = useMemo(
+    () => new Map(teacherTrainingApproverOptions.map((option) => [option.id, option.name])),
+    [teacherTrainingApproverOptions],
+  );
+  const activeLeaveFlowSteps = leaveFlowSteps.length
+    ? leaveFlowSteps
+    : selectedCohort?.leaveFlow?.approvalSteps.length
+      ? selectedCohort.leaveFlow.approvalSteps
+      : defaultLeaveFlowSteps;
 
   const getAttendanceForParticipant = (participantId: string) =>
     selectedCohort?.attendances.find(
@@ -160,6 +228,14 @@ export default function TeacherTrainingTab() {
     if (!selectedCohort) return;
     await addTeacherTrainingParticipant({
       ...participantDraft,
+      cohortId: selectedCohort.id,
+    });
+  };
+
+  const submitManager = async () => {
+    if (!selectedCohort) return;
+    await assignTeacherTrainingCohortManager({
+      ...managerDraft,
       cohortId: selectedCohort.id,
     });
   };
@@ -213,12 +289,130 @@ export default function TeacherTrainingTab() {
       status,
     });
   };
+
+  const submitCheckInTask = async () => {
+    if (!selectedCohort) return;
+    await createTeacherTrainingCheckInTask({
+      ...checkInDraft,
+      cohortId: selectedCohort.id,
+    });
+  };
+
+  const useCurrentLocationForCheckInTask = () => {
+    if (!navigator.geolocation) {
+      setLocationMessage("当前浏览器不支持定位，可手动填写经纬度。");
+      return;
+    }
+
+    setLocationMessage("正在读取当前位置...");
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        setCheckInDraft((current) => ({
+          ...current,
+          latitude: String(position.coords.latitude.toFixed(6)),
+          longitude: String(position.coords.longitude.toFixed(6)),
+        }));
+        setLocationMessage("已填入当前位置，可直接发布签到任务。");
+      },
+      () => setLocationMessage("定位失败，请检查浏览器定位权限，或手动填写经纬度。"),
+      { enableHighAccuracy: true, timeout: 10000 },
+    );
+  };
+
+  const signWithCurrentLocation = (checkInTaskId: string) => {
+    if (!selectedParticipant) return;
+    if (!navigator.geolocation) {
+      setLocationMessage("当前浏览器不支持定位签到。");
+      return;
+    }
+
+    setCheckInSigningId(checkInTaskId);
+    setLocationMessage("正在读取定位...");
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        void signTeacherTrainingCheckIn({
+          checkInTaskId,
+          participantId: selectedParticipant.id,
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+          accuracy: Number.isFinite(position.coords.accuracy) ? position.coords.accuracy : null,
+        }).finally(() => {
+          setCheckInSigningId("");
+          setLocationMessage("");
+        });
+      },
+      () => {
+        setCheckInSigningId("");
+        setLocationMessage("定位失败，请在浏览器地址栏允许本网站使用位置后重试。");
+      },
+      { enableHighAccuracy: true, timeout: 12000 },
+    );
+  };
+
+  const copyAccountMessage = async (participantId: string) => {
+    const messageText = await generateTeacherTrainingAccountMessage({ participantId });
+    if (!messageText) return;
+
+    setAccountMessage(messageText);
+    await navigator.clipboard?.writeText(messageText).catch(() => undefined);
+  };
+
+  const updateLeaveFlowStep = (index: number, patch: Partial<Workspace.TeacherTrainingLeaveFlowStep>) => {
+    setLeaveFlowSteps((current) =>
+      (current.length ? current : activeLeaveFlowSteps).map((step, stepIndex) =>
+        stepIndex === index ? { ...step, ...patch } : step,
+      ),
+    );
+  };
+
+  const toggleLeaveApprover = (stepIndex: number, approverId: string) => {
+    setLeaveFlowSteps((current) =>
+      (current.length ? current : activeLeaveFlowSteps).map((step, index) => {
+        if (index !== stepIndex) return step;
+        const approverIds = step.approverIds.includes(approverId)
+          ? step.approverIds.filter((id) => id !== approverId)
+          : [...step.approverIds, approverId];
+        return {
+          ...step,
+          approverIds,
+          requiredCount: Math.min(Math.max(1, step.requiredCount), Math.max(1, approverIds.length)),
+        };
+      }),
+    );
+  };
+
+  const saveLeaveFlow = async () => {
+    if (!selectedCohort) return;
+    await updateTeacherTrainingLeaveFlow({
+      cohortId: selectedCohort.id,
+      approvalSteps: activeLeaveFlowSteps,
+    });
+  };
+
+  const submitLeaveRequest = async () => {
+    await submitTeacherTrainingLeaveRequest({
+      ...leaveDraft,
+      participantId: selectedParticipant?.id ?? leaveDraft.participantId,
+    });
+  };
+
+  const reviewLeaveRequest = async (leaveRequestId: string, decision: "approve" | "reject") => {
+    await reviewTeacherTrainingLeaveRequest({
+      leaveRequestId,
+      decision,
+      comment: leaveReviewComment,
+    });
+    setLeaveReviewComment("");
+  };
+
   const metricCards: Array<{ label: string; value: number; Icon: typeof Users }> = [
     { label: "参训教师", value: selectedCohort?.stats.participantCount ?? 0, Icon: Users },
+    { label: "班主任", value: selectedCohort?.stats.managerCount ?? 0, Icon: User },
     { label: "课程", value: selectedCohort?.stats.courseCount ?? 0, Icon: CalendarDays },
     { label: "已报到", value: selectedCohort?.stats.presentCount ?? 0, Icon: CheckCircle2 },
     { label: "请假", value: selectedCohort?.stats.leaveCount ?? 0, Icon: CalendarDays },
     { label: "缺勤", value: selectedCohort?.stats.absentCount ?? 0, Icon: FileCheck },
+    { label: "课程签到", value: selectedCohort?.stats.checkInRecordCount ?? 0, Icon: MapPin },
     { label: "任务", value: selectedCohort?.stats.taskCount ?? 0, Icon: FileText },
     { label: "汇报", value: selectedCohort?.stats.submissionCount ?? 0, Icon: Send },
   ];
@@ -240,6 +434,10 @@ export default function TeacherTrainingTab() {
               <Download className="h-4 w-4" />
               导出签到
             </a>
+            <a className="depth-button-secondary inline-flex h-10 items-center gap-2 rounded-lg px-4 text-sm no-underline" href={`${exportBaseUrl}&type=checkIns`}>
+              <Download className="h-4 w-4" />
+              导出课程签到
+            </a>
             <a className="depth-button-secondary inline-flex h-10 items-center gap-2 rounded-lg px-4 text-sm no-underline" href={`${exportBaseUrl}&type=submissions`}>
               <Download className="h-4 w-4" />
               导出汇报
@@ -248,7 +446,7 @@ export default function TeacherTrainingTab() {
         ) : null}
       </div>
 
-      <section className="grid gap-3 md:grid-cols-3 xl:grid-cols-7">
+      <section className="grid gap-3 md:grid-cols-4 xl:grid-cols-8">
         {metricCards.map(({ label, value, Icon }) => (
           <div key={label} className="depth-subtle rounded-xl p-4">
             <div className="flex items-center justify-between gap-3">
@@ -265,10 +463,14 @@ export default function TeacherTrainingTab() {
           <aside className={`${surfaceCardClassName} space-y-5`}>
             <div>
               <p className="text-sm font-semibold text-slate-900">班次</p>
-              <p className="mt-1 text-xs leading-5 text-slate-500">系统管理员和校级管理员从这里切换省培班次。</p>
+              <p className="mt-1 text-xs leading-5 text-slate-500">按账号权限切换可管理或可参与的省培班次。</p>
               <select
                 className={fieldClassName}
-                onChange={(event) => setSelectedCohortId(event.target.value)}
+                onChange={(event) => {
+                  setSelectedCohortId(event.target.value);
+                  setLeaveFlowSteps([]);
+                  setAccountMessage("");
+                }}
                 value={selectedCohort?.id ?? ""}
               >
                 {teacherTrainingCohorts.length === 0 ? <option value="">暂无班次</option> : null}
@@ -280,6 +482,7 @@ export default function TeacherTrainingTab() {
               </select>
             </div>
 
+            {canManageGlobal ? (
             <div className="rounded-xl border border-slate-200/70 bg-white/70 p-4">
               <div className="flex items-center gap-2">
                 <Plus className="h-4 w-4 text-[#1a6fd4]" />
@@ -323,13 +526,15 @@ export default function TeacherTrainingTab() {
                 </ActionButton>
               </div>
             </div>
+            ) : null}
 
+            {canManageGlobal ? (
             <div className="rounded-xl border border-slate-200/70 bg-white/70 p-4">
               <div className="flex items-center gap-2">
                 <Users className="h-4 w-4 text-[#1a6fd4]" />
                 <div>
                   <p className="text-sm font-semibold text-slate-900">参训教师中心</p>
-                  <p className="mt-1 text-xs leading-5 text-slate-500">系统管理员、校级管理员可新增省培教师账号。</p>
+                  <p className="mt-1 text-xs leading-5 text-slate-500">系统管理员、校级管理员可新增省培教师账号，也可绑定已有平台账号。</p>
                 </div>
               </div>
               <div className="mt-3 space-y-3">
@@ -363,7 +568,7 @@ export default function TeacherTrainingTab() {
                 <input
                   className={fieldClassName}
                   onChange={(event) => setParticipantDraft((current) => ({ ...current, accountUsername: event.target.value }))}
-                  placeholder="省培登录账号"
+                  placeholder="省培登录账号；填已有平台账号可直接绑定"
                   value={participantDraft.accountUsername}
                 />
                 <input
@@ -373,6 +578,12 @@ export default function TeacherTrainingTab() {
                   value={participantDraft.accountPassword}
                 />
               </div>
+              <textarea
+                className={`${textareaClassName} min-h-24`}
+                onChange={(event) => setParticipantDraft((current) => ({ ...current, extraInfo: event.target.value }))}
+                placeholder="预录扩展信息，例如职务、住宿、发票、培训材料领取情况等；每行一项。"
+                value={participantDraft.extraInfo}
+              />
               <input
                 className={fieldClassName}
                 onChange={(event) => setParticipantDraft((current) => ({ ...current, note: event.target.value }))}
@@ -390,6 +601,77 @@ export default function TeacherTrainingTab() {
                 </ActionButton>
               </div>
             </div>
+            ) : null}
+
+            {canManageGlobal && selectedCohort ? (
+              <div className="rounded-xl border border-slate-200/70 bg-white/70 p-4">
+                <div className="flex items-center gap-2">
+                  <User className="h-4 w-4 text-[#1a6fd4]" />
+                  <div>
+                    <p className="text-sm font-semibold text-slate-900">班主任设置</p>
+                    <p className="mt-1 text-xs leading-5 text-slate-500">可选择已有大赛账号或省培账号，开通这个班次的省培管理权限。</p>
+                  </div>
+                </div>
+                <div className="mt-3 space-y-3">
+                  <select
+                    className={fieldClassName}
+                    onChange={(event) => setManagerDraft((current) => ({ ...current, userId: event.target.value }))}
+                    value={managerDraft.userId}
+                  >
+                    <option value="">选择已有平台账号</option>
+                    {teacherTrainingManagerOptions.map((option) => (
+                      <option key={option.id} value={option.id}>
+                        {option.name} · {option.username}
+                      </option>
+                    ))}
+                  </select>
+                  <input
+                    className={fieldClassName}
+                    onChange={(event) => setManagerDraft((current) => ({ ...current, title: event.target.value }))}
+                    placeholder="职务，例如班主任、会务负责人"
+                    value={managerDraft.title}
+                  />
+                  <ActionButton
+                    className="w-full"
+                    disabled={!managerDraft.userId}
+                    loading={isSaving}
+                    onClick={() => void submitManager()}
+                    variant="primary"
+                  >
+                    设置班主任
+                  </ActionButton>
+                </div>
+                <div className="mt-4 space-y-2">
+                  {selectedCohort.managers.length === 0 ? (
+                    <p className="text-xs text-slate-400">暂未设置班主任。</p>
+                  ) : (
+                    selectedCohort.managers.map((manager) => (
+                      <div key={manager.id} className="flex items-center justify-between gap-3 rounded-lg bg-slate-50 px-3 py-2">
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-semibold text-slate-900">{manager.name}</p>
+                          <p className="truncate text-xs text-slate-500">
+                            {manager.title} · {manager.username}
+                          </p>
+                        </div>
+                        <button
+                          className="text-xs font-semibold text-rose-500"
+                          disabled={isSaving}
+                          onClick={() =>
+                            void removeTeacherTrainingCohortManager({
+                              cohortId: selectedCohort.id,
+                              userId: manager.userId,
+                            })
+                          }
+                          type="button"
+                        >
+                          移除
+                        </button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </div>
+            ) : null}
           </aside>
         ) : null}
 
@@ -421,7 +703,10 @@ export default function TeacherTrainingTab() {
                 {!canManage && teacherTrainingCohorts.length > 1 ? (
                   <select
                     className={`${fieldClassName} mt-4 max-w-md`}
-                    onChange={(event) => setSelectedCohortId(event.target.value)}
+                    onChange={(event) => {
+                      setSelectedCohortId(event.target.value);
+                      setLeaveFlowSteps([]);
+                    }}
                     value={selectedCohort.id}
                   >
                     {teacherTrainingCohorts.map((cohort) => (
@@ -578,6 +863,423 @@ export default function TeacherTrainingTab() {
               </section>
               )}
 
+              <section className={surfaceCardClassName}>
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-900">
+                      {canManage ? "发布签到任务" : "课程定位签到"}
+                    </p>
+                    <p className="mt-1 text-xs leading-5 text-slate-500">
+                      {canManage
+                        ? "为当天课程发布定位签到，参训教师在省培账号里自行完成签到。"
+                        : "到达授课地点后点击定位签到，管理员可导出最终课程签到名单。"}
+                    </p>
+                  </div>
+                  <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
+                    {selectedCohort.checkInTasks.length} 个任务
+                  </span>
+                </div>
+
+                {canManage ? (
+                  <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
+                    <div className="grid gap-3 md:grid-cols-2">
+                      <input
+                        className={fieldClassName}
+                        onChange={(event) => setCheckInDraft((current) => ({ ...current, title: event.target.value }))}
+                        placeholder="签到标题"
+                        value={checkInDraft.title}
+                      />
+                      <select
+                        className={fieldClassName}
+                        onChange={(event) => setCheckInDraft((current) => ({ ...current, courseSessionId: event.target.value }))}
+                        value={checkInDraft.courseSessionId}
+                      >
+                        <option value="">不绑定课程</option>
+                        {courseSessions.map((course) => (
+                          <option key={course.id} value={course.id}>
+                            {course.courseDate} · {course.title}
+                          </option>
+                        ))}
+                      </select>
+                      <input
+                        className={fieldClassName}
+                        onChange={(event) => setCheckInDraft((current) => ({ ...current, signDate: event.target.value }))}
+                        type="date"
+                        value={checkInDraft.signDate}
+                      />
+                      <div className="grid gap-3 sm:grid-cols-2">
+                        <input
+                          className={fieldClassName}
+                          onChange={(event) => setCheckInDraft((current) => ({ ...current, startTime: event.target.value }))}
+                          type="time"
+                          value={checkInDraft.startTime}
+                        />
+                        <input
+                          className={fieldClassName}
+                          onChange={(event) => setCheckInDraft((current) => ({ ...current, endTime: event.target.value }))}
+                          type="time"
+                          value={checkInDraft.endTime}
+                        />
+                      </div>
+                      <input
+                        className={fieldClassName}
+                        onChange={(event) => setCheckInDraft((current) => ({ ...current, locationName: event.target.value }))}
+                        placeholder="签到地点"
+                        value={checkInDraft.locationName}
+                      />
+                      <div className="grid gap-3 sm:grid-cols-[1fr_1fr_120px]">
+                        <input
+                          className={fieldClassName}
+                          onChange={(event) => setCheckInDraft((current) => ({ ...current, latitude: event.target.value }))}
+                          placeholder="纬度"
+                          value={checkInDraft.latitude}
+                        />
+                        <input
+                          className={fieldClassName}
+                          onChange={(event) => setCheckInDraft((current) => ({ ...current, longitude: event.target.value }))}
+                          placeholder="经度"
+                          value={checkInDraft.longitude}
+                        />
+                        <input
+                          className={fieldClassName}
+                          onChange={(event) => setCheckInDraft((current) => ({ ...current, radiusMeters: event.target.value }))}
+                          placeholder="范围/米"
+                          value={checkInDraft.radiusMeters}
+                        />
+                      </div>
+                      <div className="flex flex-wrap gap-2 md:col-span-2">
+                        <button
+                          className="depth-button-secondary inline-flex h-10 items-center gap-2 rounded-lg px-4 text-sm font-semibold"
+                          onClick={useCurrentLocationForCheckInTask}
+                          type="button"
+                        >
+                          <Navigation className="h-4 w-4" />
+                          使用当前位置
+                        </button>
+                        <ActionButton loading={isSaving} onClick={() => void submitCheckInTask()} variant="primary">
+                          发布签到任务
+                        </ActionButton>
+                      </div>
+                      {locationMessage ? <p className="text-xs text-slate-500 md:col-span-2">{locationMessage}</p> : null}
+                    </div>
+
+                    <div className="rounded-xl border border-slate-200/75 bg-white/72 p-4">
+                      <p className="text-xs font-semibold text-slate-500">课程签到记录</p>
+                      <div className="mt-3 space-y-3">
+                        {selectedCohort.checkInTasks.length === 0 ? (
+                          <EmptyState description="发布后会在这里显示签到进度。" icon={MapPin} title="暂无课程签到" />
+                        ) : (
+                          selectedCohort.checkInTasks.slice(0, 4).map((task) => (
+                            <div key={task.id} className="rounded-lg bg-slate-50 px-3 py-2">
+                              <div className="flex items-center justify-between gap-3">
+                                <p className="text-sm font-semibold text-slate-900">{task.title}</p>
+                                <span className="text-xs font-semibold text-blue-700">
+                                  {task.records.length}/{selectedCohort.participants.length}
+                                </span>
+                              </div>
+                              <p className="mt-1 text-xs text-slate-500">
+                                {[task.signDate, task.startTime, task.locationName].filter(Boolean).join(" · ") || "未设置地点"}
+                              </p>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mt-4 grid gap-3">
+                    {selectedCohort.checkInTasks.length === 0 ? (
+                      <EmptyState description="管理员发布课程签到后，这里会显示定位签到入口。" icon={MapPin} title="暂无签到任务" />
+                    ) : (
+                      selectedCohort.checkInTasks.map((task) => {
+                        const signedRecord = task.records.find((record) => record.participantId === selectedParticipant?.id);
+                        return (
+                          <div key={task.id} className="grid gap-3 rounded-xl border border-slate-200/75 bg-white/72 p-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+                            <div>
+                              <div className="flex flex-wrap items-center gap-2">
+                                <p className="font-semibold text-slate-950">{task.title}</p>
+                                {signedRecord ? (
+                                  <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700">
+                                    已签到
+                                  </span>
+                                ) : null}
+                              </div>
+                              <p className="mt-1 text-sm text-slate-500">
+                                {[task.signDate, task.startTime, task.endTime, task.locationName].filter(Boolean).join(" · ")}
+                              </p>
+                              {signedRecord ? (
+                                <p className="mt-1 text-xs text-slate-400">
+                                  {signedRecord.signedAt}
+                                  {signedRecord.distanceMeters !== null ? ` · 距离 ${signedRecord.distanceMeters} 米` : ""}
+                                </p>
+                              ) : null}
+                            </div>
+                            <button
+                              className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-[#1f64f2] px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-[#174ecb] disabled:cursor-not-allowed disabled:bg-slate-300"
+                              disabled={isSaving || checkInSigningId === task.id}
+                              onClick={() => signWithCurrentLocation(task.id)}
+                              type="button"
+                            >
+                              <MapPin className="h-4 w-4" />
+                              {signedRecord ? "重新定位签到" : "定位签到"}
+                            </button>
+                          </div>
+                        );
+                      })
+                    )}
+                    {locationMessage ? <p className="text-xs text-slate-500">{locationMessage}</p> : null}
+                  </div>
+                )}
+              </section>
+
+              <section className={surfaceCardClassName}>
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-900">
+                      {canManageGlobal ? "请假流程设置" : "临时请假"}
+                    </p>
+                    <p className="mt-1 text-xs leading-5 text-slate-500">
+                      {canManageGlobal
+                        ? "系统管理员统一配置审批步骤、候选审批人和每步通过人数。"
+                        : "临时请假会按管理员配置的审批步骤流转，最终批准后自动写入请假签到记录。"}
+                    </p>
+                  </div>
+                  <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-500">
+                    {selectedCohort.leaveRequests.length} 条请假
+                  </span>
+                </div>
+
+                {canManageGlobal ? (
+                  <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-xs font-semibold text-slate-500">审批步骤</p>
+                        <button
+                          className="depth-button-secondary inline-flex h-9 items-center rounded-lg px-3 text-xs font-semibold"
+                          onClick={() =>
+                            setLeaveFlowSteps((current) => {
+                              const baseSteps = current.length ? current : activeLeaveFlowSteps;
+                              return [
+                              ...baseSteps,
+                              {
+                                key: `step-${baseSteps.length + 1}`,
+                                name: `第${baseSteps.length + 1}步审批`,
+                                approverIds: [],
+                                requiredCount: 1,
+                              },
+                              ];
+                            })
+                          }
+                          type="button"
+                        >
+                          增加步骤
+                        </button>
+                      </div>
+                      {activeLeaveFlowSteps.length === 0 ? (
+                        <EmptyState description="先增加审批步骤，再选择审批人和每步通过人数。" icon={FileCheck} title="未配置流程" />
+                      ) : (
+                        activeLeaveFlowSteps.map((step, index) => (
+                          <div key={step.key} className="rounded-xl border border-slate-200/75 bg-white/72 p-4">
+                            <div className="grid gap-3 md:grid-cols-[1fr_150px]">
+                              <input
+                                className={fieldClassName}
+                                onChange={(event) => updateLeaveFlowStep(index, { name: event.target.value })}
+                                placeholder="步骤名称"
+                                value={step.name}
+                              />
+                              <input
+                                className={fieldClassName}
+                                min={1}
+                                onChange={(event) =>
+                                  updateLeaveFlowStep(index, { requiredCount: Number(event.target.value) || 1 })
+                                }
+                                placeholder="每步通过人数"
+                                type="number"
+                                value={step.requiredCount}
+                              />
+                            </div>
+                            <div className="mt-3 flex flex-wrap gap-2">
+                              {teacherTrainingApproverOptions.length === 0 ? (
+                                <span className="text-xs text-slate-400">暂无可选审批人</span>
+                              ) : (
+                                teacherTrainingApproverOptions.map((approver) => (
+                                  <label
+                                    key={approver.id}
+                                    className={`inline-flex h-9 cursor-pointer items-center gap-2 rounded-lg border px-3 text-xs font-semibold transition ${
+                                      step.approverIds.includes(approver.id)
+                                        ? "border-blue-200 bg-blue-50 text-blue-700"
+                                        : "border-slate-200 bg-white text-slate-500"
+                                    }`}
+                                  >
+                                    <input
+                                      checked={step.approverIds.includes(approver.id)}
+                                      className="sr-only"
+                                      onChange={() => toggleLeaveApprover(index, approver.id)}
+                                      type="checkbox"
+                                    />
+                                    {approver.name}
+                                  </label>
+                                ))
+                              )}
+                            </div>
+                            <button
+                              className="mt-3 text-xs font-semibold text-rose-500"
+                              onClick={() =>
+                                setLeaveFlowSteps((current) =>
+                                  (current.length ? current : activeLeaveFlowSteps).filter((_, stepIndex) => stepIndex !== index),
+                                )
+                              }
+                              type="button"
+                            >
+                              删除本步骤
+                            </button>
+                          </div>
+                        ))
+                      )}
+                      <ActionButton disabled={!selectedCohort || activeLeaveFlowSteps.length === 0} loading={isSaving} onClick={() => void saveLeaveFlow()} variant="primary">
+                        保存请假流程
+                      </ActionButton>
+                    </div>
+
+                    <div className="rounded-xl border border-slate-200/75 bg-white/72 p-4">
+                      <p className="text-sm font-semibold text-slate-900">请假审批</p>
+                      <textarea
+                        className={`${textareaClassName} mt-3 min-h-20`}
+                        onChange={(event) => setLeaveReviewComment(event.target.value)}
+                        placeholder="审批意见，可选"
+                        value={leaveReviewComment}
+                      />
+                      <div className="mt-3 space-y-3">
+                        {pendingLeaveRequests.length === 0 ? (
+                          <EmptyState description="教师提交临时请假后，会进入这里等待审批。" icon={FileCheck} title="暂无待审批请假" />
+                        ) : (
+                          pendingLeaveRequests.slice(0, 5).map((request) => {
+                            const step = request.approvalSteps[request.currentStepIndex];
+                            return (
+                              <div key={request.id} className="rounded-lg bg-slate-50 px-3 py-3">
+                                <div className="flex items-start justify-between gap-3">
+                                  <div>
+                                    <p className="text-sm font-semibold text-slate-900">{request.participantName}</p>
+                                    <p className="mt-1 text-xs text-slate-500">
+                                      {request.startDate} 至 {request.endDate} · {step?.name ?? "审批中"}
+                                    </p>
+                                    <p className="mt-1 text-xs text-slate-500">
+                                      审批人：{step?.approverIds.map((id) => approverNameById.get(id) ?? "审批人").join("、") || "未配置"}
+                                      {step ? ` · 需 ${step.requiredCount} 人通过` : ""}
+                                    </p>
+                                  </div>
+                                  <div className="flex shrink-0 gap-2">
+                                    <a
+                                      className="inline-flex h-8 items-center rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600 no-underline"
+                                      href={`/api/teacher-training/leave-requests/${request.id}/pdf`}
+                                    >
+                                      导出PDF请假单
+                                    </a>
+                                    {step?.approverIds.includes(currentUser?.id ?? "") || currentUser?.role === "admin" ? (
+                                      <>
+                                      <button
+                                        className="inline-flex h-8 items-center rounded-lg bg-emerald-600 px-3 text-xs font-semibold text-white"
+                                        disabled={isSaving}
+                                        onClick={() => void reviewLeaveRequest(request.id, "approve")}
+                                        type="button"
+                                      >
+                                        通过
+                                      </button>
+                                      <button
+                                        className="inline-flex h-8 items-center rounded-lg border border-rose-200 bg-white px-3 text-xs font-semibold text-rose-600"
+                                        disabled={isSaving}
+                                        onClick={() => void reviewLeaveRequest(request.id, "reject")}
+                                        type="button"
+                                      >
+                                        驳回
+                                      </button>
+                                      </>
+                                    ) : null}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="mt-4 grid gap-4 xl:grid-cols-[420px_minmax(0,1fr)]">
+                    <div className="rounded-xl border border-slate-200/75 bg-white/72 p-4">
+                      <p className="text-sm font-semibold text-slate-900">提交请假</p>
+                      <div className="mt-3 grid gap-3 sm:grid-cols-2">
+                        <input
+                          className={fieldClassName}
+                          onChange={(event) => setLeaveDraft((current) => ({ ...current, startDate: event.target.value }))}
+                          type="date"
+                          value={leaveDraft.startDate}
+                        />
+                        <input
+                          className={fieldClassName}
+                          onChange={(event) => setLeaveDraft((current) => ({ ...current, endDate: event.target.value }))}
+                          type="date"
+                          value={leaveDraft.endDate}
+                        />
+                        <input
+                          className={fieldClassName}
+                          onChange={(event) => setLeaveDraft((current) => ({ ...current, sessionLabel: event.target.value }))}
+                          placeholder="请假场次"
+                          value={leaveDraft.sessionLabel}
+                        />
+                        <input className={fieldClassName} disabled value={selectedParticipant?.name ?? "参训教师"} />
+                        <textarea
+                          className={`${textareaClassName} min-h-24 sm:col-span-2`}
+                          onChange={(event) => setLeaveDraft((current) => ({ ...current, reason: event.target.value }))}
+                          placeholder="请假原因"
+                          value={leaveDraft.reason}
+                        />
+                      </div>
+                      <ActionButton
+                        className="mt-3"
+                        disabled={!selectedParticipant}
+                        loading={isSaving}
+                        onClick={() => void submitLeaveRequest()}
+                        variant="primary"
+                      >
+                        提交请假
+                      </ActionButton>
+                    </div>
+
+                    <div className="rounded-xl border border-slate-200/75 bg-white/72 p-4">
+                      <p className="text-sm font-semibold text-slate-900">我的请假记录</p>
+                      <div className="mt-3 grid gap-2">
+                        {selectedParticipant?.leaveRequests.length ? (
+                          selectedParticipant.leaveRequests.slice(0, 4).map((request) => (
+                            <div key={request.id} className="rounded-lg bg-slate-50 px-3 py-2">
+                              <div className="flex items-center justify-between gap-3">
+                                <p className="text-sm font-semibold text-slate-900">
+                                  {request.startDate} 至 {request.endDate}
+                                </p>
+                                <div className="flex items-center gap-2">
+                                  <a
+                                    className="text-xs font-semibold text-blue-700 no-underline"
+                                    href={`/api/teacher-training/leave-requests/${request.id}/pdf`}
+                                  >
+                                    导出PDF请假单
+                                  </a>
+                                  <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-700">
+                                    {request.statusLabel}
+                                  </span>
+                                </div>
+                              </div>
+                              <p className="mt-1 text-xs text-slate-500">{request.reason}</p>
+                            </div>
+                          ))
+                        ) : (
+                          <EmptyState description="临时请假提交后，审批进度会显示在这里。" icon={FileCheck} title="暂无请假记录" />
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </section>
+
               {!canManage ? (
               <section className={surfaceCardClassName}>
                 <div className="flex items-center gap-2">
@@ -686,8 +1388,28 @@ export default function TeacherTrainingTab() {
                               {participant.accountUsername ? (
                                 <p className="mt-1 text-xs text-slate-400">省培账号：{participant.accountUsername}</p>
                               ) : null}
+                              {participant.extraInfoLines.length > 0 ? (
+                                <div className="mt-2 flex flex-wrap gap-1.5">
+                                  {participant.extraInfoLines.slice(0, 4).map((line) => (
+                                    <span key={line} className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">
+                                      {line}
+                                    </span>
+                                  ))}
+                                </div>
+                              ) : null}
                             </div>
                             <div className="flex flex-wrap gap-2">
+                              {canManageGlobal ? (
+                                <button
+                                  className="inline-flex h-9 items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 text-sm font-semibold text-blue-700 transition hover:border-blue-200 hover:bg-blue-100"
+                                  disabled={isSaving}
+                                  onClick={() => void copyAccountMessage(participant.id)}
+                                  type="button"
+                                >
+                                  <Copy className="h-4 w-4" />
+                                  一键复制账号消息
+                                </button>
+                              ) : null}
                               {(["present", "leave", "absent"] as AttendanceStatus[]).map((status) => (
                                 <button
                                   key={status}
@@ -710,6 +1432,13 @@ export default function TeacherTrainingTab() {
                     </div>
                   )}
                 </div>
+                {accountMessage ? (
+                  <textarea
+                    className={`${textareaClassName} mt-4 min-h-28`}
+                    onChange={(event) => setAccountMessage(event.target.value)}
+                    value={accountMessage}
+                  />
+                ) : null}
               </section>
               ) : null}
 

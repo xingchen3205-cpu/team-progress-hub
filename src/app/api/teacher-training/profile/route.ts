@@ -1,19 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { getSessionUser } from "@/lib/auth";
-import { assertRole } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
 export async function PATCH(request: NextRequest) {
   const user = await getSessionUser(request);
   if (!user) {
     return NextResponse.json({ message: "未登录" }, { status: 401 });
-  }
-
-  try {
-    assertRole(user.role, ["training_teacher"]);
-  } catch {
-    return NextResponse.json({ message: "仅省培教师可维护省培个人信息" }, { status: 403 });
   }
 
   const body = (await request.json().catch(() => null)) as

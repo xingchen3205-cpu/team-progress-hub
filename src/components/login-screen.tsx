@@ -20,6 +20,7 @@ import { EMAIL_RULE_HINT, USERNAME_RULE_HINT, validateRequiredEmail, validateUse
 type FormMode = "login" | "register" | "forgot" | "reset";
 type LoginPhase = "idle" | "authenticating" | "entering";
 
+const selfRegistrationEnabled = false;
 const registerRoleOptions = ["指导教师", "项目负责人", "团队成员"] as const;
 
 const initialLoginValues = {
@@ -228,6 +229,12 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
   }, [mode, resetToken]);
 
   const switchMode = (nextMode: FormMode) => {
+    if (nextMode === "register" && !selfRegistrationEnabled) {
+      setMode("login");
+      setSuccessMessage("账号由系统管理员或校级管理员统一开通，请联系管理员。");
+      return;
+    }
+
     if (mode === "reset" && !resetToken) {
       setMode(nextMode);
       return;
@@ -1240,29 +1247,33 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
                 <div className="min-w-0 flex-1">
                   <p className="text-base leading-7 text-[#6b7280]">
                     {mode === "login"
-                      ? "没有账号可先注册，审核通过后即可登录系统。"
+                      ? "账号由系统管理员或校级管理员统一开通。"
                       : mode === "register"
-                        ? "提交注册后请等待上一级账号审核通过。"
+                        ? "当前暂不开放自助注册，请返回登录。"
                         : mode === "forgot"
                           ? "如未收到重置邮件，请确认邮箱是否填写正确并检查垃圾邮件。"
                           : "重置完成后，可返回登录并使用新密码进入系统。"}
                   </p>
-                  <button
-                    className="mt-1 inline-flex items-center gap-2 text-base font-semibold text-[#1d5cff] transition hover:gap-3"
-                    onClick={() =>
-                      switchMode(
-                        mode === "login"
-                          ? "register"
-                          : mode === "register"
-                            ? "login"
-                            : "login",
-                      )
-                    }
-                    type="button"
-                  >
-                    {mode === "login" ? "注册账号" : "返回登录"}
-                    <ArrowRight className="h-4 w-4" />
-                  </button>
+                  {mode === "login" && !selfRegistrationEnabled ? (
+                    <p className="mt-1 text-base font-semibold text-[#1d5cff]">请使用管理员分配的账号登录</p>
+                  ) : (
+                    <button
+                      className="mt-1 inline-flex items-center gap-2 text-base font-semibold text-[#1d5cff] transition hover:gap-3"
+                      onClick={() =>
+                        switchMode(
+                          mode === "login"
+                            ? "register"
+                            : mode === "register"
+                              ? "login"
+                              : "login",
+                        )
+                      }
+                      type="button"
+                    >
+                      {mode === "login" ? "注册账号" : "返回登录"}
+                      <ArrowRight className="h-4 w-4" />
+                    </button>
+                  )}
                 </div>
               </div>
             </div>

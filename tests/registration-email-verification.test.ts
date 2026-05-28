@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { existsSync, readFileSync } from "node:fs";
+import { readFileSync } from "node:fs";
 import path from "node:path";
 import test from "node:test";
 
@@ -17,42 +17,26 @@ test("registration schema stores verified email and applicant identity fields", 
   assert.match(schema, /employeeId\s+String\?/);
 });
 
-test("registration exposes a dedicated email verification code endpoint", () => {
-  const routePath = "src/app/api/auth/register/email-code/route.ts";
-
-  assert.equal(existsSync(path.join(process.cwd(), routePath)), true);
-
-  const route = readSource(routePath);
-  assert.match(route, /export async function POST/);
-  assert.match(route, /generateEmailVerificationCode/);
-  assert.match(route, /hashEmailVerificationCode/);
-  assert.match(route, /sendEmail/);
-  assert.match(route, /isEmailConfigured/);
-  assert.match(route, /authRateLimits\.registerEmailCodeIp/);
-  assert.match(route, /注册邮箱验证码/);
-});
-
-test("self registration requires verified email code and applicant identity metadata", () => {
+test("self registration and register email code endpoints are closed", () => {
   const route = readSource("src/app/api/auth/register/route.ts");
+  const emailCodeRoute = readSource("src/app/api/auth/register/email-code/route.ts");
 
-  assert.match(route, /emailCode/);
-  assert.match(route, /verifyEmailVerificationCode/);
-  assert.match(route, /emailVerifiedAt:\s*new Date\(\)/);
-  assert.match(route, /college/);
-  assert.match(route, /className/);
-  assert.match(route, /studentId/);
+  assert.match(route, /暂不开放自助注册/);
+  assert.match(route, /status:\s*403/);
+  assert.match(emailCodeRoute, /暂不开放自助注册/);
+  assert.match(emailCodeRoute, /status:\s*403/);
+  assert.doesNotMatch(route, /verifyEmailVerificationCode/);
+  assert.doesNotMatch(emailCodeRoute, /generateEmailVerificationCode/);
   assert.doesNotMatch(route, /employeeId/);
-  assert.match(route, /项目负责人.*团队成员|团队成员.*项目负责人/s);
 });
 
-test("registration screen collects email code and role-specific identity fields", () => {
+test("registration screen keeps the form dormant and hides self registration entry", () => {
   const screen = readSource("src/components/login-screen.tsx");
 
-  assert.match(screen, /获取验证码/);
+  assert.match(screen, /selfRegistrationEnabled\s*=\s*false/);
+  assert.match(screen, /账号由系统管理员或校级管理员统一开通/);
+  assert.match(screen, /请使用管理员分配的账号登录/);
   assert.match(screen, /emailCode/);
-  assert.match(screen, /学院|院系|部门/);
-  assert.match(screen, /专业班级/);
-  assert.match(screen, /学号/);
   assert.doesNotMatch(screen, /工号/);
 });
 

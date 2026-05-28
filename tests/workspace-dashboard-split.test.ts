@@ -161,6 +161,8 @@ test("training center supports web voice AI judge practice", () => {
   const securitySource = read("src/lib/security.ts");
   assert.match(securitySource, /microphone=\(self\)/);
   assert.doesNotMatch(securitySource, /microphone=\(\)/);
+  assert.match(securitySource, /geolocation=\(self\)/);
+  assert.doesNotMatch(securitySource, /geolocation=\(\)/);
 
   assert.match(judgeRouteSource, /assertMainWorkspaceRole\(user\.role\)/);
   assert.match(judgeRouteSource, /buildTeamScopedResourceWhere/);

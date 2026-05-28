@@ -1,8 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { getSessionUser } from "@/lib/auth";
-import { assertRole } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import { hasTeacherTrainingCohortManageAccess } from "@/lib/teacher-training-access";
 import type { TeacherTrainingAttendanceStatus } from "@/lib/teacher-training";
 
 const attendanceStatusSet = new Set<TeacherTrainingAttendanceStatus>(["present", "leave", "absent"]);
@@ -11,12 +11,6 @@ export async function POST(request: NextRequest) {
   const user = await getSessionUser(request);
   if (!user) {
     return NextResponse.json({ message: "未登录" }, { status: 401 });
-  }
-
-  try {
-    assertRole(user.role, ["admin", "school_admin"]);
-  } catch {
-    return NextResponse.json({ message: "无权限登记省培签到" }, { status: 403 });
   }
 
   const body = (await request.json().catch(() => null)) as
@@ -37,6 +31,9 @@ export async function POST(request: NextRequest) {
 
   if (!cohortId || !participantId || !sessionDate || !status || !attendanceStatusSet.has(status)) {
     return NextResponse.json({ message: "签到信息不完整" }, { status: 400 });
+  }
+  if (!(await hasTeacherTrainingCohortManageAccess(user, cohortId))) {
+    return NextResponse.json({ message: "无权限登记该省培班次签到" }, { status: 403 });
   }
 
   const participant = await prisma.teacherTrainingParticipant.findFirst({

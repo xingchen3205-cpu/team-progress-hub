@@ -6,8 +6,8 @@ import { createAuditLogEntry } from "@/lib/audit-log";
 import { CAPTCHA_COOKIE_NAME, clearCaptchaCookie, verifyCaptchaChallenge } from "@/lib/captcha";
 import { prisma } from "@/lib/prisma";
 import { getRequestIp, getRequestUserAgent } from "@/lib/request-meta";
-import { serializeUser } from "@/lib/api-serializers";
 import { applyRateLimitHeaders, authRateLimits, checkRateLimit } from "@/lib/security";
+import { serializeUserWithTeacherTrainingAccess } from "@/lib/teacher-training-access";
 
 const jsonWithClearedCaptcha = (body: unknown, init?: ResponseInit) => {
   const response = NextResponse.json(body, init);
@@ -106,7 +106,7 @@ export async function POST(request: NextRequest) {
 
   const response = NextResponse.json({
     token,
-    user: serializeUser(user),
+    user: await serializeUserWithTeacherTrainingAccess(user),
   });
 
   setAuthCookie(response, token);

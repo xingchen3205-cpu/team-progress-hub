@@ -114,8 +114,10 @@ import {
 } from "@/lib/document-reminder";
 import type { TrainingQuestionImportCandidate } from "@/lib/training-import";
 import type {
+  TeacherTrainingApproverOptionItem,
   TeacherTrainingAttendanceStatus,
   TeacherTrainingCohortItem,
+  TeacherTrainingLeaveFlowStep,
 } from "@/lib/teacher-training";
 import {
   buildTaskWorkflowSteps,
@@ -237,7 +239,60 @@ export type TeacherTrainingParticipantDraft = {
   groupName: string;
   accountUsername: string;
   accountPassword: string;
+  extraInfo: string;
   note: string;
+};
+
+export type TeacherTrainingCheckInTaskDraft = {
+  cohortId: string;
+  courseSessionId: string;
+  title: string;
+  signDate: string;
+  startTime: string;
+  endTime: string;
+  locationName: string;
+  latitude: string;
+  longitude: string;
+  radiusMeters: string;
+};
+
+export type TeacherTrainingCheckInSignDraft = {
+  checkInTaskId: string;
+  participantId: string;
+  latitude: number;
+  longitude: number;
+  accuracy: number | null;
+};
+
+export type TeacherTrainingAccountMessageDraft = {
+  participantId: string;
+  accountUsername?: string;
+  accountPassword?: string;
+};
+
+export type TeacherTrainingCohortManagerDraft = {
+  cohortId: string;
+  userId: string;
+  title: string;
+};
+
+export type TeacherTrainingLeaveFlowDraft = {
+  cohortId: string;
+  approvalSteps: TeacherTrainingLeaveFlowStep[];
+};
+
+export type TeacherTrainingLeaveRequestDraft = {
+  participantId: string;
+  startDate: string;
+  endDate: string;
+  sessionLabel: string;
+  reason: string;
+};
+
+export type TeacherTrainingLeaveReviewDraft = {
+  leaveRequestId: string;
+  decision: "approve" | "reject";
+  comment: string;
 };
 
 export type TeacherTrainingTaskDraft = {
@@ -449,6 +504,10 @@ export type CurrentUser = {
   teamGroupName?: string | null;
   responsibility: string;
   roleLabel: TeamRoleLabel;
+  hasTeacherTrainingAccess?: boolean;
+  hasTeacherTrainingManagerAccess?: boolean;
+  teacherTrainingParticipantCount?: number;
+  teacherTrainingManagedCohortCount?: number;
   approvalStatus?: "pending" | "approved";
   approvalStatusLabel?: "待审核" | "已通过";
   profile: {
@@ -2131,6 +2190,8 @@ function useWorkspaceController({
     qaHitRate: 0,
   });
   const [teacherTrainingCohorts, setTeacherTrainingCohorts] = useState<TeacherTrainingCohortItem[]>([]);
+  const [teacherTrainingApproverOptions, setTeacherTrainingApproverOptions] = useState<TeacherTrainingApproverOptionItem[]>([]);
+  const [teacherTrainingManagerOptions, setTeacherTrainingManagerOptions] = useState<TeacherTrainingApproverOptionItem[]>([]);
   const [trainingPanel, setTrainingPanel] = useState<"qa" | "pitch">("qa");
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [projectStages, setProjectStages] = useState<ProjectReviewStageItem[]>([]);
@@ -2315,9 +2376,23 @@ function useWorkspaceController({
   const isSystemAdmin = currentRole === "admin";
   const isSchoolAdmin = currentRole === "school_admin";
   const hasGlobalAdminRole = isSystemAdmin || isSchoolAdmin;
-  const canManageTeacherTraining = hasGlobalAdminRole;
+  const hasTeacherTrainingAccess = hasGlobalAdminRole || Boolean(currentUser?.hasTeacherTrainingAccess);
+  const hasTeacherTrainingManagerAccess = hasGlobalAdminRole || Boolean(currentUser?.hasTeacherTrainingManagerAccess);
+  const canManageTeacherTraining = hasTeacherTrainingManagerAccess;
   const currentMemberId = currentUser?.id ?? "";
-  const permissions = rolePermissions[currentRole];
+  const basePermissions = rolePermissions[currentRole];
+  const visibleTabPermissionKeys =
+    hasTeacherTrainingAccess && !basePermissions.visibleTabs.includes("teacherTraining")
+      ? [
+          ...basePermissions.visibleTabs.filter((key) => key !== "profile"),
+          "teacherTraining" as TabKey,
+          ...(basePermissions.visibleTabs.includes("profile") ? (["profile"] as TabKey[]) : []),
+        ]
+      : ([...basePermissions.visibleTabs] as TabKey[]);
+  const permissions = {
+    ...basePermissions,
+    visibleTabs: visibleTabPermissionKeys,
+  };
   const requiresEmailCompletion = Boolean(
     currentUser && currentRole !== "expert" && currentRole !== "training_teacher" && validateRequiredEmail(currentUser.email),
   );
@@ -2700,6 +2775,8 @@ function useWorkspaceController({
       qaHitRate: 0,
     });
     setTeacherTrainingCohorts([]);
+    setTeacherTrainingApproverOptions([]);
+    setTeacherTrainingManagerOptions([]);
     setDocuments([]);
     setProjectStages([]);
     setProjectMaterials([]);
@@ -2871,8 +2948,14 @@ function useWorkspaceController({
           return;
         }
         case "teacherTraining": {
-          const payload = await requestJson<{ cohorts: TeacherTrainingCohortItem[] }>("/api/teacher-training");
+          const payload = await requestJson<{
+            cohorts: TeacherTrainingCohortItem[];
+            approverOptions: TeacherTrainingApproverOptionItem[];
+            managerOptions: TeacherTrainingApproverOptionItem[];
+          }>("/api/teacher-training");
           setTeacherTrainingCohorts(payload.cohorts);
+          setTeacherTrainingApproverOptions(payload.approverOptions ?? []);
+          setTeacherTrainingManagerOptions(payload.managerOptions ?? []);
           return;
         }
         case "reviewAssignments": {
@@ -4999,6 +5082,7 @@ function useWorkspaceController({
           groupName: draft.groupName.trim(),
           accountUsername: draft.accountUsername.trim(),
           accountPassword: draft.accountPassword.trim(),
+          extraInfo: draft.extraInfo.trim(),
           note: draft.note.trim(),
         }),
       });
@@ -5045,6 +5129,63 @@ function useWorkspaceController({
     }
   };
 
+  const createTeacherTrainingCheckInTask = async (draft: TeacherTrainingCheckInTaskDraft) => {
+    const cohortId = draft.cohortId.trim();
+    const title = draft.title.trim();
+    const signDate = draft.signDate.trim();
+
+    if (!cohortId || !title || !signDate) {
+      setLoadError("请先填写班次、签到标题和签到日期");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      await requestJson("/api/teacher-training/check-ins", {
+        method: "POST",
+        body: JSON.stringify({
+          cohortId,
+          courseSessionId: draft.courseSessionId.trim(),
+          title,
+          signDate,
+          startTime: draft.startTime.trim(),
+          endTime: draft.endTime.trim(),
+          locationName: draft.locationName.trim(),
+          latitude: draft.latitude.trim(),
+          longitude: draft.longitude.trim(),
+          radiusMeters: draft.radiusMeters.trim(),
+        }),
+      });
+      showSuccessToast("签到任务已发布", "参训教师可在省培账号里进行定位签到。");
+      refreshWorkspace("teacherTraining");
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "签到任务发布失败");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const signTeacherTrainingCheckIn = async (draft: TeacherTrainingCheckInSignDraft) => {
+    if (!draft.checkInTaskId || !draft.participantId) {
+      setLoadError("请先选择签到任务和参训教师身份");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      await requestJson("/api/teacher-training/check-ins/sign", {
+        method: "POST",
+        body: JSON.stringify(draft),
+      });
+      showSuccessToast("定位签到成功", "管理员导出的课程签到名单会同步更新。");
+      refreshWorkspace("teacherTraining");
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "定位签到失败");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const markTeacherTrainingAttendance = async ({
     cohortId,
     participantId,
@@ -5081,6 +5222,187 @@ function useWorkspaceController({
       refreshWorkspace("teacherTraining");
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "签到状态保存失败");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const generateTeacherTrainingAccountMessage = async ({
+    participantId,
+    accountUsername = "",
+    accountPassword = "",
+  }: TeacherTrainingAccountMessageDraft) => {
+    if (!participantId) {
+      setLoadError("请先选择参训教师");
+      return "";
+    }
+
+    setIsSaving(true);
+    try {
+      const payload = await requestJson<{ messageText: string }>(
+        `/api/teacher-training/participants/${encodeURIComponent(participantId)}/account`,
+        {
+          method: "POST",
+          body: JSON.stringify({
+            accountUsername: accountUsername.trim(),
+            accountPassword: accountPassword.trim(),
+          }),
+        },
+      );
+      showSuccessToast("账号消息已生成", "可直接复制后发送给参训教师。");
+      refreshWorkspace("teacherTraining");
+      return payload.messageText;
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "账号消息生成失败");
+      return "";
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const assignTeacherTrainingCohortManager = async (draft: TeacherTrainingCohortManagerDraft) => {
+    const cohortId = draft.cohortId.trim();
+    const userId = draft.userId.trim();
+    const title = draft.title.trim() || "班主任";
+
+    if (!cohortId || !userId) {
+      setLoadError("请先选择班次和班主任账号");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      await requestJson("/api/teacher-training/cohort-managers", {
+        method: "POST",
+        body: JSON.stringify({
+          cohortId,
+          userId,
+          title,
+        }),
+      });
+      showSuccessToast("省培班主任已设置", "该账号可切换进入省培系统管理所带班次。");
+      refreshWorkspace("teacherTraining");
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "班主任设置失败");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const removeTeacherTrainingCohortManager = async (draft: Pick<TeacherTrainingCohortManagerDraft, "cohortId" | "userId">) => {
+    const cohortId = draft.cohortId.trim();
+    const userId = draft.userId.trim();
+
+    if (!cohortId || !userId) {
+      setLoadError("请先选择要移除的班主任");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      await requestJson("/api/teacher-training/cohort-managers", {
+        method: "DELETE",
+        body: JSON.stringify({
+          cohortId,
+          userId,
+        }),
+      });
+      showSuccessToast("省培班主任已移除", "该账号不再管理这个省培班次。");
+      refreshWorkspace("teacherTraining");
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "班主任移除失败");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const updateTeacherTrainingLeaveFlow = async (draft: TeacherTrainingLeaveFlowDraft) => {
+    const cohortId = draft.cohortId.trim();
+    const approvalSteps = draft.approvalSteps.map((step, index) => ({
+      key: step.key || `step-${index + 1}`,
+      name: step.name.trim() || `第${index + 1}步审批`,
+      approverIds: Array.from(new Set(step.approverIds.map((id) => id.trim()).filter(Boolean))),
+      requiredCount: Math.max(1, step.requiredCount || 1),
+    }));
+
+    if (!cohortId || approvalSteps.length === 0) {
+      setLoadError("请先配置请假审批步骤");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      await requestJson("/api/teacher-training/leave-flow", {
+        method: "POST",
+        body: JSON.stringify({
+          cohortId,
+          approvalSteps,
+        }),
+      });
+      showSuccessToast("请假流程已保存", "新的申请会按这套流程流转。");
+      refreshWorkspace("teacherTraining");
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "请假流程保存失败");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const submitTeacherTrainingLeaveRequest = async (draft: TeacherTrainingLeaveRequestDraft) => {
+    const participantId = draft.participantId.trim();
+    const startDate = draft.startDate.trim();
+    const endDate = draft.endDate.trim();
+    const reason = draft.reason.trim();
+
+    if (!participantId || !startDate || !endDate || !reason) {
+      setLoadError("请先填写请假日期和原因");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      await requestJson("/api/teacher-training/leave-requests", {
+        method: "POST",
+        body: JSON.stringify({
+          participantId,
+          startDate,
+          endDate,
+          sessionLabel: draft.sessionLabel.trim(),
+          reason,
+        }),
+      });
+      showSuccessToast("请假申请已提交", "审批人处理后会同步更新签到记录。");
+      refreshWorkspace("teacherTraining");
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "请假申请提交失败");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const reviewTeacherTrainingLeaveRequest = async ({
+    leaveRequestId,
+    decision,
+    comment,
+  }: TeacherTrainingLeaveReviewDraft) => {
+    if (!leaveRequestId) {
+      setLoadError("请先选择请假申请");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      await requestJson(`/api/teacher-training/leave-requests/${encodeURIComponent(leaveRequestId)}/review`, {
+        method: "POST",
+        body: JSON.stringify({
+          decision,
+          comment: comment.trim(),
+        }),
+      });
+      showSuccessToast(decision === "approve" ? "请假审批已通过" : "请假申请已驳回", "省培请假记录已经更新。");
+      refreshWorkspace("teacherTraining");
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "请假审批失败");
     } finally {
       setIsSaving(false);
     }
@@ -7057,6 +7379,10 @@ function useWorkspaceController({
     setTrainingStats,
     teacherTrainingCohorts,
     setTeacherTrainingCohorts,
+    teacherTrainingApproverOptions,
+    setTeacherTrainingApproverOptions,
+    teacherTrainingManagerOptions,
+    setTeacherTrainingManagerOptions,
     trainingPanel,
     setTrainingPanel,
     documents,
@@ -7347,6 +7673,8 @@ function useWorkspaceController({
     isSystemAdmin,
     isSchoolAdmin,
     hasGlobalAdminRole,
+    hasTeacherTrainingAccess,
+    hasTeacherTrainingManagerAccess,
     canManageTeacherTraining,
     currentMemberId,
     permissions,
@@ -7520,7 +7848,15 @@ function useWorkspaceController({
     createTeacherTrainingCohort,
     addTeacherTrainingParticipant,
     createTeacherTrainingCourseSession,
+    createTeacherTrainingCheckInTask,
+    signTeacherTrainingCheckIn,
     markTeacherTrainingAttendance,
+    generateTeacherTrainingAccountMessage,
+    assignTeacherTrainingCohortManager,
+    removeTeacherTrainingCohortManager,
+    updateTeacherTrainingLeaveFlow,
+    submitTeacherTrainingLeaveRequest,
+    reviewTeacherTrainingLeaveRequest,
     createTeacherTrainingTask,
     saveTeacherTrainingSubmission,
     updateTeacherTrainingProfile,

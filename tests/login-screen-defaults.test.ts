@@ -150,6 +150,12 @@ describe("login screen defaults", () => {
     assert.doesNotMatch(loginScreenSource, /如无统一工号可不填/);
   });
 
+  it("does not expose self registration entry on the login screen", () => {
+    assert.match(loginScreenSource, /selfRegistrationEnabled\s*=\s*false/);
+    assert.match(loginScreenSource, /账号由系统管理员或校级管理员统一开通/);
+    assert.match(loginScreenSource, /请使用管理员分配的账号登录/);
+  });
+
   it("keeps student role validations for className and studentId", () => {
     assert.match(loginScreenSource, /className.*studentRole/);
     assert.match(loginScreenSource, /studentId.*studentRole/);

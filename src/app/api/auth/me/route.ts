@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { getSessionUser } from "@/lib/auth";
-import { serializeUser } from "@/lib/api-serializers";
+import { serializeUserWithTeacherTrainingAccess } from "@/lib/teacher-training-access";
 
 export async function GET(request: NextRequest) {
   const user = await getSessionUser(request);
@@ -10,5 +10,5 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ message: "未登录" }, { status: 401 });
   }
 
-  return NextResponse.json({ user: serializeUser(user) });
+  return NextResponse.json({ user: await serializeUserWithTeacherTrainingAccess(user) });
 }

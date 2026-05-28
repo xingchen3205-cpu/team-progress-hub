@@ -1,18 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
+import type { Prisma } from "@prisma/client";
 
 import { getSessionUser } from "@/lib/auth";
 import { assertRole, hasGlobalAdminPrivileges } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import { getTeacherTrainingAccessFlags } from "@/lib/teacher-training-access";
 import { serializeTeacherTrainingCohort } from "@/lib/teacher-training";
 
-const buildTeacherTrainingInclude = (accountUserId?: string) => ({
+const buildTeacherTrainingInclude = () => ({
   creator: {
     select: {
       name: true,
     },
   },
   participants: {
-    where: accountUserId ? { accountUserId } : undefined,
     orderBy: [{ createdAt: "asc" as const }],
     include: {
       accountUser: {
@@ -32,6 +33,50 @@ const buildTeacherTrainingInclude = (accountUserId?: string) => ({
           },
         },
       },
+      checkInRecords: {
+        orderBy: [{ signedAt: "desc" as const }],
+        include: {
+          participant: {
+            select: {
+              name: true,
+            },
+          },
+        },
+      },
+      leaveRequests: {
+        orderBy: [{ submittedAt: "desc" as const }],
+        include: {
+          participant: {
+            select: {
+              name: true,
+              organization: true,
+            },
+          },
+          approvals: {
+            orderBy: [{ stepIndex: "asc" as const }, { reviewedAt: "asc" as const }],
+            include: {
+              approver: {
+                select: {
+                  name: true,
+                },
+              },
+            },
+          },
+        },
+      },
+    },
+  },
+  managers: {
+    orderBy: [{ createdAt: "asc" as const }],
+    include: {
+      user: {
+        select: {
+          id: true,
+          name: true,
+          username: true,
+          role: true,
+        },
+      },
     },
   },
   courseSessions: {
@@ -45,12 +90,53 @@ const buildTeacherTrainingInclude = (accountUserId?: string) => ({
     },
   },
   attendances: {
-    where: accountUserId ? { participant: { accountUserId } } : undefined,
     orderBy: [{ sessionDate: "desc" as const }, { sessionLabel: "asc" as const }, { markedAt: "desc" as const }],
     include: {
       markedBy: {
         select: {
           name: true,
+        },
+      },
+    },
+  },
+  checkInTasks: {
+    orderBy: [{ signDate: "desc" as const }, { startTime: "asc" as const }, { createdAt: "desc" as const }],
+    include: {
+      creator: {
+        select: {
+          name: true,
+        },
+      },
+      records: {
+        orderBy: [{ signedAt: "desc" as const }],
+        include: {
+          participant: {
+            select: {
+              name: true,
+            },
+          },
+        },
+      },
+    },
+  },
+  leaveFlow: true,
+  leaveRequests: {
+    orderBy: [{ submittedAt: "desc" as const }],
+    include: {
+      participant: {
+        select: {
+          name: true,
+          organization: true,
+        },
+      },
+      approvals: {
+        orderBy: [{ stepIndex: "asc" as const }, { reviewedAt: "asc" as const }],
+        include: {
+          approver: {
+            select: {
+              name: true,
+            },
+          },
         },
       },
     },
@@ -64,7 +150,6 @@ const buildTeacherTrainingInclude = (accountUserId?: string) => ({
         },
       },
       submissions: {
-        where: accountUserId ? { participant: { accountUserId } } : undefined,
         orderBy: [{ submittedAt: "desc" as const }],
         include: {
           participant: {
@@ -81,7 +166,42 @@ const buildTeacherTrainingInclude = (accountUserId?: string) => ({
       },
     },
   },
-});
+}) satisfies Prisma.TeacherTrainingCohortInclude;
+
+type TeacherTrainingCohortWithRelations = Prisma.TeacherTrainingCohortGetPayload<{
+  include: ReturnType<typeof buildTeacherTrainingInclude>;
+}>;
+
+const filterCohortForParticipantOnly = (
+  cohort: TeacherTrainingCohortWithRelations,
+  accountUserId: string,
+  managedCohortIds: Set<string>,
+) => {
+  if (managedCohortIds.has(cohort.id)) {
+    return cohort;
+  }
+
+  const participantIds = new Set(
+    cohort.participants
+      .filter((participant) => participant.accountUserId === accountUserId)
+      .map((participant) => participant.id),
+  );
+
+  return {
+    ...cohort,
+    participants: cohort.participants.filter((participant) => participantIds.has(participant.id)),
+    attendances: cohort.attendances.filter((attendance) => participantIds.has(attendance.participantId)),
+    checkInTasks: cohort.checkInTasks.map((task) => ({
+      ...task,
+      records: task.records.filter((record) => participantIds.has(record.participantId)),
+    })),
+    leaveRequests: cohort.leaveRequests.filter((request) => participantIds.has(request.participantId)),
+    tasks: cohort.tasks.map((task) => ({
+      ...task,
+      submissions: task.submissions.filter((submission) => participantIds.has(submission.participantId)),
+    })),
+  };
+};
 
 export async function GET(request: NextRequest) {
   const user = await getSessionUser(request);
@@ -89,28 +209,92 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ message: "未登录" }, { status: 401 });
   }
 
-  try {
-    assertRole(user.role, ["admin", "school_admin", "training_teacher"]);
-  } catch {
+  const access = await getTeacherTrainingAccessFlags(user);
+  if (!access.hasTeacherTrainingAccess) {
     return NextResponse.json({ message: "无权限查看省培平台" }, { status: 403 });
   }
 
   const isManager = hasGlobalAdminPrivileges(user.role);
-  const cohorts = await prisma.teacherTrainingCohort.findMany({
-    where: isManager
-      ? undefined
-      : {
-          participants: {
-            some: {
-              accountUserId: user.id,
-            },
-          },
+  const managerAssignments = isManager
+    ? []
+    : await prisma.teacherTrainingCohortManager.findMany({
+        where: {
+          userId: user.id,
         },
-    orderBy: [{ startDate: "desc" }, { createdAt: "desc" }],
-    include: buildTeacherTrainingInclude(isManager ? undefined : user.id),
-  });
+        select: {
+          cohortId: true,
+        },
+      });
+  const managedCohortIds = new Set(managerAssignments.map((assignment) => assignment.cohortId));
+  const [cohorts, approverOptions, managerOptions] = await Promise.all([
+    prisma.teacherTrainingCohort.findMany({
+      where: isManager
+        ? undefined
+        : {
+            OR: [
+              {
+                participants: {
+                  some: {
+                    accountUserId: user.id,
+                  },
+                },
+              },
+              {
+                managers: {
+                  some: {
+                    userId: user.id,
+                  },
+                },
+              },
+            ],
+          },
+      orderBy: [{ startDate: "desc" }, { createdAt: "desc" }],
+      include: buildTeacherTrainingInclude(),
+    }),
+    isManager
+      ? prisma.user.findMany({
+          where: {
+            role: {
+              in: ["admin", "school_admin"],
+            },
+            approvalStatus: "approved",
+          },
+          orderBy: [{ role: "asc" }, { name: "asc" }],
+          select: {
+            id: true,
+            name: true,
+            username: true,
+            role: true,
+          },
+        })
+      : Promise.resolve([]),
+    isManager
+      ? prisma.user.findMany({
+          where: {
+            role: {
+              not: "expert",
+            },
+            approvalStatus: "approved",
+          },
+          orderBy: [{ role: "asc" }, { name: "asc" }],
+          select: {
+            id: true,
+            name: true,
+            username: true,
+            role: true,
+          },
+        })
+      : Promise.resolve([]),
+  ]);
+  const visibleCohorts = isManager
+    ? cohorts
+    : cohorts.map((cohort) => filterCohortForParticipantOnly(cohort, user.id, managedCohortIds));
 
-  return NextResponse.json({ cohorts: cohorts.map(serializeTeacherTrainingCohort) });
+  return NextResponse.json({
+    cohorts: visibleCohorts.map(serializeTeacherTrainingCohort),
+    approverOptions,
+    managerOptions,
+  });
 }
 
 export async function POST(request: NextRequest) {
