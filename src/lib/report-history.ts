@@ -1,6 +1,12 @@
 import type { Role } from "@prisma/client";
 
 import { toIsoDateKey } from "@/lib/date";
+export {
+  buildReportAttachmentDownloadUrl,
+  decodeReportAttachmentFile,
+  encodeReportAttachmentFile,
+  getReportAttachmentNote,
+} from "@/lib/report-attachments";
 
 type BuildReportDateOptionsInput = {
   reportDates: string[];
@@ -42,11 +48,6 @@ export const buildReportDateOptions = ({
   }
 
   return Array.from(dateSet).sort((left, right) => (left < right ? 1 : -1));
-};
-
-export const getReportAttachmentNote = (attachment?: string | null) => {
-  const trimmed = attachment?.trim() ?? "";
-  return trimmed && trimmed !== "未上传附件" ? trimmed : null;
 };
 
 export const getAdminReportDeleteFilter = ({

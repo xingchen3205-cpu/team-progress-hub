@@ -863,7 +863,16 @@ const AdminReadonlyReportCard = ({
               <p className="text-xs font-semibold text-slate-400">今日完成</p>
               <p className="mt-2 text-sm leading-7 text-slate-700">{report.summary}</p>
             </div>
-            {attachmentNote ? (
+            {report.attachmentFile ? (
+              <a
+                className="mt-3 flex items-center gap-2 rounded-lg border border-blue-100 bg-blue-50/70 px-3 py-2 text-sm font-medium text-blue-700 transition hover:border-blue-200 hover:bg-blue-50"
+                href={report.attachmentFile.downloadUrl}
+              >
+                <Workspace.Paperclip className="h-4 w-4 shrink-0" />
+                <span className="min-w-0 flex-1 truncate">{report.attachmentFile.fileName}</span>
+                <span className="shrink-0 text-xs text-blue-500">{Workspace.formatFileSize(report.attachmentFile.fileSize)}</span>
+              </a>
+            ) : attachmentNote ? (
               <p className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-500">附件备注：{attachmentNote}</p>
             ) : null}
             {evaluations.length > 0 ? (

@@ -3,6 +3,12 @@ import mammoth from "mammoth";
 
 import { getSessionUser } from "@/lib/auth";
 import { assertMainWorkspaceRole } from "@/lib/permissions";
+import { prisma } from "@/lib/prisma";
+import { buildTeamScopedResourceWhere } from "@/lib/team-scope";
+import {
+  generateTrainingQuestionImportCandidates,
+  resolveTrainingImportMatches,
+} from "@/lib/training-question-ai-import";
 import { parseTrainingQuestionText } from "@/lib/training-import";
 
 export const runtime = "nodejs";
@@ -165,6 +171,8 @@ export async function POST(request: NextRequest) {
 
   const formData = await request.formData().catch(() => null);
   const file = formData?.get("file");
+  const modeValue = formData?.get("mode");
+  const importMode = modeValue === "ai" ? "ai" : "local";
 
   if (!(file instanceof File)) {
     return NextResponse.json({ message: "请上传题库文档" }, { status: 400 });
@@ -176,7 +184,28 @@ export async function POST(request: NextRequest) {
 
   try {
     const text = await extractTextFromFile(file);
-    const rows = parseTrainingQuestionText(text);
+    const existingQuestions = await prisma.trainingQuestion.findMany({
+      where: buildTeamScopedResourceWhere({
+        actor: user,
+        ownerField: "createdById",
+      }),
+      orderBy: [{ updatedAt: "desc" }],
+      take: 120,
+      select: {
+        id: true,
+        category: true,
+        question: true,
+        answerPoints: true,
+      },
+    });
+    const rows =
+      importMode === "ai"
+        ? (await generateTrainingQuestionImportCandidates({
+            userId: user.id,
+            documentText: text,
+            existingQuestions,
+          })).rows
+        : resolveTrainingImportMatches(parseTrainingQuestionText(text), existingQuestions);
 
     if (rows.length === 0) {
       return NextResponse.json({ message: "没有识别到可导入的问题，请检查文档是否包含问题和回答要点" }, { status: 400 });

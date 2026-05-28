@@ -859,16 +859,16 @@ export default function TrainingTab() {
 
             {trainingQuestions.length > 0 ? (
               <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-4">
-                <div className="flex flex-col gap-3 xl:flex-row xl:items-center xl:justify-between">
+                <div className="flex flex-col gap-4 xl:flex-row xl:items-start xl:justify-between">
                   <div className="min-w-[180px] shrink-0">
                     <p className="whitespace-nowrap text-sm font-medium text-slate-900">题库管理</p>
                     <p className="mt-1 text-xs text-slate-500">
                       已选择 {selectedTrainingQuestionIds.length} / {trainingQuestions.length} 题；当前显示 {filteredTrainingQuestions.length} 题。
                     </p>
                   </div>
-                  <div className="flex w-full min-w-0 flex-col gap-2 sm:flex-row xl:max-w-[760px] xl:justify-end">
-                    <label className="flex min-w-0 flex-col gap-1 text-xs font-medium text-slate-500 sm:w-[180px]">
-                      题库分类
+                  <div className="flex w-full flex-wrap items-end gap-3 xl:max-w-[820px] xl:justify-end">
+                    <label className="flex min-w-[200px] shrink-0 flex-col gap-1">
+                      <span className="whitespace-nowrap text-xs font-medium text-slate-500">题库分类</span>
                       <select
                         className="h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none transition focus:border-blue-300 focus:ring-4 focus:ring-blue-100"
                         onChange={(event) => setTrainingQuestionCategoryFilter(event.target.value)}
@@ -881,7 +881,7 @@ export default function TrainingTab() {
                         ))}
                       </select>
                     </label>
-                    <label className="relative block min-w-0 flex-1 sm:min-w-[260px]">
+                    <label className="relative block min-w-[240px] flex-1">
                       <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
                       <input
                         aria-label="搜索训练题库"

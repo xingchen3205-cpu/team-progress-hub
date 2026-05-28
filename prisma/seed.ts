@@ -37,6 +37,7 @@ const roleMap = {
   项目负责人: Role.leader,
   团队成员: Role.member,
   评审专家: Role.expert,
+  省培教师: Role.training_teacher,
 } as const satisfies Record<string, Role>;
 
 const taskPriorityMap = {

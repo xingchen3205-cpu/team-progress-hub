@@ -6,6 +6,8 @@ import { describe, it } from "node:test";
 import {
   getAdminReportViewFilter,
   buildReportDateOptions,
+  decodeReportAttachmentFile,
+  encodeReportAttachmentFile,
   getAdminReportDeleteFilter,
   getReportAttachmentNote,
   getVisibleReportMembers,
@@ -40,6 +42,23 @@ describe("report history date options", () => {
     assert.equal(getReportAttachmentNote("未上传附件"), null);
     assert.equal(getReportAttachmentNote("   "), null);
     assert.equal(getReportAttachmentNote("日报截图.png"), "日报截图.png");
+  });
+
+  it("keeps uploaded report attachments as downloadable file metadata while displaying the file name", () => {
+    const attachment = encodeReportAttachmentFile({
+      fileName: "日程汇报截图.png",
+      filePath: "report-attachments/member-1/2026-05-28/1748400000000_report.png",
+      fileSize: 182044,
+      mimeType: "image/png",
+    });
+
+    assert.equal(getReportAttachmentNote(attachment), "日程汇报截图.png");
+    assert.deepEqual(decodeReportAttachmentFile(attachment), {
+      fileName: "日程汇报截图.png",
+      filePath: "report-attachments/member-1/2026-05-28/1748400000000_report.png",
+      fileSize: 182044,
+      mimeType: "image/png",
+    });
   });
 
   it("builds a safe admin report deletion filter scoped to one team group and date", () => {

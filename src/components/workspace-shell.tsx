@@ -63,9 +63,13 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
     questionImportModalOpen,
     setQuestionImportModalOpen,
     questionImportFileName,
+    setQuestionImportFileName,
+    questionImportMode,
+    setQuestionImportMode,
     questionImportRows,
     setQuestionImportRows,
     questionImportError,
+    setQuestionImportError,
     announcementModalOpen,
     setAnnouncementModalOpen,
     announcementDraft,
@@ -154,6 +158,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
     currentRole,
     hasGlobalAdminRole,
     permissions,
+    isTeacherTrainingPlatform,
     sidebarTabs,
     safeActiveTab,
     taskAssignableMembers,
@@ -214,6 +219,8 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
     Loader2,
     LogOut,
     Menu,
+    Paperclip,
+    Upload,
     X,
     documentCategories,
     roleLabels,
@@ -223,6 +230,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
     documentCenterAcceptAttribute,
     documentAcceptAttribute,
     MAX_DOCUMENT_CENTER_UPLOAD_SIZE,
+    validateUploadMeta,
     expertReviewAcceptAttributes,
     expertReviewMaterialLabels,
     requestJson,
@@ -262,10 +270,13 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
   const dropLowestCount = Number(reviewAssignmentDraft.dropLowestCount || 0);
   const customRoadshowProjectFileInputRef = useRef<HTMLInputElement>(null);
   const customRoadshowProjectImageInputRef = useRef<HTMLInputElement>(null);
+  const reportAttachmentInputRef = useRef<HTMLInputElement>(null);
   const [customRoadshowOcrOpen, setCustomRoadshowOcrOpen] = useState(false);
   const [customRoadshowOcrText, setCustomRoadshowOcrText] = useState("");
   const [customRoadshowOcrError, setCustomRoadshowOcrError] = useState<string | null>(null);
   const [customRoadshowOcrLoading, setCustomRoadshowOcrLoading] = useState(false);
+  const [reportAttachmentUploading, setReportAttachmentUploading] = useState(false);
+  const uploadedReportAttachment = Workspace.decodeReportAttachmentFile(reportDraft.attachment);
   const customRoadshowProjectNames = parseCustomReviewTargetNames(reviewAssignmentDraft.customTargetNames);
   const remainingReviewScoreCount = Math.max(
     0,
@@ -359,6 +370,51 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
       setCustomRoadshowOcrOpen(true);
     } finally {
       setCustomRoadshowOcrLoading(false);
+    }
+  };
+
+  const uploadReportAttachment = async (file: File | null) => {
+    if (!file) {
+      return;
+    }
+
+    const validationError = validateUploadMeta({
+      fileName: file.name,
+      fileSize: file.size,
+      mimeType: file.type,
+    });
+    if (validationError) {
+      setLoadError(validationError);
+      return;
+    }
+
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("date", editingReportDate || selectedDate);
+    setReportAttachmentUploading(true);
+    setLoadError(null);
+
+    try {
+      const response = await fetch("/api/reports/attachments", {
+        method: "POST",
+        body: formData,
+      });
+      const payload = (await response.json().catch(() => null)) as
+        | {
+            attachment?: string;
+            message?: string;
+          }
+        | null;
+
+      if (!response.ok || !payload?.attachment) {
+        throw new Error(payload?.message || "附件上传失败");
+      }
+
+      setReportDraft((current) => ({ ...current, attachment: payload.attachment ?? "" }));
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "附件上传失败");
+    } finally {
+      setReportAttachmentUploading(false);
     }
   };
 
@@ -829,6 +885,34 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                   </div>
                 </div>
 
+                {hasGlobalAdminRole ? (
+                  <div
+                    aria-label="平台切换"
+                    className="topbar-platform-switch inline-flex rounded-xl border border-slate-200/80 bg-white/75 p-1 shadow-[0_10px_24px_rgba(15,23,42,0.08)] backdrop-blur"
+                  >
+                    <Link
+                      className={`rounded-lg px-3 py-1.5 text-sm font-semibold no-underline transition ${
+                        isTeacherTrainingPlatform
+                          ? "text-slate-500 hover:text-slate-900"
+                          : "bg-[#1a6fd4] text-white shadow-[0_8px_18px_rgba(26,111,212,0.22)]"
+                      }`}
+                      href="/workspace"
+                    >
+                      大赛管理
+                    </Link>
+                    <Link
+                      className={`rounded-lg px-3 py-1.5 text-sm font-semibold no-underline transition ${
+                        isTeacherTrainingPlatform
+                          ? "bg-[#1a6fd4] text-white shadow-[0_8px_18px_rgba(26,111,212,0.22)]"
+                          : "text-slate-500 hover:text-slate-900"
+                      }`}
+                      href="/workspace?tab=teacherTraining"
+                    >
+                      省培管理
+                    </Link>
+                  </div>
+                ) : null}
+
                 <span className="topbar-divider" />
                 <span className="topbar-date-pill" title={formatFriendlyDate(currentDateTime)}>
                   <CalendarDays className="h-4 w-4" />
@@ -941,8 +1025,32 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
         >
           <div className="space-y-4">
             <div className="rounded-xl border border-blue-100 bg-blue-50 px-4 py-3 text-sm leading-7 text-blue-700">
-              上传文档后会先自动识别问题和回答要点，导入前可以逐条校对、修改和取消选择。支持 PDF、Word(.docx)、
-              txt / md / csv / json；旧版 .doc 请另存为 .docx 后导入，单文件最大 4MB。
+              上传文档后会先识别问题和回答要点，并和现有题库做匹配；导入前可以逐条校对，选择新增或更新。支持 PDF、
+              Word(.docx)、txt / md / csv / json；旧版 .doc 请另存为 .docx 后导入，单文件最大 4MB。
+            </div>
+            <div className="inline-flex rounded-xl border border-slate-200 bg-slate-50 p-1">
+              {[
+                { key: "ai", label: "AI 智能识别" },
+                { key: "local", label: "本地快速识别" },
+              ].map((item) => (
+                <button
+                  className={`rounded-lg px-4 py-2 text-sm font-medium transition ${
+                    questionImportMode === item.key
+                      ? "bg-white text-blue-700 shadow-sm"
+                      : "text-slate-500 hover:text-slate-800"
+                  }`}
+                  key={item.key}
+                  onClick={() => {
+                    setQuestionImportMode(item.key as "ai" | "local");
+                    setQuestionImportRows([]);
+                    setQuestionImportFileName("");
+                    setQuestionImportError(null);
+                  }}
+                  type="button"
+                >
+                  {item.label}
+                </button>
+              ))}
             </div>
             <label className="block text-sm text-slate-500">
               选择题库文档
@@ -976,6 +1084,25 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                         />
                         导入第 {index + 1} 题
                       </label>
+                      <div className="flex flex-wrap items-center gap-2">
+                        <select
+                          className="h-9 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-700 outline-none transition focus:border-blue-300 focus:ring-4 focus:ring-blue-100"
+                          onChange={(event) =>
+                            updateQuestionImportRow(row.id, {
+                              importAction: event.target.value as "create" | "update",
+                            })
+                          }
+                          value={row.importAction}
+                        >
+                          <option value="create">新增题目</option>
+                          {row.matchedQuestionId ? <option value="update">更新匹配题目</option> : null}
+                        </select>
+                        {row.matchedQuestionLabel ? (
+                          <span className="max-w-[320px] truncate rounded-full bg-amber-50 px-3 py-1 text-xs font-medium text-amber-700">
+                            匹配：{row.matchedQuestionLabel}
+                          </span>
+                        ) : null}
+                      </div>
                       <button
                         className="text-sm text-red-500 transition hover:text-red-600"
                         onClick={() => setQuestionImportRows((current) => current.filter((item) => item.id !== row.id))}
@@ -1027,6 +1154,11 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                         onChange={(event) => updateQuestionImportRow(row.id, { answerPoints: event.target.value })}
                       />
                     </label>
+                    {row.matchReason ? (
+                      <p className="mt-2 rounded-lg bg-white px-3 py-2 text-xs leading-5 text-slate-500">
+                        {row.matchReason}
+                      </p>
+                    ) : null}
                   </article>
                 ))}
               </div>
@@ -1270,17 +1402,67 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                 }
               />
             </label>
-            <label className="block text-sm text-slate-500">
-              附件
-              <input
-                className={fieldClassName}
-                placeholder="例如：日报截图.png / 无"
-                value={reportDraft.attachment}
-                onChange={(event) =>
-                  setReportDraft((current) => ({ ...current, attachment: event.target.value }))
-                }
-              />
-            </label>
+            <div className="rounded-xl border border-slate-200 bg-slate-50/70 p-4">
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm font-medium text-slate-700">附件</p>
+                  <p className="mt-1 text-xs leading-5 text-slate-500">
+                    支持 Word / PDF / Excel / 图片，最大 20MB；可直接从本机选择。
+                  </p>
+                </div>
+                <input
+                  accept={documentAcceptAttribute}
+                  className="sr-only"
+                  onChange={(event) => {
+                    const file = event.target.files?.[0] ?? null;
+                    event.target.value = "";
+                    void uploadReportAttachment(file);
+                  }}
+                  ref={reportAttachmentInputRef}
+                  type="file"
+                />
+                <ActionButton
+                  disabled={isSaving || reportAttachmentUploading}
+                  loading={reportAttachmentUploading}
+                  loadingLabel="上传中..."
+                  onClick={() => reportAttachmentInputRef.current?.click()}
+                >
+                  <Upload className="h-4 w-4" />
+                  选择本机文件
+                </ActionButton>
+              </div>
+
+              {uploadedReportAttachment ? (
+                <div className="mt-3 flex flex-col gap-3 rounded-lg border border-blue-100 bg-white px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="flex min-w-0 items-center gap-2 text-sm text-slate-700">
+                    <Paperclip className="h-4 w-4 shrink-0 text-blue-600" />
+                    <span className="truncate font-medium">{uploadedReportAttachment.fileName}</span>
+                    <span className="shrink-0 text-xs text-slate-400">
+                      {Workspace.formatFileSize(uploadedReportAttachment.fileSize)}
+                    </span>
+                  </div>
+                  <button
+                    className="self-start text-xs font-medium text-slate-400 transition hover:text-red-600 sm:self-auto"
+                    onClick={() => setReportDraft((current) => ({ ...current, attachment: "" }))}
+                    type="button"
+                  >
+                    移除
+                  </button>
+                </div>
+              ) : (
+                <label className="mt-3 block text-sm text-slate-500">
+                  附件链接或备注
+                  <input
+                    className={fieldClassName}
+                    placeholder="可选：粘贴链接或填写附件说明"
+                    value={reportDraft.attachment}
+                    onChange={(event) =>
+                      setReportDraft((current) => ({ ...current, attachment: event.target.value }))
+                    }
+                  />
+                </label>
+              )}
+            </div>
             <ModalActions>
               <ActionButton disabled={isSaving} onClick={closeReportModal}>取消</ActionButton>
               <ActionButton loading={isSaving} loadingLabel="提交中..." onClick={saveReport} variant="primary">

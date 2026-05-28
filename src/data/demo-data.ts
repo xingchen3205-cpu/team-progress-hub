@@ -1,8 +1,8 @@
-export type RoleKey = "admin" | "school_admin" | "teacher" | "leader" | "member" | "expert";
+export type RoleKey = "admin" | "school_admin" | "teacher" | "leader" | "member" | "expert" | "training_teacher";
 
 export type ApprovalStatusKey = "pending" | "approved";
 
-export type TeamRoleLabel = "系统管理员" | "校级管理员" | "指导教师" | "项目负责人" | "团队成员" | "评审专家";
+export type TeamRoleLabel = "系统管理员" | "校级管理员" | "指导教师" | "项目负责人" | "团队成员" | "评审专家" | "省培教师";
 
 export type TeamMember = {
   id: string;
@@ -119,6 +119,13 @@ export type ReportEntry = {
   summary: string;
   nextPlan: string;
   attachment: string;
+  attachmentValue?: string;
+  attachmentFile?: {
+    fileName: string;
+    fileSize: number;
+    mimeType: string;
+    downloadUrl: string;
+  } | null;
   teamGroupId?: string | null;
   teamGroupName?: string | null;
   user?: {
@@ -354,6 +361,7 @@ export const roleLabels: Record<RoleKey, TeamRoleLabel> = {
   leader: "项目负责人",
   member: "团队成员",
   expert: "评审专家",
+  training_teacher: "省培教师",
 };
 
 export const dashboardHighlights = [

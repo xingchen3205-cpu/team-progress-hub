@@ -79,9 +79,42 @@ test("training question bank controls stay readable and use bounded internal scr
   const source = read("src/components/tabs/training-tab.tsx");
 
   assert.doesNotMatch(source, /lg:grid-cols-\[minmax\(0,1fr\)_minmax\(260px,360px\)_auto\]/);
-  assert.match(source, /min-w-\[180px\]/);
+  assert.match(source, /min-w-\[200px\]/);
+  assert.match(source, /whitespace-nowrap text-xs font-medium text-slate-500/);
+  assert.match(source, /flex w-full flex-wrap items-end gap-3/);
   assert.match(source, /max-h-\[min\(62vh,640px\)\]/);
   assert.match(source, /overscroll-contain/);
+});
+
+test("daily report modal supports direct local attachment upload", () => {
+  const shellSource = read("src/components/workspace-shell.tsx");
+  const uploadRouteSource = read("src/app/api/reports/attachments/route.ts");
+  const downloadRouteSource = read("src/app/api/reports/[reportId]/attachment/route.ts");
+
+  assert.match(shellSource, /reportAttachmentInputRef/);
+  assert.match(shellSource, /type="file"/);
+  assert.match(shellSource, /选择本机文件/);
+  assert.match(shellSource, /\/api\/reports\/attachments/);
+  assert.match(uploadRouteSource, /saveUploadedFile/);
+  assert.match(uploadRouteSource, /encodeReportAttachmentFile/);
+  assert.match(uploadRouteSource, /report-attachments/);
+  assert.match(downloadRouteSource, /decodeReportAttachmentFile/);
+  assert.match(downloadRouteSource, /readStoredFile/);
+});
+
+test("question bank import supports AI recognition and update-or-create review", () => {
+  const shellSource = read("src/components/workspace-shell.tsx");
+  const contextSource = read("src/components/workspace-context.tsx");
+  const importRouteSource = read("src/app/api/training/questions/import/route.ts");
+
+  assert.match(shellSource, /AI 智能识别/);
+  assert.match(shellSource, /更新匹配题目/);
+  assert.match(contextSource, /questionImportMode/);
+  assert.match(contextSource, /importAction === "update"/);
+  assert.match(contextSource, /method: "PATCH"/);
+  assert.match(importRouteSource, /generateTrainingQuestionImportCandidates/);
+  assert.match(importRouteSource, /buildTeamScopedResourceWhere/);
+  assert.match(importRouteSource, /modeValue === "ai"/);
 });
 
 test("training drill mode can draw from a selected question category", () => {

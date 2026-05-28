@@ -11,6 +11,7 @@ const validTabs = [
   "board",
   "training",
   "questionBank",
+  "teacherTraining",
   "reports",
   "experts",
   "review",

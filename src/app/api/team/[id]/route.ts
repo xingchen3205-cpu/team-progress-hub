@@ -21,7 +21,7 @@ import { prisma } from "@/lib/prisma";
 import { serializeUser } from "@/lib/api-serializers";
 import { deleteStoredFile } from "@/lib/uploads";
 
-type TeamMemberRole = "admin" | "school_admin" | "teacher" | "leader" | "member" | "expert";
+type TeamMemberRole = "admin" | "school_admin" | "teacher" | "leader" | "member" | "expert" | "training_teacher";
 const teamAccountRoles: TeamMemberRole[] = ["teacher", "leader", "member"];
 const teamGroupAssignableRoles = new Set<TeamMemberRole>(teamAccountRoles);
 
@@ -45,6 +45,10 @@ export async function PATCH(
 
   if (!target) {
     return NextResponse.json({ message: "成员不存在" }, { status: 404 });
+  }
+
+  if (target.role === "training_teacher") {
+    return NextResponse.json({ message: "省培教师账号请在省培平台中管理" }, { status: 403 });
   }
 
   if (
@@ -301,6 +305,10 @@ export async function DELETE(
   const target = await prisma.user.findUnique({ where: { id } });
   if (!target) {
     return NextResponse.json({ message: "成员不存在" }, { status: 404 });
+  }
+
+  if (target.role === "training_teacher") {
+    return NextResponse.json({ message: "省培教师账号请在省培平台中管理" }, { status: 403 });
   }
 
   if (!canDeleteUser(user.role, target.role)) {

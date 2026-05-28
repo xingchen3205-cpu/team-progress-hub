@@ -2,7 +2,7 @@ import type { Role, UserApprovalStatus } from "@prisma/client";
 
 export const roleLabels: Record<
   Role,
-  "系统管理员" | "校级管理员" | "指导教师" | "项目负责人" | "团队成员" | "评审专家"
+  "系统管理员" | "校级管理员" | "指导教师" | "项目负责人" | "团队成员" | "评审专家" | "省培教师"
 > = {
   admin: "系统管理员",
   school_admin: "校级管理员",
@@ -10,6 +10,7 @@ export const roleLabels: Record<
   leader: "项目负责人",
   member: "团队成员",
   expert: "评审专家",
+  training_teacher: "省培教师",
 };
 
 export const approvalStatusLabels: Record<UserApprovalStatus, "待审核" | "已通过"> = {
@@ -45,6 +46,7 @@ const roleRank: Record<Role, number> = {
   leader: 3,
   member: 2,
   expert: 1,
+  training_teacher: 1,
 };
 
 export const selfRegisterableRoles: Role[] = ["teacher", "leader", "member"];

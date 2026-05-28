@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { getSessionUser } from "@/lib/auth";
 import { serializeNotification } from "@/lib/api-serializers";
-import { assertMainWorkspaceRole } from "@/lib/permissions";
+import { assertMainWorkspaceRole, assertRole } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
 export async function PATCH(
@@ -15,9 +15,13 @@ export async function PATCH(
   }
 
   try {
-    assertMainWorkspaceRole(user.role);
+    assertRole(user.role, ["training_teacher"]);
   } catch {
-    return NextResponse.json({ message: "无权限" }, { status: 403 });
+    try {
+      assertMainWorkspaceRole(user.role);
+    } catch {
+      return NextResponse.json({ message: "无权限" }, { status: 403 });
+    }
   }
 
   const { id } = await params;

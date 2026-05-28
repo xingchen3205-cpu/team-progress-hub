@@ -7,7 +7,7 @@ import { AUTH_COOKIE_NAME } from "@/lib/demo-auth";
 
 type AuthTokenPayload = {
   sub: string;
-  role: "admin" | "school_admin" | "teacher" | "leader" | "member" | "expert";
+  role: "admin" | "school_admin" | "teacher" | "leader" | "member" | "expert" | "training_teacher";
   email: string;
   name: string;
 };

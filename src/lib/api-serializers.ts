@@ -30,6 +30,11 @@ import type { TrainingQuestionRevisionMeta } from "@/lib/training-question-revis
 import { formatBeijingDateTime, formatBeijingTimeOnly } from "@/lib/date";
 import { approvalStatusLabels, roleLabels } from "@/lib/permissions";
 import { getProjectMaterialStatusLabel, parseProjectStageDescription } from "@/lib/project-materials";
+import {
+  buildReportAttachmentDownloadUrl,
+  decodeReportAttachmentFile,
+  getReportAttachmentNote,
+} from "@/lib/report-attachments";
 
 export const categoryLabels: Record<DocumentCategory, "计划书" | "PPT" | "答辩材料" | "证明附件"> = {
   plan: "计划书",
@@ -256,28 +261,42 @@ export const serializeReport = (
       teamGroup?: { id: string; name: string } | null;
     };
   },
-) => ({
-  id: report.id,
-  memberId: report.userId,
-  userId: report.userId,
-  date: report.date,
-  submittedAt: formatTimeOnly(report.submittedAt),
-  summary: report.summary,
-  nextPlan: report.nextPlan,
-  attachment: report.attachment || "未上传附件",
-  praiseCount: report.praiseCount,
-  improveCount: report.improveCount,
-  commentCount: report.commentCount,
-  teamGroupId: report.user.teamGroup?.id ?? report.user.teamGroupId ?? null,
-  teamGroupName: report.user.teamGroup?.name ?? null,
-  user: {
-    id: report.user.id,
-    name: report.user.name,
-    avatar: report.user.avatar,
-    roleLabel: roleLabels[report.user.role],
+) => {
+  const attachmentFile = decodeReportAttachmentFile(report.attachment);
+  const attachmentLabel = getReportAttachmentNote(report.attachment) || "未上传附件";
+
+  return {
+    id: report.id,
+    memberId: report.userId,
+    userId: report.userId,
+    date: report.date,
+    submittedAt: formatTimeOnly(report.submittedAt),
+    summary: report.summary,
+    nextPlan: report.nextPlan,
+    attachment: attachmentLabel,
+    attachmentValue: report.attachment || "",
+    attachmentFile: attachmentFile
+      ? {
+          fileName: attachmentFile.fileName,
+          fileSize: attachmentFile.fileSize,
+          mimeType: attachmentFile.mimeType,
+          downloadUrl: buildReportAttachmentDownloadUrl(report.id),
+        }
+      : null,
+    praiseCount: report.praiseCount,
+    improveCount: report.improveCount,
+    commentCount: report.commentCount,
+    teamGroupId: report.user.teamGroup?.id ?? report.user.teamGroupId ?? null,
     teamGroupName: report.user.teamGroup?.name ?? null,
-  },
-});
+    user: {
+      id: report.user.id,
+      name: report.user.name,
+      avatar: report.user.avatar,
+      roleLabel: roleLabels[report.user.role],
+      teamGroupName: report.user.teamGroup?.name ?? null,
+    },
+  };
+};
 
 export const serializeReportEvaluation = (
   evaluation: ReportEvaluation & {

@@ -17,6 +17,7 @@ import {
   CheckCircle2,
   ChevronDown,
   ChevronUp,
+  ClipboardCheck,
   Cloud,
   Download,
   Eye,
@@ -112,6 +113,10 @@ import {
   getDocumentReminderRecipientIds,
 } from "@/lib/document-reminder";
 import type { TrainingQuestionImportCandidate } from "@/lib/training-import";
+import type {
+  TeacherTrainingAttendanceStatus,
+  TeacherTrainingCohortItem,
+} from "@/lib/teacher-training";
 import {
   buildTaskWorkflowSteps,
   getTaskAcceptedTimeLabel,
@@ -134,6 +139,7 @@ export * from "@/lib/file-policy";
 export * from "@/lib/expert-review";
 export * from "@/lib/document-reminder";
 export * from "@/lib/training-import";
+export * from "@/lib/teacher-training";
 export * from "@/lib/task-workflow";
 export * from "@/lib/request-json";
 
@@ -146,6 +152,7 @@ export type TabKey =
   | "board"
   | "training"
   | "questionBank"
+  | "teacherTraining"
   | "reports"
   | "experts"
   | "review"
@@ -167,6 +174,7 @@ export type WorkspaceResourceKey =
   | "team"
   | "trainingQuestions"
   | "trainingSessions"
+  | "teacherTraining"
   | "reviewAssignments"
   | "reports";
 
@@ -200,6 +208,10 @@ export type TrainingQuestionDraft = {
 export type TrainingQuestionImportRow = TrainingQuestionDraft & {
   id: string;
   selected: boolean;
+  importAction: "create" | "update";
+  matchedQuestionId?: string;
+  matchedQuestionLabel?: string;
+  matchReason?: string;
 };
 
 export type TrainingTimerPreset = {
@@ -207,6 +219,60 @@ export type TrainingTimerPreset = {
   label: string;
   seconds: number;
   description: string;
+};
+
+export type TeacherTrainingCohortDraft = {
+  title: string;
+  location: string;
+  startDate: string;
+  endDate: string;
+  description: string;
+};
+
+export type TeacherTrainingParticipantDraft = {
+  cohortId: string;
+  name: string;
+  organization: string;
+  phone: string;
+  groupName: string;
+  accountUsername: string;
+  accountPassword: string;
+  note: string;
+};
+
+export type TeacherTrainingTaskDraft = {
+  cohortId: string;
+  title: string;
+  description: string;
+  dueDate: string;
+  requireAttachment: boolean;
+};
+
+export type TeacherTrainingCourseSessionDraft = {
+  cohortId: string;
+  title: string;
+  courseDate: string;
+  startTime: string;
+  endTime: string;
+  location: string;
+  instructor: string;
+  description: string;
+};
+
+export type TeacherTrainingSubmissionDraft = {
+  taskId: string;
+  participantId: string;
+  content: string;
+  attachment: string;
+};
+
+export type TeacherTrainingProfileDraft = {
+  participantId: string;
+  name: string;
+  organization: string;
+  phone: string;
+  groupName: string;
+  note: string;
 };
 
 export type EventDraft = {
@@ -550,7 +616,9 @@ export const normalizeTrainingCategory = (draft: Pick<TrainingQuestionDraft, "ca
   draft.category === "其他" ? draft.customCategory.trim() : draft.category;
 
 export const createTrainingImportRow = (
-  values: Partial<TrainingQuestionDraft> & Pick<TrainingQuestionDraft, "question">,
+  values: Partial<TrainingQuestionDraft> &
+    Pick<TrainingQuestionDraft, "question"> &
+    Partial<Pick<TrainingQuestionImportRow, "importAction" | "matchedQuestionId" | "matchedQuestionLabel" | "matchReason">>,
 ): TrainingQuestionImportRow => {
   const category = values.category?.trim() || "商业模式";
   const knownCategory = trainingQuestionCategories.includes(category as (typeof trainingQuestionCategories)[number]);
@@ -558,6 +626,10 @@ export const createTrainingImportRow = (
   return {
     id: createTrainingImportRowId(),
     selected: true,
+    importAction: values.importAction ?? "create",
+    matchedQuestionId: values.matchedQuestionId,
+    matchedQuestionLabel: values.matchedQuestionLabel,
+    matchReason: values.matchReason,
     category: knownCategory ? category : "其他",
     customCategory: values.customCategory?.trim() || (knownCategory ? "" : category),
     question: values.question.trim(),
@@ -616,6 +688,12 @@ export const allTabs: TabItem[] = [
     label: "题库中心",
     description: "按团队总览全系统答辩训练题库，并导出 Word 版本。",
     icon: FileText,
+  },
+  {
+    key: "teacherTraining",
+    label: "省培",
+    description: "独立管理省培班次、人工报到、任务汇报和导出归档。",
+    icon: ClipboardCheck,
   },
   {
     key: "reports",
@@ -946,6 +1024,7 @@ export const rolePermissions = {
       "timeline",
       "board",
       "questionBank",
+      "teacherTraining",
       "reports",
       "experts",
       "review",
@@ -980,6 +1059,7 @@ export const rolePermissions = {
       "overview",
       "timeline",
       "board",
+      "teacherTraining",
       "reports",
       "experts",
       "review",
@@ -1007,6 +1087,27 @@ export const rolePermissions = {
     canManageTeacherAccount: true,
     canEditTimeline: true,
     canResetPassword: true,
+  },
+  training_teacher: {
+    visibleTabs: ["teacherTraining", "profile"] as TabKey[],
+    canPublishAnnouncement: false,
+    canSendDirective: false,
+    canCreateTask: false,
+    canEditTask: false,
+    canDeleteTask: false,
+    canMoveAnyTask: false,
+    canSubmitReport: false,
+    canViewAllReports: false,
+    canUploadExpert: false,
+    canDeleteExpert: false,
+    canUploadDocument: false,
+    canLeaderReviewDocument: false,
+    canTeacherReviewDocument: false,
+    canDeleteAnyDocument: false,
+    canManageTeam: false,
+    canManageTeacherAccount: false,
+    canEditTimeline: false,
+    canResetPassword: false,
   },
   teacher: {
     visibleTabs: ["overview", "timeline", "board", "training", "reports", "experts", "documents", "project", "team", "assistant", "profile"] as TabKey[],
@@ -1101,6 +1202,7 @@ export const teamRoleToRoleKey: Record<TeamRoleLabel, RoleKey> = {
   项目负责人: "leader",
   团队成员: "member",
   评审专家: "expert",
+  省培教师: "training_teacher",
 };
 
 export const teamRoleSortOrder: Record<TeamRoleLabel, number> = {
@@ -1110,6 +1212,7 @@ export const teamRoleSortOrder: Record<TeamRoleLabel, number> = {
   项目负责人: 3,
   团队成员: 4,
   评审专家: 5,
+  省培教师: 6,
 };
 
 export const teamRoleTagClassNames: Record<TeamRoleLabel, string> = {
@@ -1119,6 +1222,7 @@ export const teamRoleTagClassNames: Record<TeamRoleLabel, string> = {
   项目负责人: "bg-amber-50 text-amber-700 border-amber-200",
   团队成员: "bg-slate-100 text-slate-600 border-slate-200",
   评审专家: "bg-rose-50 text-rose-700 border-rose-200",
+  省培教师: "bg-cyan-50 text-cyan-700 border-cyan-200",
 };
 
 export const teamGroupAssignableRoleLabels = new Set<TeamRoleLabel>(["指导教师", "项目负责人", "团队成员"]);
@@ -2026,6 +2130,7 @@ function useWorkspaceController({
     averageOvertimeSeconds: 0,
     qaHitRate: 0,
   });
+  const [teacherTrainingCohorts, setTeacherTrainingCohorts] = useState<TeacherTrainingCohortItem[]>([]);
   const [trainingPanel, setTrainingPanel] = useState<"qa" | "pitch">("qa");
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [projectStages, setProjectStages] = useState<ProjectReviewStageItem[]>([]);
@@ -2102,6 +2207,7 @@ function useWorkspaceController({
   const [editingTrainingQuestionId, setEditingTrainingQuestionId] = useState<string | null>(null);
   const [questionImportModalOpen, setQuestionImportModalOpen] = useState(false);
   const [questionImportFileName, setQuestionImportFileName] = useState("");
+  const [questionImportMode, setQuestionImportMode] = useState<"ai" | "local">("ai");
   const [questionImportRows, setQuestionImportRows] = useState<TrainingQuestionImportRow[]>([]);
   const [questionImportError, setQuestionImportError] = useState<string | null>(null);
   const [selectedTrainingQuestionIds, setSelectedTrainingQuestionIds] = useState<string[]>([]);
@@ -2209,17 +2315,29 @@ function useWorkspaceController({
   const isSystemAdmin = currentRole === "admin";
   const isSchoolAdmin = currentRole === "school_admin";
   const hasGlobalAdminRole = isSystemAdmin || isSchoolAdmin;
+  const canManageTeacherTraining = hasGlobalAdminRole;
   const currentMemberId = currentUser?.id ?? "";
   const permissions = rolePermissions[currentRole];
   const requiresEmailCompletion = Boolean(
-    currentUser && currentRole !== "expert" && validateRequiredEmail(currentUser.email),
+    currentUser && currentRole !== "expert" && currentRole !== "training_teacher" && validateRequiredEmail(currentUser.email),
   );
   const visibleTabs = allTabs.filter(
     (item) => permissions.visibleTabs.includes(item.key) && (!requiresEmailCompletion || item.key === "profile"),
   );
-  const sidebarTabs = visibleTabs.filter((item) => item.key !== "profile");
   const safeActiveTab =
     visibleTabs.length > 0 && permissions.visibleTabs.includes(activeTab) ? activeTab : visibleTabs[0]?.key ?? "overview";
+  const isTeacherTrainingPlatform = safeActiveTab === "teacherTraining";
+  const sidebarTabs = visibleTabs.filter((item) => {
+    if (item.key === "profile") {
+      return false;
+    }
+
+    if (!hasGlobalAdminRole) {
+      return true;
+    }
+
+    return isTeacherTrainingPlatform ? item.key === "teacherTraining" : item.key !== "teacherTraining";
+  });
   const activeTabItem = allTabs.find((item) => item.key === safeActiveTab) ?? allTabs[0];
   const nearestUpcomingIndex = events.length > 0 ? getNearestUpcomingIndex(events) : 0;
   const nearestEvent = events[nearestUpcomingIndex];
@@ -2581,6 +2699,7 @@ function useWorkspaceController({
       averageOvertimeSeconds: 0,
       qaHitRate: 0,
     });
+    setTeacherTrainingCohorts([]);
     setDocuments([]);
     setProjectStages([]);
     setProjectMaterials([]);
@@ -2636,6 +2755,8 @@ function useWorkspaceController({
           return ["trainingQuestions", "trainingSessions"];
         case "questionBank":
           return ["trainingQuestions", "team"];
+        case "teacherTraining":
+          return ["teacherTraining"];
         case "reports":
           return ["team", "reports"];
         case "experts":
@@ -2747,6 +2868,11 @@ function useWorkspaceController({
           );
           setTrainingSessions(payload.sessions);
           setTrainingStats(payload.stats);
+          return;
+        }
+        case "teacherTraining": {
+          const payload = await requestJson<{ cohorts: TeacherTrainingCohortItem[] }>("/api/teacher-training");
+          setTeacherTrainingCohorts(payload.cohorts);
           return;
         }
         case "reviewAssignments": {
@@ -4534,6 +4660,7 @@ function useWorkspaceController({
     setQuestionImportModalOpen(true);
     setQuestionImportError(null);
     setQuestionImportFileName("");
+    setQuestionImportMode("ai");
     setQuestionImportRows([]);
   };
 
@@ -4565,6 +4692,7 @@ function useWorkspaceController({
 
     const formData = new FormData();
     formData.append("file", file);
+    formData.append("mode", questionImportMode);
 
     try {
       const response = await fetch("/api/training/questions/import", {
@@ -4613,22 +4741,33 @@ function useWorkspaceController({
 
     setIsSaving(true);
     try {
-      await Promise.all(
-        rows.map((row) =>
-          requestJson("/api/training/questions", {
+      const results = await Promise.all(
+        rows.map((row) => {
+          const payload = {
+            category: getTrainingQuestionDraftCategory(row),
+            question: row.question.trim(),
+            answerPoints: row.answerPoints.trim(),
+          };
+
+          if (row.importAction === "update" && row.matchedQuestionId) {
+            return requestJson(`/api/training/questions/${row.matchedQuestionId}`, {
+              method: "PATCH",
+              body: JSON.stringify(payload),
+            }).then(() => "update" as const);
+          }
+
+          return requestJson("/api/training/questions", {
             method: "POST",
-            body: JSON.stringify({
-              category: getTrainingQuestionDraftCategory(row),
-              question: row.question.trim(),
-              answerPoints: row.answerPoints.trim(),
-            }),
-          }),
-        ),
+            body: JSON.stringify(payload),
+          }).then(() => "create" as const);
+        }),
       );
+      const updatedCount = results.filter((item) => item === "update").length;
+      const createdCount = results.length - updatedCount;
       setQuestionImportModalOpen(false);
       setQuestionImportRows([]);
       setQuestionImportFileName("");
-      showSuccessToast("题库导入完成", `已导入 ${rows.length} 条 Q&A 问题。`);
+      showSuccessToast("题库导入完成", `已新增 ${createdCount} 条，更新 ${updatedCount} 条 Q&A 问题。`);
       refreshWorkspace("trainingQuestions");
     } catch (error) {
       setQuestionImportError(error instanceof Error ? error.message : "题库导入失败");
@@ -4802,6 +4941,240 @@ function useWorkspaceController({
       refreshWorkspace("trainingSessions");
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "训练记录保存失败");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const createTeacherTrainingCohort = async (draft: TeacherTrainingCohortDraft) => {
+    const title = draft.title.trim();
+    const startDate = draft.startDate.trim();
+    const endDate = draft.endDate.trim();
+
+    if (!title || !startDate || !endDate) {
+      setLoadError("请先填写培训名称、开始日期和结束日期");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      await requestJson("/api/teacher-training", {
+        method: "POST",
+        body: JSON.stringify({
+          title,
+          location: draft.location.trim(),
+          startDate,
+          endDate,
+          description: draft.description.trim(),
+        }),
+      });
+      showSuccessToast("省培班次已创建", "省培管理平台已经更新。");
+      refreshWorkspace("teacherTraining");
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "省培班次创建失败");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const addTeacherTrainingParticipant = async (draft: TeacherTrainingParticipantDraft) => {
+    const cohortId = draft.cohortId.trim();
+    const name = draft.name.trim();
+    const organization = draft.organization.trim();
+
+    if (!cohortId || !name || !organization) {
+      setLoadError("请先填写班次、姓名和单位");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      await requestJson("/api/teacher-training/participants", {
+        method: "POST",
+        body: JSON.stringify({
+          cohortId,
+          name,
+          organization,
+          phone: draft.phone.trim(),
+          groupName: draft.groupName.trim(),
+          accountUsername: draft.accountUsername.trim(),
+          accountPassword: draft.accountPassword.trim(),
+          note: draft.note.trim(),
+        }),
+      });
+      showSuccessToast("参训教师已加入", "名单和签到表已经同步更新。");
+      refreshWorkspace("teacherTraining");
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "参训教师保存失败");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const createTeacherTrainingCourseSession = async (draft: TeacherTrainingCourseSessionDraft) => {
+    const cohortId = draft.cohortId.trim();
+    const title = draft.title.trim();
+    const courseDate = draft.courseDate.trim();
+
+    if (!cohortId || !title || !courseDate) {
+      setLoadError("请先填写班次、课程名称和上课日期");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      await requestJson("/api/teacher-training/course-sessions", {
+        method: "POST",
+        body: JSON.stringify({
+          cohortId,
+          title,
+          courseDate,
+          startTime: draft.startTime.trim(),
+          endTime: draft.endTime.trim(),
+          location: draft.location.trim(),
+          instructor: draft.instructor.trim(),
+          description: draft.description.trim(),
+        }),
+      });
+      showSuccessToast("课程安排已保存", "参训教师的省培课程表已经更新。");
+      refreshWorkspace("teacherTraining");
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "课程安排保存失败");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const markTeacherTrainingAttendance = async ({
+    cohortId,
+    participantId,
+    sessionDate,
+    sessionLabel,
+    status,
+    note = "",
+  }: {
+    cohortId: string;
+    participantId: string;
+    sessionDate: string;
+    sessionLabel: string;
+    status: TeacherTrainingAttendanceStatus;
+    note?: string;
+  }) => {
+    if (!cohortId || !participantId || !sessionDate || !sessionLabel) {
+      setLoadError("请先选择班次、日期和参训教师");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      await requestJson("/api/teacher-training/attendance", {
+        method: "POST",
+        body: JSON.stringify({
+          cohortId,
+          participantId,
+          sessionDate,
+          sessionLabel,
+          status,
+          note,
+        }),
+      });
+      refreshWorkspace("teacherTraining");
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "签到状态保存失败");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const createTeacherTrainingTask = async (draft: TeacherTrainingTaskDraft) => {
+    const cohortId = draft.cohortId.trim();
+    const title = draft.title.trim();
+    const description = draft.description.trim();
+
+    if (!cohortId || !title || !description) {
+      setLoadError("请先填写任务名称、任务说明和所属班次");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      await requestJson("/api/teacher-training/tasks", {
+        method: "POST",
+        body: JSON.stringify({
+          cohortId,
+          title,
+          description,
+          dueDate: draft.dueDate.trim(),
+          requireAttachment: draft.requireAttachment,
+        }),
+      });
+      showSuccessToast("省培任务已发布", "参训教师的任务汇报清单已经更新。");
+      refreshWorkspace("teacherTraining");
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "省培任务发布失败");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const saveTeacherTrainingSubmission = async (draft: TeacherTrainingSubmissionDraft) => {
+    const taskId = draft.taskId.trim();
+    const participantId = draft.participantId.trim();
+    const content = draft.content.trim();
+
+    if (!taskId || !participantId || !content) {
+      setLoadError("请先选择任务、参训教师并填写汇报内容");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      await requestJson("/api/teacher-training/submissions", {
+        method: "POST",
+        body: JSON.stringify({
+          taskId,
+          participantId,
+          content,
+          attachment: draft.attachment.trim(),
+        }),
+      });
+      showSuccessToast("任务汇报已登记", "汇报记录已经进入导出表。");
+      refreshWorkspace("teacherTraining");
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "任务汇报保存失败");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const updateTeacherTrainingProfile = async (draft: TeacherTrainingProfileDraft) => {
+    const participantId = draft.participantId.trim();
+    const name = draft.name.trim();
+    const organization = draft.organization.trim();
+
+    if (!participantId || !name || !organization) {
+      setLoadError("请先填写姓名和单位");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      await requestJson("/api/teacher-training/profile", {
+        method: "PATCH",
+        body: JSON.stringify({
+          participantId,
+          name,
+          organization,
+          phone: draft.phone.trim(),
+          groupName: draft.groupName.trim(),
+          note: draft.note.trim(),
+        }),
+      });
+      showSuccessToast("个人信息已保存", "省培档案已经同步更新。");
+      refreshWorkspace("teacherTraining");
+      refreshWorkspace("team");
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "个人信息保存失败");
     } finally {
       setIsSaving(false);
     }
@@ -5042,7 +5415,7 @@ function useWorkspaceController({
       storedDraft ?? {
         summary: report.summary,
         nextPlan: report.nextPlan,
-        attachment: report.attachment === "未上传附件" ? "" : report.attachment,
+        attachment: report.attachmentValue ?? (report.attachment === "未上传附件" ? "" : report.attachment),
       },
     );
     setReportModalOpen(true);
@@ -6682,6 +7055,8 @@ function useWorkspaceController({
     setTrainingSessions,
     trainingStats,
     setTrainingStats,
+    teacherTrainingCohorts,
+    setTeacherTrainingCohorts,
     trainingPanel,
     setTrainingPanel,
     documents,
@@ -6790,6 +7165,8 @@ function useWorkspaceController({
     setQuestionImportModalOpen,
     questionImportFileName,
     setQuestionImportFileName,
+    questionImportMode,
+    setQuestionImportMode,
     questionImportRows,
     setQuestionImportRows,
     questionImportError,
@@ -6970,10 +7347,12 @@ function useWorkspaceController({
     isSystemAdmin,
     isSchoolAdmin,
     hasGlobalAdminRole,
+    canManageTeacherTraining,
     currentMemberId,
     permissions,
     requiresEmailCompletion,
     visibleTabs,
+    isTeacherTrainingPlatform,
     sidebarTabs,
     safeActiveTab,
     activeTabItem,
@@ -7138,6 +7517,13 @@ function useWorkspaceController({
     applyCustomTrainingTimer,
     resetTrainingTimer,
     saveTrainingSession,
+    createTeacherTrainingCohort,
+    addTeacherTrainingParticipant,
+    createTeacherTrainingCourseSession,
+    markTeacherTrainingAttendance,
+    createTeacherTrainingTask,
+    saveTeacherTrainingSubmission,
+    updateTeacherTrainingProfile,
     publishAnnouncement,
     saveReminder,
     sendDirectReminderToUsers,

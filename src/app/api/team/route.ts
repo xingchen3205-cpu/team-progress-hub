@@ -17,7 +17,7 @@ import { prisma } from "@/lib/prisma";
 import { serializeUser } from "@/lib/api-serializers";
 import { generateTemporaryPassword } from "@/lib/passwords";
 
-type TeamMemberRole = "admin" | "school_admin" | "teacher" | "leader" | "member" | "expert";
+type TeamMemberRole = "admin" | "school_admin" | "teacher" | "leader" | "member" | "expert" | "training_teacher";
 type TeamViewerRole = TeamMemberRole;
 const teamAccountRoles: TeamMemberRole[] = ["teacher", "leader", "member"];
 const teamGroupAssignableRoles = new Set<TeamMemberRole>(teamAccountRoles);
@@ -36,11 +36,11 @@ const buildTeamMemberVisibilityWhere = (
   viewer: { id: string; role: TeamViewerRole; teamGroupId?: string | null },
 ): Prisma.UserWhereInput => {
   if (viewer.role === "admin") {
-    return {};
+    return { role: { not: "training_teacher" } };
   }
 
   if (viewer.role === "school_admin") {
-    return { role: { not: "admin" } };
+    return { role: { notIn: ["admin", "training_teacher"] } };
   }
 
   const scopedVisibility: Prisma.UserWhereInput[] = [{ id: viewer.id }];

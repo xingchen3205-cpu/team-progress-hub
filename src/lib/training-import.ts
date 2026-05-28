@@ -2,6 +2,10 @@ export type TrainingQuestionImportCandidate = {
   category: string;
   question: string;
   answerPoints: string;
+  importAction?: "create" | "update";
+  matchedQuestionId?: string;
+  matchedQuestionLabel?: string;
+  matchReason?: string;
 };
 
 const defaultTrainingCategory = "商业模式";
@@ -12,6 +16,10 @@ const createTrainingImportCandidate = (
   category: values.category?.trim() || defaultTrainingCategory,
   question: values.question.trim(),
   answerPoints: values.answerPoints?.trim() || "待补充回答要点",
+  importAction: values.importAction,
+  matchedQuestionId: values.matchedQuestionId?.trim(),
+  matchedQuestionLabel: values.matchedQuestionLabel?.trim(),
+  matchReason: values.matchReason?.trim(),
 });
 
 const parseCsvTrainingLine = (line: string) => {
