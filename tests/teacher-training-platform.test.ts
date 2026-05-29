@@ -224,3 +224,28 @@ test("teacher training tab supports location-based course check-in tasks", () =>
   assert.match(contextSource, /TeacherTrainingCheckInTaskDraft/);
   assert.match(contextSource, /TeacherTrainingCheckInSignDraft/);
 });
+
+test("teacher training interactions expose clear hints for mobile web users", () => {
+  const tabSource = read("src/components/tabs/teacher-training-tab.tsx");
+  const shellSource = read("src/components/workspace-shell.tsx");
+
+  assert.match(tabSource, /teacherTrainingActionHints/);
+  assert.match(tabSource, /省培操作提示/);
+  assert.match(tabSource, /手机端定位签到/);
+  assert.match(tabSource, /aria-label="使用当前位置填入签到坐标"/);
+  assert.match(tabSource, /title="使用当前位置填入签到坐标"/);
+  assert.match(tabSource, /aria-label="发布课程定位签到任务"/);
+  assert.match(tabSource, /title="发布课程定位签到任务"/);
+  assert.match(tabSource, /aria-label="定位签到，浏览器会请求当前位置权限"/);
+  assert.match(tabSource, /title="定位签到，浏览器会请求当前位置权限"/);
+  assert.match(tabSource, /aria-label="提交省培请假申请"/);
+  assert.match(tabSource, /title="提交省培请假申请"/);
+  assert.match(tabSource, /aria-label="保存省培个人信息"/);
+  assert.match(tabSource, /title="保存省培个人信息"/);
+  assert.match(tabSource, /aria-label="复制省培账号通知消息"/);
+  assert.match(tabSource, /title="复制省培账号通知消息"/);
+  assert.match(tabSource, /aria-label=\{`将\$\{participant\.name\}标记为\$\{Workspace\.teacherTrainingAttendanceLabels\[status\]\}`\}/);
+  assert.match(tabSource, /title=\{`将\$\{participant\.name\}标记为\$\{Workspace\.teacherTrainingAttendanceLabels\[status\]\}`\}/);
+  assert.match(shellSource, /打开省培模块导航/);
+  assert.match(shellSource, /mobileNavigationTitle/);
+});

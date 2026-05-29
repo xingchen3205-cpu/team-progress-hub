@@ -65,6 +65,49 @@ const checkInWindowStyleMap: Record<CheckInWindowState, string> = {
   closed: "border-rose-200 bg-rose-50 text-rose-700",
 };
 
+const teacherTrainingActionHints: Partial<Record<Workspace.TeacherTrainingSectionKey, { title: string; steps: string[] }>> = {
+  overview: {
+    title: "省培操作提示",
+    steps: ["先确认当前班次", "再从左侧切换模块", "重要操作会有按钮提示"],
+  },
+  cohorts: {
+    title: "班次管理提示",
+    steps: ["先建班次和地点", "再设置班主任", "班主任可维护本班省培事务"],
+  },
+  participants: {
+    title: "参训教师提示",
+    steps: ["先录入教师信息", "可绑定已有账号", "复制账号消息后发给教师"],
+  },
+  courses: {
+    title: "课程安排提示",
+    steps: ["查看课程日期", "确认地点和授课教师", "手机端按时间顺序查看"],
+  },
+  checkins: {
+    title: "手机端定位签到",
+    steps: ["到达课程地点", "允许浏览器定位", "点击定位签到并等待结果"],
+  },
+  attendance: {
+    title: "报到登记提示",
+    steps: ["选择日期和场次", "逐人标记报到状态", "导出时会带出登记记录"],
+  },
+  tasks: {
+    title: "任务汇报提示",
+    steps: ["教师选择任务", "填写汇报内容", "管理员统一导出汇总"],
+  },
+  leave: {
+    title: "请假审批提示",
+    steps: ["教师提交请假", "按流程审批", "可导出 PDF 请假单"],
+  },
+  profile: {
+    title: "个人信息提示",
+    steps: ["首次登录先核对资料", "补充单位和手机号", "保存后同步到省培档案"],
+  },
+  exports: {
+    title: "导出归档提示",
+    steps: ["选择当前班次", "按名单/签到/汇报导出", "后续接入公文排版模板"],
+  },
+};
+
 export default function TeacherTrainingTab() {
   const {
     currentUser,
@@ -469,6 +512,9 @@ export default function TeacherTrainingTab() {
   const activeTeacherTrainingSectionMeta =
     visibleTeacherTrainingSections.find((section) => section.key === effectiveTeacherTrainingSection) ??
     visibleTeacherTrainingSections[0];
+  const activeTeacherTrainingActionHint =
+    teacherTrainingActionHints[effectiveTeacherTrainingSection] ?? teacherTrainingActionHints.overview;
+  const ActiveTeacherTrainingIcon = activeTeacherTrainingSectionMeta?.Icon ?? ClipboardCheck;
   const showTeacherTrainingSection = (...keys: Workspace.TeacherTrainingSectionKey[]) =>
     keys.includes(effectiveTeacherTrainingSection);
   const checkInNow = useMemo(() => new Date(checkInClock), [checkInClock]);
@@ -501,6 +547,35 @@ export default function TeacherTrainingTab() {
       </div>
 
       <div className="space-y-4 pb-16" id="teacher-training-content">
+          <section
+            aria-label="省培操作提示"
+            className="teacher-training-mobile-guide rounded-2xl border border-blue-100 bg-white/86 p-4 shadow-[0_18px_42px_rgba(26,111,212,0.12)] backdrop-blur transition duration-300 sm:hidden"
+          >
+            <div className="flex items-start gap-3">
+              <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-600 text-white shadow-[0_12px_24px_rgba(37,99,235,0.22)]">
+                <ActiveTeacherTrainingIcon className="h-4 w-4" />
+              </span>
+              <div className="min-w-0">
+                <p className="text-sm font-bold text-slate-950">
+                  {activeTeacherTrainingActionHint?.title ?? "省培操作提示"}
+                </p>
+                <p className="mt-1 text-xs leading-5 text-slate-500">
+                  {activeTeacherTrainingSectionMeta?.description ?? "按当前模块完成省培操作。"}
+                </p>
+              </div>
+            </div>
+            <div className="mt-3 grid gap-2">
+              {(activeTeacherTrainingActionHint?.steps ?? []).map((step, index) => (
+                <div key={step} className="flex items-center gap-2 rounded-xl bg-blue-50/70 px-3 py-2 text-xs font-semibold text-blue-800">
+                  <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-white text-[11px] text-blue-700">
+                    {index + 1}
+                  </span>
+                  <span>{step}</span>
+                </div>
+              ))}
+            </div>
+          </section>
+
           {showTeacherTrainingSection("overview") ? (
             <section className="grid gap-3 md:grid-cols-3 xl:grid-cols-5">
               {metricCards.map(({ label, value, Icon }) => (
@@ -643,7 +718,14 @@ export default function TeacherTrainingTab() {
                   placeholder="培训说明"
                   value={cohortDraft.description}
                 />
-                <ActionButton className="w-full" loading={isSaving} onClick={() => void submitCohort()} variant="primary">
+                <ActionButton
+                  aria-label="创建新的省培班次"
+                  className="w-full"
+                  loading={isSaving}
+                  onClick={() => void submitCohort()}
+                  title="创建新的省培班次"
+                  variant="primary"
+                >
                   创建班次
                 </ActionButton>
               </div>
@@ -713,10 +795,12 @@ export default function TeacherTrainingTab() {
                   value={participantDraft.note}
                 />
                 <ActionButton
+                  aria-label="将参训教师加入当前省培班次"
                   className="w-full"
                   disabled={!selectedCohort}
                   loading={isSaving}
                   onClick={() => void submitParticipant()}
+                  title="将参训教师加入当前省培班次"
                   variant="primary"
                 >
                   加入名单
@@ -754,10 +838,12 @@ export default function TeacherTrainingTab() {
                     value={managerDraft.title}
                   />
                   <ActionButton
+                    aria-label="设置当前班次班主任"
                     className="w-full"
                     disabled={!managerDraft.userId}
                     loading={isSaving}
                     onClick={() => void submitManager()}
+                    title="设置当前班次班主任"
                     variant="primary"
                   >
                     设置班主任
@@ -777,6 +863,7 @@ export default function TeacherTrainingTab() {
                         </div>
                         <button
                           className="text-xs font-semibold text-rose-500"
+                          aria-label={`移除${manager.name}的班主任权限`}
                           disabled={isSaving}
                           onClick={() =>
                             void removeTeacherTrainingCohortManager({
@@ -784,6 +871,7 @@ export default function TeacherTrainingTab() {
                               userId: manager.userId,
                             })
                           }
+                          title={`移除${manager.name}的班主任权限`}
                           type="button"
                         >
                           移除
@@ -946,7 +1034,13 @@ export default function TeacherTrainingTab() {
                       placeholder="课程说明"
                       value={courseDraft.description}
                     />
-                    <ActionButton loading={isSaving} onClick={() => void submitCourseSession()} variant="primary">
+                    <ActionButton
+                      aria-label="保存省培课程安排"
+                      loading={isSaving}
+                      onClick={() => void submitCourseSession()}
+                      title="保存省培课程安排"
+                      variant="primary"
+                    >
                       保存课程
                     </ActionButton>
                   </div>
@@ -1079,13 +1173,21 @@ export default function TeacherTrainingTab() {
                       <div className="flex flex-wrap gap-2 md:col-span-2">
                         <button
                           className="depth-button-secondary inline-flex h-10 items-center gap-2 rounded-lg px-4 text-sm font-semibold"
+                          aria-label="使用当前位置填入签到坐标"
                           onClick={useCurrentLocationForCheckInTask}
+                          title="使用当前位置填入签到坐标"
                           type="button"
                         >
                           <Navigation className="h-4 w-4" />
                           使用当前位置
                         </button>
-                        <ActionButton loading={isSaving} onClick={() => void submitCheckInTask()} variant="primary">
+                        <ActionButton
+                          aria-label="发布课程定位签到任务"
+                          loading={isSaving}
+                          onClick={() => void submitCheckInTask()}
+                          title="发布课程定位签到任务"
+                          variant="primary"
+                        >
                           发布签到任务
                         </ActionButton>
                       </div>
@@ -1193,8 +1295,10 @@ export default function TeacherTrainingTab() {
                             </div>
                             <button
                               className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-[#1f64f2] px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-[#174ecb] disabled:cursor-not-allowed disabled:bg-slate-300"
+                              aria-label="定位签到，浏览器会请求当前位置权限"
                               disabled={!isWindowOpen || isSaving || isSigningThisTask || !selectedParticipant}
                               onClick={() => signWithCurrentLocation(task.id)}
+                              title="定位签到，浏览器会请求当前位置权限"
                               type="button"
                             >
                               {isSigningThisTask ? <Loader2 className="h-4 w-4 animate-spin" /> : <MapPin className="h-4 w-4" />}
@@ -1241,6 +1345,7 @@ export default function TeacherTrainingTab() {
                         <p className="text-xs font-semibold text-slate-500">审批步骤</p>
                         <button
                           className="depth-button-secondary inline-flex h-9 items-center rounded-lg px-3 text-xs font-semibold"
+                          aria-label="增加省培请假审批步骤"
                           onClick={() =>
                             setLeaveFlowSteps((current) => {
                               const baseSteps = current.length ? current : activeLeaveFlowSteps;
@@ -1255,6 +1360,7 @@ export default function TeacherTrainingTab() {
                               ];
                             })
                           }
+                          title="增加省培请假审批步骤"
                           type="button"
                         >
                           增加步骤
@@ -1309,11 +1415,13 @@ export default function TeacherTrainingTab() {
                             </div>
                             <button
                               className="mt-3 text-xs font-semibold text-rose-500"
+                              aria-label={`删除${step.name || "当前"}审批步骤`}
                               onClick={() =>
                                 setLeaveFlowSteps((current) =>
                                   (current.length ? current : activeLeaveFlowSteps).filter((_, stepIndex) => stepIndex !== index),
                                 )
                               }
+                              title={`删除${step.name || "当前"}审批步骤`}
                               type="button"
                             >
                               删除本步骤
@@ -1321,7 +1429,14 @@ export default function TeacherTrainingTab() {
                           </div>
                         ))
                       )}
-                      <ActionButton disabled={!selectedCohort || activeLeaveFlowSteps.length === 0} loading={isSaving} onClick={() => void saveLeaveFlow()} variant="primary">
+                      <ActionButton
+                        aria-label="保存省培请假审批流程"
+                        disabled={!selectedCohort || activeLeaveFlowSteps.length === 0}
+                        loading={isSaving}
+                        onClick={() => void saveLeaveFlow()}
+                        title="保存省培请假审批流程"
+                        variant="primary"
+                      >
                         保存请假流程
                       </ActionButton>
                     </div>
@@ -1357,6 +1472,8 @@ export default function TeacherTrainingTab() {
                                     <a
                                       className="inline-flex h-8 items-center rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600 no-underline"
                                       href={`/api/teacher-training/leave-requests/${request.id}/pdf`}
+                                      aria-label={`导出${request.participantName}的 PDF 请假单`}
+                                      title={`导出${request.participantName}的 PDF 请假单`}
                                     >
                                       导出PDF请假单
                                     </a>
@@ -1364,16 +1481,20 @@ export default function TeacherTrainingTab() {
                                       <>
                                       <button
                                         className="inline-flex h-8 items-center rounded-lg bg-emerald-600 px-3 text-xs font-semibold text-white"
+                                        aria-label={`通过${request.participantName}的请假申请`}
                                         disabled={isSaving}
                                         onClick={() => void reviewLeaveRequest(request.id, "approve")}
+                                        title={`通过${request.participantName}的请假申请`}
                                         type="button"
                                       >
                                         通过
                                       </button>
                                       <button
                                         className="inline-flex h-8 items-center rounded-lg border border-rose-200 bg-white px-3 text-xs font-semibold text-rose-600"
+                                        aria-label={`驳回${request.participantName}的请假申请`}
                                         disabled={isSaving}
                                         onClick={() => void reviewLeaveRequest(request.id, "reject")}
+                                        title={`驳回${request.participantName}的请假申请`}
                                         type="button"
                                       >
                                         驳回
@@ -1421,10 +1542,12 @@ export default function TeacherTrainingTab() {
                         />
                       </div>
                       <ActionButton
+                        aria-label="提交省培请假申请"
                         className="mt-3"
                         disabled={!selectedParticipant}
                         loading={isSaving}
                         onClick={() => void submitLeaveRequest()}
+                        title="提交省培请假申请"
                         variant="primary"
                       >
                         提交请假
@@ -1445,6 +1568,8 @@ export default function TeacherTrainingTab() {
                                   <a
                                     className="text-xs font-semibold text-blue-700 no-underline"
                                     href={`/api/teacher-training/leave-requests/${request.id}/pdf`}
+                                    aria-label={`导出${request.startDate}请假 PDF`}
+                                    title={`导出${request.startDate}请假 PDF`}
                                   >
                                     导出PDF请假单
                                   </a>
@@ -1506,9 +1631,11 @@ export default function TeacherTrainingTab() {
                 </div>
                 <div className="mt-4">
                   <ActionButton
+                    aria-label="保存省培个人信息"
                     disabled={!effectiveProfileDraft.participantId}
                     loading={isSaving}
                     onClick={() => void submitProfile()}
+                    title="保存省培个人信息"
                     variant="primary"
                   >
                     保存个人信息
@@ -1565,8 +1692,10 @@ export default function TeacherTrainingTab() {
                         {canManageGlobal ? (
                           <button
                             className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 text-sm font-semibold text-blue-700 transition hover:border-blue-200 hover:bg-blue-100"
+                            aria-label="复制省培账号通知消息"
                             disabled={isSaving}
                             onClick={() => void copyAccountMessage(participant.id)}
+                            title="复制省培账号通知消息"
                             type="button"
                           >
                             <Copy className="h-4 w-4" />
@@ -1658,8 +1787,10 @@ export default function TeacherTrainingTab() {
                               {canManageGlobal ? (
                                 <button
                                   className="inline-flex h-9 items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 text-sm font-semibold text-blue-700 transition hover:border-blue-200 hover:bg-blue-100"
+                                  aria-label="复制省培账号通知消息"
                                   disabled={isSaving}
                                   onClick={() => void copyAccountMessage(participant.id)}
+                                  title="复制省培账号通知消息"
                                   type="button"
                                 >
                                   <Copy className="h-4 w-4" />
@@ -1674,8 +1805,10 @@ export default function TeacherTrainingTab() {
                                       ? statusStyleMap[status]
                                       : "border-slate-200 bg-white text-slate-600 hover:border-blue-200 hover:text-blue-700"
                                   }`}
+                                  aria-label={`将${participant.name}标记为${Workspace.teacherTrainingAttendanceLabels[status]}`}
                                   disabled={isSaving}
                                   onClick={() => markAttendance(participant.id, status)}
+                                  title={`将${participant.name}标记为${Workspace.teacherTrainingAttendanceLabels[status]}`}
                                   type="button"
                                 >
                                   {Workspace.teacherTrainingAttendanceLabels[status]}
@@ -1735,7 +1868,13 @@ export default function TeacherTrainingTab() {
                         需要附件
                       </label>
                     </div>
-                    <ActionButton loading={isSaving} onClick={() => void submitTask()} variant="primary">
+                    <ActionButton
+                      aria-label="发布省培任务汇报要求"
+                      loading={isSaving}
+                      onClick={() => void submitTask()}
+                      title="发布省培任务汇报要求"
+                      variant="primary"
+                    >
                       发布任务
                     </ActionButton>
                   </div>
@@ -1785,9 +1924,11 @@ export default function TeacherTrainingTab() {
                       value={submissionDraft.attachment}
                     />
                     <ActionButton
+                      aria-label="保存省培任务汇报"
                       disabled={!selectedTask || !selectedParticipant}
                       loading={isSaving}
                       onClick={() => void submitSubmission()}
+                      title="保存省培任务汇报"
                       variant="primary"
                     >
                       保存汇报
@@ -1864,7 +2005,9 @@ export default function TeacherTrainingTab() {
                       <a
                         key={item.type}
                         className="group rounded-2xl border border-slate-200/75 bg-white/76 p-4 no-underline shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-xl hover:shadow-blue-900/10"
+                        aria-label={`${item.label}：${item.description}`}
                         href={`${exportBaseUrl}&type=${item.type}`}
+                        title={`${item.label}：${item.description}`}
                       >
                         <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-700 transition group-hover:bg-blue-600 group-hover:text-white">
                           <Download className="h-4 w-4" />

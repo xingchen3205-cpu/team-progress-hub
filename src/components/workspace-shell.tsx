@@ -14,7 +14,7 @@ const PdfPreview = dynamic(() => import("@/components/pdf-preview").then((mod) =
 
 function WorkspaceUnitFooter() {
   return (
-    <footer className="pointer-events-none fixed inset-x-0 bottom-0 z-20 border-t border-white/70 bg-white/85 px-4 py-2 text-center text-[12px] leading-5 text-slate-500 shadow-[0_-8px_24px_rgba(15,23,42,0.06)] backdrop-blur">
+    <footer className="pointer-events-none fixed hidden sm:block inset-x-0 bottom-0 z-20 border-t border-white/70 bg-white/85 px-4 py-2 text-center text-[12px] leading-5 text-slate-500 shadow-[0_-8px_24px_rgba(15,23,42,0.06)] backdrop-blur">
       <span>用户单位：南京铁道职业技术学院</span>
       <span className="mx-3 text-slate-300">|</span>
       <span>支持单位：南京君如玉科技有限公司</span>
@@ -459,6 +459,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
     : safeActiveTab === "overview"
       ? "首页概览"
       : activeTopbarLabel;
+  const mobileNavigationTitle = isTeacherTrainingPlatform ? "打开省培模块导航" : "打开工作台导航";
   const openTeacherTrainingSection = (key: Workspace.TeacherTrainingSectionKey) => {
     setActiveTeacherTrainingSection(key);
 
@@ -952,9 +953,10 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                 <div className="flex shrink-0 items-center gap-3">
                   <button
                     className="topbar-mobile-menu xl:hidden"
+                    aria-label={mobileNavigationTitle}
                     onClick={() => setMobileSidebarOpen(true)}
                     type="button"
-                    title="打开导航"
+                    title={mobileNavigationTitle}
                   >
                     <Menu className="h-5 w-5" />
                   </button>

@@ -2168,6 +2168,7 @@ export function ErrorToast({
 
 export function ActionButton({
   children,
+  "aria-label": ariaLabel,
   onClick,
   className: extraClassName,
   disabled,
@@ -2177,6 +2178,7 @@ export function ActionButton({
   variant = "secondary",
 }: {
   children: React.ReactNode;
+  "aria-label"?: string;
   onClick?: () => void;
   className?: string;
   disabled?: boolean;
@@ -2199,9 +2201,10 @@ export function ActionButton({
           ? "cursor-not-allowed border-slate-200 bg-slate-100 text-slate-400 hover:bg-slate-100"
           : "hover:-translate-y-px active:translate-y-0 active:scale-[0.98]"
       } ${extraClassName ?? ""}`}
+      aria-label={ariaLabel ?? title}
       disabled={disabled || loading}
       onClick={onClick}
-      title={disabled && !loading ? title ?? "无权限" : undefined}
+      title={title ?? (disabled && !loading ? "无权限" : undefined)}
       type="button"
     >
       {loading ? (

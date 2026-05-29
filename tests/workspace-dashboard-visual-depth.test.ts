@@ -77,6 +77,7 @@ test("workspace and login expose user and support organization footer", () => {
     assert.match(source, /用户单位：南京铁道职业技术学院/);
     assert.match(source, /支持单位：南京君如玉科技有限公司/);
   }
+  assert.match(shellSource, /<footer className="pointer-events-none fixed hidden sm:block/);
 });
 
 test("overview-tab supports admin-wide report group summary", () => {
