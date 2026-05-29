@@ -2,7 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { calculateDistanceMeters } from "@/lib/teacher-training";
+import {
+  calculateDistanceMeters,
+  getTeacherTrainingCheckInWindowState,
+  teacherTrainingCheckInWindowMessages,
+} from "@/lib/teacher-training";
 
 const parseRequiredNumber = (value: unknown) => {
   const numberValue = Number(value);
@@ -57,6 +61,10 @@ export async function POST(request: NextRequest) {
     },
     select: {
       id: true,
+      signDate: true,
+      startTime: true,
+      endTime: true,
+      isActive: true,
       latitude: true,
       longitude: true,
       radiusMeters: true,
@@ -64,6 +72,14 @@ export async function POST(request: NextRequest) {
   });
   if (!checkInTask) {
     return NextResponse.json({ message: "签到任务不存在或已关闭" }, { status: 404 });
+  }
+
+  const windowState = getTeacherTrainingCheckInWindowState(checkInTask);
+  if (windowState !== "open") {
+    return NextResponse.json(
+      { message: teacherTrainingCheckInWindowMessages[windowState] ?? "当前不在签到时间内" },
+      { status: 400 },
+    );
   }
 
   if ((checkInTask.latitude !== null || checkInTask.longitude !== null) && (latitude === null || longitude === null)) {

@@ -315,6 +315,92 @@ export const calculateDistanceMeters = (
   return Math.round(earthRadiusMeters * c);
 };
 
+export type TeacherTrainingCheckInWindowState = "not_started" | "open" | "ended" | "closed";
+
+type TeacherTrainingCheckInWindowInput = {
+  signDate: string;
+  startTime?: string | null;
+  endTime?: string | null;
+  isActive?: boolean;
+};
+
+const shanghaiOffsetMs = 8 * 60 * 60 * 1000;
+const dateKeyPattern = /^\d{4}-\d{2}-\d{2}$/;
+const timePattern = /^([01]\d|2[0-3]):([0-5]\d)$/;
+
+const getShanghaiDateParts = (date: Date) => {
+  const shanghaiDate = new Date(date.getTime() + shanghaiOffsetMs);
+  const year = shanghaiDate.getUTCFullYear();
+  const month = `${shanghaiDate.getUTCMonth() + 1}`.padStart(2, "0");
+  const day = `${shanghaiDate.getUTCDate()}`.padStart(2, "0");
+  const hour = shanghaiDate.getUTCHours();
+  const minute = shanghaiDate.getUTCMinutes();
+
+  return {
+    dateKey: `${year}-${month}-${day}`,
+    minuteOfDay: hour * 60 + minute,
+  };
+};
+
+export const parseTeacherTrainingTimeToMinutes = (value?: string | null) => {
+  const match = value?.trim().match(timePattern);
+  if (!match) {
+    return null;
+  }
+
+  return Number(match[1]) * 60 + Number(match[2]);
+};
+
+export const isTeacherTrainingDateKey = (value?: string | null) => Boolean(value && dateKeyPattern.test(value));
+
+export const getTeacherTrainingCheckInWindowState = (
+  task: TeacherTrainingCheckInWindowInput,
+  now = new Date(),
+): TeacherTrainingCheckInWindowState => {
+  if (task.isActive === false) {
+    return "closed";
+  }
+
+  if (!isTeacherTrainingDateKey(task.signDate)) {
+    return "open";
+  }
+
+  const current = getShanghaiDateParts(now);
+  if (current.dateKey < task.signDate) {
+    return "not_started";
+  }
+  if (current.dateKey > task.signDate) {
+    return "ended";
+  }
+
+  const startMinutes = parseTeacherTrainingTimeToMinutes(task.startTime);
+  const endMinutes = parseTeacherTrainingTimeToMinutes(task.endTime);
+  if (startMinutes !== null && current.minuteOfDay < startMinutes) {
+    return "not_started";
+  }
+  if (endMinutes !== null && current.minuteOfDay > endMinutes) {
+    return "ended";
+  }
+
+  return "open";
+};
+
+export const teacherTrainingCheckInWindowLabels: Record<TeacherTrainingCheckInWindowState, string> = {
+  not_started: "未开始",
+  open: "进行中",
+  ended: "已结束",
+  closed: "已关闭",
+};
+
+export const teacherTrainingCheckInWindowMessages: Record<Exclude<TeacherTrainingCheckInWindowState, "open">, string> = {
+  not_started: "签到尚未开始，请在规定时间内签到",
+  ended: "签到已结束，请联系工作人员登记",
+  closed: "签到任务已关闭",
+};
+
+export const getTeacherTrainingCheckInWindowLabel = (state: TeacherTrainingCheckInWindowState) =>
+  teacherTrainingCheckInWindowLabels[state];
+
 export const buildTeacherTrainingAccountMessage = ({
   cohortTitle,
   name,

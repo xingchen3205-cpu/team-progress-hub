@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { isTeacherTrainingDateKey, parseTeacherTrainingTimeToMinutes } from "@/lib/teacher-training";
 import { hasTeacherTrainingCohortManageAccess } from "@/lib/teacher-training-access";
 
 const parseOptionalNumber = (value: unknown) => {
@@ -46,9 +47,22 @@ export async function POST(request: NextRequest) {
   const courseSessionId = body?.courseSessionId?.trim();
   const title = body?.title?.trim();
   const signDate = body?.signDate?.trim();
+  const startTime = body?.startTime?.trim() || null;
+  const endTime = body?.endTime?.trim() || null;
 
   if (!cohortId || !title || !signDate) {
     return NextResponse.json({ message: "请填写班次、签到标题和签到日期" }, { status: 400 });
+  }
+  if (!isTeacherTrainingDateKey(signDate)) {
+    return NextResponse.json({ message: "签到日期格式不正确" }, { status: 400 });
+  }
+  const startMinutes = parseTeacherTrainingTimeToMinutes(startTime);
+  const endMinutes = parseTeacherTrainingTimeToMinutes(endTime);
+  if ((startTime && startMinutes === null) || (endTime && endMinutes === null)) {
+    return NextResponse.json({ message: "签到时间格式不正确" }, { status: 400 });
+  }
+  if (startMinutes !== null && endMinutes !== null && endMinutes < startMinutes) {
+    return NextResponse.json({ message: "签到结束时间不能早于开始时间" }, { status: 400 });
   }
 
   const cohort = await prisma.teacherTrainingCohort.findUnique({
@@ -77,14 +91,18 @@ export async function POST(request: NextRequest) {
 
   const latitude = parseOptionalNumber(body?.latitude);
   const longitude = parseOptionalNumber(body?.longitude);
+  if ((latitude === null) !== (longitude === null)) {
+    return NextResponse.json({ message: "请同时填写纬度和经度" }, { status: 400 });
+  }
+
   const checkInTask = await prisma.teacherTrainingCheckInTask.create({
     data: {
       cohortId,
       courseSessionId: courseSessionId || null,
       title,
       signDate,
-      startTime: body?.startTime?.trim() || null,
-      endTime: body?.endTime?.trim() || null,
+      startTime,
+      endTime,
       locationName: body?.locationName?.trim() || null,
       latitude,
       longitude,

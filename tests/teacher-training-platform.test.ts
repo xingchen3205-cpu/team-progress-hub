@@ -120,7 +120,10 @@ test("teacher training APIs support admin-managed courses, check-in, tasks, subm
   assert.match(mainRoute, /approverOptions/);
   assert.match(courseRoute, /createdById:\s*user\.id/);
   assert.match(checkInRoute, /createdById:\s*user\.id/);
+  assert.match(checkInRoute, /请同时填写纬度和经度/);
   assert.match(checkInSignRoute, /calculateDistanceMeters/);
+  assert.match(checkInSignRoute, /getTeacherTrainingCheckInWindowState/);
+  assert.match(checkInSignRoute, /teacherTrainingCheckInWindowMessages/);
   assert.match(checkInSignRoute, /upsert/);
   assert.match(leaveFlowRoute, /approvalSteps/);
   assert.match(leaveFlowRoute, /requiredCount/);
@@ -201,6 +204,12 @@ test("teacher training tab supports location-based course check-in tasks", () =>
   assert.match(tabSource, /课程定位签到/);
   assert.match(tabSource, /定位签到/);
   assert.match(tabSource, /navigator\.geolocation/);
+  assert.match(tabSource, /getTeacherTrainingCheckInWindowState/);
+  assert.match(tabSource, /getTeacherTrainingCheckInWindowLabel/);
+  assert.match(tabSource, /setInterval\(\(\) => setCheckInClock/);
+  assert.match(tabSource, /签到进度/);
+  assert.match(tabSource, /定位中/);
+  assert.match(tabSource, /未签到/);
   assert.match(tabSource, /createTeacherTrainingCheckInTask/);
   assert.match(tabSource, /signTeacherTrainingCheckIn/);
   assert.match(tabSource, /导出课程签到/);

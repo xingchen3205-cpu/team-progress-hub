@@ -1,10 +1,11 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import * as Workspace from "@/components/workspace-context";
 
 type AttendanceStatus = Workspace.TeacherTrainingAttendanceStatus;
+type CheckInWindowState = Workspace.TeacherTrainingCheckInWindowState;
 type TeacherTrainingSectionKey =
   | "overview"
   | "cohorts"
@@ -68,6 +69,13 @@ const statusStyleMap: Record<AttendanceStatus, string> = {
   absent: "border-rose-200 bg-rose-50 text-rose-700",
 };
 
+const checkInWindowStyleMap: Record<CheckInWindowState, string> = {
+  not_started: "border-amber-200 bg-amber-50 text-amber-700",
+  open: "border-emerald-200 bg-emerald-50 text-emerald-700",
+  ended: "border-slate-200 bg-slate-100 text-slate-600",
+  closed: "border-rose-200 bg-rose-50 text-rose-700",
+};
+
 export default function TeacherTrainingTab() {
   const {
     currentUser,
@@ -103,6 +111,7 @@ export default function TeacherTrainingTab() {
     EmptyState,
     FileCheck,
     FileText,
+    Loader2,
     MapPin,
     Navigation,
     Plus,
@@ -142,6 +151,7 @@ export default function TeacherTrainingTab() {
   const [locationMessage, setLocationMessage] = useState("");
   const [accountMessage, setAccountMessage] = useState("");
   const [checkInSigningId, setCheckInSigningId] = useState("");
+  const [checkInClock, setCheckInClock] = useState(() => Date.now());
   const [leaveFlowSteps, setLeaveFlowSteps] = useState<Workspace.TeacherTrainingLeaveFlowStep[]>([]);
   const [leaveDraft, setLeaveDraft] = useState<Workspace.TeacherTrainingLeaveRequestDraft>({
     participantId: "",
@@ -176,6 +186,11 @@ export default function TeacherTrainingTab() {
   });
   const [activeTeacherTrainingSection, setActiveTeacherTrainingSection] =
     useState<TeacherTrainingSectionKey>("overview");
+
+  useEffect(() => {
+    const timer = window.setInterval(() => setCheckInClock(Date.now()), 30000);
+    return () => window.clearInterval(timer);
+  }, []);
 
   const selectedCohort = useMemo(() => {
     if (selectedCohortId) {
@@ -327,7 +342,12 @@ export default function TeacherTrainingTab() {
         }));
         setLocationMessage("已填入当前位置，可直接发布签到任务。");
       },
-      () => setLocationMessage("定位失败，请检查浏览器定位权限，或手动填写经纬度。"),
+      (error) =>
+        setLocationMessage(
+          error.code === error.PERMISSION_DENIED
+            ? "定位权限被拒绝，请在浏览器地址栏允许本网站使用位置，或手动填写经纬度。"
+            : "定位失败，请检查网络和设备定位后重试，或手动填写经纬度。",
+        ),
       { enableHighAccuracy: true, timeout: 10000 },
     );
   };
@@ -354,9 +374,13 @@ export default function TeacherTrainingTab() {
           setLocationMessage("");
         });
       },
-      () => {
+      (error) => {
         setCheckInSigningId("");
-        setLocationMessage("定位失败，请在浏览器地址栏允许本网站使用位置后重试。");
+        setLocationMessage(
+          error.code === error.PERMISSION_DENIED
+            ? "定位权限被拒绝，请在浏览器地址栏允许本网站使用位置后重试。"
+            : "定位失败，请检查网络和设备定位后重试。",
+        );
       },
       { enableHighAccuracy: true, timeout: 12000 },
     );
@@ -528,6 +552,19 @@ export default function TeacherTrainingTab() {
     visibleTeacherTrainingSections[0];
   const showTeacherTrainingSection = (...keys: TeacherTrainingSectionKey[]) =>
     keys.includes(effectiveTeacherTrainingSection);
+  const checkInNow = useMemo(() => new Date(checkInClock), [checkInClock]);
+  const getCheckInProgress = (task: Workspace.TeacherTrainingCheckInTaskItem) => {
+    const total = selectedCohort?.participants.length ?? 0;
+    const signed = task.records.length;
+    const percent = total > 0 ? Math.round((signed / total) * 100) : 0;
+
+    return {
+      signed,
+      total,
+      unsigned: Math.max(0, total - signed),
+      percent,
+    };
+  };
   const openTeacherTrainingSection = (key: TeacherTrainingSectionKey) => {
     setActiveTeacherTrainingSection(key);
     if (typeof window === "undefined") return;
@@ -1144,33 +1181,35 @@ export default function TeacherTrainingTab() {
                           </option>
                         ))}
                       </select>
-                      <input
-                        className={fieldClassName}
-                        onChange={(event) => setCheckInDraft((current) => ({ ...current, signDate: event.target.value }))}
-                        type="date"
-                        value={checkInDraft.signDate}
-                      />
-                      <div className="grid gap-3 sm:grid-cols-2">
+                      <div className="grid gap-3 md:col-span-2">
                         <input
                           className={fieldClassName}
-                          onChange={(event) => setCheckInDraft((current) => ({ ...current, startTime: event.target.value }))}
-                          type="time"
-                          value={checkInDraft.startTime}
+                          onChange={(event) => setCheckInDraft((current) => ({ ...current, signDate: event.target.value }))}
+                          type="date"
+                          value={checkInDraft.signDate}
                         />
-                        <input
-                          className={fieldClassName}
-                          onChange={(event) => setCheckInDraft((current) => ({ ...current, endTime: event.target.value }))}
-                          type="time"
-                          value={checkInDraft.endTime}
-                        />
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <input
+                            className={fieldClassName}
+                            onChange={(event) => setCheckInDraft((current) => ({ ...current, startTime: event.target.value }))}
+                            type="time"
+                            value={checkInDraft.startTime}
+                          />
+                          <input
+                            className={fieldClassName}
+                            onChange={(event) => setCheckInDraft((current) => ({ ...current, endTime: event.target.value }))}
+                            type="time"
+                            value={checkInDraft.endTime}
+                          />
+                        </div>
                       </div>
                       <input
-                        className={fieldClassName}
+                        className={`${fieldClassName} md:col-span-2`}
                         onChange={(event) => setCheckInDraft((current) => ({ ...current, locationName: event.target.value }))}
                         placeholder="签到地点"
                         value={checkInDraft.locationName}
                       />
-                      <div className="grid gap-3 sm:grid-cols-[1fr_1fr_120px]">
+                      <div className="grid gap-3 sm:grid-cols-[1fr_1fr_140px] md:col-span-2">
                         <input
                           className={fieldClassName}
                           onChange={(event) => setCheckInDraft((current) => ({ ...current, latitude: event.target.value }))}
@@ -1207,24 +1246,58 @@ export default function TeacherTrainingTab() {
                     </div>
 
                     <div className="rounded-xl border border-slate-200/75 bg-white/72 p-4">
-                      <p className="text-xs font-semibold text-slate-500">课程签到记录</p>
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-sm font-bold text-slate-950">签到进度</p>
+                        <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700">
+                          {selectedCohort.checkInTasks.length} 场
+                        </span>
+                      </div>
                       <div className="mt-3 space-y-3">
                         {selectedCohort.checkInTasks.length === 0 ? (
                           <EmptyState description="发布后会在这里显示签到进度。" icon={MapPin} title="暂无课程签到" />
                         ) : (
-                          selectedCohort.checkInTasks.slice(0, 4).map((task) => (
-                            <div key={task.id} className="rounded-lg bg-slate-50 px-3 py-2">
-                              <div className="flex items-center justify-between gap-3">
-                                <p className="text-sm font-semibold text-slate-900">{task.title}</p>
-                                <span className="text-xs font-semibold text-blue-700">
-                                  {task.records.length}/{selectedCohort.participants.length}
-                                </span>
-                              </div>
-                              <p className="mt-1 text-xs text-slate-500">
-                                {[task.signDate, task.startTime, task.locationName].filter(Boolean).join(" · ") || "未设置地点"}
-                              </p>
-                            </div>
-                          ))
+                          selectedCohort.checkInTasks.map((task) => {
+                            const windowState = Workspace.getTeacherTrainingCheckInWindowState(task, checkInNow);
+                            const progress = getCheckInProgress(task);
+                            return (
+                              <article
+                                key={task.id}
+                                className="rounded-2xl border border-slate-200/75 bg-white/82 p-3 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-lg hover:shadow-blue-950/8"
+                              >
+                                <div className="flex items-start justify-between gap-3">
+                                  <div className="min-w-0">
+                                    <div className="flex flex-wrap items-center gap-2">
+                                      <p className="truncate text-sm font-bold text-slate-950">{task.title}</p>
+                                      <span className={`rounded-full border px-2 py-0.5 text-[11px] font-bold ${checkInWindowStyleMap[windowState]}`}>
+                                        {Workspace.getTeacherTrainingCheckInWindowLabel(windowState)}
+                                      </span>
+                                    </div>
+                                    <p className="mt-1 text-xs leading-5 text-slate-500">
+                                      {[task.signDate, [task.startTime, task.endTime].filter(Boolean).join("-"), task.locationName]
+                                        .filter(Boolean)
+                                        .join(" · ") || "未设置地点"}
+                                    </p>
+                                  </div>
+                                  <span className="shrink-0 text-xs font-bold text-blue-700">
+                                    {progress.signed}/{progress.total}
+                                  </span>
+                                </div>
+                                <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100">
+                                  <div
+                                    className="h-full rounded-full bg-gradient-to-r from-blue-600 to-cyan-500 transition-all duration-500"
+                                    style={{ width: `${progress.percent}%` }}
+                                  />
+                                </div>
+                                <div className="mt-2 flex flex-wrap items-center gap-2 text-xs text-slate-500">
+                                  <span>已签到 {progress.signed} 人</span>
+                                  <span className="text-slate-300">/</span>
+                                  <span>未签到 {progress.unsigned} 人</span>
+                                  <span className="text-slate-300">/</span>
+                                  <span>范围 {task.radiusMeters} 米</span>
+                                </div>
+                              </article>
+                            );
+                          })
                         )}
                       </div>
                     </div>
@@ -1236,16 +1309,29 @@ export default function TeacherTrainingTab() {
                     ) : (
                       selectedCohort.checkInTasks.map((task) => {
                         const signedRecord = task.records.find((record) => record.participantId === selectedParticipant?.id);
+                        const windowState = Workspace.getTeacherTrainingCheckInWindowState(task, checkInNow);
+                        const isWindowOpen = windowState === "open";
+                        const isSigningThisTask = checkInSigningId === task.id;
                         return (
-                          <div key={task.id} className="grid gap-3 rounded-xl border border-slate-200/75 bg-white/72 p-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+                          <div
+                            key={task.id}
+                            className="grid gap-3 rounded-2xl border border-slate-200/75 bg-white/78 p-4 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-lg hover:shadow-blue-950/8 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center"
+                          >
                             <div>
                               <div className="flex flex-wrap items-center gap-2">
                                 <p className="font-semibold text-slate-950">{task.title}</p>
+                                <span className={`rounded-full border px-2 py-0.5 text-xs font-bold ${checkInWindowStyleMap[windowState]}`}>
+                                  {Workspace.getTeacherTrainingCheckInWindowLabel(windowState)}
+                                </span>
                                 {signedRecord ? (
                                   <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700">
                                     已签到
                                   </span>
-                                ) : null}
+                                ) : (
+                                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-semibold text-slate-500">
+                                    未签到
+                                  </span>
+                                )}
                               </div>
                               <p className="mt-1 text-sm text-slate-500">
                                 {[task.signDate, task.startTime, task.endTime, task.locationName].filter(Boolean).join(" · ")}
@@ -1254,17 +1340,24 @@ export default function TeacherTrainingTab() {
                                 <p className="mt-1 text-xs text-slate-400">
                                   {signedRecord.signedAt}
                                   {signedRecord.distanceMeters !== null ? ` · 距离 ${signedRecord.distanceMeters} 米` : ""}
+                                  {signedRecord.accuracy !== null ? ` · 精度 ${Math.round(signedRecord.accuracy)} 米` : ""}
                                 </p>
                               ) : null}
                             </div>
                             <button
                               className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-[#1f64f2] px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-[#174ecb] disabled:cursor-not-allowed disabled:bg-slate-300"
-                              disabled={isSaving || checkInSigningId === task.id}
+                              disabled={!isWindowOpen || isSaving || isSigningThisTask || !selectedParticipant}
                               onClick={() => signWithCurrentLocation(task.id)}
                               type="button"
                             >
-                              <MapPin className="h-4 w-4" />
-                              {signedRecord ? "重新定位签到" : "定位签到"}
+                              {isSigningThisTask ? <Loader2 className="h-4 w-4 animate-spin" /> : <MapPin className="h-4 w-4" />}
+                              {isSigningThisTask
+                                ? "定位中"
+                                : isWindowOpen
+                                  ? signedRecord
+                                    ? "重新定位签到"
+                                    : "定位签到"
+                                  : Workspace.getTeacherTrainingCheckInWindowLabel(windowState)}
                             </button>
                           </div>
                         );
