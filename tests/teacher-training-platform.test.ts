@@ -121,9 +121,11 @@ test("teacher training APIs support admin-managed courses, check-in, tasks, subm
   assert.match(courseRoute, /createdById:\s*user\.id/);
   assert.match(checkInRoute, /createdById:\s*user\.id/);
   assert.match(checkInRoute, /请同时填写纬度和经度/);
+  assert.match(checkInRoute, /经纬度范围不正确/);
   assert.match(checkInSignRoute, /calculateDistanceMeters/);
   assert.match(checkInSignRoute, /getTeacherTrainingCheckInWindowState/);
   assert.match(checkInSignRoute, /teacherTrainingCheckInWindowMessages/);
+  assert.match(checkInSignRoute, /定位坐标不正确/);
   assert.match(checkInSignRoute, /upsert/);
   assert.match(leaveFlowRoute, /approvalSteps/);
   assert.match(leaveFlowRoute, /requiredCount/);

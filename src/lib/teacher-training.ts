@@ -315,6 +315,15 @@ export const calculateDistanceMeters = (
   return Math.round(earthRadiusMeters * c);
 };
 
+export const isValidTeacherTrainingLatitude = (value: number | null) =>
+  value === null || (value >= -90 && value <= 90);
+
+export const isValidTeacherTrainingLongitude = (value: number | null) =>
+  value === null || (value >= -180 && value <= 180);
+
+export const areValidTeacherTrainingCoordinates = (latitude: number | null, longitude: number | null) =>
+  isValidTeacherTrainingLatitude(latitude) && isValidTeacherTrainingLongitude(longitude);
+
 export type TeacherTrainingCheckInWindowState = "not_started" | "open" | "ended" | "closed";
 
 type TeacherTrainingCheckInWindowInput = {

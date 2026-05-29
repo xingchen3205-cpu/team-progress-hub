@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import {
+  areValidTeacherTrainingCoordinates,
   calculateDistanceMeters,
   getTeacherTrainingCheckInWindowState,
   teacherTrainingCheckInWindowMessages,
@@ -34,9 +35,16 @@ export async function POST(request: NextRequest) {
   const latitude = parseRequiredNumber(body?.latitude);
   const longitude = parseRequiredNumber(body?.longitude);
   const accuracy = parseRequiredNumber(body?.accuracy);
+  const hasCoordinateInput = body?.latitude !== undefined || body?.longitude !== undefined;
 
   if (!checkInTaskId || !participantId) {
     return NextResponse.json({ message: "签到信息不完整" }, { status: 400 });
+  }
+  if (
+    hasCoordinateInput &&
+    (latitude === null || longitude === null || !areValidTeacherTrainingCoordinates(latitude, longitude))
+  ) {
+    return NextResponse.json({ message: "定位坐标不正确" }, { status: 400 });
   }
 
   const participant = await prisma.teacherTrainingParticipant.findFirst({

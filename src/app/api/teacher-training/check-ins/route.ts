@@ -2,7 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { isTeacherTrainingDateKey, parseTeacherTrainingTimeToMinutes } from "@/lib/teacher-training";
+import {
+  areValidTeacherTrainingCoordinates,
+  isTeacherTrainingDateKey,
+  parseTeacherTrainingTimeToMinutes,
+} from "@/lib/teacher-training";
 import { hasTeacherTrainingCohortManageAccess } from "@/lib/teacher-training-access";
 
 const parseOptionalNumber = (value: unknown) => {
@@ -22,6 +26,9 @@ const clampRadiusMeters = (value: unknown) => {
 
   return Math.min(5000, Math.max(50, Math.round(radius)));
 };
+
+const hasCoordinateValue = (value: unknown) =>
+  value !== null && value !== undefined && String(value).trim() !== "";
 
 export async function POST(request: NextRequest) {
   const user = await getSessionUser(request);
@@ -89,10 +96,15 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  const hasLatitude = hasCoordinateValue(body?.latitude);
+  const hasLongitude = hasCoordinateValue(body?.longitude);
   const latitude = parseOptionalNumber(body?.latitude);
   const longitude = parseOptionalNumber(body?.longitude);
-  if ((latitude === null) !== (longitude === null)) {
+  if (hasLatitude !== hasLongitude) {
     return NextResponse.json({ message: "请同时填写纬度和经度" }, { status: 400 });
+  }
+  if (hasLatitude && (latitude === null || longitude === null || !areValidTeacherTrainingCoordinates(latitude, longitude))) {
+    return NextResponse.json({ message: "经纬度范围不正确" }, { status: 400 });
   }
 
   const checkInTask = await prisma.teacherTrainingCheckInTask.create({
