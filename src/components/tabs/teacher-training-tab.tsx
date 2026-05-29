@@ -6,17 +6,6 @@ import * as Workspace from "@/components/workspace-context";
 
 type AttendanceStatus = Workspace.TeacherTrainingAttendanceStatus;
 type CheckInWindowState = Workspace.TeacherTrainingCheckInWindowState;
-type TeacherTrainingSectionKey =
-  | "overview"
-  | "cohorts"
-  | "participants"
-  | "courses"
-  | "checkins"
-  | "attendance"
-  | "tasks"
-  | "leave"
-  | "profile"
-  | "exports";
 
 const getDateInputValue = (date: Date) => {
   const year = date.getFullYear();
@@ -84,6 +73,7 @@ export default function TeacherTrainingTab() {
     teacherTrainingManagerOptions,
     hasGlobalAdminRole,
     canManageTeacherTraining,
+    activeTeacherTrainingSection,
     isSaving,
     createTeacherTrainingCohort,
     addTeacherTrainingParticipant,
@@ -184,8 +174,6 @@ export default function TeacherTrainingTab() {
     content: "",
     attachment: "",
   });
-  const [activeTeacherTrainingSection, setActiveTeacherTrainingSection] =
-    useState<TeacherTrainingSectionKey>("overview");
 
   useEffect(() => {
     const timer = window.setInterval(() => setCheckInClock(Date.now()), 30000);
@@ -453,89 +441,20 @@ export default function TeacherTrainingTab() {
     { label: "任务", value: selectedCohort?.stats.taskCount ?? 0, Icon: FileText },
     { label: "汇报", value: selectedCohort?.stats.submissionCount ?? 0, Icon: Send },
   ];
-  const teacherTrainingSections: Array<{
-    key: TeacherTrainingSectionKey;
-    label: string;
-    description: string;
-    Icon: typeof Users;
-    count?: number;
-    managerOnly?: boolean;
-    globalOnly?: boolean;
-    teacherOnly?: boolean;
-  }> = [
-    {
-      key: "overview",
-      label: "工作台",
-      description: "班次总览和关键进度",
-      Icon: ClipboardCheck,
-    },
-    {
-      key: "cohorts",
-      label: "班次管理",
-      description: "班次、地点和班主任",
-      Icon: User,
-      count: selectedCohort?.stats.managerCount ?? 0,
-      managerOnly: true,
-    },
-    {
-      key: "participants",
-      label: "参训教师",
-      description: "名单、账号和预录信息",
-      Icon: Users,
-      count: selectedCohort?.stats.participantCount ?? 0,
-      managerOnly: true,
-    },
-    {
-      key: "courses",
-      label: "课程安排",
-      description: "课程表和授课信息",
-      Icon: CalendarDays,
-      count: selectedCohort?.stats.courseCount ?? 0,
-    },
-    {
-      key: "checkins",
-      label: "报到签到",
-      description: "课程定位签到任务",
-      Icon: MapPin,
-      count: selectedCohort?.stats.checkInRecordCount ?? 0,
-    },
-    {
-      key: "attendance",
-      label: "报到登记",
-      description: "工作人员后台勾选",
-      Icon: CheckCircle2,
-      count: selectedCohort?.stats.presentCount ?? 0,
-      managerOnly: true,
-    },
-    {
-      key: "tasks",
-      label: "任务汇报",
-      description: "发布任务和汇总提交",
-      Icon: FileText,
-      count: selectedCohort?.stats.submissionCount ?? 0,
-    },
-    {
-      key: "leave",
-      label: "请假审批",
-      description: "流程、申请和请假单",
-      Icon: FileCheck,
-      count: selectedCohort?.stats.leaveCount ?? 0,
-    },
-    {
-      key: "profile",
-      label: "个人信息",
-      description: "参训教师资料维护",
-      Icon: User,
-      teacherOnly: true,
-    },
-    {
-      key: "exports",
-      label: "导出归档",
-      description: "名单、签到和汇报导出",
-      Icon: Download,
-      managerOnly: true,
-    },
-  ];
+  const teacherTrainingSectionCounts: Partial<Record<Workspace.TeacherTrainingSectionKey, number>> = {
+    cohorts: selectedCohort?.stats.managerCount ?? 0,
+    participants: selectedCohort?.stats.participantCount ?? 0,
+    courses: selectedCohort?.stats.courseCount ?? 0,
+    checkins: selectedCohort?.stats.checkInRecordCount ?? 0,
+    attendance: selectedCohort?.stats.presentCount ?? 0,
+    tasks: selectedCohort?.stats.submissionCount ?? 0,
+    leave: selectedCohort?.stats.leaveCount ?? 0,
+  };
+  const teacherTrainingSections = Workspace.teacherTrainingSectionTabs.map((section) => ({
+    ...section,
+    Icon: section.icon,
+    count: teacherTrainingSectionCounts[section.key],
+  }));
   const visibleTeacherTrainingSections = teacherTrainingSections.filter((section) => {
     if (section.globalOnly && !canManageGlobal) return false;
     if (section.managerOnly && !canManage) return false;
@@ -550,7 +469,7 @@ export default function TeacherTrainingTab() {
   const activeTeacherTrainingSectionMeta =
     visibleTeacherTrainingSections.find((section) => section.key === effectiveTeacherTrainingSection) ??
     visibleTeacherTrainingSections[0];
-  const showTeacherTrainingSection = (...keys: TeacherTrainingSectionKey[]) =>
+  const showTeacherTrainingSection = (...keys: Workspace.TeacherTrainingSectionKey[]) =>
     keys.includes(effectiveTeacherTrainingSection);
   const checkInNow = useMemo(() => new Date(checkInClock), [checkInClock]);
   const getCheckInProgress = (task: Workspace.TeacherTrainingCheckInTaskItem) => {
@@ -565,18 +484,6 @@ export default function TeacherTrainingTab() {
       percent,
     };
   };
-  const openTeacherTrainingSection = (key: TeacherTrainingSectionKey) => {
-    setActiveTeacherTrainingSection(key);
-    if (typeof window === "undefined") return;
-
-    window.requestAnimationFrame(() => {
-      document.getElementById("teacher-training-content")?.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-      });
-    });
-  };
-
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -584,66 +491,16 @@ export default function TeacherTrainingTab() {
           description="省培平台独立管理班次、参训教师、课程签到、任务汇报、请假审批和导出归档。"
           title="江苏省职业院校创新创业教育（竞赛）指导能力提升培训"
         />
-        <div className="rounded-2xl border border-blue-100 bg-white/80 px-4 py-3 shadow-sm">
+        <div className="min-w-[180px] rounded-2xl border border-blue-100 bg-white/80 px-4 py-3 shadow-sm">
           <p className="text-xs font-semibold text-slate-500">当前模块</p>
           <p className="mt-1 text-sm font-bold text-slate-950">{activeTeacherTrainingSectionMeta?.label ?? "工作台"}</p>
+          <p className="mt-1 max-w-56 text-xs leading-5 text-slate-500">
+            {activeTeacherTrainingSectionMeta?.description ?? "查看省培平台运行情况。"}
+          </p>
         </div>
       </div>
 
-      <section className="grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)]">
-        <aside
-          aria-label="省培模块导航，支持丝滑切换"
-          className="depth-card sticky top-4 h-fit overflow-hidden rounded-2xl border border-blue-100/80 bg-white/86 p-3 shadow-[0_18px_55px_rgba(26,111,212,0.12)]"
-        >
-          <div className="rounded-2xl bg-gradient-to-br from-blue-600 via-blue-500 to-cyan-500 p-4 text-white">
-            <p className="text-xs font-semibold text-blue-100">省培模块导航</p>
-            <p className="mt-2 text-lg font-bold leading-6">分区处理，不再堆叠</p>
-            <p className="mt-2 text-xs leading-5 text-blue-50">切换模块时只展示当前工作区，操作更聚焦。</p>
-          </div>
-          <div className="mt-3 space-y-1.5">
-            {visibleTeacherTrainingSections.map(({ key, label, description, Icon, count }) => {
-              const isActive = effectiveTeacherTrainingSection === key;
-              return (
-                <button
-                  key={key}
-                  className={`group flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition duration-200 ${
-                    isActive
-                      ? "bg-slate-950 text-white shadow-lg shadow-blue-950/10"
-                      : "text-slate-600 hover:bg-blue-50 hover:text-slate-950"
-                  }`}
-                  data-section-key={key}
-                  onClick={() => openTeacherTrainingSection(key)}
-                  type="button"
-                >
-                  <span
-                    className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition ${
-                      isActive ? "bg-white/14 text-white" : "bg-white text-blue-600 shadow-sm group-hover:bg-blue-600 group-hover:text-white"
-                    }`}
-                  >
-                    <Icon className="h-4 w-4" />
-                  </span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-bold">{label}</span>
-                    <span className={`mt-0.5 block truncate text-xs ${isActive ? "text-white/68" : "text-slate-400"}`}>
-                      {description}
-                    </span>
-                  </span>
-                  {typeof count === "number" ? (
-                    <span
-                      className={`rounded-full px-2 py-0.5 text-xs font-bold ${
-                        isActive ? "bg-white/15 text-white" : "bg-slate-100 text-slate-500"
-                      }`}
-                    >
-                      {count}
-                    </span>
-                  ) : null}
-                </button>
-              );
-            })}
-          </div>
-        </aside>
-
-        <div className="space-y-4" id="teacher-training-content">
+      <div className="space-y-4 pb-16" id="teacher-training-content">
           {showTeacherTrainingSection("overview") ? (
             <section className="grid gap-3 md:grid-cols-3 xl:grid-cols-5">
               {metricCards.map(({ label, value, Icon }) => (
@@ -695,45 +552,35 @@ export default function TeacherTrainingTab() {
               <div className="depth-subtle rounded-2xl border border-slate-200/70 bg-white/86 p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="text-sm font-bold text-slate-950">快速进入</p>
-                    <p className="mt-1 text-xs leading-5 text-slate-500">点击模块后页面会平滑定位到工作区。</p>
+                    <p className="text-sm font-bold text-slate-950">今日运行</p>
+                    <p className="mt-1 text-xs leading-5 text-slate-500">课程、签到和汇报状态集中展示。</p>
                   </div>
                   <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-500">
-                    {visibleTeacherTrainingSections.length - 1} 项
+                    {selectedCohort ? "运行中" : "待建班"}
                   </span>
                 </div>
-                <div className="mt-4 grid gap-2 sm:grid-cols-2">
-                  {visibleTeacherTrainingSections
-                    .filter((section) => section.key !== "overview")
-                    .map(({ key, label, description, Icon, count }) => (
-                      <button
-                        key={key}
-                        className="group flex min-h-20 items-center gap-3 rounded-2xl border border-slate-200/70 bg-white/78 px-3 py-3 text-left transition duration-200 hover:-translate-y-0.5 hover:border-blue-200 hover:bg-blue-50/80 hover:shadow-lg hover:shadow-blue-950/8"
-                        onClick={() => openTeacherTrainingSection(key)}
-                        type="button"
-                      >
-                        <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-700 transition group-hover:bg-blue-600 group-hover:text-white">
-                          <Icon className="h-4 w-4" />
+                <div className="mt-4 grid gap-3 sm:grid-cols-3 xl:grid-cols-1">
+                  {[
+                    { label: "课程安排", value: selectedCohort?.stats.courseCount ?? 0, Icon: CalendarDays },
+                    { label: "签到记录", value: selectedCohort?.stats.checkInRecordCount ?? 0, Icon: MapPin },
+                    { label: "任务汇报", value: selectedCohort?.stats.submissionCount ?? 0, Icon: Send },
+                  ].map((item) => (
+                    <div key={item.label} className="flex items-center justify-between gap-3 rounded-2xl border border-slate-200/70 bg-white/80 px-4 py-3 shadow-sm">
+                      <span className="flex min-w-0 items-center gap-3">
+                        <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-700">
+                          <item.Icon className="h-4 w-4" />
                         </span>
-                        <span className="min-w-0 flex-1">
-                          <span className="flex items-center gap-2">
-                            <span className="truncate text-sm font-bold text-slate-950">{label}</span>
-                            {typeof count === "number" ? (
-                              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-500">
-                                {count}
-                              </span>
-                            ) : null}
-                          </span>
-                          <span className="mt-1 block truncate text-xs text-slate-500">{description}</span>
-                        </span>
-                      </button>
-                    ))}
+                        <span className="truncate text-sm font-semibold text-slate-700">{item.label}</span>
+                      </span>
+                      <span className="text-xl font-black text-slate-950">{item.value}</span>
+                    </div>
+                  ))}
                 </div>
               </div>
             </section>
           ) : null}
 
-          <section className={`grid gap-4 ${canManage && showTeacherTrainingSection("cohorts", "participants") ? "xl:grid-cols-[360px_minmax(0,1fr)]" : ""}`}>
+          <div className={`grid gap-4 ${canManage && showTeacherTrainingSection("cohorts", "participants") ? "xl:grid-cols-[360px_minmax(0,1fr)]" : ""}`}>
         {canManage && showTeacherTrainingSection("cohorts", "participants") ? (
           <aside className={`${surfaceCardClassName} space-y-5`}>
             <div>
@@ -809,7 +656,7 @@ export default function TeacherTrainingTab() {
                 <Users className="h-4 w-4 text-[#1a6fd4]" />
                 <div>
                   <p className="text-sm font-semibold text-slate-900">参训教师中心</p>
-                  <p className="mt-1 text-xs leading-5 text-slate-500">系统管理员、校级管理员可新增省培教师账号，也可绑定已有平台账号。</p>
+                  <p className="mt-1 text-xs leading-5 text-slate-500">新增省培教师账号，也可绑定已有平台账号。</p>
                 </div>
               </div>
               <div className="mt-3 space-y-3">
@@ -854,7 +701,7 @@ export default function TeacherTrainingTab() {
                 />
               </div>
               <textarea
-                className={`${textareaClassName} min-h-24`}
+                className={`${textareaClassName} min-h-20`}
                 onChange={(event) => setParticipantDraft((current) => ({ ...current, extraInfo: event.target.value }))}
                 placeholder="预录扩展信息，例如职务、住宿、发票、培训材料领取情况等；每行一项。"
                 value={participantDraft.extraInfo}
@@ -2032,9 +1879,8 @@ export default function TeacherTrainingTab() {
             </>
           )}
         </div>
-      </section>
         </div>
-      </section>
+      </div>
     </div>
   );
 }

@@ -29,6 +29,7 @@ import {
   KanbanSquare,
   Loader2,
   LogOut,
+  MapPin,
   Menu,
   MessageSquareText,
   Paperclip,
@@ -185,6 +186,28 @@ export type TabItem = {
   label: string;
   description: string;
   icon: LucideIcon;
+};
+
+export type TeacherTrainingSectionKey =
+  | "overview"
+  | "cohorts"
+  | "participants"
+  | "courses"
+  | "checkins"
+  | "attendance"
+  | "tasks"
+  | "leave"
+  | "profile"
+  | "exports";
+
+export type TeacherTrainingSectionItem = {
+  key: TeacherTrainingSectionKey;
+  label: string;
+  description: string;
+  icon: LucideIcon;
+  managerOnly?: boolean;
+  globalOnly?: boolean;
+  teacherOnly?: boolean;
 };
 
 export type TaskDraft = {
@@ -807,6 +830,74 @@ export const allTabs: TabItem[] = [
     label: "个人信息",
     description: "查看并维护当前登录账号的个人资料。",
     icon: User,
+  },
+];
+
+export const teacherTrainingSectionTabs: TeacherTrainingSectionItem[] = [
+  {
+    key: "overview",
+    label: "工作台",
+    description: "班次总览和关键进度",
+    icon: ClipboardCheck,
+  },
+  {
+    key: "cohorts",
+    label: "班次管理",
+    description: "班次、地点和班主任",
+    icon: User,
+    managerOnly: true,
+  },
+  {
+    key: "participants",
+    label: "参训教师",
+    description: "名单、账号和预录信息",
+    icon: Users,
+    managerOnly: true,
+  },
+  {
+    key: "courses",
+    label: "课程安排",
+    description: "课程表和授课信息",
+    icon: CalendarDays,
+  },
+  {
+    key: "checkins",
+    label: "报到签到",
+    description: "课程定位签到任务",
+    icon: MapPin,
+  },
+  {
+    key: "attendance",
+    label: "报到登记",
+    description: "工作人员后台勾选",
+    icon: CheckCircle2,
+    managerOnly: true,
+  },
+  {
+    key: "tasks",
+    label: "任务汇报",
+    description: "发布任务和汇总提交",
+    icon: FileText,
+  },
+  {
+    key: "leave",
+    label: "请假审批",
+    description: "流程、申请和请假单",
+    icon: FileCheck,
+  },
+  {
+    key: "profile",
+    label: "个人信息",
+    description: "参训教师资料维护",
+    icon: User,
+    teacherOnly: true,
+  },
+  {
+    key: "exports",
+    label: "导出归档",
+    description: "名单、签到和汇报导出",
+    icon: Download,
+    managerOnly: true,
   },
 ];
 
@@ -2174,6 +2265,8 @@ function useWorkspaceController({
   const [loadError, setLoadError] = useState<string | null>(null);
   const [reloadToken, setReloadToken] = useState(0);
   const [activeTabResourceLoading, setActiveTabResourceLoading] = useState(false);
+  const [activeTeacherTrainingSection, setActiveTeacherTrainingSection] =
+    useState<TeacherTrainingSectionKey>("overview");
   const loadedWorkspaceResourcesRef = useRef<Set<string>>(new Set());
   const refreshResourceQueueRef = useRef<Set<WorkspaceResourceKey>>(new Set());
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
@@ -2413,6 +2506,18 @@ function useWorkspaceController({
 
     return isTeacherTrainingPlatform ? item.key === "teacherTraining" : item.key !== "teacherTraining";
   });
+  const visibleTeacherTrainingSectionTabs = teacherTrainingSectionTabs.filter((section) => {
+    if (section.globalOnly && !hasGlobalAdminRole) return false;
+    if (section.managerOnly && !canManageTeacherTraining) return false;
+    if (section.teacherOnly && canManageTeacherTraining) return false;
+    return true;
+  });
+  const effectiveTeacherTrainingSection = visibleTeacherTrainingSectionTabs.some(
+    (section) => section.key === activeTeacherTrainingSection,
+  )
+    ? activeTeacherTrainingSection
+    : "overview";
+  const teacherTrainingSidebarSections = visibleTeacherTrainingSectionTabs;
   const activeTabItem = allTabs.find((item) => item.key === safeActiveTab) ?? allTabs[0];
   const nearestUpcomingIndex = events.length > 0 ? getNearestUpcomingIndex(events) : 0;
   const nearestEvent = events[nearestUpcomingIndex];
@@ -7356,6 +7461,8 @@ function useWorkspaceController({
     activeTabResourceLoading,
     setActiveTabResourceLoading,
     isActiveTabResourceLoading: activeTabResourceLoading && !isBooting,
+    activeTeacherTrainingSection: effectiveTeacherTrainingSection,
+    setActiveTeacherTrainingSection,
     loadError,
     setLoadError,
     reloadToken,
@@ -7682,6 +7789,7 @@ function useWorkspaceController({
     visibleTabs,
     isTeacherTrainingPlatform,
     sidebarTabs,
+    teacherTrainingSidebarSections,
     safeActiveTab,
     activeTabItem,
     nearestUpcomingIndex,

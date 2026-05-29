@@ -186,7 +186,9 @@ test("workspace topbar matches the requested home layout with live weather", () 
 
   assert.match(topbarBlock, /topbar-left/);
   assert.match(topbarBlock, /topbar-page-title/);
-  assert.match(source, /safeActiveTab === "overview" \? "首页概览" : activeTopbarLabel/);
+  assert.match(source, /isTeacherTrainingPlatform/);
+  assert.match(source, /activeTeacherTrainingSidebarItem\?\.label \?\? "省培管理"/);
+  assert.match(source, /safeActiveTab === "overview"[\s\S]*\? "首页概览"[\s\S]*: activeTopbarLabel/);
   assert.doesNotMatch(topbarBlock, /topbar-page-sub/);
   assert.match(pageStackCss, /flex-direction:\s*row/);
   assert.doesNotMatch(pageStackCss, /flex-direction:\s*column/);

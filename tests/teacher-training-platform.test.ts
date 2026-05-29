@@ -152,18 +152,24 @@ test("teacher training APIs support admin-managed courses, check-in, tasks, subm
 
 test("teacher training tab uses staff-side manual check-in controls", () => {
   const tabSource = read("src/components/tabs/teacher-training-tab.tsx");
+  const contextSource = read("src/components/workspace-context.tsx");
+  const shellSource = read("src/components/workspace-shell.tsx");
 
   assert.match(tabSource, /teacherTrainingSections/);
   assert.match(tabSource, /activeTeacherTrainingSection/);
-  assert.match(tabSource, /省培模块导航/);
+  assert.match(contextSource, /teacherTrainingSectionTabs/);
+  assert.match(contextSource, /activeTeacherTrainingSection/);
+  assert.match(shellSource, /teacherTrainingSidebarSections/);
+  assert.match(shellSource, /data-section-key/);
+  assert.doesNotMatch(tabSource, /省培模块导航/);
+  assert.doesNotMatch(tabSource, /分区处理，不再堆叠/);
   for (const label of ["工作台", "班次管理", "参训教师", "课程安排", "报到签到", "任务汇报", "请假审批", "导出归档"]) {
-    assert.match(tabSource, new RegExp(label));
+    assert.match(contextSource, new RegExp(label));
   }
-  assert.match(tabSource, /data-section-key/);
-  assert.match(tabSource, /丝滑/);
-  assert.match(tabSource, /openTeacherTrainingSection/);
+  assert.match(contextSource, /报到登记/);
+  assert.match(shellSource, /openTeacherTrainingSection/);
   assert.match(tabSource, /teacher-training-content/);
-  assert.match(tabSource, /快速进入/);
+  assert.doesNotMatch(tabSource, /快速进入/);
   assert.match(tabSource, /省培运行总览/);
   assert.match(tabSource, /工作人员后台勾选/);
   assert.match(tabSource, /课程安排/);
@@ -173,7 +179,7 @@ test("teacher training tab uses staff-side manual check-in controls", () => {
   assert.match(tabSource, /班主任/);
   assert.match(tabSource, /assignTeacherTrainingCohortManager/);
   assert.match(tabSource, /removeTeacherTrainingCohortManager/);
-  assert.match(tabSource, /系统管理员、校级管理员/);
+  assert.match(tabSource, /新增省培教师账号/);
   assert.match(tabSource, /已有平台账号/);
   assert.match(tabSource, /预录扩展信息/);
   assert.match(tabSource, /一键复制账号消息/);

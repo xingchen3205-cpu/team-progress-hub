@@ -160,6 +160,9 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
     permissions,
     isTeacherTrainingPlatform,
     sidebarTabs,
+    teacherTrainingSidebarSections,
+    activeTeacherTrainingSection,
+    setActiveTeacherTrainingSection,
     safeActiveTab,
     taskAssignableMembers,
     expertMembers,
@@ -447,7 +450,25 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
 
   const activeTopbarItem = allTabs.find((item) => item.key === safeActiveTab);
   const activeTopbarLabel = activeTopbarItem ? getSidebarTabLabel(activeTopbarItem) : "首页概览";
-  const topbarPageTitle = safeActiveTab === "overview" ? "首页概览" : activeTopbarLabel;
+  const activeTeacherTrainingSidebarItem =
+    teacherTrainingSidebarSections.find((item) => item.key === activeTeacherTrainingSection) ??
+    teacherTrainingSidebarSections[0] ??
+    null;
+  const topbarPageTitle = isTeacherTrainingPlatform
+    ? activeTeacherTrainingSidebarItem?.label ?? "省培管理"
+    : safeActiveTab === "overview"
+      ? "首页概览"
+      : activeTopbarLabel;
+  const openTeacherTrainingSection = (key: Workspace.TeacherTrainingSectionKey) => {
+    setActiveTeacherTrainingSection(key);
+
+    window.requestAnimationFrame(() => {
+      document.getElementById("teacher-training-content")?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    });
+  };
   const topbarDateParts = {
     date: `${currentDateTime.getMonth() + 1}月${currentDateTime.getDate()}日`,
     weekday: ["星期日", "星期一", "星期二", "星期三", "星期四", "星期五", "星期六"][
@@ -751,23 +772,50 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
               </div>
 
               <nav className="sidebar-nav mt-5 flex-1 overflow-y-auto space-y-1 pr-1">
-                {sidebarTabs.map((item) => {
-                  const Icon = item.icon;
-                  const isActive = item.key === safeActiveTab;
-                  const href =
-                    item.key === "overview" ? "/workspace" : `/workspace?tab=${item.key}`;
+                {isTeacherTrainingPlatform ? (
+                  <div className="space-y-1" aria-label="省培左侧模块">
+                    {teacherTrainingSidebarSections.map((item) => {
+                      const Icon = item.icon;
+                      const isActive = item.key === activeTeacherTrainingSection;
 
-                  return (
-                    <Link
-                      key={item.key}
-                      className={`sidebar-nav-item no-underline ${isActive ? "sidebar-nav-item-active" : ""}`}
-                      href={href}
-                    >
-                      <Icon className="h-[18px] w-[18px]" strokeWidth={2.1} />
-                      <span>{getSidebarTabLabel(item)}</span>
-                    </Link>
-                  );
-                })}
+                      return (
+                        <button
+                          key={item.key}
+                          aria-label={`${item.label}：${item.description}`}
+                          aria-current={isActive ? "page" : undefined}
+                          className={`sidebar-nav-item w-full border-0 bg-transparent text-left font-[inherit] ${isActive ? "sidebar-nav-item-active" : ""}`}
+                          data-section-key={item.key}
+                          onClick={() => openTeacherTrainingSection(item.key)}
+                          title={item.description}
+                          type="button"
+                        >
+                          <Icon className="h-[18px] w-[18px] shrink-0" strokeWidth={2.1} />
+                          <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  sidebarTabs.map((item) => {
+                    const Icon = item.icon;
+                    const isActive = item.key === safeActiveTab;
+                    const href =
+                      item.key === "overview" ? "/workspace" : `/workspace?tab=${item.key}`;
+
+                    return (
+                      <Link
+                        key={item.key}
+                        aria-label={`${getSidebarTabLabel(item)}：${item.description}`}
+                        className={`sidebar-nav-item no-underline ${isActive ? "sidebar-nav-item-active" : ""}`}
+                        href={href}
+                        title={item.description}
+                      >
+                        <Icon className="h-[18px] w-[18px]" strokeWidth={2.1} />
+                        <span>{getSidebarTabLabel(item)}</span>
+                      </Link>
+                    );
+                  })
+                )}
               </nav>
 
               <div className="sidebar-user-area mt-auto">
@@ -820,24 +868,54 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                 </div>
 
                 <nav className="sidebar-nav mt-5 space-y-1">
-                  {sidebarTabs.map((item) => {
-                    const Icon = item.icon;
-                    const isActive = item.key === safeActiveTab;
-                    const href =
-                      item.key === "overview" ? "/workspace" : `/workspace?tab=${item.key}`;
+                  {isTeacherTrainingPlatform ? (
+                    <div className="space-y-1" aria-label="省培左侧模块">
+                      {teacherTrainingSidebarSections.map((item) => {
+                        const Icon = item.icon;
+                        const isActive = item.key === activeTeacherTrainingSection;
 
-                    return (
-                      <Link
-                        key={`mobile-${item.key}`}
-                        className={`sidebar-nav-item no-underline ${isActive ? "sidebar-nav-item-active" : ""}`}
-                        href={href}
-                        onClick={() => setMobileSidebarOpen(false)}
-                      >
-                        <Icon className="h-[18px] w-[18px]" strokeWidth={2.1} />
-                        <span>{getSidebarTabLabel(item)}</span>
-                      </Link>
-                    );
-                  })}
+                        return (
+                          <button
+                            key={`mobile-${item.key}`}
+                            aria-label={`${item.label}：${item.description}`}
+                            aria-current={isActive ? "page" : undefined}
+                            className={`sidebar-nav-item w-full border-0 bg-transparent text-left font-[inherit] ${isActive ? "sidebar-nav-item-active" : ""}`}
+                            data-section-key={item.key}
+                            onClick={() => {
+                              openTeacherTrainingSection(item.key);
+                              setMobileSidebarOpen(false);
+                            }}
+                            title={item.description}
+                            type="button"
+                          >
+                            <Icon className="h-[18px] w-[18px] shrink-0" strokeWidth={2.1} />
+                            <span className="min-w-0 flex-1 truncate">{item.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  ) : (
+                    sidebarTabs.map((item) => {
+                      const Icon = item.icon;
+                      const isActive = item.key === safeActiveTab;
+                      const href =
+                        item.key === "overview" ? "/workspace" : `/workspace?tab=${item.key}`;
+
+                      return (
+                        <Link
+                          key={`mobile-${item.key}`}
+                          aria-label={`${getSidebarTabLabel(item)}：${item.description}`}
+                          className={`sidebar-nav-item no-underline ${isActive ? "sidebar-nav-item-active" : ""}`}
+                          href={href}
+                          onClick={() => setMobileSidebarOpen(false)}
+                          title={item.description}
+                        >
+                          <Icon className="h-[18px] w-[18px]" strokeWidth={2.1} />
+                          <span>{getSidebarTabLabel(item)}</span>
+                        </Link>
+                      );
+                    })
+                  )}
                 </nav>
 
                 <div className="sidebar-user-area mt-auto">
