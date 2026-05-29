@@ -5,6 +5,17 @@ import { useMemo, useState } from "react";
 import * as Workspace from "@/components/workspace-context";
 
 type AttendanceStatus = Workspace.TeacherTrainingAttendanceStatus;
+type TeacherTrainingSectionKey =
+  | "overview"
+  | "cohorts"
+  | "participants"
+  | "courses"
+  | "checkins"
+  | "attendance"
+  | "tasks"
+  | "leave"
+  | "profile"
+  | "exports";
 
 const getDateInputValue = (date: Date) => {
   const year = date.getFullYear();
@@ -163,6 +174,8 @@ export default function TeacherTrainingTab() {
     content: "",
     attachment: "",
   });
+  const [activeTeacherTrainingSection, setActiveTeacherTrainingSection] =
+    useState<TeacherTrainingSectionKey>("overview");
 
   const selectedCohort = useMemo(() => {
     if (selectedCohortId) {
@@ -416,50 +429,275 @@ export default function TeacherTrainingTab() {
     { label: "任务", value: selectedCohort?.stats.taskCount ?? 0, Icon: FileText },
     { label: "汇报", value: selectedCohort?.stats.submissionCount ?? 0, Icon: Send },
   ];
+  const teacherTrainingSections: Array<{
+    key: TeacherTrainingSectionKey;
+    label: string;
+    description: string;
+    Icon: typeof Users;
+    count?: number;
+    managerOnly?: boolean;
+    globalOnly?: boolean;
+    teacherOnly?: boolean;
+  }> = [
+    {
+      key: "overview",
+      label: "工作台",
+      description: "班次总览和关键进度",
+      Icon: ClipboardCheck,
+    },
+    {
+      key: "cohorts",
+      label: "班次管理",
+      description: "班次、地点和班主任",
+      Icon: User,
+      count: selectedCohort?.stats.managerCount ?? 0,
+      managerOnly: true,
+    },
+    {
+      key: "participants",
+      label: "参训教师",
+      description: "名单、账号和预录信息",
+      Icon: Users,
+      count: selectedCohort?.stats.participantCount ?? 0,
+      managerOnly: true,
+    },
+    {
+      key: "courses",
+      label: "课程安排",
+      description: "课程表和授课信息",
+      Icon: CalendarDays,
+      count: selectedCohort?.stats.courseCount ?? 0,
+    },
+    {
+      key: "checkins",
+      label: "报到签到",
+      description: "课程定位签到任务",
+      Icon: MapPin,
+      count: selectedCohort?.stats.checkInRecordCount ?? 0,
+    },
+    {
+      key: "attendance",
+      label: "报到登记",
+      description: "工作人员后台勾选",
+      Icon: CheckCircle2,
+      count: selectedCohort?.stats.presentCount ?? 0,
+      managerOnly: true,
+    },
+    {
+      key: "tasks",
+      label: "任务汇报",
+      description: "发布任务和汇总提交",
+      Icon: FileText,
+      count: selectedCohort?.stats.submissionCount ?? 0,
+    },
+    {
+      key: "leave",
+      label: "请假审批",
+      description: "流程、申请和请假单",
+      Icon: FileCheck,
+      count: selectedCohort?.stats.leaveCount ?? 0,
+    },
+    {
+      key: "profile",
+      label: "个人信息",
+      description: "参训教师资料维护",
+      Icon: User,
+      teacherOnly: true,
+    },
+    {
+      key: "exports",
+      label: "导出归档",
+      description: "名单、签到和汇报导出",
+      Icon: Download,
+      managerOnly: true,
+    },
+  ];
+  const visibleTeacherTrainingSections = teacherTrainingSections.filter((section) => {
+    if (section.globalOnly && !canManageGlobal) return false;
+    if (section.managerOnly && !canManage) return false;
+    if (section.teacherOnly && canManage) return false;
+    return true;
+  });
+  const effectiveTeacherTrainingSection = visibleTeacherTrainingSections.some(
+    (section) => section.key === activeTeacherTrainingSection,
+  )
+    ? activeTeacherTrainingSection
+    : "overview";
+  const activeTeacherTrainingSectionMeta =
+    visibleTeacherTrainingSections.find((section) => section.key === effectiveTeacherTrainingSection) ??
+    visibleTeacherTrainingSections[0];
+  const showTeacherTrainingSection = (...keys: TeacherTrainingSectionKey[]) =>
+    keys.includes(effectiveTeacherTrainingSection);
+  const openTeacherTrainingSection = (key: TeacherTrainingSectionKey) => {
+    setActiveTeacherTrainingSection(key);
+    if (typeof window === "undefined") return;
+
+    window.requestAnimationFrame(() => {
+      document.getElementById("teacher-training-content")?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    });
+  };
 
   return (
     <div className="space-y-4">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
         <SectionHeader
-          description="省培平台独立管理班次、参训教师、工作人员后台勾选报到、任务汇报和导出归档。"
+          description="省培平台独立管理班次、参训教师、课程签到、任务汇报、请假审批和导出归档。"
           title="江苏省职业院校创新创业教育（竞赛）指导能力提升培训"
         />
-        {selectedCohort && canManage ? (
-          <div className="flex flex-wrap gap-2">
-            <a className="depth-button-secondary inline-flex h-10 items-center gap-2 rounded-lg px-4 text-sm no-underline" href={`${exportBaseUrl}&type=participants`}>
-              <Download className="h-4 w-4" />
-              导出名单
-            </a>
-            <a className="depth-button-secondary inline-flex h-10 items-center gap-2 rounded-lg px-4 text-sm no-underline" href={`${exportBaseUrl}&type=attendance`}>
-              <Download className="h-4 w-4" />
-              导出签到
-            </a>
-            <a className="depth-button-secondary inline-flex h-10 items-center gap-2 rounded-lg px-4 text-sm no-underline" href={`${exportBaseUrl}&type=checkIns`}>
-              <Download className="h-4 w-4" />
-              导出课程签到
-            </a>
-            <a className="depth-button-secondary inline-flex h-10 items-center gap-2 rounded-lg px-4 text-sm no-underline" href={`${exportBaseUrl}&type=submissions`}>
-              <Download className="h-4 w-4" />
-              导出汇报
-            </a>
-          </div>
-        ) : null}
+        <div className="rounded-2xl border border-blue-100 bg-white/80 px-4 py-3 shadow-sm">
+          <p className="text-xs font-semibold text-slate-500">当前模块</p>
+          <p className="mt-1 text-sm font-bold text-slate-950">{activeTeacherTrainingSectionMeta?.label ?? "工作台"}</p>
+        </div>
       </div>
 
-      <section className="grid gap-3 md:grid-cols-4 xl:grid-cols-8">
-        {metricCards.map(({ label, value, Icon }) => (
-          <div key={label} className="depth-subtle rounded-xl p-4">
-            <div className="flex items-center justify-between gap-3">
-              <p className="text-sm text-slate-500">{label}</p>
-              <Icon className="h-4 w-4 text-[#1a6fd4]" />
-            </div>
-            <p className="mt-3 text-2xl font-bold text-slate-950">{value}</p>
+      <section className="grid gap-4 xl:grid-cols-[280px_minmax(0,1fr)]">
+        <aside
+          aria-label="省培模块导航，支持丝滑切换"
+          className="depth-card sticky top-4 h-fit overflow-hidden rounded-2xl border border-blue-100/80 bg-white/86 p-3 shadow-[0_18px_55px_rgba(26,111,212,0.12)]"
+        >
+          <div className="rounded-2xl bg-gradient-to-br from-blue-600 via-blue-500 to-cyan-500 p-4 text-white">
+            <p className="text-xs font-semibold text-blue-100">省培模块导航</p>
+            <p className="mt-2 text-lg font-bold leading-6">分区处理，不再堆叠</p>
+            <p className="mt-2 text-xs leading-5 text-blue-50">切换模块时只展示当前工作区，操作更聚焦。</p>
           </div>
-        ))}
-      </section>
+          <div className="mt-3 space-y-1.5">
+            {visibleTeacherTrainingSections.map(({ key, label, description, Icon, count }) => {
+              const isActive = effectiveTeacherTrainingSection === key;
+              return (
+                <button
+                  key={key}
+                  className={`group flex w-full items-center gap-3 rounded-xl px-3 py-3 text-left transition duration-200 ${
+                    isActive
+                      ? "bg-slate-950 text-white shadow-lg shadow-blue-950/10"
+                      : "text-slate-600 hover:bg-blue-50 hover:text-slate-950"
+                  }`}
+                  data-section-key={key}
+                  onClick={() => openTeacherTrainingSection(key)}
+                  type="button"
+                >
+                  <span
+                    className={`inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition ${
+                      isActive ? "bg-white/14 text-white" : "bg-white text-blue-600 shadow-sm group-hover:bg-blue-600 group-hover:text-white"
+                    }`}
+                  >
+                    <Icon className="h-4 w-4" />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-bold">{label}</span>
+                    <span className={`mt-0.5 block truncate text-xs ${isActive ? "text-white/68" : "text-slate-400"}`}>
+                      {description}
+                    </span>
+                  </span>
+                  {typeof count === "number" ? (
+                    <span
+                      className={`rounded-full px-2 py-0.5 text-xs font-bold ${
+                        isActive ? "bg-white/15 text-white" : "bg-slate-100 text-slate-500"
+                      }`}
+                    >
+                      {count}
+                    </span>
+                  ) : null}
+                </button>
+              );
+            })}
+          </div>
+        </aside>
 
-      <section className={`grid gap-4 ${canManage ? "xl:grid-cols-[360px_minmax(0,1fr)]" : ""}`}>
-        {canManage ? (
+        <div className="space-y-4" id="teacher-training-content">
+          {showTeacherTrainingSection("overview") ? (
+            <section className="grid gap-3 md:grid-cols-3 xl:grid-cols-5">
+              {metricCards.map(({ label, value, Icon }) => (
+                <div key={label} className="depth-subtle rounded-2xl border border-white/70 p-4 transition duration-200 hover:-translate-y-0.5 hover:shadow-lg">
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-sm text-slate-500">{label}</p>
+                    <Icon className="h-4 w-4 text-[#1a6fd4]" />
+                  </div>
+                  <p className="mt-3 text-2xl font-bold text-slate-950">{value}</p>
+                </div>
+              ))}
+            </section>
+          ) : null}
+
+          {showTeacherTrainingSection("overview") ? (
+            <section className="grid gap-4 xl:grid-cols-[minmax(0,1.08fr)_minmax(320px,0.92fr)]">
+              <div className="depth-card overflow-hidden rounded-2xl border border-blue-100/80 bg-[linear-gradient(135deg,rgba(26,111,212,0.10),rgba(255,255,255,0.92)_42%,rgba(20,184,166,0.10))] p-5 shadow-[0_22px_60px_rgba(26,111,212,0.13)]">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold text-[#1a6fd4]">省培运行总览</p>
+                    <h3 className="mt-2 text-2xl font-bold leading-8 text-slate-950">
+                      {selectedCohort?.title ?? "暂无省培班次"}
+                    </h3>
+                    <p className="mt-2 text-sm leading-6 text-slate-500">
+                      {selectedCohort
+                        ? `${selectedCohort.startDate} 至 ${selectedCohort.endDate}${selectedCohort.location ? ` · ${selectedCohort.location}` : ""}`
+                        : "系统管理员可先创建班次，再维护名单、课程、签到、汇报和请假流程。"}
+                    </p>
+                  </div>
+                  <span className="w-fit rounded-full border border-blue-200 bg-white/78 px-3 py-1 text-xs font-bold text-blue-700">
+                    {canManage ? "管理端" : "教师端"}
+                  </span>
+                </div>
+                <div className="mt-5 grid gap-3 sm:grid-cols-3">
+                  {[
+                    { label: "参训教师", value: selectedCohort?.stats.participantCount ?? 0, helper: "名单与账号" },
+                    { label: "课程安排", value: selectedCohort?.stats.courseCount ?? 0, helper: "课程表" },
+                    { label: "任务汇报", value: selectedCohort?.stats.submissionCount ?? 0, helper: "已提交" },
+                  ].map((item) => (
+                    <div key={item.label} className="rounded-2xl border border-white/75 bg-white/72 p-4 shadow-sm">
+                      <p className="text-xs font-semibold text-slate-500">{item.label}</p>
+                      <p className="mt-2 text-3xl font-black text-slate-950">{item.value}</p>
+                      <p className="mt-1 text-xs text-slate-400">{item.helper}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="depth-subtle rounded-2xl border border-slate-200/70 bg-white/86 p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-bold text-slate-950">快速进入</p>
+                    <p className="mt-1 text-xs leading-5 text-slate-500">点击模块后页面会平滑定位到工作区。</p>
+                  </div>
+                  <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-500">
+                    {visibleTeacherTrainingSections.length - 1} 项
+                  </span>
+                </div>
+                <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                  {visibleTeacherTrainingSections
+                    .filter((section) => section.key !== "overview")
+                    .map(({ key, label, description, Icon, count }) => (
+                      <button
+                        key={key}
+                        className="group flex min-h-20 items-center gap-3 rounded-2xl border border-slate-200/70 bg-white/78 px-3 py-3 text-left transition duration-200 hover:-translate-y-0.5 hover:border-blue-200 hover:bg-blue-50/80 hover:shadow-lg hover:shadow-blue-950/8"
+                        onClick={() => openTeacherTrainingSection(key)}
+                        type="button"
+                      >
+                        <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-700 transition group-hover:bg-blue-600 group-hover:text-white">
+                          <Icon className="h-4 w-4" />
+                        </span>
+                        <span className="min-w-0 flex-1">
+                          <span className="flex items-center gap-2">
+                            <span className="truncate text-sm font-bold text-slate-950">{label}</span>
+                            {typeof count === "number" ? (
+                              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-500">
+                                {count}
+                              </span>
+                            ) : null}
+                          </span>
+                          <span className="mt-1 block truncate text-xs text-slate-500">{description}</span>
+                        </span>
+                      </button>
+                    ))}
+                </div>
+              </div>
+            </section>
+          ) : null}
+
+          <section className={`grid gap-4 ${canManage && showTeacherTrainingSection("cohorts", "participants") ? "xl:grid-cols-[360px_minmax(0,1fr)]" : ""}`}>
+        {canManage && showTeacherTrainingSection("cohorts", "participants") ? (
           <aside className={`${surfaceCardClassName} space-y-5`}>
             <div>
               <p className="text-sm font-semibold text-slate-900">班次</p>
@@ -482,7 +720,7 @@ export default function TeacherTrainingTab() {
               </select>
             </div>
 
-            {canManageGlobal ? (
+            {canManageGlobal && showTeacherTrainingSection("cohorts") ? (
             <div className="rounded-xl border border-slate-200/70 bg-white/70 p-4">
               <div className="flex items-center gap-2">
                 <Plus className="h-4 w-4 text-[#1a6fd4]" />
@@ -528,7 +766,7 @@ export default function TeacherTrainingTab() {
             </div>
             ) : null}
 
-            {canManageGlobal ? (
+            {canManageGlobal && showTeacherTrainingSection("participants") ? (
             <div className="rounded-xl border border-slate-200/70 bg-white/70 p-4">
               <div className="flex items-center gap-2">
                 <Users className="h-4 w-4 text-[#1a6fd4]" />
@@ -603,7 +841,7 @@ export default function TeacherTrainingTab() {
             </div>
             ) : null}
 
-            {canManageGlobal && selectedCohort ? (
+            {canManageGlobal && selectedCohort && showTeacherTrainingSection("cohorts") ? (
               <div className="rounded-xl border border-slate-200/70 bg-white/70 p-4">
                 <div className="flex items-center gap-2">
                   <User className="h-4 w-4 text-[#1a6fd4]" />
@@ -686,6 +924,7 @@ export default function TeacherTrainingTab() {
             </div>
           ) : (
             <>
+              {!showTeacherTrainingSection("overview") ? (
               <section className={surfaceCardClassName}>
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                   <div>
@@ -717,8 +956,10 @@ export default function TeacherTrainingTab() {
                   </select>
                 ) : null}
               </section>
+              ) : null}
 
-              {canManage ? (
+              {showTeacherTrainingSection("courses") ? (
+              canManage ? (
               <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
                 <div className={surfaceCardClassName}>
                   <div className="flex items-center justify-between gap-3">
@@ -861,8 +1102,10 @@ export default function TeacherTrainingTab() {
                   )}
                 </div>
               </section>
-              )}
+              )
+              ) : null}
 
+              {showTeacherTrainingSection("checkins") ? (
               <section className={surfaceCardClassName}>
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                   <div>
@@ -1031,7 +1274,9 @@ export default function TeacherTrainingTab() {
                   </div>
                 )}
               </section>
+              ) : null}
 
+              {showTeacherTrainingSection("leave") ? (
               <section className={surfaceCardClassName}>
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                   <div>
@@ -1279,8 +1524,9 @@ export default function TeacherTrainingTab() {
                   </div>
                 )}
               </section>
+              ) : null}
 
-              {!canManage ? (
+              {!canManage && showTeacherTrainingSection("profile") ? (
               <section className={surfaceCardClassName}>
                 <div className="flex items-center gap-2">
                   <User className="h-4 w-4 text-[#1a6fd4]" />
@@ -1331,7 +1577,77 @@ export default function TeacherTrainingTab() {
               </section>
               ) : null}
 
-              {canManage ? (
+              {canManage && showTeacherTrainingSection("participants") ? (
+              <section className={surfaceCardClassName}>
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                  <div>
+                    <p className="text-sm font-semibold text-slate-900">参训教师名单</p>
+                    <p className="mt-1 text-xs leading-5 text-slate-500">集中查看省培教师、账号状态和预录扩展信息。</p>
+                  </div>
+                  <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
+                    {selectedCohort.participants.length} 人
+                  </span>
+                </div>
+
+                <div className="mt-4 grid gap-3">
+                  {selectedCohort.participants.length === 0 ? (
+                    <EmptyState description="左侧添加参训教师后，这里会显示名单和账号信息。" icon={Users} title="名单为空" />
+                  ) : (
+                    selectedCohort.participants.map((participant) => (
+                      <article
+                        key={participant.id}
+                        className="grid gap-3 rounded-2xl border border-slate-200/75 bg-white/78 p-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center"
+                      >
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="font-semibold text-slate-950">{participant.name}</p>
+                            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">
+                              {participant.groupName || "未分组"}
+                            </span>
+                            <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-700">
+                              {participant.accountUsername ? "已开通账号" : "待开通账号"}
+                            </span>
+                          </div>
+                          <p className="mt-1 text-sm text-slate-500">{participant.organization || "单位待补充"}</p>
+                          {participant.accountUsername ? (
+                            <p className="mt-1 text-xs text-slate-400">省培账号：{participant.accountUsername}</p>
+                          ) : null}
+                          {participant.extraInfoLines.length > 0 ? (
+                            <div className="mt-2 flex flex-wrap gap-1.5">
+                              {participant.extraInfoLines.slice(0, 5).map((line) => (
+                                <span key={line} className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">
+                                  {line}
+                                </span>
+                              ))}
+                            </div>
+                          ) : null}
+                        </div>
+                        {canManageGlobal ? (
+                          <button
+                            className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 text-sm font-semibold text-blue-700 transition hover:border-blue-200 hover:bg-blue-100"
+                            disabled={isSaving}
+                            onClick={() => void copyAccountMessage(participant.id)}
+                            type="button"
+                          >
+                            <Copy className="h-4 w-4" />
+                            一键复制账号消息
+                          </button>
+                        ) : null}
+                      </article>
+                    ))
+                  )}
+                </div>
+                {accountMessage ? (
+                  <textarea
+                    className={`${textareaClassName} mt-4 min-h-28`}
+                    onChange={(event) => setAccountMessage(event.target.value)}
+                    value={accountMessage}
+                  />
+                ) : null}
+              </section>
+              ) : null}
+
+              {canManage && showTeacherTrainingSection("attendance") ? (
               <section className={surfaceCardClassName}>
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
                   <div>
@@ -1442,6 +1758,7 @@ export default function TeacherTrainingTab() {
               </section>
               ) : null}
 
+              {showTeacherTrainingSection("tasks") ? (
               <section className="grid gap-4 xl:grid-cols-2">
                 {canManage ? (
                 <div className={surfaceCardClassName}>
@@ -1538,7 +1855,9 @@ export default function TeacherTrainingTab() {
                   </div>
                 </div>
               </section>
+              ) : null}
 
+              {showTeacherTrainingSection("tasks") ? (
               <section className={surfaceCardClassName}>
                 <div className="flex items-center justify-between gap-3">
                   <div>
@@ -1580,8 +1899,47 @@ export default function TeacherTrainingTab() {
                   )}
                 </div>
               </section>
+              ) : null}
+
+              {canManage && showTeacherTrainingSection("exports") ? (
+                <section className={surfaceCardClassName}>
+                  <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                    <div>
+                      <p className="text-sm font-semibold text-slate-900">导出归档</p>
+                      <p className="mt-1 text-xs leading-5 text-slate-500">
+                        省培导出先统一入口，后续在这里接入公文排版和标准表格模板。
+                      </p>
+                    </div>
+                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-500">
+                      {selectedCohort.title}
+                    </span>
+                  </div>
+                  <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                    {[
+                      { label: "导出名单", type: "participants", description: "参训教师、单位、账号和预录信息" },
+                      { label: "导出签到", type: "attendance", description: "报到、请假和缺勤人工登记" },
+                      { label: "导出课程签到", type: "checkIns", description: "定位签到任务和签到明细" },
+                      { label: "导出汇报", type: "submissions", description: "任务完成情况和汇报内容" },
+                    ].map((item) => (
+                      <a
+                        key={item.type}
+                        className="group rounded-2xl border border-slate-200/75 bg-white/76 p-4 no-underline shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-xl hover:shadow-blue-900/10"
+                        href={`${exportBaseUrl}&type=${item.type}`}
+                      >
+                        <span className="inline-flex h-10 w-10 items-center justify-center rounded-xl bg-blue-50 text-blue-700 transition group-hover:bg-blue-600 group-hover:text-white">
+                          <Download className="h-4 w-4" />
+                        </span>
+                        <span className="mt-4 block text-sm font-bold text-slate-950">{item.label}</span>
+                        <span className="mt-1 block text-xs leading-5 text-slate-500">{item.description}</span>
+                      </a>
+                    ))}
+                  </div>
+                </section>
+              ) : null}
             </>
           )}
+        </div>
+      </section>
         </div>
       </section>
     </div>

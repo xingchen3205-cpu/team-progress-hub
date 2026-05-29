@@ -148,10 +148,23 @@ test("teacher training APIs support admin-managed courses, check-in, tasks, subm
 test("teacher training tab uses staff-side manual check-in controls", () => {
   const tabSource = read("src/components/tabs/teacher-training-tab.tsx");
 
+  assert.match(tabSource, /teacherTrainingSections/);
+  assert.match(tabSource, /activeTeacherTrainingSection/);
+  assert.match(tabSource, /省培模块导航/);
+  for (const label of ["工作台", "班次管理", "参训教师", "课程安排", "报到签到", "任务汇报", "请假审批", "导出归档"]) {
+    assert.match(tabSource, new RegExp(label));
+  }
+  assert.match(tabSource, /data-section-key/);
+  assert.match(tabSource, /丝滑/);
+  assert.match(tabSource, /openTeacherTrainingSection/);
+  assert.match(tabSource, /teacher-training-content/);
+  assert.match(tabSource, /快速进入/);
+  assert.match(tabSource, /省培运行总览/);
   assert.match(tabSource, /工作人员后台勾选/);
   assert.match(tabSource, /课程安排/);
   assert.match(tabSource, /createTeacherTrainingCourseSession/);
   assert.match(tabSource, /参训教师中心/);
+  assert.match(tabSource, /参训教师名单/);
   assert.match(tabSource, /班主任/);
   assert.match(tabSource, /assignTeacherTrainingCohortManager/);
   assert.match(tabSource, /removeTeacherTrainingCohortManager/);
