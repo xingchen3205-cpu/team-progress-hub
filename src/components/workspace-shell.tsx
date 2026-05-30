@@ -460,6 +460,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
       ? "首页概览"
       : activeTopbarLabel;
   const mobileNavigationTitle = isTeacherTrainingPlatform ? "打开省培模块导航" : "打开工作台导航";
+  const mobileNavigationCloseTitle = isTeacherTrainingPlatform ? "关闭省培模块导航" : "关闭工作台导航";
   const openTeacherTrainingSection = (key: Workspace.TeacherTrainingSectionKey) => {
     setActiveTeacherTrainingSection(key);
 
@@ -865,7 +866,9 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                   </div>
                   <button
                     className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-white/10 text-white/80"
+                    aria-label={mobileNavigationCloseTitle}
                     onClick={() => setMobileSidebarOpen(false)}
+                    title={mobileNavigationCloseTitle}
                     type="button"
                   >
                     <X className="h-4 w-4" />
