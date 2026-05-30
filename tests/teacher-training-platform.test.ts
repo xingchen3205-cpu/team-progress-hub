@@ -284,6 +284,12 @@ test("teacher training teacher-facing forms keep visible field labels on mobile"
 
   assert.match(tabSource, /teacherTrainingFieldShellClassName/);
   assert.match(tabSource, /teacherTrainingFieldLabelClassName/);
+  assert.match(tabSource, /我的省培入口/);
+  assert.match(tabSource, /!canManage && showTeacherTrainingSection\("overview"\)/);
+  assert.match(tabSource, /直接查看课程、签到、汇报、请假和个人信息/);
+  for (const target of ["courses", "checkins", "tasks", "leave", "profile"]) {
+    assert.match(tabSource, new RegExp(`openTeacherTrainingSection\\("${target}"\\)`));
+  }
   for (const label of [
     "选择我的省培班次",
     "请假开始日期",

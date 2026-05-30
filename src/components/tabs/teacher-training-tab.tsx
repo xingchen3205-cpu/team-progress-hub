@@ -182,6 +182,7 @@ export default function TeacherTrainingTab() {
     hasGlobalAdminRole,
     canManageTeacherTraining,
     activeTeacherTrainingSection,
+    setActiveTeacherTrainingSection,
     isSaving,
     createTeacherTrainingCohort,
     addTeacherTrainingParticipant,
@@ -599,6 +600,53 @@ export default function TeacherTrainingTab() {
   };
   const activeTeacherTrainingActionHint =
     !canManage && effectiveTeacherTrainingSection === "tasks" ? teacherTaskActionHint : baseTeacherTrainingActionHint;
+  const openTeacherTrainingSection = (key: Workspace.TeacherTrainingSectionKey) => {
+    setActiveTeacherTrainingSection(key);
+
+    window.requestAnimationFrame(() => {
+      document.getElementById("teacher-training-content")?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    });
+  };
+  const teacherHomeQuickActions = [
+    {
+      label: "课程安排",
+      value: courseSessions.length,
+      helper: courseSessions.length > 0 ? "查看课程时间地点" : "等待管理员发布",
+      Icon: CalendarDays,
+      onClick: () => openTeacherTrainingSection("courses"),
+    },
+    {
+      label: "课程签到",
+      value: selectedCohort?.checkInTasks.length ?? 0,
+      helper: selectedCohort?.checkInTasks.length ? "到场后定位签到" : "暂无签到任务",
+      Icon: MapPin,
+      onClick: () => openTeacherTrainingSection("checkins"),
+    },
+    {
+      label: "任务汇报",
+      value: selectedCohort?.tasks.length ?? 0,
+      helper: selectedCohort?.tasks.length ? "填写并保存汇报" : "暂无汇报任务",
+      Icon: Send,
+      onClick: () => openTeacherTrainingSection("tasks"),
+    },
+    {
+      label: "临时请假",
+      value: selectedParticipant?.leaveRequests.length ?? 0,
+      helper: selectedCohort?.leaveFlow?.isEnabled ? "提交或查看进度" : "等待流程配置",
+      Icon: FileCheck,
+      onClick: () => openTeacherTrainingSection("leave"),
+    },
+    {
+      label: "个人信息",
+      value: hasSelectedParticipant ? "已绑定" : "待确认",
+      helper: hasSelectedParticipant ? "核对单位和手机号" : "联系管理员绑定",
+      Icon: User,
+      onClick: () => openTeacherTrainingSection("profile"),
+    },
+  ];
   const ActiveTeacherTrainingIcon = activeTeacherTrainingSectionMeta?.Icon ?? ClipboardCheck;
   const showTeacherTrainingSection = (...keys: Workspace.TeacherTrainingSectionKey[]) =>
     keys.includes(effectiveTeacherTrainingSection);
@@ -660,6 +708,50 @@ export default function TeacherTrainingTab() {
               ))}
             </div>
           </section>
+
+          {!canManage && showTeacherTrainingSection("overview") ? (
+            <section
+              aria-label="我的省培入口"
+              className="rounded-2xl border border-blue-100 bg-white/90 p-4 shadow-[0_18px_42px_rgba(26,111,212,0.10)] backdrop-blur"
+            >
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+                <div>
+                  <p className="text-sm font-bold text-slate-950">我的省培入口</p>
+                  <p className="mt-1 text-xs leading-5 text-slate-500">
+                    直接查看课程、签到、汇报、请假和个人信息。
+                  </p>
+                </div>
+                <span className="w-fit rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
+                  手机端常用操作
+                </span>
+              </div>
+              <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
+                {teacherHomeQuickActions.map((item) => (
+                  <button
+                    key={item.label}
+                    aria-label={`进入省培${item.label}`}
+                    className="group grid min-h-[92px] gap-2 rounded-2xl border border-slate-200/80 bg-white/82 px-3 py-3 text-left shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-blue-200 hover:bg-blue-50/60 hover:shadow-lg hover:shadow-blue-950/8 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200/70"
+                    onClick={item.onClick}
+                    title={`进入省培${item.label}`}
+                    type="button"
+                  >
+                    <span className="flex items-start justify-between gap-2">
+                      <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-blue-700 transition group-hover:bg-white">
+                        <item.Icon className="h-4 w-4" />
+                      </span>
+                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-bold text-slate-600">
+                        {item.value}
+                      </span>
+                    </span>
+                    <span>
+                      <span className="block text-sm font-bold text-slate-950">{item.label}</span>
+                      <span className="mt-1 block text-xs leading-5 text-slate-500">{item.helper}</span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </section>
+          ) : null}
 
           {showTeacherTrainingSection("overview") ? (
             <section className="grid gap-3 md:grid-cols-3 xl:grid-cols-5">
