@@ -293,12 +293,19 @@ test("teacher training teacher-facing forms keep visible field labels on mobile"
     "个人分组",
     "个人备注或培训需求",
     "选择省培汇报任务",
-    "选择省培汇报教师",
+    "我的汇报身份",
     "省培任务汇报内容",
     "附件说明或链接",
   ]) {
     assert.match(tabSource, new RegExp(`<span className=\\{teacherTrainingFieldLabelClassName\\}>${label}<\\/span>`));
   }
+  assert.match(tabSource, /已按当前省培账号锁定/);
+  assert.match(tabSource, /canManage \? \([\s\S]*选择省培汇报教师[\s\S]*\) : \([\s\S]*我的汇报身份/);
+  assert.match(tabSource, /canManage \? "管理员可按班次导出全部任务完成情况。" : "查看我的任务提交记录和完成情况。"/);
+  assert.match(tabSource, /teacherTaskActionHint/);
+  assert.match(tabSource, /确认我的汇报身份/);
+  assert.match(tabSource, /填写后保存汇报/);
+  assert.match(tabSource, /!canManage && effectiveTeacherTrainingSection === "tasks"/);
 });
 
 test("teacher training manager forms keep visible field labels on mobile", () => {

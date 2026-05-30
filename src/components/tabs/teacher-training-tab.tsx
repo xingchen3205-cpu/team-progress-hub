@@ -521,8 +521,14 @@ export default function TeacherTrainingTab() {
   const activeTeacherTrainingSectionMeta =
     visibleTeacherTrainingSections.find((section) => section.key === effectiveTeacherTrainingSection) ??
     visibleTeacherTrainingSections[0];
-  const activeTeacherTrainingActionHint =
+  const baseTeacherTrainingActionHint =
     teacherTrainingActionHints[effectiveTeacherTrainingSection] ?? teacherTrainingActionHints.overview;
+  const teacherTaskActionHint = {
+    title: "任务汇报提示",
+    steps: ["选择任务", "确认我的汇报身份", "填写后保存汇报"],
+  };
+  const activeTeacherTrainingActionHint =
+    !canManage && effectiveTeacherTrainingSection === "tasks" ? teacherTaskActionHint : baseTeacherTrainingActionHint;
   const ActiveTeacherTrainingIcon = activeTeacherTrainingSectionMeta?.Icon ?? ClipboardCheck;
   const showTeacherTrainingSection = (...keys: Workspace.TeacherTrainingSectionKey[]) =>
     keys.includes(effectiveTeacherTrainingSection);
@@ -2136,22 +2142,34 @@ export default function TeacherTrainingTab() {
                         ))}
                       </select>
                     </label>
-                    <label className={teacherTrainingFieldShellClassName}>
-                      <span className={teacherTrainingFieldLabelClassName}>选择省培汇报教师</span>
-                      <select
-                        className={fieldClassName}
-                        {...fieldHint("选择省培汇报教师")}
-                        onChange={(event) => setSubmissionDraft((current) => ({ ...current, participantId: event.target.value }))}
-                        value={selectedParticipant?.id ?? ""}
-                      >
-                        {selectedCohort.participants.length === 0 ? <option value="">暂无参训教师</option> : null}
-                        {selectedCohort.participants.map((participant) => (
-                          <option key={participant.id} value={participant.id}>
-                            {participant.name} · {participant.organization}
-                          </option>
-                        ))}
-                      </select>
-                    </label>
+                    {canManage ? (
+                      <label className={teacherTrainingFieldShellClassName}>
+                        <span className={teacherTrainingFieldLabelClassName}>选择省培汇报教师</span>
+                        <select
+                          className={fieldClassName}
+                          {...fieldHint("选择省培汇报教师")}
+                          onChange={(event) => setSubmissionDraft((current) => ({ ...current, participantId: event.target.value }))}
+                          value={selectedParticipant?.id ?? ""}
+                        >
+                          {selectedCohort.participants.length === 0 ? <option value="">暂无参训教师</option> : null}
+                          {selectedCohort.participants.map((participant) => (
+                            <option key={participant.id} value={participant.id}>
+                              {participant.name} · {participant.organization}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    ) : (
+                      <div className={teacherTrainingFieldShellClassName}>
+                        <span className={teacherTrainingFieldLabelClassName}>我的汇报身份</span>
+                        <div className="mt-1 rounded-xl border border-blue-100 bg-blue-50/70 px-3 py-2">
+                          <p className="text-sm font-semibold text-slate-950">{selectedParticipant?.name ?? "未绑定参训教师"}</p>
+                          <p className="mt-0.5 text-xs leading-5 text-slate-500">
+                            {selectedParticipant?.organization || "单位待补充"} · 已按当前省培账号锁定
+                          </p>
+                        </div>
+                      </div>
+                    )}
                     <label className={teacherTrainingFieldShellClassName}>
                       <span className={teacherTrainingFieldLabelClassName}>省培任务汇报内容</span>
                       <textarea
@@ -2192,7 +2210,9 @@ export default function TeacherTrainingTab() {
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <p className="text-sm font-semibold text-slate-900">任务汇报概览</p>
-                    <p className="mt-1 text-xs text-slate-500">管理员可按班次导出全部任务完成情况。</p>
+                    <p className="mt-1 text-xs text-slate-500">
+                      {canManage ? "管理员可按班次导出全部任务完成情况。" : "查看我的任务提交记录和完成情况。"}
+                    </p>
                   </div>
                   <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-500">
                     {selectedCohort.tasks.length} 项任务
@@ -2200,7 +2220,11 @@ export default function TeacherTrainingTab() {
                 </div>
                 <div className="mt-4 grid gap-3">
                   {selectedCohort.tasks.length === 0 ? (
-                    <EmptyState description="发布任务后，参训教师汇报会汇总在这里。" icon={FileText} title="暂无任务" />
+                    <EmptyState
+                      description={canManage ? "发布任务后，参训教师汇报会汇总在这里。" : "管理员发布任务后，这里会显示我的任务和提交记录。"}
+                      icon={FileText}
+                      title="暂无任务"
+                    />
                   ) : (
                     selectedCohort.tasks.map((task) => (
                       <div key={task.id} className="rounded-xl border border-slate-200/75 bg-white/72 p-4">
