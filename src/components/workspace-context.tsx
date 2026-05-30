@@ -3450,6 +3450,9 @@ function useWorkspaceController({
     setMobileSidebarOpen(false);
     setLoadError(null);
     setProfileMenuOpen(false);
+    if (safeActiveTab === "teacherTraining") {
+      setNotificationsOpen(false);
+    }
   }, [safeActiveTab]);
 
   useEffect(() => {
@@ -4018,13 +4021,13 @@ function useWorkspaceController({
   const urgentTodoCount = visibleRoleTodoItems.filter((item) => item.priority === "danger").length;
 
   useEffect(() => {
-    if (isBooting || !dismissedTodosReady || todoAutoOpened || todoItemCount <= 0) {
+    if (isBooting || !dismissedTodosReady || todoAutoOpened || todoItemCount <= 0 || isTeacherTrainingPlatform) {
       return;
     }
 
     setNotificationsOpen(true);
     setTodoAutoOpened(true);
-  }, [dismissedTodosReady, isBooting, todoAutoOpened, todoItemCount]);
+  }, [dismissedTodosReady, isBooting, isTeacherTrainingPlatform, todoAutoOpened, todoItemCount]);
 
   useEffect(() => {
     if (!dismissedTodoStorageKey) {

@@ -273,3 +273,20 @@ test("mobile sidebar close control explains whether it closes province training 
   assert.match(source, /aria-label=\{mobileNavigationCloseTitle\}/);
   assert.match(source, /title=\{mobileNavigationCloseTitle\}/);
 });
+
+test("province training mobile entry does not auto-cover the first screen with global todos", () => {
+  const contextSource = readFileSync(
+    path.join(process.cwd(), "src/components/workspace-context.tsx"),
+    "utf8",
+  );
+  const shellSource = readFileSync(
+    path.join(process.cwd(), "src/components/workspace-shell.tsx"),
+    "utf8",
+  );
+
+  assert.match(contextSource, /safeActiveTab === "teacherTraining"[\s\S]*setNotificationsOpen\(false\)/);
+  assert.match(contextSource, /todoItemCount <= 0 \|\| isTeacherTrainingPlatform/);
+  assert.match(contextSource, /\}, \[dismissedTodosReady, isBooting, isTeacherTrainingPlatform, todoAutoOpened, todoItemCount\]\)/);
+  assert.match(shellSource, /aria-label="打开待办与未读提醒"/);
+  assert.match(shellSource, /setNotificationsOpen\(true\)/);
+});
