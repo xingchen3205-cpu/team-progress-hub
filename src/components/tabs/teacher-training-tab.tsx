@@ -353,6 +353,10 @@ export default function TeacherTrainingTab() {
     !canManage && selectedCohort
       ? selectedCohort.checkInTasks.filter((task) => !teacherSignedCheckInTaskIds.has(task.id)).length
       : 0;
+  const teacherProfileNeedsAttention =
+    !hasSelectedParticipant ||
+    !selectedParticipant?.organization.trim() ||
+    !selectedParticipant.phone.trim();
   const leaveDisabledReason = getTeacherTrainingLeaveDisabledReason(
     hasSelectedParticipant,
     selectedCohort?.leaveFlow,
@@ -659,6 +663,57 @@ export default function TeacherTrainingTab() {
       });
     });
   };
+  const teacherMobilePriorityItems = [
+    ...(teacherPendingCheckInCount > 0
+      ? [
+          {
+            label: "待完成签到",
+            value: `${teacherPendingCheckInCount} 项`,
+            helper: "到达课程地点后定位签到",
+            Icon: MapPin,
+            section: "checkins" as const,
+            tone: "amber" as const,
+          },
+        ]
+      : []),
+    ...(teacherPendingTaskCount > 0
+      ? [
+          {
+            label: "待提交汇报",
+            value: `${teacherPendingTaskCount} 项`,
+            helper: "填写任务汇报并保存",
+            Icon: Send,
+            section: "tasks" as const,
+            tone: "blue" as const,
+          },
+        ]
+      : []),
+    ...(teacherProfileNeedsAttention
+      ? [
+          {
+            label: "完善个人信息",
+            value: "待核对",
+            helper: "补全单位和手机号",
+            Icon: User,
+            section: "profile" as const,
+            tone: "blue" as const,
+          },
+        ]
+      : []),
+  ];
+  const teacherMobileFocusItems =
+    teacherMobilePriorityItems.length > 0
+      ? teacherMobilePriorityItems
+      : [
+          {
+            label: "今日事项已处理",
+            value: "已完成",
+            helper: "可继续查看课程安排",
+            Icon: CheckCircle2,
+            section: "courses" as const,
+            tone: "emerald" as const,
+          },
+        ];
   const focusTeacherTaskSubmission = (taskId: string) => {
     setSubmissionDraft((current) => ({
       ...current,
@@ -842,6 +897,56 @@ export default function TeacherTrainingTab() {
                 <span className="w-fit rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
                   手机端常用操作
                 </span>
+              </div>
+              <div
+                aria-label="省培今日待办"
+                className="mt-3 rounded-2xl border border-blue-100 bg-[linear-gradient(135deg,rgba(37,99,235,0.08),rgba(255,255,255,0.92)_46%,rgba(20,184,166,0.08))] p-3 shadow-inner shadow-white/60"
+              >
+                <div className="flex items-center justify-between gap-3">
+                  <p className="text-sm font-bold text-slate-950">今日待办</p>
+                  <span className="rounded-full bg-white/80 px-2.5 py-1 text-xs font-bold text-blue-700">
+                    {teacherMobilePriorityItems.length > 0 ? `${teacherMobilePriorityItems.length} 项待处理` : "状态正常"}
+                  </span>
+                </div>
+                <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                  {teacherMobileFocusItems.map((item) => (
+                    <button
+                      key={item.label}
+                      aria-label={`处理省培${item.label}`}
+                      className={`group flex min-h-[74px] items-center gap-3 rounded-2xl border bg-white/88 px-3 py-3 text-left shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-lg focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200/70 ${
+                        item.tone === "amber"
+                          ? "border-amber-100 hover:border-amber-200"
+                          : item.tone === "emerald"
+                            ? "border-emerald-100 hover:border-emerald-200"
+                            : "border-blue-100 hover:border-blue-200"
+                      }`}
+                      onClick={() => openTeacherTrainingSection(item.section)}
+                      title={`处理省培${item.label}`}
+                      type="button"
+                    >
+                      <span
+                        className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition group-hover:scale-105 ${
+                          item.tone === "amber"
+                            ? "bg-amber-50 text-amber-700"
+                            : item.tone === "emerald"
+                              ? "bg-emerald-50 text-emerald-700"
+                              : "bg-blue-50 text-blue-700"
+                        }`}
+                      >
+                        <item.Icon className="h-4 w-4" />
+                      </span>
+                      <span className="min-w-0">
+                        <span className="flex items-center gap-2">
+                          <span className="truncate text-sm font-bold text-slate-950">{item.label}</span>
+                          <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-600">
+                            {item.value}
+                          </span>
+                        </span>
+                        <span className="mt-1 block text-xs leading-5 text-slate-500">{item.helper}</span>
+                      </span>
+                    </button>
+                  ))}
+                </div>
               </div>
               <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
                 {teacherHomeQuickActions.map((item) => (
