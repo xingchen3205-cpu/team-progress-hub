@@ -321,6 +321,9 @@ test("teacher training teacher-facing forms keep visible field labels on mobile"
   assert.match(tabSource, /填写后保存汇报/);
   assert.match(tabSource, /teacherSubmittedTaskIds/);
   assert.match(tabSource, /teacherPendingTaskCount/);
+  assert.match(tabSource, /teacherTaskProgressItems/);
+  assert.match(tabSource, /teacherTaskCompletionPercent/);
+  assert.match(tabSource, /teacherTaskSummaryText/);
   assert.match(tabSource, /teacherSignedCheckInTaskIds/);
   assert.match(tabSource, /teacherPendingCheckInCount/);
   assert.match(tabSource, /teacherCheckInQuickActionHelper/);
@@ -337,6 +340,7 @@ test("teacher training teacher-facing forms keep visible field labels on mobile"
   assert.match(tabSource, /aria-label="省培下一节课"/);
   assert.match(tabSource, /aria-label="省培请假进度"/);
   assert.match(tabSource, /aria-label="省培个人资料状态"/);
+  assert.match(tabSource, /aria-label="省培任务汇报进度"/);
   assert.match(tabSource, /今日待办/);
   assert.match(tabSource, /下一节课/);
   assert.match(tabSource, /按时间顺序查看全部课程/);
@@ -361,6 +365,10 @@ test("teacher training teacher-facing forms keep visible field labels on mobile"
   assert.match(tabSource, /focusTeacherTaskSubmission/);
   assert.match(tabSource, /待提交/);
   assert.match(tabSource, /已提交/);
+  assert.match(tabSource, /我的汇报进度/);
+  assert.match(tabSource, /任务已提交/);
+  assert.match(tabSource, /任务待提交/);
+  assert.match(tabSource, /暂无任务发布/);
   assert.match(tabSource, /继续填写汇报/);
   assert.match(tabSource, /更新汇报/);
   assert.match(tabSource, /teacherTrainingDisabledHintClassName/);

@@ -365,6 +365,34 @@ export default function TeacherTrainingTab() {
     !canManage && selectedCohort
       ? selectedCohort.tasks.filter((task) => !teacherSubmittedTaskIds.has(task.id)).length
       : 0;
+  const teacherTaskProgressItems = (selectedCohort?.tasks ?? []).map((task) => {
+    const submission = task.submissions.find((item) => item.participantId === selectedParticipant?.id) ?? null;
+
+    return {
+      id: task.id,
+      title: task.title,
+      dueDate: task.dueDate,
+      isComplete: Boolean(submission),
+      statusLabel: submission ? "任务已提交" : "任务待提交",
+      submittedAt: submission?.submittedAt ?? "",
+    };
+  });
+  const teacherTaskCompletedCount = teacherTaskProgressItems.filter((item) => item.isComplete).length;
+  const teacherTaskCompletionPercent = Math.round(
+    (teacherTaskCompletedCount / Math.max(1, teacherTaskProgressItems.length)) * 100,
+  );
+  const teacherTaskSummaryText =
+    teacherTaskProgressItems.length === 0
+      ? "暂无任务发布"
+      : teacherPendingTaskCount > 0
+        ? `待提交 ${teacherPendingTaskCount} 项`
+        : "全部汇报已提交";
+  const teacherTaskSummaryToneClassName =
+    teacherTaskProgressItems.length === 0
+      ? "bg-slate-100 text-slate-600"
+      : teacherPendingTaskCount > 0
+        ? "bg-amber-50 text-amber-700"
+        : "bg-emerald-50 text-emerald-700";
   const teacherSignedCheckInTaskIds = new Set(
     (selectedCohort?.checkInTasks ?? [])
       .filter((task) => task.records.some((record) => record.participantId === selectedParticipant?.id))
@@ -2743,6 +2771,61 @@ export default function TeacherTrainingTab() {
                     <Send className="h-4 w-4 text-[#1a6fd4]" />
                     <p className="text-sm font-semibold text-slate-900">登记汇报</p>
                   </div>
+                  {!canManage ? (
+                    <div
+                      aria-label="省培任务汇报进度"
+                      className="mt-4 rounded-2xl border border-blue-100 bg-[linear-gradient(135deg,rgba(37,99,235,0.08),rgba(255,255,255,0.96)_48%,rgba(20,184,166,0.08))] p-4 shadow-sm"
+                    >
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                          <p className="text-sm font-bold text-slate-950">我的汇报进度</p>
+                          <p className="mt-1 text-xs leading-5 text-slate-500">
+                            {teacherTaskSummaryText} · 已提交 {teacherTaskCompletedCount}/{teacherTaskProgressItems.length}
+                          </p>
+                        </div>
+                        <span
+                          className={`w-fit rounded-full px-3 py-1 text-xs font-bold ${teacherTaskSummaryToneClassName}`}
+                        >
+                          {teacherTaskSummaryText}
+                        </span>
+                      </div>
+                      <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/80">
+                        <div
+                          className="h-full rounded-full bg-gradient-to-r from-blue-600 to-cyan-500 transition-all duration-500"
+                          style={{ width: `${teacherTaskCompletionPercent}%` }}
+                        />
+                      </div>
+                      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                        {teacherTaskProgressItems.length === 0 ? (
+                          <div className="rounded-xl border border-slate-100 bg-white/76 px-3 py-2 text-xs font-semibold text-slate-500">
+                            暂无任务发布
+                          </div>
+                        ) : (
+                          teacherTaskProgressItems.map((item) => (
+                            <button
+                              key={item.id}
+                              className={`rounded-xl border px-3 py-2 text-left text-xs font-semibold transition hover:-translate-y-0.5 ${
+                                item.isComplete
+                                  ? "border-emerald-100 bg-emerald-50 text-emerald-700"
+                                  : "border-amber-100 bg-amber-50 text-amber-700"
+                              }`}
+                              onClick={() => focusTeacherTaskSubmission(item.id)}
+                              title={`${item.title}：${item.statusLabel}`}
+                              type="button"
+                            >
+                              <span className="block truncate text-slate-900">{item.title}</span>
+                              <span className="mt-1 block">{item.statusLabel}</span>
+                              {item.submittedAt ? (
+                                <span className="mt-1 block text-[11px] font-medium text-slate-500">{item.submittedAt}</span>
+                              ) : item.dueDate ? (
+                                <span className="mt-1 block text-[11px] font-medium text-slate-500">截止 {item.dueDate}</span>
+                              ) : null}
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    </div>
+                  ) : null}
                   <div className="mt-4 space-y-3">
                     <label className={teacherTrainingFieldShellClassName}>
                       <span className={teacherTrainingFieldLabelClassName}>选择省培汇报任务</span>
