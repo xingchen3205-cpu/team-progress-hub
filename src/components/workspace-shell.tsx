@@ -647,7 +647,9 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                   </div>
                   <button
                     className="inline-flex items-center gap-2 rounded-2xl border border-white/20 bg-white/10 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-white/20"
+                    aria-label="退出登录"
                     onClick={() => void handleLogout()}
+                    title="退出登录"
                     type="button"
                   >
                     <LogOut className="h-4 w-4" />
@@ -836,7 +838,9 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                 </div>
                 <button
                   className="mt-4 inline-flex items-center gap-2 text-sm text-white/50 transition hover:text-white"
+                  aria-label="退出登录"
                   onClick={() => void handleLogout()}
+                  title="退出登录"
                   type="button"
                 >
                   <LogOut className="h-4 w-4" />
@@ -936,7 +940,9 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                   </div>
                   <button
                     className="mt-4 inline-flex items-center gap-2 text-sm text-white/50 transition hover:text-white"
+                    aria-label="退出登录"
                     onClick={() => void handleLogout()}
+                    title="退出登录"
                     type="button"
                   >
                     <LogOut className="h-4 w-4" />
@@ -971,22 +977,26 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                     className="topbar-platform-switch inline-flex rounded-xl border border-slate-200/80 bg-white/75 p-1 shadow-[0_10px_24px_rgba(15,23,42,0.08)] backdrop-blur"
                   >
                     <Link
+                      aria-label="切换到大赛管理平台"
                       className={`rounded-lg px-3 py-1.5 text-sm font-semibold no-underline transition ${
                         isTeacherTrainingPlatform
                           ? "text-slate-500 hover:text-slate-900"
                           : "bg-[#1a6fd4] text-white shadow-[0_8px_18px_rgba(26,111,212,0.22)]"
                       }`}
                       href="/workspace"
+                      title="切换到大赛管理平台"
                     >
                       大赛管理
                     </Link>
                     <Link
+                      aria-label="切换到省培管理平台"
                       className={`rounded-lg px-3 py-1.5 text-sm font-semibold no-underline transition ${
                         isTeacherTrainingPlatform
                           ? "bg-[#1a6fd4] text-white shadow-[0_8px_18px_rgba(26,111,212,0.22)]"
                           : "text-slate-500 hover:text-slate-900"
                       }`}
                       href="/workspace?tab=teacherTraining"
+                      title="切换到省培管理平台"
                     >
                       省培管理
                     </Link>
@@ -1051,7 +1061,9 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                 <div className="header-profile-menu relative shrink-0" ref={profileMenuRef}>
                   <button
                     className="topbar-user-button"
+                    aria-label={`打开个人菜单：${currentUser.profile.name}`}
                     onClick={() => setProfileMenuOpen((current) => !current)}
+                    title={`打开个人菜单：${currentUser.profile.name}`}
                     type="button"
                   >
                     <UserAvatar
@@ -1068,14 +1080,18 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                     <div className="header-profile-menu-panel absolute right-0 top-full z-[80] mt-2 min-w-[180px] rounded-xl p-1">
                       <button
                         className="header-profile-menu-item"
+                        aria-label="查看个人信息"
                         onClick={openProfilePage}
+                        title="查看个人信息"
                         type="button"
                       >
                         查看个人信息
                       </button>
                       <button
                         className="header-profile-menu-item danger"
+                        aria-label="退出登录"
                         onClick={() => void handleLogout()}
+                        title="退出登录"
                         type="button"
                       >
                         退出登录

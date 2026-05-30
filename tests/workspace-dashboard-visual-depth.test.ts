@@ -221,3 +221,21 @@ test("topbar help icon opens a real help and feedback panel", () => {
   assert.match(source, /submitBugFeedback/);
   assert.match(source, /\/api\/bug-feedback/);
 });
+
+test("workspace global clickable controls expose explicit action hints", () => {
+  const source = readFileSync(
+    path.join(process.cwd(), "src/components/workspace-shell.tsx"),
+    "utf8",
+  );
+
+  assert.match(source, /aria-label="切换到大赛管理平台"/);
+  assert.match(source, /title="切换到大赛管理平台"/);
+  assert.match(source, /aria-label="切换到省培管理平台"/);
+  assert.match(source, /title="切换到省培管理平台"/);
+  assert.match(source, /aria-label=\{`打开个人菜单：\$\{currentUser\.profile\.name\}`\}/);
+  assert.match(source, /title=\{`打开个人菜单：\$\{currentUser\.profile\.name\}`\}/);
+  assert.match(source, /aria-label="查看个人信息"/);
+  assert.match(source, /title="查看个人信息"/);
+  assert.match(source, /aria-label="退出登录"/);
+  assert.match(source, /title="退出登录"/);
+});
