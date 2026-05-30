@@ -65,6 +65,11 @@ const checkInWindowStyleMap: Record<CheckInWindowState, string> = {
   closed: "border-rose-200 bg-rose-50 text-rose-700",
 };
 
+const fieldHint = (label: string) => ({
+  "aria-label": label,
+  title: label,
+});
+
 const teacherTrainingActionHints: Partial<Record<Workspace.TeacherTrainingSectionKey, { title: string; steps: string[] }>> = {
   overview: {
     title: "省培操作提示",
@@ -663,6 +668,7 @@ export default function TeacherTrainingTab() {
               <p className="mt-1 text-xs leading-5 text-slate-500">按账号权限切换可管理或可参与的省培班次。</p>
               <select
                 className={fieldClassName}
+                {...fieldHint("选择省培班次")}
                 onChange={(event) => {
                   setSelectedCohortId(event.target.value);
                   setLeaveFlowSteps([]);
@@ -688,12 +694,14 @@ export default function TeacherTrainingTab() {
               <div className="mt-3 space-y-3">
                 <input
                   className={fieldClassName}
+                  {...fieldHint("培训名称")}
                   onChange={(event) => setCohortDraft((current) => ({ ...current, title: event.target.value }))}
                   placeholder="培训名称"
                   value={cohortDraft.title}
                 />
                 <input
                   className={fieldClassName}
+                  {...fieldHint("培训地点")}
                   onChange={(event) => setCohortDraft((current) => ({ ...current, location: event.target.value }))}
                   placeholder="培训地点"
                   value={cohortDraft.location}
@@ -701,12 +709,14 @@ export default function TeacherTrainingTab() {
                 <div className="grid gap-3 sm:grid-cols-2">
                   <input
                     className={fieldClassName}
+                    {...fieldHint("培训开始日期")}
                     onChange={(event) => setCohortDraft((current) => ({ ...current, startDate: event.target.value }))}
                     type="date"
                     value={cohortDraft.startDate}
                   />
                   <input
                     className={fieldClassName}
+                    {...fieldHint("培训结束日期")}
                     onChange={(event) => setCohortDraft((current) => ({ ...current, endDate: event.target.value }))}
                     type="date"
                     value={cohortDraft.endDate}
@@ -714,6 +724,7 @@ export default function TeacherTrainingTab() {
                 </div>
                 <textarea
                   className={`${textareaClassName} min-h-20`}
+                  {...fieldHint("培训说明")}
                   onChange={(event) => setCohortDraft((current) => ({ ...current, description: event.target.value }))}
                   placeholder="培训说明"
                   value={cohortDraft.description}
@@ -744,12 +755,14 @@ export default function TeacherTrainingTab() {
               <div className="mt-3 space-y-3">
                 <input
                   className={fieldClassName}
+                  {...fieldHint("参训教师姓名")}
                   onChange={(event) => setParticipantDraft((current) => ({ ...current, name: event.target.value }))}
                   placeholder="姓名"
                   value={participantDraft.name}
                 />
                 <input
                   className={fieldClassName}
+                  {...fieldHint("参训教师单位")}
                   onChange={(event) => setParticipantDraft((current) => ({ ...current, organization: event.target.value }))}
                   placeholder="单位"
                   value={participantDraft.organization}
@@ -757,12 +770,14 @@ export default function TeacherTrainingTab() {
               <div className="grid gap-3 sm:grid-cols-2">
                 <input
                   className={fieldClassName}
+                  {...fieldHint("参训教师手机")}
                   onChange={(event) => setParticipantDraft((current) => ({ ...current, phone: event.target.value }))}
                     placeholder="手机"
                     value={participantDraft.phone}
                   />
                   <input
                     className={fieldClassName}
+                    {...fieldHint("参训教师分组")}
                     onChange={(event) => setParticipantDraft((current) => ({ ...current, groupName: event.target.value }))}
                     placeholder="分组"
                   value={participantDraft.groupName}
@@ -771,12 +786,14 @@ export default function TeacherTrainingTab() {
               <div className="grid gap-3 sm:grid-cols-2">
                 <input
                   className={fieldClassName}
+                  {...fieldHint("省培登录账号")}
                   onChange={(event) => setParticipantDraft((current) => ({ ...current, accountUsername: event.target.value }))}
                   placeholder="省培登录账号；填已有平台账号可直接绑定"
                   value={participantDraft.accountUsername}
                 />
                 <input
                   className={fieldClassName}
+                  {...fieldHint("省培初始密码")}
                   onChange={(event) => setParticipantDraft((current) => ({ ...current, accountPassword: event.target.value }))}
                   placeholder="初始密码，不填则自动生成"
                   value={participantDraft.accountPassword}
@@ -784,12 +801,14 @@ export default function TeacherTrainingTab() {
               </div>
               <textarea
                 className={`${textareaClassName} min-h-20`}
+                {...fieldHint("参训教师预录扩展信息")}
                 onChange={(event) => setParticipantDraft((current) => ({ ...current, extraInfo: event.target.value }))}
                 placeholder="预录扩展信息，例如职务、住宿、发票、培训材料领取情况等；每行一项。"
                 value={participantDraft.extraInfo}
               />
               <input
                 className={fieldClassName}
+                {...fieldHint("参训教师备注")}
                 onChange={(event) => setParticipantDraft((current) => ({ ...current, note: event.target.value }))}
                   placeholder="备注"
                   value={participantDraft.note}
@@ -821,6 +840,7 @@ export default function TeacherTrainingTab() {
                 <div className="mt-3 space-y-3">
                   <select
                     className={fieldClassName}
+                    {...fieldHint("选择班主任账号")}
                     onChange={(event) => setManagerDraft((current) => ({ ...current, userId: event.target.value }))}
                     value={managerDraft.userId}
                   >
@@ -833,6 +853,7 @@ export default function TeacherTrainingTab() {
                   </select>
                   <input
                     className={fieldClassName}
+                    {...fieldHint("班主任职务")}
                     onChange={(event) => setManagerDraft((current) => ({ ...current, title: event.target.value }))}
                     placeholder="职务，例如班主任、会务负责人"
                     value={managerDraft.title}
@@ -914,6 +935,7 @@ export default function TeacherTrainingTab() {
                 {!canManage && teacherTrainingCohorts.length > 1 ? (
                   <select
                     className={`${fieldClassName} mt-4 max-w-md`}
+                    {...fieldHint("切换我的省培班次")}
                     onChange={(event) => {
                       setSelectedCohortId(event.target.value);
                       setLeaveFlowSteps([]);
@@ -990,6 +1012,7 @@ export default function TeacherTrainingTab() {
                   <div className="mt-4 space-y-3">
                     <input
                       className={fieldClassName}
+                      {...fieldHint("课程名称")}
                       onChange={(event) => setCourseDraft((current) => ({ ...current, title: event.target.value }))}
                       placeholder="课程名称"
                       value={courseDraft.title}
@@ -997,18 +1020,21 @@ export default function TeacherTrainingTab() {
                     <div className="grid gap-3 sm:grid-cols-3">
                       <input
                         className={fieldClassName}
+                        {...fieldHint("课程日期")}
                         onChange={(event) => setCourseDraft((current) => ({ ...current, courseDate: event.target.value }))}
                         type="date"
                         value={courseDraft.courseDate}
                       />
                       <input
                         className={fieldClassName}
+                        {...fieldHint("课程开始时间")}
                         onChange={(event) => setCourseDraft((current) => ({ ...current, startTime: event.target.value }))}
                         type="time"
                         value={courseDraft.startTime}
                       />
                       <input
                         className={fieldClassName}
+                        {...fieldHint("课程结束时间")}
                         onChange={(event) => setCourseDraft((current) => ({ ...current, endTime: event.target.value }))}
                         type="time"
                         value={courseDraft.endTime}
@@ -1017,12 +1043,14 @@ export default function TeacherTrainingTab() {
                     <div className="grid gap-3 sm:grid-cols-2">
                       <input
                         className={fieldClassName}
+                        {...fieldHint("课程地点")}
                         onChange={(event) => setCourseDraft((current) => ({ ...current, location: event.target.value }))}
                         placeholder="地点"
                         value={courseDraft.location}
                       />
                       <input
                         className={fieldClassName}
+                        {...fieldHint("授课教师")}
                         onChange={(event) => setCourseDraft((current) => ({ ...current, instructor: event.target.value }))}
                         placeholder="授课教师"
                         value={courseDraft.instructor}
@@ -1030,6 +1058,7 @@ export default function TeacherTrainingTab() {
                     </div>
                     <textarea
                       className={`${textareaClassName} min-h-20`}
+                      {...fieldHint("课程说明")}
                       onChange={(event) => setCourseDraft((current) => ({ ...current, description: event.target.value }))}
                       placeholder="课程说明"
                       value={courseDraft.description}
@@ -1106,12 +1135,14 @@ export default function TeacherTrainingTab() {
                     <div className="grid gap-3 md:grid-cols-2">
                       <input
                         className={fieldClassName}
+                        {...fieldHint("签到标题")}
                         onChange={(event) => setCheckInDraft((current) => ({ ...current, title: event.target.value }))}
                         placeholder="签到标题"
                         value={checkInDraft.title}
                       />
                       <select
                         className={fieldClassName}
+                        {...fieldHint("绑定课程")}
                         onChange={(event) => setCheckInDraft((current) => ({ ...current, courseSessionId: event.target.value }))}
                         value={checkInDraft.courseSessionId}
                       >
@@ -1125,6 +1156,7 @@ export default function TeacherTrainingTab() {
                       <div className="grid gap-3 md:col-span-2">
                         <input
                           className={fieldClassName}
+                          {...fieldHint("签到日期")}
                           onChange={(event) => setCheckInDraft((current) => ({ ...current, signDate: event.target.value }))}
                           type="date"
                           value={checkInDraft.signDate}
@@ -1132,12 +1164,14 @@ export default function TeacherTrainingTab() {
                         <div className="grid gap-3 sm:grid-cols-2">
                           <input
                             className={fieldClassName}
+                            {...fieldHint("签到开始时间")}
                             onChange={(event) => setCheckInDraft((current) => ({ ...current, startTime: event.target.value }))}
                             type="time"
                             value={checkInDraft.startTime}
                           />
                           <input
                             className={fieldClassName}
+                            {...fieldHint("签到结束时间")}
                             onChange={(event) => setCheckInDraft((current) => ({ ...current, endTime: event.target.value }))}
                             type="time"
                             value={checkInDraft.endTime}
@@ -1146,6 +1180,7 @@ export default function TeacherTrainingTab() {
                       </div>
                       <input
                         className={`${fieldClassName} md:col-span-2`}
+                        {...fieldHint("签到地点")}
                         onChange={(event) => setCheckInDraft((current) => ({ ...current, locationName: event.target.value }))}
                         placeholder="签到地点"
                         value={checkInDraft.locationName}
@@ -1153,18 +1188,21 @@ export default function TeacherTrainingTab() {
                       <div className="grid gap-3 sm:grid-cols-[1fr_1fr_140px] md:col-span-2">
                         <input
                           className={fieldClassName}
+                          {...fieldHint("签到地点纬度")}
                           onChange={(event) => setCheckInDraft((current) => ({ ...current, latitude: event.target.value }))}
                           placeholder="纬度"
                           value={checkInDraft.latitude}
                         />
                         <input
                           className={fieldClassName}
+                          {...fieldHint("签到地点经度")}
                           onChange={(event) => setCheckInDraft((current) => ({ ...current, longitude: event.target.value }))}
                           placeholder="经度"
                           value={checkInDraft.longitude}
                         />
                         <input
                           className={fieldClassName}
+                          {...fieldHint("有效签到范围米数")}
                           onChange={(event) => setCheckInDraft((current) => ({ ...current, radiusMeters: event.target.value }))}
                           placeholder="范围/米"
                           value={checkInDraft.radiusMeters}
@@ -1374,12 +1412,14 @@ export default function TeacherTrainingTab() {
                             <div className="grid gap-3 md:grid-cols-[1fr_150px]">
                               <input
                                 className={fieldClassName}
+                                {...fieldHint("请假审批步骤名称")}
                                 onChange={(event) => updateLeaveFlowStep(index, { name: event.target.value })}
                                 placeholder="步骤名称"
                                 value={step.name}
                               />
                               <input
                                 className={fieldClassName}
+                                {...fieldHint("请假审批每步通过人数")}
                                 min={1}
                                 onChange={(event) =>
                                   updateLeaveFlowStep(index, { requiredCount: Number(event.target.value) || 1 })
@@ -1405,6 +1445,7 @@ export default function TeacherTrainingTab() {
                                     <input
                                       checked={step.approverIds.includes(approver.id)}
                                       className="sr-only"
+                                      {...fieldHint(`选择${approver.name}作为${step.name || "当前步骤"}审批人`)}
                                       onChange={() => toggleLeaveApprover(index, approver.id)}
                                       type="checkbox"
                                     />
@@ -1445,6 +1486,7 @@ export default function TeacherTrainingTab() {
                       <p className="text-sm font-semibold text-slate-900">请假审批</p>
                       <textarea
                         className={`${textareaClassName} mt-3 min-h-20`}
+                        {...fieldHint("请假审批意见")}
                         onChange={(event) => setLeaveReviewComment(event.target.value)}
                         placeholder="审批意见，可选"
                         value={leaveReviewComment}
@@ -1526,25 +1568,34 @@ export default function TeacherTrainingTab() {
                       <div className="mt-3 grid gap-3 sm:grid-cols-2">
                         <input
                           className={fieldClassName}
+                          {...fieldHint("请假开始日期")}
                           onChange={(event) => setLeaveDraft((current) => ({ ...current, startDate: event.target.value }))}
                           type="date"
                           value={leaveDraft.startDate}
                         />
                         <input
                           className={fieldClassName}
+                          {...fieldHint("请假结束日期")}
                           onChange={(event) => setLeaveDraft((current) => ({ ...current, endDate: event.target.value }))}
                           type="date"
                           value={leaveDraft.endDate}
                         />
                         <input
                           className={fieldClassName}
+                          {...fieldHint("请假场次")}
                           onChange={(event) => setLeaveDraft((current) => ({ ...current, sessionLabel: event.target.value }))}
                           placeholder="请假场次"
                           value={leaveDraft.sessionLabel}
                         />
-                        <input className={fieldClassName} disabled value={selectedParticipant?.name ?? "参训教师"} />
+                        <input
+                          className={fieldClassName}
+                          {...fieldHint("请假人")}
+                          disabled
+                          value={selectedParticipant?.name ?? "参训教师"}
+                        />
                         <textarea
                           className={`${textareaClassName} min-h-24 sm:col-span-2`}
+                          {...fieldHint("请假原因")}
                           onChange={(event) => setLeaveDraft((current) => ({ ...current, reason: event.target.value }))}
                           placeholder="请假原因"
                           value={leaveDraft.reason}
@@ -1609,30 +1660,35 @@ export default function TeacherTrainingTab() {
                 <div className="mt-4 grid gap-3 md:grid-cols-2">
                   <input
                     className={fieldClassName}
+                    {...fieldHint("个人姓名")}
                     onChange={(event) => updateProfileDraftField("name", event.target.value)}
                     placeholder="姓名"
                     value={effectiveProfileDraft.name}
                   />
                   <input
                     className={fieldClassName}
+                    {...fieldHint("个人单位")}
                     onChange={(event) => updateProfileDraftField("organization", event.target.value)}
                     placeholder="单位"
                     value={effectiveProfileDraft.organization}
                   />
                   <input
                     className={fieldClassName}
+                    {...fieldHint("个人手机")}
                     onChange={(event) => updateProfileDraftField("phone", event.target.value)}
                     placeholder="手机"
                     value={effectiveProfileDraft.phone}
                   />
                   <input
                     className={fieldClassName}
+                    {...fieldHint("个人分组")}
                     onChange={(event) => updateProfileDraftField("groupName", event.target.value)}
                     placeholder="分组"
                     value={effectiveProfileDraft.groupName}
                   />
                   <textarea
                     className={`${textareaClassName} min-h-20 md:col-span-2`}
+                    {...fieldHint("个人备注或培训需求")}
                     onChange={(event) => updateProfileDraftField("note", event.target.value)}
                     placeholder="个人备注或培训需求"
                     value={effectiveProfileDraft.note}
@@ -1718,6 +1774,7 @@ export default function TeacherTrainingTab() {
                 {accountMessage ? (
                   <textarea
                     className={`${textareaClassName} mt-4 min-h-28`}
+                    {...fieldHint("省培账号通知消息")}
                     onChange={(event) => setAccountMessage(event.target.value)}
                     value={accountMessage}
                   />
@@ -1735,12 +1792,14 @@ export default function TeacherTrainingTab() {
                   <div className="grid gap-3 sm:grid-cols-[180px_180px]">
                     <input
                       className={fieldClassName}
+                      {...fieldHint("报到登记日期")}
                       onChange={(event) => setAttendanceDate(event.target.value)}
                       type="date"
                       value={attendanceDate}
                     />
                     <select
                       className={fieldClassName}
+                      {...fieldHint("报到登记场次")}
                       onChange={(event) => setAttendanceSessionLabel(event.target.value)}
                       value={attendanceSessionLabel}
                     >
@@ -1833,6 +1892,7 @@ export default function TeacherTrainingTab() {
                 {accountMessage ? (
                   <textarea
                     className={`${textareaClassName} mt-4 min-h-28`}
+                    {...fieldHint("省培账号通知消息")}
                     onChange={(event) => setAccountMessage(event.target.value)}
                     value={accountMessage}
                   />
@@ -1851,12 +1911,14 @@ export default function TeacherTrainingTab() {
                   <div className="mt-4 space-y-3">
                     <input
                       className={fieldClassName}
+                      {...fieldHint("省培任务名称")}
                       onChange={(event) => setTaskDraft((current) => ({ ...current, title: event.target.value }))}
                       placeholder="任务名称"
                       value={taskDraft.title}
                     />
                     <textarea
                       className={textareaClassName}
+                      {...fieldHint("省培任务说明")}
                       onChange={(event) => setTaskDraft((current) => ({ ...current, description: event.target.value }))}
                       placeholder="任务说明"
                       value={taskDraft.description}
@@ -1864,6 +1926,7 @@ export default function TeacherTrainingTab() {
                     <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-center">
                       <input
                         className={fieldClassName}
+                        {...fieldHint("省培任务截止日期")}
                         onChange={(event) => setTaskDraft((current) => ({ ...current, dueDate: event.target.value }))}
                         type="date"
                         value={taskDraft.dueDate}
@@ -1871,6 +1934,7 @@ export default function TeacherTrainingTab() {
                       <label className="mt-1.5 inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-600">
                         <input
                           checked={taskDraft.requireAttachment}
+                          {...fieldHint("省培任务是否需要附件")}
                           onChange={(event) => setTaskDraft((current) => ({ ...current, requireAttachment: event.target.checked }))}
                           type="checkbox"
                         />
@@ -1898,6 +1962,7 @@ export default function TeacherTrainingTab() {
                   <div className="mt-4 space-y-3">
                     <select
                       className={fieldClassName}
+                      {...fieldHint("选择省培汇报任务")}
                       onChange={(event) => setSubmissionDraft((current) => ({ ...current, taskId: event.target.value }))}
                       value={selectedTask?.id ?? ""}
                     >
@@ -1910,6 +1975,7 @@ export default function TeacherTrainingTab() {
                     </select>
                     <select
                       className={fieldClassName}
+                      {...fieldHint("选择省培汇报教师")}
                       onChange={(event) => setSubmissionDraft((current) => ({ ...current, participantId: event.target.value }))}
                       value={selectedParticipant?.id ?? ""}
                     >
@@ -1922,12 +1988,14 @@ export default function TeacherTrainingTab() {
                     </select>
                     <textarea
                       className={textareaClassName}
+                      {...fieldHint("省培任务汇报内容")}
                       onChange={(event) => setSubmissionDraft((current) => ({ ...current, content: event.target.value }))}
                       placeholder="汇报内容"
                       value={submissionDraft.content}
                     />
                     <input
                       className={fieldClassName}
+                      {...fieldHint("省培任务汇报附件说明或链接")}
                       onChange={(event) => setSubmissionDraft((current) => ({ ...current, attachment: event.target.value }))}
                       placeholder="附件说明或链接"
                       value={submissionDraft.attachment}

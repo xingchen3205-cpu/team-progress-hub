@@ -250,6 +250,26 @@ test("teacher training interactions expose clear hints for mobile web users", ()
   assert.match(shellSource, /mobileNavigationTitle/);
 });
 
+test("teacher training form controls expose stable field hints after mobile input", () => {
+  const tabSource = read("src/components/tabs/teacher-training-tab.tsx");
+  const controls = Array.from(tabSource.matchAll(/<(input|select|textarea)\b[\s\S]*?(?:\/>|>)/g));
+  const unlabeledControls = controls
+    .map((match) => {
+      const line = tabSource.slice(0, match.index).split("\n").length;
+      return { line, source: match[0] };
+    })
+    .filter(({ source }) => !source.includes("...fieldHint(") && !source.includes("aria-label="));
+
+  assert.equal(unlabeledControls.length, 0, unlabeledControls.map((control) => `line ${control.line}`).join(", "));
+  assert.match(tabSource, /const fieldHint = \(label: string\)/);
+  assert.match(tabSource, /\.\.\.fieldHint\("选择省培班次"\)/);
+  assert.match(tabSource, /\.\.\.fieldHint\("培训名称"\)/);
+  assert.match(tabSource, /\.\.\.fieldHint\("参训教师姓名"\)/);
+  assert.match(tabSource, /\.\.\.fieldHint\("签到地点"\)/);
+  assert.match(tabSource, /\.\.\.fieldHint\("请假原因"\)/);
+  assert.match(tabSource, /\.\.\.fieldHint\("省培任务汇报内容"\)/);
+});
+
 test("teacher training leave approval panel keeps desktop review cards readable", () => {
   const tabSource = read("src/components/tabs/teacher-training-tab.tsx");
 
