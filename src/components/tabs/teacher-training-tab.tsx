@@ -117,6 +117,18 @@ const teacherTrainingActionHints: Partial<Record<Workspace.TeacherTrainingSectio
   },
 };
 
+const getTeacherTrainingCheckInDisabledReason = (windowState: CheckInWindowState, hasParticipant: boolean) => {
+  if (!hasParticipant) {
+    return "未绑定参训教师，请联系管理员确认省培账号";
+  }
+
+  if (windowState === "open") {
+    return "";
+  }
+
+  return Workspace.teacherTrainingCheckInWindowMessages[windowState];
+};
+
 export default function TeacherTrainingTab() {
   const {
     currentUser,
@@ -1408,6 +1420,7 @@ export default function TeacherTrainingTab() {
                         const windowState = Workspace.getTeacherTrainingCheckInWindowState(task, checkInNow);
                         const isWindowOpen = windowState === "open";
                         const isSigningThisTask = checkInSigningId === task.id;
+                        const checkInDisabledReason = getTeacherTrainingCheckInDisabledReason(windowState, Boolean(selectedParticipant));
                         return (
                           <div
                             key={task.id}
@@ -1443,9 +1456,9 @@ export default function TeacherTrainingTab() {
                             <button
                               className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-[#1f64f2] px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-[#174ecb] disabled:cursor-not-allowed disabled:bg-slate-300"
                               aria-label="定位签到，浏览器会请求当前位置权限"
-                              disabled={!isWindowOpen || isSaving || isSigningThisTask || !selectedParticipant}
+                              disabled={Boolean(checkInDisabledReason) || isSaving || isSigningThisTask}
                               onClick={() => signWithCurrentLocation(task.id)}
-                              title="定位签到，浏览器会请求当前位置权限"
+                              title={checkInDisabledReason || "定位签到，浏览器会请求当前位置权限"}
                               type="button"
                             >
                               {isSigningThisTask ? <Loader2 className="h-4 w-4 animate-spin" /> : <MapPin className="h-4 w-4" />}
@@ -1457,6 +1470,11 @@ export default function TeacherTrainingTab() {
                                     : "定位签到"
                                   : Workspace.getTeacherTrainingCheckInWindowLabel(windowState)}
                             </button>
+                            {checkInDisabledReason ? (
+                              <p className="rounded-xl border border-amber-100 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-700 lg:col-start-2 lg:max-w-56">
+                                {checkInDisabledReason}
+                              </p>
+                            ) : null}
                           </div>
                         );
                       })

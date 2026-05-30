@@ -242,7 +242,11 @@ test("teacher training interactions expose clear hints for mobile web users", ()
   assert.match(tabSource, /aria-label="发布课程定位签到任务"/);
   assert.match(tabSource, /title="发布课程定位签到任务"/);
   assert.match(tabSource, /aria-label="定位签到，浏览器会请求当前位置权限"/);
-  assert.match(tabSource, /title="定位签到，浏览器会请求当前位置权限"/);
+  assert.match(tabSource, /title=\{checkInDisabledReason \|\| "定位签到，浏览器会请求当前位置权限"\}/);
+  assert.match(tabSource, /getTeacherTrainingCheckInDisabledReason/);
+  assert.match(tabSource, /teacherTrainingCheckInWindowMessages\[windowState\]/);
+  assert.match(tabSource, /未绑定参训教师，请联系管理员确认省培账号/);
+  assert.match(tabSource, /checkInDisabledReason \? \(/);
   assert.match(tabSource, /aria-label="提交省培请假申请"/);
   assert.match(tabSource, /title="提交省培请假申请"/);
   assert.match(tabSource, /aria-label="保存省培个人信息"/);
