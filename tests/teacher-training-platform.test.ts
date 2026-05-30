@@ -249,3 +249,12 @@ test("teacher training interactions expose clear hints for mobile web users", ()
   assert.match(shellSource, /打开省培模块导航/);
   assert.match(shellSource, /mobileNavigationTitle/);
 });
+
+test("teacher training leave approval panel keeps desktop review cards readable", () => {
+  const tabSource = read("src/components/tabs/teacher-training-tab.tsx");
+
+  assert.match(tabSource, /xl:grid-cols-\[minmax\(0,1fr\)_minmax\(430px,0\.78fr\)\]/);
+  assert.match(tabSource, /rounded-2xl border border-slate-200\/70 bg-white px-4 py-4 shadow-sm/);
+  assert.match(tabSource, /xl:grid-cols-\[minmax\(0,1fr\)_auto\]/);
+  assert.match(tabSource, /flex shrink-0 flex-wrap justify-end gap-2/);
+});
