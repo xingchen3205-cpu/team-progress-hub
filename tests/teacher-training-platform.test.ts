@@ -321,6 +321,11 @@ test("teacher training teacher-facing forms keep visible field labels on mobile"
   assert.match(tabSource, /填写后保存汇报/);
   assert.match(tabSource, /teacherSubmittedTaskIds/);
   assert.match(tabSource, /teacherPendingTaskCount/);
+  assert.match(tabSource, /teacherSignedCheckInTaskIds/);
+  assert.match(tabSource, /teacherPendingCheckInCount/);
+  assert.match(tabSource, /teacherCheckInQuickActionHelper/);
+  assert.match(tabSource, /待签到/);
+  assert.match(tabSource, /已完成全部签到/);
   assert.match(tabSource, /id="teacher-training-submission-form"/);
   assert.match(tabSource, /focusTeacherTaskSubmission/);
   assert.match(tabSource, /待提交/);

@@ -344,6 +344,15 @@ export default function TeacherTrainingTab() {
     !canManage && selectedCohort
       ? selectedCohort.tasks.filter((task) => !teacherSubmittedTaskIds.has(task.id)).length
       : 0;
+  const teacherSignedCheckInTaskIds = new Set(
+    (selectedCohort?.checkInTasks ?? [])
+      .filter((task) => task.records.some((record) => record.participantId === selectedParticipant?.id))
+      .map((task) => task.id),
+  );
+  const teacherPendingCheckInCount =
+    !canManage && selectedCohort
+      ? selectedCohort.checkInTasks.filter((task) => !teacherSignedCheckInTaskIds.has(task.id)).length
+      : 0;
   const leaveDisabledReason = getTeacherTrainingLeaveDisabledReason(
     hasSelectedParticipant,
     selectedCohort?.leaveFlow,
@@ -634,6 +643,12 @@ export default function TeacherTrainingTab() {
         ? `待提交 ${teacherPendingTaskCount} 项`
         : "已完成全部汇报"
       : "暂无汇报任务";
+  const teacherCheckInQuickActionHelper =
+    selectedCohort?.checkInTasks.length
+      ? teacherPendingCheckInCount > 0
+        ? `待签到 ${teacherPendingCheckInCount} 项`
+        : "已完成全部签到"
+      : "暂无签到任务";
   const openTeacherTrainingSection = (key: Workspace.TeacherTrainingSectionKey) => {
     setActiveTeacherTrainingSection(key);
 
@@ -669,7 +684,7 @@ export default function TeacherTrainingTab() {
     {
       label: "课程签到",
       value: selectedCohort?.checkInTasks.length ?? 0,
-      helper: selectedCohort?.checkInTasks.length ? "到场后定位签到" : "暂无签到任务",
+      helper: canManage ? "查看签到进度" : teacherCheckInQuickActionHelper,
       Icon: MapPin,
       onClick: () => openTeacherTrainingSection("checkins"),
     },
