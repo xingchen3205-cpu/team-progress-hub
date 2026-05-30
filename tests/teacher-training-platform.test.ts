@@ -231,6 +231,11 @@ test("teacher training interactions expose clear hints for mobile web users", ()
 
   assert.match(tabSource, /teacherTrainingActionHints/);
   assert.match(tabSource, /省培操作提示/);
+  assert.match(tabSource, /左上角菜单切换模块/);
+  assert.doesNotMatch(tabSource, /左侧切换模块/);
+  assert.doesNotMatch(tabSource, /左侧添加|右侧添加|后续接入|先统一入口/);
+  assert.match(tabSource, /在参训教师模块添加名单后/);
+  assert.match(tabSource, /导出名单、签到、课程签到和任务汇报/);
   assert.match(tabSource, /手机端定位签到/);
   assert.match(tabSource, /aria-label="使用当前位置填入签到坐标"/);
   assert.match(tabSource, /title="使用当前位置填入签到坐标"/);

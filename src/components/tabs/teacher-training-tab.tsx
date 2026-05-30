@@ -77,7 +77,7 @@ const teacherTrainingFieldLabelClassName = "block text-xs font-semibold leading-
 const teacherTrainingActionHints: Partial<Record<Workspace.TeacherTrainingSectionKey, { title: string; steps: string[] }>> = {
   overview: {
     title: "省培操作提示",
-    steps: ["先确认当前班次", "再从左侧切换模块", "重要操作会有按钮提示"],
+    steps: ["先确认当前班次", "点左上角菜单切换模块", "重要操作会有按钮提示"],
   },
   cohorts: {
     title: "班次管理提示",
@@ -113,7 +113,7 @@ const teacherTrainingActionHints: Partial<Record<Workspace.TeacherTrainingSectio
   },
   exports: {
     title: "导出归档提示",
-    steps: ["选择当前班次", "按名单/签到/汇报导出", "后续接入公文排版模板"],
+    steps: ["选择当前班次", "按名单/签到/汇报导出", "下载后可直接归档"],
   },
 };
 
@@ -1024,7 +1024,7 @@ export default function TeacherTrainingTab() {
                   </div>
                   <div className="mt-4 grid gap-3">
                     {courseSessions.length === 0 ? (
-                      <EmptyState description="右侧添加课程后，教师端会同步显示课程表。" icon={CalendarDays} title="暂无课程安排" />
+                      <EmptyState description="在课程安排模块添加课程后，教师端会同步显示课程表。" icon={CalendarDays} title="暂无课程安排" />
                     ) : (
                       courseSessions.map((course) => (
                         <article key={course.id} className="rounded-xl border border-slate-200/75 bg-white/72 p-4">
@@ -1865,7 +1865,7 @@ export default function TeacherTrainingTab() {
 
                 <div className="mt-4 grid gap-3">
                   {selectedCohort.participants.length === 0 ? (
-                    <EmptyState description="左侧添加参训教师后，这里会显示名单和账号信息。" icon={Users} title="名单为空" />
+                    <EmptyState description="在参训教师模块添加名单后，这里会显示账号和预录信息。" icon={Users} title="名单为空" />
                   ) : (
                     selectedCohort.participants.map((participant) => (
                       <article
@@ -1961,7 +1961,7 @@ export default function TeacherTrainingTab() {
 
                 <div className="mt-4 overflow-hidden rounded-xl border border-slate-200/75">
                   {selectedCohort.participants.length === 0 ? (
-                    <EmptyState description="左侧添加参训教师后，这里会出现报到勾选列表。" icon={Users} title="名单为空" />
+                    <EmptyState description="在参训教师模块添加名单后，这里会出现报到勾选列表。" icon={Users} title="名单为空" />
                   ) : (
                     <div className="divide-y divide-slate-100">
                       {selectedCohort.participants.map((participant) => {
@@ -2237,7 +2237,7 @@ export default function TeacherTrainingTab() {
                     <div>
                       <p className="text-sm font-semibold text-slate-900">导出归档</p>
                       <p className="mt-1 text-xs leading-5 text-slate-500">
-                        省培导出先统一入口，后续在这里接入公文排版和标准表格模板。
+                        导出名单、签到、课程签到和任务汇报，按当前班次生成归档材料。
                       </p>
                     </div>
                     <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-500">

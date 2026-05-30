@@ -127,6 +127,14 @@ test("workspace desktop sidebar keeps a full-height shell on wide screens", () =
   assert.match(desktopSidebarBlock, /flex-1 overflow-y-auto/);
 });
 
+test("workspace sidebar navigation gives clear motion feedback", () => {
+  const cssSource = readFileSync(path.join(process.cwd(), "src/app/globals.css"), "utf8");
+
+  assert.match(cssSource, /\.sidebar-nav-item\s*\{[\s\S]*?transform 180ms ease/);
+  assert.match(cssSource, /\.sidebar-nav-item:hover\s*\{[\s\S]*?transform:\s*translateX\(3px\)/);
+  assert.match(cssSource, /\.sidebar-nav-item-active\s*\{[\s\S]*?box-shadow:\s*inset 0 0 0 1px rgba\(255, 255, 255, 0\.08\)/);
+});
+
 test("workspace errors render as fixed popup instead of inline page banner", () => {
   const contextSource = readFileSync(
     path.join(process.cwd(), "src/components/workspace-context.tsx"),
