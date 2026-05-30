@@ -985,21 +985,24 @@ export default function TeacherTrainingTab() {
                   </div>
                 </div>
                 {!canManage && teacherTrainingCohorts.length > 1 ? (
-                  <select
-                    className={`${fieldClassName} mt-4 max-w-md`}
-                    {...fieldHint("切换我的省培班次")}
-                    onChange={(event) => {
-                      setSelectedCohortId(event.target.value);
-                      setLeaveFlowSteps([]);
-                    }}
-                    value={selectedCohort.id}
-                  >
-                    {teacherTrainingCohorts.map((cohort) => (
-                      <option key={cohort.id} value={cohort.id}>
-                        {cohort.title}
-                      </option>
-                    ))}
-                  </select>
+                  <label className={`${teacherTrainingFieldShellClassName} mt-4 max-w-md`}>
+                    <span className={teacherTrainingFieldLabelClassName}>选择我的省培班次</span>
+                    <select
+                      className={fieldClassName}
+                      {...fieldHint("切换我的省培班次")}
+                      onChange={(event) => {
+                        setSelectedCohortId(event.target.value);
+                        setLeaveFlowSteps([]);
+                      }}
+                      value={selectedCohort.id}
+                    >
+                      {teacherTrainingCohorts.map((cohort) => (
+                        <option key={cohort.id} value={cohort.id}>
+                          {cohort.title}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
                 ) : null}
               </section>
               ) : null}
@@ -1510,24 +1513,30 @@ export default function TeacherTrainingTab() {
                         activeLeaveFlowSteps.map((step, index) => (
                           <div key={step.key} className="rounded-xl border border-slate-200/75 bg-white/72 p-4">
                             <div className="grid gap-3 md:grid-cols-[1fr_150px]">
-                              <input
-                                className={fieldClassName}
-                                {...fieldHint("请假审批步骤名称")}
-                                onChange={(event) => updateLeaveFlowStep(index, { name: event.target.value })}
-                                placeholder="步骤名称"
-                                value={step.name}
-                              />
-                              <input
-                                className={fieldClassName}
-                                {...fieldHint("请假审批每步通过人数")}
-                                min={1}
-                                onChange={(event) =>
-                                  updateLeaveFlowStep(index, { requiredCount: Number(event.target.value) || 1 })
-                                }
-                                placeholder="每步通过人数"
-                                type="number"
-                                value={step.requiredCount}
-                              />
+                              <label className={teacherTrainingFieldShellClassName}>
+                                <span className={teacherTrainingFieldLabelClassName}>请假审批步骤名称</span>
+                                <input
+                                  className={fieldClassName}
+                                  {...fieldHint("请假审批步骤名称")}
+                                  onChange={(event) => updateLeaveFlowStep(index, { name: event.target.value })}
+                                  placeholder="步骤名称"
+                                  value={step.name}
+                                />
+                              </label>
+                              <label className={teacherTrainingFieldShellClassName}>
+                                <span className={teacherTrainingFieldLabelClassName}>请假审批每步通过人数</span>
+                                <input
+                                  className={fieldClassName}
+                                  {...fieldHint("请假审批每步通过人数")}
+                                  min={1}
+                                  onChange={(event) =>
+                                    updateLeaveFlowStep(index, { requiredCount: Number(event.target.value) || 1 })
+                                  }
+                                  placeholder="每步通过人数"
+                                  type="number"
+                                  value={step.requiredCount}
+                                />
+                              </label>
                             </div>
                             <div className="mt-3 flex flex-wrap gap-2">
                               {teacherTrainingApproverOptions.length === 0 ? (
@@ -1584,13 +1593,16 @@ export default function TeacherTrainingTab() {
 
                     <div className="rounded-2xl border border-slate-200/75 bg-white/80 p-5 shadow-sm shadow-blue-100/50">
                       <p className="text-sm font-semibold text-slate-900">请假审批</p>
-                      <textarea
-                        className={`${textareaClassName} mt-3 min-h-20`}
-                        {...fieldHint("请假审批意见")}
-                        onChange={(event) => setLeaveReviewComment(event.target.value)}
-                        placeholder="审批意见，可选"
-                        value={leaveReviewComment}
-                      />
+                      <label className={`${teacherTrainingFieldShellClassName} mt-3`}>
+                        <span className={teacherTrainingFieldLabelClassName}>请假审批意见</span>
+                        <textarea
+                          className={`${textareaClassName} min-h-20`}
+                          {...fieldHint("请假审批意见")}
+                          onChange={(event) => setLeaveReviewComment(event.target.value)}
+                          placeholder="审批意见，可选"
+                          value={leaveReviewComment}
+                        />
+                      </label>
                       <div className="mt-3 space-y-3">
                         {pendingLeaveRequests.length === 0 ? (
                           <EmptyState description="教师提交临时请假后，会进入这里等待审批。" icon={FileCheck} title="暂无待审批请假" />
@@ -1920,24 +1932,30 @@ export default function TeacherTrainingTab() {
                     <p className="mt-1 text-xs leading-5 text-slate-500">工作人员在管理员账号里给参训教师打勾。</p>
                   </div>
                   <div className="grid gap-3 sm:grid-cols-[180px_180px]">
-                    <input
-                      className={fieldClassName}
-                      {...fieldHint("报到登记日期")}
-                      onChange={(event) => setAttendanceDate(event.target.value)}
-                      type="date"
-                      value={attendanceDate}
-                    />
-                    <select
-                      className={fieldClassName}
-                      {...fieldHint("报到登记场次")}
-                      onChange={(event) => setAttendanceSessionLabel(event.target.value)}
-                      value={attendanceSessionLabel}
-                    >
-                      <option value="报到">报到</option>
-                      <option value="上午课程">上午课程</option>
-                      <option value="下午课程">下午课程</option>
-                      <option value="晚间研讨">晚间研讨</option>
-                    </select>
+                    <label className={teacherTrainingFieldShellClassName}>
+                      <span className={teacherTrainingFieldLabelClassName}>报到登记日期</span>
+                      <input
+                        className={fieldClassName}
+                        {...fieldHint("报到登记日期")}
+                        onChange={(event) => setAttendanceDate(event.target.value)}
+                        type="date"
+                        value={attendanceDate}
+                      />
+                    </label>
+                    <label className={teacherTrainingFieldShellClassName}>
+                      <span className={teacherTrainingFieldLabelClassName}>报到登记场次</span>
+                      <select
+                        className={fieldClassName}
+                        {...fieldHint("报到登记场次")}
+                        onChange={(event) => setAttendanceSessionLabel(event.target.value)}
+                        value={attendanceSessionLabel}
+                      >
+                        <option value="报到">报到</option>
+                        <option value="上午课程">上午课程</option>
+                        <option value="下午课程">下午课程</option>
+                        <option value="晚间研讨">晚间研讨</option>
+                      </select>
+                    </label>
                   </div>
                 </div>
 
@@ -2039,37 +2057,49 @@ export default function TeacherTrainingTab() {
                     <p className="text-sm font-semibold text-slate-900">发布任务</p>
                   </div>
                   <div className="mt-4 space-y-3">
-                    <input
-                      className={fieldClassName}
-                      {...fieldHint("省培任务名称")}
-                      onChange={(event) => setTaskDraft((current) => ({ ...current, title: event.target.value }))}
-                      placeholder="任务名称"
-                      value={taskDraft.title}
-                    />
-                    <textarea
-                      className={textareaClassName}
-                      {...fieldHint("省培任务说明")}
-                      onChange={(event) => setTaskDraft((current) => ({ ...current, description: event.target.value }))}
-                      placeholder="任务说明"
-                      value={taskDraft.description}
-                    />
-                    <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-center">
+                    <label className={teacherTrainingFieldShellClassName}>
+                      <span className={teacherTrainingFieldLabelClassName}>省培任务名称</span>
                       <input
                         className={fieldClassName}
-                        {...fieldHint("省培任务截止日期")}
-                        onChange={(event) => setTaskDraft((current) => ({ ...current, dueDate: event.target.value }))}
-                        type="date"
-                        value={taskDraft.dueDate}
+                        {...fieldHint("省培任务名称")}
+                        onChange={(event) => setTaskDraft((current) => ({ ...current, title: event.target.value }))}
+                        placeholder="任务名称"
+                        value={taskDraft.title}
                       />
-                      <label className="mt-1.5 inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-600">
+                    </label>
+                    <label className={teacherTrainingFieldShellClassName}>
+                      <span className={teacherTrainingFieldLabelClassName}>省培任务说明</span>
+                      <textarea
+                        className={textareaClassName}
+                        {...fieldHint("省培任务说明")}
+                        onChange={(event) => setTaskDraft((current) => ({ ...current, description: event.target.value }))}
+                        placeholder="任务说明"
+                        value={taskDraft.description}
+                      />
+                    </label>
+                    <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-center">
+                      <label className={teacherTrainingFieldShellClassName}>
+                        <span className={teacherTrainingFieldLabelClassName}>省培任务截止日期</span>
                         <input
-                          checked={taskDraft.requireAttachment}
-                          {...fieldHint("省培任务是否需要附件")}
-                          onChange={(event) => setTaskDraft((current) => ({ ...current, requireAttachment: event.target.checked }))}
-                          type="checkbox"
+                          className={fieldClassName}
+                          {...fieldHint("省培任务截止日期")}
+                          onChange={(event) => setTaskDraft((current) => ({ ...current, dueDate: event.target.value }))}
+                          type="date"
+                          value={taskDraft.dueDate}
                         />
-                        需要附件
                       </label>
+                      <div className={teacherTrainingFieldShellClassName}>
+                        <span className={teacherTrainingFieldLabelClassName}>省培任务附件要求</span>
+                        <label className="mt-1.5 inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-600">
+                          <input
+                            checked={taskDraft.requireAttachment}
+                            {...fieldHint("省培任务是否需要附件")}
+                            onChange={(event) => setTaskDraft((current) => ({ ...current, requireAttachment: event.target.checked }))}
+                            type="checkbox"
+                          />
+                          需要附件
+                        </label>
+                      </div>
                     </div>
                     <ActionButton
                       aria-label="发布省培任务汇报要求"

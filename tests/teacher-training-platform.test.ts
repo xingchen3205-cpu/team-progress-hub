@@ -276,6 +276,7 @@ test("teacher training teacher-facing forms keep visible field labels on mobile"
   assert.match(tabSource, /teacherTrainingFieldShellClassName/);
   assert.match(tabSource, /teacherTrainingFieldLabelClassName/);
   for (const label of [
+    "选择我的省培班次",
     "请假开始日期",
     "请假结束日期",
     "请假场次",
@@ -331,6 +332,15 @@ test("teacher training manager forms keep visible field labels on mobile", () =>
     "签到地点纬度",
     "签到地点经度",
     "有效签到范围米数",
+    "请假审批步骤名称",
+    "请假审批每步通过人数",
+    "请假审批意见",
+    "报到登记日期",
+    "报到登记场次",
+    "省培任务名称",
+    "省培任务说明",
+    "省培任务截止日期",
+    "省培任务附件要求",
   ]) {
     assert.match(tabSource, new RegExp(`<span className=\\{teacherTrainingFieldLabelClassName\\}>${label}<\\/span>`));
   }
