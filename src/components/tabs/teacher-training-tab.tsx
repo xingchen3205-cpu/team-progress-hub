@@ -402,6 +402,64 @@ export default function TeacherTrainingTab() {
     !canManage && selectedCohort
       ? selectedCohort.checkInTasks.filter((task) => !teacherSignedCheckInTaskIds.has(task.id)).length
       : 0;
+  const teacherCheckInProgressItems = (selectedCohort?.checkInTasks ?? []).map((task) => {
+    const signedRecord = task.records.find((record) => record.participantId === selectedParticipant?.id) ?? null;
+    const windowState = Workspace.getTeacherTrainingCheckInWindowState(task, checkInNow);
+    const isOpen = windowState === "open";
+
+    return {
+      id: task.id,
+      title: task.title,
+      detail:
+        [task.signDate, [task.startTime, task.endTime].filter(Boolean).join("-"), task.locationName]
+          .filter(Boolean)
+          .join(" · ") || "地点待发布",
+      hasSigned: Boolean(signedRecord),
+      canSignNow: isOpen && !signedRecord,
+      signedAt: signedRecord?.signedAt ?? "",
+      statusLabel: signedRecord
+        ? "已完成签到"
+        : isOpen
+          ? "现在可签到"
+          : windowState === "not_started"
+            ? "等待开放"
+            : windowState === "ended"
+              ? "签到已结束"
+              : "签到不可用",
+      toneClassName: signedRecord
+        ? "border-emerald-100 bg-emerald-50 text-emerald-700"
+        : isOpen
+          ? "border-blue-100 bg-blue-50 text-blue-700"
+          : windowState === "not_started"
+            ? "border-amber-100 bg-amber-50 text-amber-700"
+            : "border-slate-100 bg-slate-50 text-slate-600",
+    };
+  });
+  const teacherCheckInOpenCount = teacherCheckInProgressItems.filter((item) => item.canSignNow).length;
+  const teacherCheckInCompletedCount = teacherCheckInProgressItems.filter((item) => item.hasSigned).length;
+  const teacherCheckInCompletionPercent = Math.round(
+    (teacherCheckInCompletedCount / Math.max(1, teacherCheckInProgressItems.length)) * 100,
+  );
+  const teacherCheckInSummaryText =
+    teacherCheckInProgressItems.length === 0
+      ? "暂无签到任务"
+      : teacherCheckInOpenCount > 0
+        ? `可签到 ${teacherCheckInOpenCount} 项`
+        : teacherPendingCheckInCount > 0
+          ? `待签到 ${teacherPendingCheckInCount} 项`
+          : "已完成全部签到";
+  const teacherCheckInProgressMetaText =
+    teacherCheckInProgressItems.length === 0
+      ? "等待管理员发布课程签到任务"
+      : `已签到 ${teacherCheckInCompletedCount}/${teacherCheckInProgressItems.length}`;
+  const teacherCheckInSummaryToneClassName =
+    teacherCheckInProgressItems.length === 0
+      ? "bg-slate-100 text-slate-600"
+      : teacherCheckInOpenCount > 0
+        ? "bg-blue-50 text-blue-700"
+        : teacherPendingCheckInCount > 0
+          ? "bg-amber-50 text-amber-700"
+          : "bg-emerald-50 text-emerald-700";
   const teacherProfileCompletionItems = [
     {
       label: "姓名",
@@ -801,6 +859,14 @@ export default function TeacherTrainingTab() {
       document.getElementById("teacher-training-submission-form")?.scrollIntoView({
         behavior: "smooth",
         block: "start",
+      });
+    });
+  };
+  const focusTeacherCheckInTask = (taskId: string) => {
+    window.requestAnimationFrame(() => {
+      document.getElementById(`teacher-training-checkin-${taskId}`)?.scrollIntoView({
+        behavior: "smooth",
+        block: "center",
       });
     });
   };
@@ -1914,6 +1980,53 @@ export default function TeacherTrainingTab() {
                   </div>
                 ) : (
                   <div className="mt-4 grid gap-3">
+                    <div
+                      aria-label="省培定位签到状态"
+                      className="rounded-2xl border border-blue-100 bg-[linear-gradient(135deg,rgba(37,99,235,0.08),rgba(255,255,255,0.96)_48%,rgba(14,165,233,0.08))] p-4 shadow-sm"
+                    >
+                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                        <div>
+                          <p className="text-sm font-bold text-slate-950">我的签到状态</p>
+                          <p className="mt-1 text-xs leading-5 text-slate-500">
+                            {teacherCheckInSummaryText} · {teacherCheckInProgressMetaText}
+                          </p>
+                        </div>
+                        <span
+                          className={`w-fit rounded-full px-3 py-1 text-xs font-bold ${teacherCheckInSummaryToneClassName}`}
+                        >
+                          {teacherCheckInSummaryText}
+                        </span>
+                      </div>
+                      <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/80">
+                        <div
+                          className="h-full rounded-full bg-gradient-to-r from-blue-600 to-cyan-500 transition-all duration-500"
+                          style={{ width: `${teacherCheckInCompletionPercent}%` }}
+                        />
+                      </div>
+                      <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                        {teacherCheckInProgressItems.length === 0 ? (
+                          <div className="rounded-xl border border-slate-100 bg-white/76 px-3 py-2 text-xs font-semibold text-slate-500">
+                            暂无签到任务
+                          </div>
+                        ) : (
+                          teacherCheckInProgressItems.map((item) => (
+                            <button
+                              key={item.id}
+                              className={`rounded-xl border px-3 py-2 text-left text-xs font-semibold transition hover:-translate-y-0.5 ${item.toneClassName}`}
+                              onClick={() => focusTeacherCheckInTask(item.id)}
+                              title={`${item.title}：${item.statusLabel}`}
+                              type="button"
+                            >
+                              <span className="block truncate text-slate-900">{item.title}</span>
+                              <span className="mt-1 block">{item.statusLabel}</span>
+                              <span className="mt-1 block text-[11px] font-medium text-slate-500">
+                                {item.signedAt || item.detail}
+                              </span>
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    </div>
                     {selectedCohort.checkInTasks.length === 0 ? (
                       <EmptyState description="管理员发布课程签到后，这里会显示定位签到入口。" icon={MapPin} title="暂无签到任务" />
                     ) : (
@@ -1925,6 +2038,7 @@ export default function TeacherTrainingTab() {
                         const checkInDisabledReason = getTeacherTrainingCheckInDisabledReason(windowState, hasSelectedParticipant);
                         return (
                           <div
+                            id={`teacher-training-checkin-${task.id}`}
                             key={task.id}
                             className="grid gap-3 rounded-2xl border border-slate-200/75 bg-white/78 p-4 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-lg hover:shadow-blue-950/8 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center"
                           >
