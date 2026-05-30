@@ -400,6 +400,10 @@ export default function TeacherTrainingTab() {
     [teacherTrainingApproverOptions],
   );
   const pendingLeaveRequests = selectedCohort?.leaveRequests.filter((request) => request.status === "pending") ?? [];
+  const teacherLeaveRequests = [...(selectedParticipant?.leaveRequests ?? [])].sort((first, second) =>
+    second.submittedAt.localeCompare(first.submittedAt),
+  );
+  const teacherLatestLeaveRequest = teacherLeaveRequests[0] ?? null;
   const approverNameById = useMemo(
     () => new Map(teacherTrainingApproverOptions.map((option) => [option.id, option.name])),
     [teacherTrainingApproverOptions],
@@ -2217,11 +2221,86 @@ export default function TeacherTrainingTab() {
                       ) : null}
                     </div>
 
+                    <div className="space-y-4">
+                      <div
+                        aria-label="省培请假进度"
+                        className="rounded-2xl border border-blue-100 bg-[linear-gradient(135deg,rgba(37,99,235,0.08),rgba(255,255,255,0.94)_48%,rgba(16,185,129,0.08))] p-4 shadow-sm"
+                      >
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                          <div>
+                            <p className="text-sm font-bold text-slate-950">当前请假进度</p>
+                            <p className="mt-1 text-xs leading-5 text-slate-500">
+                              {teacherLatestLeaveRequest
+                                ? `${teacherLatestLeaveRequest.startDate} 至 ${teacherLatestLeaveRequest.endDate} · ${teacherLatestLeaveRequest.sessionLabel}`
+                                : "提交临时请假后，这里会显示审批步骤和当前状态。"}
+                            </p>
+                          </div>
+                          <span className="w-fit rounded-full bg-white/82 px-3 py-1 text-xs font-bold text-blue-700">
+                            {teacherLatestLeaveRequest?.statusLabel ?? "暂无请假"}
+                          </span>
+                        </div>
+                        {teacherLatestLeaveRequest ? (
+                          <div className="mt-3 grid gap-2">
+                            <p className="text-xs font-bold text-slate-500">审批步骤</p>
+                            {teacherLatestLeaveRequest.approvalSteps.length ? (
+                              teacherLatestLeaveRequest.approvalSteps.map((step, index) => {
+                                const approvedCount = teacherLatestLeaveRequest.approvals.filter(
+                                  (approval) => approval.stepKey === step.key && approval.decision === "approve",
+                                ).length;
+                                const stepState =
+                                  teacherLatestLeaveRequest.status === "rejected" && index === teacherLatestLeaveRequest.currentStepIndex
+                                    ? "已驳回"
+                                    : approvedCount >= step.requiredCount || index < teacherLatestLeaveRequest.currentStepIndex
+                                      ? "已通过"
+                                      : index === teacherLatestLeaveRequest.currentStepIndex
+                                        ? "等待审批"
+                                        : "未到达";
+
+                                return (
+                                  <div key={step.key} className="rounded-2xl border border-white/80 bg-white/82 px-3 py-3 shadow-sm">
+                                    <div className="flex items-start justify-between gap-3">
+                                      <div className="min-w-0">
+                                        <p className="text-sm font-semibold text-slate-950">{step.name}</p>
+                                        <p className="mt-1 text-xs leading-5 text-slate-500">
+                                          {step.approverIds
+                                            .map((approverId) => approverNameById.get(approverId) ?? "审批人")
+                                            .join("、") || "未配置审批人"}
+                                        </p>
+                                      </div>
+                                      <span
+                                        className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-bold ${
+                                          stepState === "已通过"
+                                            ? "bg-emerald-50 text-emerald-700"
+                                            : stepState === "等待审批"
+                                              ? "bg-amber-50 text-amber-700"
+                                              : stepState === "已驳回"
+                                                ? "bg-rose-50 text-rose-700"
+                                                : "bg-slate-100 text-slate-500"
+                                        }`}
+                                      >
+                                        {stepState}
+                                      </span>
+                                    </div>
+                                    <p className="mt-2 text-xs text-slate-400">
+                                      已通过 {approvedCount}/{step.requiredCount}
+                                    </p>
+                                  </div>
+                                );
+                              })
+                            ) : (
+                              <p className="rounded-xl bg-white/82 px-3 py-2 text-xs text-slate-500">
+                                管理员尚未配置审批步骤。
+                              </p>
+                            )}
+                          </div>
+                        ) : null}
+                      </div>
+
                     <div className="rounded-xl border border-slate-200/75 bg-white/72 p-4">
                       <p className="text-sm font-semibold text-slate-900">我的请假记录</p>
                       <div className="mt-3 grid gap-2">
-                        {selectedParticipant?.leaveRequests.length ? (
-                          selectedParticipant.leaveRequests.slice(0, 4).map((request) => (
+                        {teacherLeaveRequests.length ? (
+                          teacherLeaveRequests.slice(0, 4).map((request) => (
                             <div key={request.id} className="rounded-lg bg-slate-50 px-3 py-2">
                               <div className="flex items-center justify-between gap-3">
                                 <p className="text-sm font-semibold text-slate-900">
@@ -2248,6 +2327,7 @@ export default function TeacherTrainingTab() {
                           <EmptyState description="临时请假提交后，审批进度会显示在这里。" icon={FileCheck} title="暂无请假记录" />
                         )}
                       </div>
+                    </div>
                     </div>
                   </div>
                 )}
