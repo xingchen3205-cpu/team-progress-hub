@@ -374,10 +374,33 @@ export default function TeacherTrainingTab() {
     !canManage && selectedCohort
       ? selectedCohort.checkInTasks.filter((task) => !teacherSignedCheckInTaskIds.has(task.id)).length
       : 0;
+  const teacherProfileCompletionItems = [
+    {
+      label: "姓名",
+      isComplete: Boolean(effectiveProfileDraft.name.trim()),
+      completeLabel: "姓名已填写",
+      incompleteLabel: "姓名待补充",
+    },
+    {
+      label: "单位",
+      isComplete: Boolean(effectiveProfileDraft.organization.trim()),
+      completeLabel: "单位已填写",
+      incompleteLabel: "单位待补充",
+    },
+    {
+      label: "手机号",
+      isComplete: Boolean(effectiveProfileDraft.phone.trim()),
+      completeLabel: "手机号已填写",
+      incompleteLabel: "手机号待补充",
+    },
+  ];
+  const teacherProfileCompletedCount = teacherProfileCompletionItems.filter((item) => item.isComplete).length;
+  const teacherProfileCompletionPercent = Math.round(
+    (teacherProfileCompletedCount / Math.max(1, teacherProfileCompletionItems.length)) * 100,
+  );
   const teacherProfileNeedsAttention =
-    !hasSelectedParticipant ||
-    !selectedParticipant?.organization.trim() ||
-    !selectedParticipant.phone.trim();
+    !hasSelectedParticipant || teacherProfileCompletedCount < teacherProfileCompletionItems.length;
+  const teacherProfileStatusText = teacherProfileNeedsAttention ? "资料待完善" : "资料已完整";
   const leaveDisabledReason = getTeacherTrainingLeaveDisabledReason(
     hasSelectedParticipant,
     selectedCohort?.leaveFlow,
@@ -2339,6 +2362,46 @@ export default function TeacherTrainingTab() {
                 <div className="flex items-center gap-2">
                   <User className="h-4 w-4 text-[#1a6fd4]" />
                   <p className="text-sm font-semibold text-slate-900">个人信息</p>
+                </div>
+                <div
+                  aria-label="省培个人资料状态"
+                  className="mt-4 rounded-2xl border border-blue-100 bg-[linear-gradient(135deg,rgba(37,99,235,0.08),rgba(255,255,255,0.94)_48%,rgba(20,184,166,0.08))] p-4 shadow-sm"
+                >
+                  <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                    <div>
+                      <p className="text-sm font-bold text-slate-950">资料状态</p>
+                      <p className="mt-1 text-xs leading-5 text-slate-500">
+                        {teacherProfileStatusText} · 已完成 {teacherProfileCompletedCount}/{teacherProfileCompletionItems.length}
+                      </p>
+                    </div>
+                    <span
+                      className={`w-fit rounded-full px-3 py-1 text-xs font-bold ${
+                        teacherProfileNeedsAttention ? "bg-amber-50 text-amber-700" : "bg-emerald-50 text-emerald-700"
+                      }`}
+                    >
+                      {teacherProfileStatusText}
+                    </span>
+                  </div>
+                  <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/78">
+                    <div
+                      className="h-full rounded-full bg-gradient-to-r from-blue-600 to-cyan-500 transition-all duration-500"
+                      style={{ width: `${teacherProfileCompletionPercent}%` }}
+                    />
+                  </div>
+                  <div className="mt-3 grid gap-2 sm:grid-cols-3">
+                    {teacherProfileCompletionItems.map((item) => (
+                      <div
+                        key={item.label}
+                        className={`rounded-xl border px-3 py-2 text-xs font-semibold ${
+                          item.isComplete
+                            ? "border-emerald-100 bg-emerald-50 text-emerald-700"
+                            : "border-amber-100 bg-amber-50 text-amber-700"
+                        }`}
+                      >
+                        {item.isComplete ? item.completeLabel : item.incompleteLabel}
+                      </div>
+                    ))}
+                  </div>
                 </div>
                 <div className="mt-4 grid gap-3 md:grid-cols-2">
                   <label className={teacherTrainingFieldShellClassName}>
