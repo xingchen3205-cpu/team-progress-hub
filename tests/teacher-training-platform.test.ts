@@ -187,6 +187,13 @@ test("teacher training tab uses staff-side manual check-in controls", () => {
   assert.match(tabSource, /请假流程设置/);
   assert.match(tabSource, /审批步骤/);
   assert.match(tabSource, /每步通过人数/);
+  assert.match(tabSource, /canConfigureTeacherTrainingLeaveFlow/);
+  assert.match(tabSource, /currentUser\?\.role === "admin"/);
+  assert.match(tabSource, /canManage \? "请假审批" : "临时请假"/);
+  assert.match(tabSource, /canConfigureTeacherTrainingLeaveFlow \? \(/);
+  assert.match(tabSource, /canManage \? \(/);
+  assert.match(tabSource, /请假申请汇总/);
+  assert.doesNotMatch(tabSource, /canManageGlobal \? "请假流程设置" : "临时请假"/);
   assert.match(tabSource, /临时请假/);
   assert.match(tabSource, /提交请假/);
   assert.match(tabSource, /请假审批/);

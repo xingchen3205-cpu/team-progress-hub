@@ -356,6 +356,7 @@ export default function TeacherTrainingTab() {
     : "";
   const canManage = canManageTeacherTraining;
   const canManageGlobal = hasGlobalAdminRole;
+  const canConfigureTeacherTrainingLeaveFlow = currentUser?.role === "admin";
   const teacherSubmittedTaskIds = new Set(
     (selectedCohort?.tasks ?? [])
       .filter((task) => task.submissions.some((submission) => submission.participantId === selectedParticipant?.id))
@@ -509,6 +510,9 @@ export default function TeacherTrainingTab() {
     [teacherTrainingApproverOptions],
   );
   const pendingLeaveRequests = selectedCohort?.leaveRequests.filter((request) => request.status === "pending") ?? [];
+  const managerVisibleLeaveRequests = pendingLeaveRequests.length
+    ? pendingLeaveRequests
+    : selectedCohort?.leaveRequests.slice(0, 5) ?? [];
   const teacherLeaveRequests = [...(selectedParticipant?.leaveRequests ?? [])].sort((first, second) =>
     second.submittedAt.localeCompare(first.submittedAt),
   );
@@ -2106,11 +2110,13 @@ export default function TeacherTrainingTab() {
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                   <div>
                     <p className="text-sm font-semibold text-slate-900">
-                      {canManageGlobal ? "请假流程设置" : "临时请假"}
+                      {canManage ? "请假审批" : "临时请假"}
                     </p>
                     <p className="mt-1 text-xs leading-5 text-slate-500">
-                      {canManageGlobal
+                      {canConfigureTeacherTrainingLeaveFlow
                         ? "系统管理员统一配置审批步骤、候选审批人和每步通过人数。"
+                        : canManage
+                          ? "查看当前班次请假申请、导出请假单，并按已配置流程处理审批。"
                         : "临时请假会按管理员配置的审批步骤流转，最终批准后自动写入请假签到记录。"}
                     </p>
                   </div>
@@ -2119,34 +2125,45 @@ export default function TeacherTrainingTab() {
                   </span>
                 </div>
 
-                {canManageGlobal ? (
-                  <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(430px,0.78fr)]">
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-between gap-3">
-                        <p className="text-xs font-semibold text-slate-500">审批步骤</p>
-                        <button
-                          className="depth-button-secondary inline-flex h-9 items-center rounded-lg px-3 text-xs font-semibold"
-                          aria-label="增加省培请假审批步骤"
-                          onClick={() =>
-                            setLeaveFlowSteps((current) => {
-                              const baseSteps = current.length ? current : activeLeaveFlowSteps;
-                              return [
-                              ...baseSteps,
-                              {
-                                key: `step-${baseSteps.length + 1}`,
-                                name: `第${baseSteps.length + 1}步审批`,
-                                approverIds: [],
-                                requiredCount: 1,
-                              },
-                              ];
-                            })
-                          }
-                          title="增加省培请假审批步骤"
-                          type="button"
-                        >
-                          增加步骤
-                        </button>
-                      </div>
+                {canManage ? (
+                  <div
+                    className={`mt-4 grid gap-4 ${
+                      canConfigureTeacherTrainingLeaveFlow ? "xl:grid-cols-[minmax(0,1fr)_minmax(430px,0.78fr)]" : ""
+                    }`}
+                  >
+                    {canConfigureTeacherTrainingLeaveFlow ? (
+                      <div className="space-y-3">
+                        <div>
+                          <p className="text-sm font-semibold text-slate-900">请假流程设置</p>
+                          <p className="mt-1 text-xs leading-5 text-slate-500">
+                            只在系统管理员账号下开放，避免班次工作人员误改全局审批规则。
+                          </p>
+                        </div>
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="text-xs font-semibold text-slate-500">审批步骤</p>
+                          <button
+                            className="depth-button-secondary inline-flex h-9 items-center rounded-lg px-3 text-xs font-semibold"
+                            aria-label="增加省培请假审批步骤"
+                            onClick={() =>
+                              setLeaveFlowSteps((current) => {
+                                const baseSteps = current.length ? current : activeLeaveFlowSteps;
+                                return [
+                                  ...baseSteps,
+                                  {
+                                    key: `step-${baseSteps.length + 1}`,
+                                    name: `第${baseSteps.length + 1}步审批`,
+                                    approverIds: [],
+                                    requiredCount: 1,
+                                  },
+                                ];
+                              })
+                            }
+                            title="增加省培请假审批步骤"
+                            type="button"
+                          >
+                            增加步骤
+                          </button>
+                        </div>
                       {activeLeaveFlowSteps.length === 0 ? (
                         <EmptyState description="先增加审批步骤，再选择审批人和每步通过人数。" icon={FileCheck} title="未配置流程" />
                       ) : (
@@ -2229,10 +2246,13 @@ export default function TeacherTrainingTab() {
                       >
                         保存请假流程
                       </ActionButton>
-                    </div>
+                      </div>
+                    ) : null}
 
                     <div className="rounded-2xl border border-slate-200/75 bg-white/80 p-5 shadow-sm shadow-blue-100/50">
-                      <p className="text-sm font-semibold text-slate-900">请假审批</p>
+                      <p className="text-sm font-semibold text-slate-900">
+                        {canConfigureTeacherTrainingLeaveFlow ? "请假审批" : "请假申请汇总"}
+                      </p>
                       <label className={`${teacherTrainingFieldShellClassName} mt-3`}>
                         <span className={teacherTrainingFieldLabelClassName}>请假审批意见</span>
                         <textarea
@@ -2244,10 +2264,10 @@ export default function TeacherTrainingTab() {
                         />
                       </label>
                       <div className="mt-3 space-y-3">
-                        {pendingLeaveRequests.length === 0 ? (
-                          <EmptyState description="教师提交临时请假后，会进入这里等待审批。" icon={FileCheck} title="暂无待审批请假" />
+                        {managerVisibleLeaveRequests.length === 0 ? (
+                          <EmptyState description="教师提交临时请假后，会进入这里等待审批和导出。" icon={FileCheck} title="暂无请假申请" />
                         ) : (
-                          pendingLeaveRequests.slice(0, 5).map((request) => {
+                          managerVisibleLeaveRequests.map((request) => {
                             const step = request.approvalSteps[request.currentStepIndex];
                             return (
                               <div key={request.id} className="rounded-2xl border border-slate-200/70 bg-white px-4 py-4 shadow-sm">
@@ -2266,6 +2286,9 @@ export default function TeacherTrainingTab() {
                                           需 {step.requiredCount} 人通过
                                         </span>
                                       ) : null}
+                                      <span className="rounded-full bg-slate-100 px-2.5 py-1">
+                                        {request.statusLabel}
+                                      </span>
                                     </div>
                                     <p className="mt-2 break-words text-xs leading-5 text-slate-500">
                                       审批人：{step?.approverIds.map((id) => approverNameById.get(id) ?? "审批人").join("、") || "未配置"}
@@ -2280,28 +2303,29 @@ export default function TeacherTrainingTab() {
                                     >
                                       导出PDF请假单
                                     </a>
-                                    {step?.approverIds.includes(currentUser?.id ?? "") || currentUser?.role === "admin" ? (
+                                    {request.status === "pending" &&
+                                    (step?.approverIds.includes(currentUser?.id ?? "") || currentUser?.role === "admin") ? (
                                       <>
-                                      <button
-                                        className="inline-flex h-8 items-center rounded-lg bg-emerald-600 px-3 text-xs font-semibold text-white"
-                                        aria-label={`通过${request.participantName}的请假申请`}
-                                        disabled={isSaving}
-                                        onClick={() => void reviewLeaveRequest(request.id, "approve")}
-                                        title={`通过${request.participantName}的请假申请`}
-                                        type="button"
-                                      >
-                                        通过
-                                      </button>
-                                      <button
-                                        className="inline-flex h-8 items-center rounded-lg border border-rose-200 bg-white px-3 text-xs font-semibold text-rose-600"
-                                        aria-label={`驳回${request.participantName}的请假申请`}
-                                        disabled={isSaving}
-                                        onClick={() => void reviewLeaveRequest(request.id, "reject")}
-                                        title={`驳回${request.participantName}的请假申请`}
-                                        type="button"
-                                      >
-                                        驳回
-                                      </button>
+                                        <button
+                                          className="inline-flex h-8 items-center rounded-lg bg-emerald-600 px-3 text-xs font-semibold text-white"
+                                          aria-label={`通过${request.participantName}的请假申请`}
+                                          disabled={isSaving}
+                                          onClick={() => void reviewLeaveRequest(request.id, "approve")}
+                                          title={`通过${request.participantName}的请假申请`}
+                                          type="button"
+                                        >
+                                          通过
+                                        </button>
+                                        <button
+                                          className="inline-flex h-8 items-center rounded-lg border border-rose-200 bg-white px-3 text-xs font-semibold text-rose-600"
+                                          aria-label={`驳回${request.participantName}的请假申请`}
+                                          disabled={isSaving}
+                                          onClick={() => void reviewLeaveRequest(request.id, "reject")}
+                                          title={`驳回${request.participantName}的请假申请`}
+                                          type="button"
+                                        >
+                                          驳回
+                                        </button>
                                       </>
                                     ) : null}
                                   </div>
