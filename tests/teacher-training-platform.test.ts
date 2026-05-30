@@ -248,9 +248,9 @@ test("teacher training interactions expose clear hints for mobile web users", ()
   assert.match(tabSource, /未绑定参训教师，请联系管理员确认省培账号/);
   assert.match(tabSource, /checkInDisabledReason \? \(/);
   assert.match(tabSource, /aria-label="提交省培请假申请"/);
-  assert.match(tabSource, /title="提交省培请假申请"/);
+  assert.match(tabSource, /title=\{leaveDisabledReason \|\| "提交省培请假申请"\}/);
   assert.match(tabSource, /aria-label="保存省培个人信息"/);
-  assert.match(tabSource, /title="保存省培个人信息"/);
+  assert.match(tabSource, /title=\{profileDisabledReason \|\| "保存省培个人信息"\}/);
   assert.match(tabSource, /aria-label="复制省培账号通知消息"/);
   assert.match(tabSource, /title="复制省培账号通知消息"/);
   assert.match(tabSource, /aria-label=\{`将\$\{participant\.name\}标记为\$\{Workspace\.teacherTrainingAttendanceLabels\[status\]\}`\}/);
@@ -309,6 +309,13 @@ test("teacher training teacher-facing forms keep visible field labels on mobile"
   assert.match(tabSource, /teacherTaskActionHint/);
   assert.match(tabSource, /确认我的汇报身份/);
   assert.match(tabSource, /填写后保存汇报/);
+  assert.match(tabSource, /teacherTrainingDisabledHintClassName/);
+  assert.match(tabSource, /getTeacherTrainingParticipantDisabledReason/);
+  assert.match(tabSource, /getTeacherTrainingSubmissionDisabledReason/);
+  assert.match(tabSource, /暂无省培任务，请等待管理员发布任务/);
+  assert.match(tabSource, /leaveDisabledReason \? \(/);
+  assert.match(tabSource, /profileDisabledReason \? \(/);
+  assert.match(tabSource, /submissionDisabledReason \? \(/);
   assert.match(tabSource, /!canManage && effectiveTeacherTrainingSection === "tasks"/);
 });
 

@@ -73,6 +73,8 @@ const fieldHint = (label: string) => ({
 const teacherTrainingFieldShellClassName = "block min-w-0";
 const teacherTrainingFieldShellWideClassName = `${teacherTrainingFieldShellClassName} sm:col-span-2`;
 const teacherTrainingFieldLabelClassName = "block text-xs font-semibold leading-5 text-slate-600";
+const teacherTrainingDisabledHintClassName =
+  "rounded-xl border border-amber-100 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-700";
 
 const teacherTrainingActionHints: Partial<Record<Workspace.TeacherTrainingSectionKey, { title: string; steps: string[] }>> = {
   overview: {
@@ -117,16 +119,34 @@ const teacherTrainingActionHints: Partial<Record<Workspace.TeacherTrainingSectio
   },
 };
 
-const getTeacherTrainingCheckInDisabledReason = (windowState: CheckInWindowState, hasParticipant: boolean) => {
+const getTeacherTrainingParticipantDisabledReason = (hasParticipant: boolean, canManage = false) => {
   if (!hasParticipant) {
-    return "未绑定参训教师，请联系管理员确认省培账号";
+    return canManage ? "暂无参训教师，请先在参训教师模块添加名单" : "未绑定参训教师，请联系管理员确认省培账号";
   }
+
+  return "";
+};
+
+const getTeacherTrainingCheckInDisabledReason = (windowState: CheckInWindowState, hasParticipant: boolean) => {
+  const participantReason = getTeacherTrainingParticipantDisabledReason(hasParticipant);
+  if (participantReason) return participantReason;
 
   if (windowState === "open") {
     return "";
   }
 
   return Workspace.teacherTrainingCheckInWindowMessages[windowState];
+};
+
+const getTeacherTrainingSubmissionDisabledReason = (hasTask: boolean, hasParticipant: boolean, canManage = false) => {
+  const participantReason = getTeacherTrainingParticipantDisabledReason(hasParticipant, canManage);
+  if (participantReason) return participantReason;
+
+  if (!hasTask) {
+    return "暂无省培任务，请等待管理员发布任务";
+  }
+
+  return "";
 };
 
 export default function TeacherTrainingTab() {
@@ -256,6 +276,7 @@ export default function TeacherTrainingTab() {
     selectedCohort?.participants.find((participant) => participant.id === submissionDraft.participantId) ??
     selectedCohort?.participants[0] ??
     null;
+  const hasSelectedParticipant = Boolean(selectedParticipant);
   const courseSessions = selectedCohort?.courseSessions ?? [];
   const effectiveProfileDraft =
     selectedParticipant && profileDraft.participantId !== selectedParticipant.id
@@ -273,6 +294,9 @@ export default function TeacherTrainingTab() {
     : "";
   const canManage = canManageTeacherTraining;
   const canManageGlobal = hasGlobalAdminRole;
+  const leaveDisabledReason = getTeacherTrainingParticipantDisabledReason(hasSelectedParticipant, canManage);
+  const profileDisabledReason = getTeacherTrainingParticipantDisabledReason(Boolean(effectiveProfileDraft.participantId));
+  const submissionDisabledReason = getTeacherTrainingSubmissionDisabledReason(Boolean(selectedTask), hasSelectedParticipant, canManage);
   const defaultLeaveFlowSteps = useMemo<Workspace.TeacherTrainingLeaveFlowStep[]>(
     () =>
       [
@@ -1420,7 +1444,7 @@ export default function TeacherTrainingTab() {
                         const windowState = Workspace.getTeacherTrainingCheckInWindowState(task, checkInNow);
                         const isWindowOpen = windowState === "open";
                         const isSigningThisTask = checkInSigningId === task.id;
-                        const checkInDisabledReason = getTeacherTrainingCheckInDisabledReason(windowState, Boolean(selectedParticipant));
+                        const checkInDisabledReason = getTeacherTrainingCheckInDisabledReason(windowState, hasSelectedParticipant);
                         return (
                           <div
                             key={task.id}
@@ -1471,7 +1495,7 @@ export default function TeacherTrainingTab() {
                                   : Workspace.getTeacherTrainingCheckInWindowLabel(windowState)}
                             </button>
                             {checkInDisabledReason ? (
-                              <p className="rounded-xl border border-amber-100 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-700 lg:col-start-2 lg:max-w-56">
+                              <p className={`${teacherTrainingDisabledHintClassName} lg:col-start-2 lg:max-w-56`}>
                                 {checkInDisabledReason}
                               </p>
                             ) : null}
@@ -1755,14 +1779,19 @@ export default function TeacherTrainingTab() {
                       <ActionButton
                         aria-label="提交省培请假申请"
                         className="mt-3"
-                        disabled={!selectedParticipant}
+                        disabled={Boolean(leaveDisabledReason)}
                         loading={isSaving}
                         onClick={() => void submitLeaveRequest()}
-                        title="提交省培请假申请"
+                        title={leaveDisabledReason || "提交省培请假申请"}
                         variant="primary"
                       >
                         提交请假
                       </ActionButton>
+                      {leaveDisabledReason ? (
+                        <p className={`${teacherTrainingDisabledHintClassName} mt-3`}>
+                          {leaveDisabledReason}
+                        </p>
+                      ) : null}
                     </div>
 
                     <div className="rounded-xl border border-slate-200/75 bg-white/72 p-4">
@@ -1863,14 +1892,19 @@ export default function TeacherTrainingTab() {
                 <div className="mt-4">
                   <ActionButton
                     aria-label="保存省培个人信息"
-                    disabled={!effectiveProfileDraft.participantId}
+                    disabled={Boolean(profileDisabledReason)}
                     loading={isSaving}
                     onClick={() => void submitProfile()}
-                    title="保存省培个人信息"
+                    title={profileDisabledReason || "保存省培个人信息"}
                     variant="primary"
                   >
                     保存个人信息
                   </ActionButton>
+                  {profileDisabledReason ? (
+                    <p className={`${teacherTrainingDisabledHintClassName} mt-3`}>
+                      {profileDisabledReason}
+                    </p>
+                  ) : null}
                 </div>
               </section>
               ) : null}
@@ -2210,14 +2244,19 @@ export default function TeacherTrainingTab() {
                     </label>
                     <ActionButton
                       aria-label="保存省培任务汇报"
-                      disabled={!selectedTask || !selectedParticipant}
+                      disabled={Boolean(submissionDisabledReason)}
                       loading={isSaving}
                       onClick={() => void submitSubmission()}
-                      title="保存省培任务汇报"
+                      title={submissionDisabledReason || "保存省培任务汇报"}
                       variant="primary"
                     >
                       保存汇报
                     </ActionButton>
+                    {submissionDisabledReason ? (
+                      <p className={teacherTrainingDisabledHintClassName}>
+                        {submissionDisabledReason}
+                      </p>
+                    ) : null}
                   </div>
                 </div>
               </section>
