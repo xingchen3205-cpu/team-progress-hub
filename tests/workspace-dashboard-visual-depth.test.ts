@@ -209,6 +209,16 @@ test("workspace topbar matches the requested home layout with live weather", () 
   assert.doesNotMatch(topbarBlock, /18°C/);
 });
 
+test("mobile platform switch keeps admin platform labels horizontal", () => {
+  const cssSource = readFileSync(path.join(process.cwd(), "src/app/globals.css"), "utf8");
+
+  assert.match(cssSource, /\.topbar-platform-switch\s*\{[\s\S]*?flex-shrink:\s*0/);
+  assert.match(cssSource, /\.topbar-platform-switch a\s*\{[\s\S]*?white-space:\s*nowrap/);
+  assert.match(cssSource, /\.topbar-platform-switch a\s*\{[\s\S]*?writing-mode:\s*horizontal-tb/);
+  assert.match(cssSource, /@media \(max-width: 640px\) \{[\s\S]*?\.topbar-platform-switch\s*\{[\s\S]*?flex-basis:\s*100%/);
+  assert.match(cssSource, /@media \(max-width: 640px\) \{[\s\S]*?\.topbar-platform-switch a\s*\{[\s\S]*?justify-content:\s*center/);
+});
+
 test("topbar help icon opens a real help and feedback panel", () => {
   const source = readFileSync(
     path.join(process.cwd(), "src/components/workspace-shell.tsx"),

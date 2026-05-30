@@ -3138,6 +3138,22 @@ a:hover {
   font-size: 15px;
 }
 
+.topbar-platform-switch {
+  flex-shrink: 0;
+  align-items: center;
+  gap: 2px;
+}
+
+.topbar-platform-switch a {
+  display: inline-flex;
+  min-width: max-content;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+  white-space: nowrap;
+  writing-mode: horizontal-tb;
+}
+
 .topbar-divider {
   width: 1px;
   height: 28px;
@@ -3320,7 +3336,35 @@ a:hover {
 
 @media (max-width: 640px) {
   .topbar-enhanced {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: start;
+    gap: 10px;
     padding: 10px 12px;
+  }
+
+  .topbar-left {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .topbar-platform-switch {
+    width: 100%;
+    max-width: 100%;
+    flex-basis: 100%;
+    justify-content: stretch;
+  }
+
+  .topbar-platform-switch a {
+    min-width: 0;
+    flex: 1 1 0;
+    justify-content: center;
+    padding: 7px 8px;
+    font-size: 12px;
+  }
+
+  .topbar-divider {
+    display: none;
   }
 
   .topbar-action-primary {

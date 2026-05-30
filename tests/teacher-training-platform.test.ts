@@ -295,6 +295,47 @@ test("teacher training teacher-facing forms keep visible field labels on mobile"
   }
 });
 
+test("teacher training manager forms keep visible field labels on mobile", () => {
+  const tabSource = read("src/components/tabs/teacher-training-tab.tsx");
+
+  for (const label of [
+    "选择省培班次",
+    "培训名称",
+    "培训地点",
+    "培训开始日期",
+    "培训结束日期",
+    "培训说明",
+    "参训教师姓名",
+    "参训教师单位",
+    "参训教师手机",
+    "参训教师分组",
+    "省培登录账号",
+    "省培初始密码",
+    "参训教师预录扩展信息",
+    "参训教师备注",
+    "选择班主任账号",
+    "班主任职务",
+    "课程名称",
+    "课程日期",
+    "课程开始时间",
+    "课程结束时间",
+    "课程地点",
+    "授课教师",
+    "课程说明",
+    "签到标题",
+    "绑定课程",
+    "签到日期",
+    "签到开始时间",
+    "签到结束时间",
+    "签到地点",
+    "签到地点纬度",
+    "签到地点经度",
+    "有效签到范围米数",
+  ]) {
+    assert.match(tabSource, new RegExp(`<span className=\\{teacherTrainingFieldLabelClassName\\}>${label}<\\/span>`));
+  }
+});
+
 test("teacher training leave approval panel keeps desktop review cards readable", () => {
   const tabSource = read("src/components/tabs/teacher-training-tab.tsx");
 
