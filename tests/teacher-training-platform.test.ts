@@ -311,8 +311,12 @@ test("teacher training teacher-facing forms keep visible field labels on mobile"
   assert.match(tabSource, /填写后保存汇报/);
   assert.match(tabSource, /teacherTrainingDisabledHintClassName/);
   assert.match(tabSource, /getTeacherTrainingParticipantDisabledReason/);
+  assert.match(tabSource, /getTeacherTrainingLeaveDisabledReason/);
   assert.match(tabSource, /getTeacherTrainingSubmissionDisabledReason/);
+  assert.match(tabSource, /管理员尚未配置请假审批流程，请联系班主任或管理员/);
+  assert.match(tabSource, /请填写请假原因后再提交/);
   assert.match(tabSource, /暂无省培任务，请等待管理员发布任务/);
+  assert.match(tabSource, /请填写汇报内容后再保存/);
   assert.match(tabSource, /leaveDisabledReason \? \(/);
   assert.match(tabSource, /profileDisabledReason \? \(/);
   assert.match(tabSource, /submissionDisabledReason \? \(/);

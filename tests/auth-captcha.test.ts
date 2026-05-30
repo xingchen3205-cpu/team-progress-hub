@@ -57,7 +57,8 @@ test("login screen keeps desktop captcha but hides and skips it on mobile web", 
   );
 
   assert.match(source, /isMobileLoginViewport/);
-  assert.match(source, /const captchaRequired = !isMobileLoginViewport/);
+  assert.match(source, /hasHydratedLoginViewport/);
+  assert.match(source, /const captchaRequired = !hasHydratedLoginViewport \|\| !isMobileLoginViewport/);
   assert.match(source, /hidden gap-3 sm:grid/);
   assert.match(source, /captchaVersion/);
   assert.match(source, /\/api\/auth\/captcha\?v=/);

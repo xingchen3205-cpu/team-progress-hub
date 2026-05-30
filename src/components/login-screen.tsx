@@ -74,9 +74,6 @@ const modeCopy: Record<FormMode, { title: string; subtitle: string; lead: string
   },
 };
 
-const getInitialMobileLoginViewport = () =>
-  typeof window !== "undefined" && window.matchMedia("(max-width: 639px)").matches;
-
 const waitForNextPaint = () =>
   new Promise<void>((resolve) => {
     if (typeof window === "undefined") {
@@ -97,7 +94,8 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
   const [resetValues, setResetValues] = useState(initialResetValues);
   const [sessionCheckPending, setSessionCheckPending] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [isMobileLoginViewport, setIsMobileLoginViewport] = useState(getInitialMobileLoginViewport);
+  const [hasHydratedLoginViewport, setHasHydratedLoginViewport] = useState(false);
+  const [isMobileLoginViewport, setIsMobileLoginViewport] = useState(false);
   const [captchaVersion, setCaptchaVersion] = useState(() => Date.now());
   const [captchaError, setCaptchaError] = useState(false);
   const [loginErrors, setLoginErrors] = useState<{
@@ -133,7 +131,7 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
   const [isSendingRegisterEmailCode, setIsSendingRegisterEmailCode] = useState(false);
 
   const isStudentRegisterRole = registerValues.role === "项目负责人" || registerValues.role === "团队成员";
-  const captchaRequired = !isMobileLoginViewport;
+  const captchaRequired = !hasHydratedLoginViewport || !isMobileLoginViewport;
 
   useEffect(() => {
     router.prefetch("/workspace");
@@ -164,6 +162,7 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
     const mediaQuery = window.matchMedia("(max-width: 639px)");
     const syncMobileViewport = () => {
       setIsMobileLoginViewport(mediaQuery.matches);
+      setHasHydratedLoginViewport(true);
     };
 
     syncMobileViewport();

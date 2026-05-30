@@ -138,12 +138,36 @@ const getTeacherTrainingCheckInDisabledReason = (windowState: CheckInWindowState
   return Workspace.teacherTrainingCheckInWindowMessages[windowState];
 };
 
-const getTeacherTrainingSubmissionDisabledReason = (hasTask: boolean, hasParticipant: boolean, canManage = false) => {
+const getTeacherTrainingLeaveDisabledReason = (
+  hasParticipant: boolean,
+  leaveFlow: Workspace.TeacherTrainingLeaveFlowItem | null | undefined,
+  reason: string,
+  canManage = false,
+) => {
+  const participantReason = getTeacherTrainingParticipantDisabledReason(hasParticipant, canManage);
+  if (participantReason) return participantReason;
+
+  if (!leaveFlow?.isEnabled || leaveFlow.approvalSteps.length === 0) {
+    return "管理员尚未配置请假审批流程，请联系班主任或管理员";
+  }
+
+  if (!reason.trim()) {
+    return "请填写请假原因后再提交";
+  }
+
+  return "";
+};
+
+const getTeacherTrainingSubmissionDisabledReason = (hasTask: boolean, hasParticipant: boolean, content: string, canManage = false) => {
   const participantReason = getTeacherTrainingParticipantDisabledReason(hasParticipant, canManage);
   if (participantReason) return participantReason;
 
   if (!hasTask) {
     return "暂无省培任务，请等待管理员发布任务";
+  }
+
+  if (!content.trim()) {
+    return "请填写汇报内容后再保存";
   }
 
   return "";
@@ -294,9 +318,19 @@ export default function TeacherTrainingTab() {
     : "";
   const canManage = canManageTeacherTraining;
   const canManageGlobal = hasGlobalAdminRole;
-  const leaveDisabledReason = getTeacherTrainingParticipantDisabledReason(hasSelectedParticipant, canManage);
+  const leaveDisabledReason = getTeacherTrainingLeaveDisabledReason(
+    hasSelectedParticipant,
+    selectedCohort?.leaveFlow,
+    leaveDraft.reason,
+    canManage,
+  );
   const profileDisabledReason = getTeacherTrainingParticipantDisabledReason(Boolean(effectiveProfileDraft.participantId));
-  const submissionDisabledReason = getTeacherTrainingSubmissionDisabledReason(Boolean(selectedTask), hasSelectedParticipant, canManage);
+  const submissionDisabledReason = getTeacherTrainingSubmissionDisabledReason(
+    Boolean(selectedTask),
+    hasSelectedParticipant,
+    submissionDraft.content,
+    canManage,
+  );
   const defaultLeaveFlowSteps = useMemo<Workspace.TeacherTrainingLeaveFlowStep[]>(
     () =>
       [

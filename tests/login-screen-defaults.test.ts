@@ -103,14 +103,15 @@ describe("login screen defaults", () => {
 
   it("removes captcha login from mobile web while keeping it on desktop", () => {
     assert.match(loginScreenSource, /isMobileLoginViewport/);
-    assert.match(loginScreenSource, /const captchaRequired = !isMobileLoginViewport/);
+    assert.match(loginScreenSource, /hasHydratedLoginViewport/);
+    assert.match(loginScreenSource, /const captchaRequired = !hasHydratedLoginViewport \|\| !isMobileLoginViewport/);
     assert.match(loginScreenSource, /hidden gap-3 sm:grid/);
     assert.match(loginScreenSource, /captchaRequired \? "请输入验证码" : undefined/);
     assert.match(loginScreenSource, /captchaRequired && loginErrors\.captcha/);
   });
 
   it("shows mobile login submitting feedback before waiting on the network request", () => {
-    assert.match(loginScreenSource, /getInitialMobileLoginViewport/);
+    assert.match(loginScreenSource, /setHasHydratedLoginViewport\(true\)/);
     assert.match(loginScreenSource, /window\.requestAnimationFrame/);
     assert.match(loginScreenSource, /setIsSubmitting\(true\)[\s\S]*await waitForNextPaint\(\)/);
     assert.match(loginScreenSource, /正在登录\.\.\./);
