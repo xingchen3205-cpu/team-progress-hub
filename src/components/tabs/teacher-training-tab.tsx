@@ -70,6 +70,10 @@ const fieldHint = (label: string) => ({
   title: label,
 });
 
+const teacherTrainingFieldShellClassName = "block min-w-0";
+const teacherTrainingFieldShellWideClassName = `${teacherTrainingFieldShellClassName} sm:col-span-2`;
+const teacherTrainingFieldLabelClassName = "block text-xs font-semibold leading-5 text-slate-600";
+
 const teacherTrainingActionHints: Partial<Record<Workspace.TeacherTrainingSectionKey, { title: string; steps: string[] }>> = {
   overview: {
     title: "省培操作提示",
@@ -1566,40 +1570,55 @@ export default function TeacherTrainingTab() {
                     <div className="rounded-xl border border-slate-200/75 bg-white/72 p-4">
                       <p className="text-sm font-semibold text-slate-900">提交请假</p>
                       <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                        <input
-                          className={fieldClassName}
-                          {...fieldHint("请假开始日期")}
-                          onChange={(event) => setLeaveDraft((current) => ({ ...current, startDate: event.target.value }))}
-                          type="date"
-                          value={leaveDraft.startDate}
-                        />
-                        <input
-                          className={fieldClassName}
-                          {...fieldHint("请假结束日期")}
-                          onChange={(event) => setLeaveDraft((current) => ({ ...current, endDate: event.target.value }))}
-                          type="date"
-                          value={leaveDraft.endDate}
-                        />
-                        <input
-                          className={fieldClassName}
-                          {...fieldHint("请假场次")}
-                          onChange={(event) => setLeaveDraft((current) => ({ ...current, sessionLabel: event.target.value }))}
-                          placeholder="请假场次"
-                          value={leaveDraft.sessionLabel}
-                        />
-                        <input
-                          className={fieldClassName}
-                          {...fieldHint("请假人")}
-                          disabled
-                          value={selectedParticipant?.name ?? "参训教师"}
-                        />
-                        <textarea
-                          className={`${textareaClassName} min-h-24 sm:col-span-2`}
-                          {...fieldHint("请假原因")}
-                          onChange={(event) => setLeaveDraft((current) => ({ ...current, reason: event.target.value }))}
-                          placeholder="请假原因"
-                          value={leaveDraft.reason}
-                        />
+                        <label className={teacherTrainingFieldShellClassName}>
+                          <span className={teacherTrainingFieldLabelClassName}>请假开始日期</span>
+                          <input
+                            className={fieldClassName}
+                            {...fieldHint("请假开始日期")}
+                            onChange={(event) => setLeaveDraft((current) => ({ ...current, startDate: event.target.value }))}
+                            type="date"
+                            value={leaveDraft.startDate}
+                          />
+                        </label>
+                        <label className={teacherTrainingFieldShellClassName}>
+                          <span className={teacherTrainingFieldLabelClassName}>请假结束日期</span>
+                          <input
+                            className={fieldClassName}
+                            {...fieldHint("请假结束日期")}
+                            onChange={(event) => setLeaveDraft((current) => ({ ...current, endDate: event.target.value }))}
+                            type="date"
+                            value={leaveDraft.endDate}
+                          />
+                        </label>
+                        <label className={teacherTrainingFieldShellClassName}>
+                          <span className={teacherTrainingFieldLabelClassName}>请假场次</span>
+                          <input
+                            className={fieldClassName}
+                            {...fieldHint("请假场次")}
+                            onChange={(event) => setLeaveDraft((current) => ({ ...current, sessionLabel: event.target.value }))}
+                            placeholder="请假场次"
+                            value={leaveDraft.sessionLabel}
+                          />
+                        </label>
+                        <label className={teacherTrainingFieldShellClassName}>
+                          <span className={teacherTrainingFieldLabelClassName}>请假人</span>
+                          <input
+                            className={fieldClassName}
+                            {...fieldHint("请假人")}
+                            disabled
+                            value={selectedParticipant?.name ?? "参训教师"}
+                          />
+                        </label>
+                        <label className={teacherTrainingFieldShellWideClassName}>
+                          <span className={teacherTrainingFieldLabelClassName}>请假原因</span>
+                          <textarea
+                            className={`${textareaClassName} min-h-24`}
+                            {...fieldHint("请假原因")}
+                            onChange={(event) => setLeaveDraft((current) => ({ ...current, reason: event.target.value }))}
+                            placeholder="请假原因"
+                            value={leaveDraft.reason}
+                          />
+                        </label>
                       </div>
                       <ActionButton
                         aria-label="提交省培请假申请"
@@ -1658,41 +1677,56 @@ export default function TeacherTrainingTab() {
                   <p className="text-sm font-semibold text-slate-900">个人信息</p>
                 </div>
                 <div className="mt-4 grid gap-3 md:grid-cols-2">
-                  <input
-                    className={fieldClassName}
-                    {...fieldHint("个人姓名")}
-                    onChange={(event) => updateProfileDraftField("name", event.target.value)}
-                    placeholder="姓名"
-                    value={effectiveProfileDraft.name}
-                  />
-                  <input
-                    className={fieldClassName}
-                    {...fieldHint("个人单位")}
-                    onChange={(event) => updateProfileDraftField("organization", event.target.value)}
-                    placeholder="单位"
-                    value={effectiveProfileDraft.organization}
-                  />
-                  <input
-                    className={fieldClassName}
-                    {...fieldHint("个人手机")}
-                    onChange={(event) => updateProfileDraftField("phone", event.target.value)}
-                    placeholder="手机"
-                    value={effectiveProfileDraft.phone}
-                  />
-                  <input
-                    className={fieldClassName}
-                    {...fieldHint("个人分组")}
-                    onChange={(event) => updateProfileDraftField("groupName", event.target.value)}
-                    placeholder="分组"
-                    value={effectiveProfileDraft.groupName}
-                  />
-                  <textarea
-                    className={`${textareaClassName} min-h-20 md:col-span-2`}
-                    {...fieldHint("个人备注或培训需求")}
-                    onChange={(event) => updateProfileDraftField("note", event.target.value)}
-                    placeholder="个人备注或培训需求"
-                    value={effectiveProfileDraft.note}
-                  />
+                  <label className={teacherTrainingFieldShellClassName}>
+                    <span className={teacherTrainingFieldLabelClassName}>个人姓名</span>
+                    <input
+                      className={fieldClassName}
+                      {...fieldHint("个人姓名")}
+                      onChange={(event) => updateProfileDraftField("name", event.target.value)}
+                      placeholder="姓名"
+                      value={effectiveProfileDraft.name}
+                    />
+                  </label>
+                  <label className={teacherTrainingFieldShellClassName}>
+                    <span className={teacherTrainingFieldLabelClassName}>个人单位</span>
+                    <input
+                      className={fieldClassName}
+                      {...fieldHint("个人单位")}
+                      onChange={(event) => updateProfileDraftField("organization", event.target.value)}
+                      placeholder="单位"
+                      value={effectiveProfileDraft.organization}
+                    />
+                  </label>
+                  <label className={teacherTrainingFieldShellClassName}>
+                    <span className={teacherTrainingFieldLabelClassName}>个人手机</span>
+                    <input
+                      className={fieldClassName}
+                      {...fieldHint("个人手机")}
+                      onChange={(event) => updateProfileDraftField("phone", event.target.value)}
+                      placeholder="手机"
+                      value={effectiveProfileDraft.phone}
+                    />
+                  </label>
+                  <label className={teacherTrainingFieldShellClassName}>
+                    <span className={teacherTrainingFieldLabelClassName}>个人分组</span>
+                    <input
+                      className={fieldClassName}
+                      {...fieldHint("个人分组")}
+                      onChange={(event) => updateProfileDraftField("groupName", event.target.value)}
+                      placeholder="分组"
+                      value={effectiveProfileDraft.groupName}
+                    />
+                  </label>
+                  <label className={`${teacherTrainingFieldShellClassName} md:col-span-2`}>
+                    <span className={teacherTrainingFieldLabelClassName}>个人备注或培训需求</span>
+                    <textarea
+                      className={`${textareaClassName} min-h-20`}
+                      {...fieldHint("个人备注或培训需求")}
+                      onChange={(event) => updateProfileDraftField("note", event.target.value)}
+                      placeholder="个人备注或培训需求"
+                      value={effectiveProfileDraft.note}
+                    />
+                  </label>
                 </div>
                 <div className="mt-4">
                   <ActionButton
@@ -1960,46 +1994,58 @@ export default function TeacherTrainingTab() {
                     <p className="text-sm font-semibold text-slate-900">登记汇报</p>
                   </div>
                   <div className="mt-4 space-y-3">
-                    <select
-                      className={fieldClassName}
-                      {...fieldHint("选择省培汇报任务")}
-                      onChange={(event) => setSubmissionDraft((current) => ({ ...current, taskId: event.target.value }))}
-                      value={selectedTask?.id ?? ""}
-                    >
-                      {selectedCohort.tasks.length === 0 ? <option value="">暂无任务</option> : null}
-                      {selectedCohort.tasks.map((task) => (
-                        <option key={task.id} value={task.id}>
-                          {task.title}
-                        </option>
-                      ))}
-                    </select>
-                    <select
-                      className={fieldClassName}
-                      {...fieldHint("选择省培汇报教师")}
-                      onChange={(event) => setSubmissionDraft((current) => ({ ...current, participantId: event.target.value }))}
-                      value={selectedParticipant?.id ?? ""}
-                    >
-                      {selectedCohort.participants.length === 0 ? <option value="">暂无参训教师</option> : null}
-                      {selectedCohort.participants.map((participant) => (
-                        <option key={participant.id} value={participant.id}>
-                          {participant.name} · {participant.organization}
-                        </option>
-                      ))}
-                    </select>
-                    <textarea
-                      className={textareaClassName}
-                      {...fieldHint("省培任务汇报内容")}
-                      onChange={(event) => setSubmissionDraft((current) => ({ ...current, content: event.target.value }))}
-                      placeholder="汇报内容"
-                      value={submissionDraft.content}
-                    />
-                    <input
-                      className={fieldClassName}
-                      {...fieldHint("省培任务汇报附件说明或链接")}
-                      onChange={(event) => setSubmissionDraft((current) => ({ ...current, attachment: event.target.value }))}
-                      placeholder="附件说明或链接"
-                      value={submissionDraft.attachment}
-                    />
+                    <label className={teacherTrainingFieldShellClassName}>
+                      <span className={teacherTrainingFieldLabelClassName}>选择省培汇报任务</span>
+                      <select
+                        className={fieldClassName}
+                        {...fieldHint("选择省培汇报任务")}
+                        onChange={(event) => setSubmissionDraft((current) => ({ ...current, taskId: event.target.value }))}
+                        value={selectedTask?.id ?? ""}
+                      >
+                        {selectedCohort.tasks.length === 0 ? <option value="">暂无任务</option> : null}
+                        {selectedCohort.tasks.map((task) => (
+                          <option key={task.id} value={task.id}>
+                            {task.title}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className={teacherTrainingFieldShellClassName}>
+                      <span className={teacherTrainingFieldLabelClassName}>选择省培汇报教师</span>
+                      <select
+                        className={fieldClassName}
+                        {...fieldHint("选择省培汇报教师")}
+                        onChange={(event) => setSubmissionDraft((current) => ({ ...current, participantId: event.target.value }))}
+                        value={selectedParticipant?.id ?? ""}
+                      >
+                        {selectedCohort.participants.length === 0 ? <option value="">暂无参训教师</option> : null}
+                        {selectedCohort.participants.map((participant) => (
+                          <option key={participant.id} value={participant.id}>
+                            {participant.name} · {participant.organization}
+                          </option>
+                        ))}
+                      </select>
+                    </label>
+                    <label className={teacherTrainingFieldShellClassName}>
+                      <span className={teacherTrainingFieldLabelClassName}>省培任务汇报内容</span>
+                      <textarea
+                        className={textareaClassName}
+                        {...fieldHint("省培任务汇报内容")}
+                        onChange={(event) => setSubmissionDraft((current) => ({ ...current, content: event.target.value }))}
+                        placeholder="汇报内容"
+                        value={submissionDraft.content}
+                      />
+                    </label>
+                    <label className={teacherTrainingFieldShellClassName}>
+                      <span className={teacherTrainingFieldLabelClassName}>附件说明或链接</span>
+                      <input
+                        className={fieldClassName}
+                        {...fieldHint("省培任务汇报附件说明或链接")}
+                        onChange={(event) => setSubmissionDraft((current) => ({ ...current, attachment: event.target.value }))}
+                        placeholder="附件说明或链接"
+                        value={submissionDraft.attachment}
+                      />
+                    </label>
                     <ActionButton
                       aria-label="保存省培任务汇报"
                       disabled={!selectedTask || !selectedParticipant}

@@ -270,6 +270,31 @@ test("teacher training form controls expose stable field hints after mobile inpu
   assert.match(tabSource, /\.\.\.fieldHint\("省培任务汇报内容"\)/);
 });
 
+test("teacher training teacher-facing forms keep visible field labels on mobile", () => {
+  const tabSource = read("src/components/tabs/teacher-training-tab.tsx");
+
+  assert.match(tabSource, /teacherTrainingFieldShellClassName/);
+  assert.match(tabSource, /teacherTrainingFieldLabelClassName/);
+  for (const label of [
+    "请假开始日期",
+    "请假结束日期",
+    "请假场次",
+    "请假人",
+    "请假原因",
+    "个人姓名",
+    "个人单位",
+    "个人手机",
+    "个人分组",
+    "个人备注或培训需求",
+    "选择省培汇报任务",
+    "选择省培汇报教师",
+    "省培任务汇报内容",
+    "附件说明或链接",
+  ]) {
+    assert.match(tabSource, new RegExp(`<span className=\\{teacherTrainingFieldLabelClassName\\}>${label}<\\/span>`));
+  }
+});
+
 test("teacher training leave approval panel keeps desktop review cards readable", () => {
   const tabSource = read("src/components/tabs/teacher-training-tab.tsx");
 
