@@ -75,6 +75,22 @@ const teacherTrainingFieldShellWideClassName = `${teacherTrainingFieldShellClass
 const teacherTrainingFieldLabelClassName = "block text-xs font-semibold leading-5 text-slate-600";
 const teacherTrainingDisabledHintClassName =
   "rounded-xl border border-amber-100 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-700";
+const teacherMobileNavigationKeys: Workspace.TeacherTrainingSectionKey[] = [
+  "overview",
+  "courses",
+  "checkins",
+  "tasks",
+  "leave",
+  "profile",
+];
+const teacherMobileSectionLabels: Partial<Record<Workspace.TeacherTrainingSectionKey, string>> = {
+  overview: "工作台",
+  courses: "课程",
+  checkins: "签到",
+  tasks: "汇报",
+  leave: "请假",
+  profile: "信息",
+};
 
 const teacherTrainingActionHints: Partial<Record<Workspace.TeacherTrainingSectionKey, { title: string; steps: string[] }>> = {
   overview: {
@@ -600,6 +616,9 @@ export default function TeacherTrainingTab() {
   };
   const activeTeacherTrainingActionHint =
     !canManage && effectiveTeacherTrainingSection === "tasks" ? teacherTaskActionHint : baseTeacherTrainingActionHint;
+  const teacherMobileNavigationSections = visibleTeacherTrainingSections.filter((section) =>
+    teacherMobileNavigationKeys.includes(section.key),
+  );
   const openTeacherTrainingSection = (key: Workspace.TeacherTrainingSectionKey) => {
     setActiveTeacherTrainingSection(key);
 
@@ -708,6 +727,61 @@ export default function TeacherTrainingTab() {
               ))}
             </div>
           </section>
+
+          {!canManage && teacherMobileNavigationSections.length > 1 ? (
+            <nav
+              aria-label="老师端省培快捷导航"
+              className="teacher-training-teacher-mobile-nav sticky top-2 z-20 -mx-1 rounded-2xl border border-blue-100 bg-white/92 p-2 shadow-[0_14px_34px_rgba(26,111,212,0.12)] backdrop-blur sm:hidden"
+            >
+              <div className="overflow-x-auto">
+                <div className="flex min-w-max gap-2">
+                  {teacherMobileNavigationSections.map((section) => {
+                    const isActive = section.key === effectiveTeacherTrainingSection;
+                    const Icon = section.Icon;
+
+                    return (
+                      <button
+                        key={section.key}
+                        aria-label={`进入省培模块：${section.label}`}
+                        aria-pressed={isActive}
+                        className={`inline-flex h-10 items-center gap-1.5 rounded-xl px-3 text-xs font-bold transition duration-200 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200/70 ${
+                          isActive
+                            ? "bg-blue-600 text-white shadow-lg shadow-blue-600/18"
+                            : "bg-slate-50 text-slate-600 hover:bg-blue-50 hover:text-blue-700"
+                        }`}
+                        onClick={() => openTeacherTrainingSection(section.key)}
+                        title={`进入省培模块：${section.label}`}
+                        type="button"
+                      >
+                        <Icon className="h-3.5 w-3.5" />
+                        <span>{teacherMobileSectionLabels[section.key] ?? section.label}</span>
+                        {typeof section.count === "number" && section.count > 0 ? (
+                          <span
+                            className={`rounded-full px-1.5 py-0.5 text-[10px] ${
+                              isActive ? "bg-white/18 text-white" : "bg-white text-blue-700"
+                            }`}
+                          >
+                            {section.count}
+                          </span>
+                        ) : null}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              {effectiveTeacherTrainingSection !== "overview" ? (
+                <button
+                  aria-label="返回省培工作台"
+                  className="mt-2 inline-flex h-9 w-full items-center justify-center rounded-xl border border-blue-100 bg-blue-50 text-xs font-bold text-blue-700 transition hover:bg-blue-100 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200/70"
+                  onClick={() => openTeacherTrainingSection("overview")}
+                  title="返回省培工作台"
+                  type="button"
+                >
+                  返回工作台
+                </button>
+              ) : null}
+            </nav>
+          ) : null}
 
           {!canManage && showTeacherTrainingSection("overview") ? (
             <section
