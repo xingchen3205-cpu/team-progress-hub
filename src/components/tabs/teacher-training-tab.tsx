@@ -335,6 +335,15 @@ export default function TeacherTrainingTab() {
     : "";
   const canManage = canManageTeacherTraining;
   const canManageGlobal = hasGlobalAdminRole;
+  const teacherSubmittedTaskIds = new Set(
+    (selectedCohort?.tasks ?? [])
+      .filter((task) => task.submissions.some((submission) => submission.participantId === selectedParticipant?.id))
+      .map((task) => task.id),
+  );
+  const teacherPendingTaskCount =
+    !canManage && selectedCohort
+      ? selectedCohort.tasks.filter((task) => !teacherSubmittedTaskIds.has(task.id)).length
+      : 0;
   const leaveDisabledReason = getTeacherTrainingLeaveDisabledReason(
     hasSelectedParticipant,
     selectedCohort?.leaveFlow,
@@ -619,11 +628,31 @@ export default function TeacherTrainingTab() {
   const teacherMobileNavigationSections = visibleTeacherTrainingSections.filter((section) =>
     teacherMobileNavigationKeys.includes(section.key),
   );
+  const teacherTaskQuickActionHelper =
+    selectedCohort?.tasks.length
+      ? teacherPendingTaskCount > 0
+        ? `待提交 ${teacherPendingTaskCount} 项`
+        : "已完成全部汇报"
+      : "暂无汇报任务";
   const openTeacherTrainingSection = (key: Workspace.TeacherTrainingSectionKey) => {
     setActiveTeacherTrainingSection(key);
 
     window.requestAnimationFrame(() => {
       document.getElementById("teacher-training-content")?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    });
+  };
+  const focusTeacherTaskSubmission = (taskId: string) => {
+    setSubmissionDraft((current) => ({
+      ...current,
+      taskId,
+      participantId: selectedParticipant?.id ?? current.participantId,
+    }));
+
+    window.requestAnimationFrame(() => {
+      document.getElementById("teacher-training-submission-form")?.scrollIntoView({
         behavior: "smooth",
         block: "start",
       });
@@ -647,7 +676,7 @@ export default function TeacherTrainingTab() {
     {
       label: "任务汇报",
       value: selectedCohort?.tasks.length ?? 0,
-      helper: selectedCohort?.tasks.length ? "填写并保存汇报" : "暂无汇报任务",
+      helper: canManage ? "查看提交进度" : teacherTaskQuickActionHelper,
       Icon: Send,
       onClick: () => openTeacherTrainingSection("tasks"),
     },
@@ -2372,7 +2401,7 @@ export default function TeacherTrainingTab() {
                 </div>
                 ) : null}
 
-                <div className={surfaceCardClassName}>
+                <div className={surfaceCardClassName} id="teacher-training-submission-form">
                   <div className="flex items-center gap-2">
                     <Send className="h-4 w-4 text-[#1a6fd4]" />
                     <p className="text-sm font-semibold text-slate-900">登记汇报</p>
@@ -2483,17 +2512,52 @@ export default function TeacherTrainingTab() {
                       title="暂无任务"
                     />
                   ) : (
-                    selectedCohort.tasks.map((task) => (
+                    selectedCohort.tasks.map((task) => {
+                      const teacherSubmission = task.submissions.find(
+                        (submission) => submission.participantId === selectedParticipant?.id,
+                      );
+
+                      return (
                       <div key={task.id} className="rounded-xl border border-slate-200/75 bg-white/72 p-4">
                         <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                           <div>
                             <p className="font-semibold text-slate-950">{task.title}</p>
                             <p className="mt-1 text-sm leading-6 text-slate-500">{task.description}</p>
                           </div>
-                          <span className="shrink-0 rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
-                            {task.submissions.length}/{selectedCohort.participants.length} 份
+                          <span
+                            className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold ${
+                              canManage || teacherSubmission
+                                ? "bg-blue-50 text-blue-700"
+                                : "bg-amber-50 text-amber-700"
+                            }`}
+                          >
+                            {canManage
+                              ? `${task.submissions.length}/${selectedCohort.participants.length} 份`
+                              : teacherSubmission
+                                ? "已提交"
+                                : "待提交"}
                           </span>
                         </div>
+                        {!canManage ? (
+                          <div className="mt-3 rounded-xl border border-blue-100 bg-blue-50/60 px-3 py-2">
+                            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                              <p className="text-xs leading-5 text-slate-600">
+                                {teacherSubmission
+                                  ? `已提交：${teacherSubmission.submittedAt}`
+                                  : "这项任务还没有提交，请填写汇报后保存。"}
+                              </p>
+                              <button
+                                aria-label={`${teacherSubmission ? "更新" : "继续填写"}${task.title}省培任务汇报`}
+                                className="inline-flex h-8 w-full items-center justify-center rounded-lg bg-white px-3 text-xs font-bold text-blue-700 shadow-sm transition hover:bg-blue-100 sm:w-auto"
+                                onClick={() => focusTeacherTaskSubmission(task.id)}
+                                title={`${teacherSubmission ? "更新" : "继续填写"}${task.title}省培任务汇报`}
+                                type="button"
+                              >
+                                {teacherSubmission ? "更新汇报" : "继续填写汇报"}
+                              </button>
+                            </div>
+                          </div>
+                        ) : null}
                         {task.submissions.length > 0 ? (
                           <div className="mt-3 grid gap-2">
                             {task.submissions.slice(0, 3).map((submission) => (
@@ -2506,7 +2570,8 @@ export default function TeacherTrainingTab() {
                           </div>
                         ) : null}
                       </div>
-                    ))
+                      );
+                    })
                   )}
                 </div>
               </section>
