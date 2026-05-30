@@ -1025,6 +1025,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                   <>
                     <button
                       className="topbar-action-primary"
+                      aria-label="发布全校公告"
                       onClick={() => setAnnouncementModalOpen(true)}
                       title="发布全校公告"
                       type="button"
@@ -1039,6 +1040,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
 
                 <button
                   className="topbar-icon-btn"
+                  aria-label="打开待办与未读提醒"
                   onClick={() => setNotificationsOpen(true)}
                   title="待办与未读提醒"
                   type="button"
@@ -1052,6 +1054,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                 </button>
                 <button
                   className="topbar-icon-btn"
+                  aria-label="打开帮助与反馈"
                   onClick={() => setTopbarHelpOpen(true)}
                   title="帮助与反馈"
                   type="button"

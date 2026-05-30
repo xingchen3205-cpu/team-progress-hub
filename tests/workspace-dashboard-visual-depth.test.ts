@@ -238,6 +238,9 @@ test("workspace global clickable controls expose explicit action hints", () => {
   assert.match(source, /title="查看个人信息"/);
   assert.match(source, /aria-label="退出登录"/);
   assert.match(source, /title="退出登录"/);
+  assert.match(source, /aria-label="发布全校公告"/);
+  assert.match(source, /aria-label="打开待办与未读提醒"/);
+  assert.match(source, /aria-label="打开帮助与反馈"/);
 });
 
 test("mobile sidebar close control explains whether it closes province training navigation", () => {
