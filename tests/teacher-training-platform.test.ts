@@ -326,8 +326,14 @@ test("teacher training teacher-facing forms keep visible field labels on mobile"
   assert.match(tabSource, /teacherCheckInQuickActionHelper/);
   assert.match(tabSource, /teacherProfileNeedsAttention/);
   assert.match(tabSource, /teacherMobilePriorityItems/);
+  assert.match(tabSource, /teacherCourseTimeline/);
+  assert.match(tabSource, /teacherNextCourse/);
   assert.match(tabSource, /aria-label="省培今日待办"/);
+  assert.match(tabSource, /aria-label="省培下一节课"/);
   assert.match(tabSource, /今日待办/);
+  assert.match(tabSource, /下一节课/);
+  assert.match(tabSource, /按时间顺序查看全部课程/);
+  assert.match(tabSource, /后续课程待发布/);
   assert.match(tabSource, /待完成签到/);
   assert.match(tabSource, /待提交汇报/);
   assert.match(tabSource, /完善个人信息/);

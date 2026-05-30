@@ -14,6 +14,12 @@ const getDateInputValue = (date: Date) => {
   return `${year}-${month}-${day}`;
 };
 
+const getTimeInputValue = (date: Date) => {
+  const hours = `${date.getHours()}`.padStart(2, "0");
+  const minutes = `${date.getMinutes()}`.padStart(2, "0");
+  return `${hours}:${minutes}`;
+};
+
 const getDefaultEndDate = () => {
   const date = new Date();
   date.setDate(date.getDate() + 7);
@@ -319,6 +325,21 @@ export default function TeacherTrainingTab() {
     null;
   const hasSelectedParticipant = Boolean(selectedParticipant);
   const courseSessions = selectedCohort?.courseSessions ?? [];
+  const checkInNow = useMemo(() => new Date(checkInClock), [checkInClock]);
+  const currentCourseDateKey = getDateInputValue(checkInNow);
+  const currentCourseTimeKey = getTimeInputValue(checkInNow);
+  const teacherCourseTimeline = [...courseSessions].sort((first, second) =>
+    `${first.courseDate} ${first.startTime || "00:00"}`.localeCompare(
+      `${second.courseDate} ${second.startTime || "00:00"}`,
+    ),
+  );
+  const teacherNextCourse =
+    teacherCourseTimeline.find((course) => {
+      if (course.courseDate > currentCourseDateKey) return true;
+      if (course.courseDate < currentCourseDateKey) return false;
+
+      return (course.endTime || course.startTime || "23:59") >= currentCourseTimeKey;
+    }) ?? null;
   const effectiveProfileDraft =
     selectedParticipant && profileDraft.participantId !== selectedParticipant.id
       ? {
@@ -768,7 +789,6 @@ export default function TeacherTrainingTab() {
   const ActiveTeacherTrainingIcon = activeTeacherTrainingSectionMeta?.Icon ?? ClipboardCheck;
   const showTeacherTrainingSection = (...keys: Workspace.TeacherTrainingSectionKey[]) =>
     keys.includes(effectiveTeacherTrainingSection);
-  const checkInNow = useMemo(() => new Date(checkInClock), [checkInClock]);
   const getCheckInProgress = (task: Workspace.TeacherTrainingCheckInTaskItem) => {
     const total = selectedCohort?.participants.length ?? 0;
     const signed = task.records.length;
@@ -946,6 +966,42 @@ export default function TeacherTrainingTab() {
                       </span>
                     </button>
                   ))}
+                </div>
+              </div>
+              <div
+                aria-label="省培下一节课"
+                className="mt-3 rounded-2xl border border-slate-200/80 bg-white/86 p-3 shadow-sm"
+              >
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0">
+                    <p className="text-xs font-bold text-blue-700">下一节课</p>
+                    {teacherNextCourse ? (
+                      <>
+                        <p className="mt-1 truncate text-base font-black text-slate-950">{teacherNextCourse.title}</p>
+                        <p className="mt-1 text-xs leading-5 text-slate-500">
+                          {[
+                            teacherNextCourse.courseDate,
+                            [teacherNextCourse.startTime, teacherNextCourse.endTime].filter(Boolean).join("-"),
+                            teacherNextCourse.location,
+                            teacherNextCourse.instructor,
+                          ]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </p>
+                      </>
+                    ) : (
+                      <p className="mt-1 text-sm font-semibold text-slate-500">后续课程待发布</p>
+                    )}
+                  </div>
+                  <button
+                    aria-label="按时间顺序查看全部课程"
+                    className="inline-flex h-9 shrink-0 items-center justify-center rounded-xl bg-blue-50 px-3 text-xs font-bold text-blue-700 transition hover:bg-blue-100 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200/70"
+                    onClick={() => openTeacherTrainingSection("courses")}
+                    title="按时间顺序查看全部课程"
+                    type="button"
+                  >
+                    按时间顺序查看全部课程
+                  </button>
                 </div>
               </div>
               <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
@@ -1547,30 +1603,48 @@ export default function TeacherTrainingTab() {
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <p className="text-sm font-semibold text-slate-900">课程安排</p>
-                    <p className="mt-1 text-xs leading-5 text-slate-500">查看本次省培的课程、地点和时间。</p>
+                    <p className="mt-1 text-xs leading-5 text-slate-500">按时间顺序查看全部课程、地点和授课教师。</p>
                   </div>
                   <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
                     {courseSessions.length} 节
                   </span>
                 </div>
-                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                <div className="mt-4 grid gap-3">
                   {courseSessions.length === 0 ? (
                     <EmptyState description="管理员发布课程后，这里会显示你的课程安排。" icon={CalendarDays} title="暂无课程安排" />
                   ) : (
-                    courseSessions.map((course) => (
-                      <article key={course.id} className="rounded-xl border border-slate-200/75 bg-white/72 p-4">
-                        <p className="text-xs font-semibold text-[#1a6fd4]">
-                          {course.courseDate}
-                          {course.startTime ? ` ${course.startTime}` : ""}
-                          {course.endTime ? `-${course.endTime}` : ""}
-                        </p>
-                        <p className="mt-2 font-semibold text-slate-950">{course.title}</p>
-                        <p className="mt-1 text-sm text-slate-500">
-                          {[course.location, course.instructor].filter(Boolean).join(" · ") || "课程信息待补充"}
-                        </p>
-                        {course.description ? (
-                          <p className="mt-3 text-sm leading-6 text-slate-500">{course.description}</p>
-                        ) : null}
+                    teacherCourseTimeline.map((course, index) => (
+                      <article
+                        key={course.id}
+                        className="grid gap-3 rounded-2xl border border-slate-200/75 bg-white/78 p-4 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-lg hover:shadow-blue-950/8 sm:grid-cols-[88px_minmax(0,1fr)]"
+                      >
+                        <div className="flex items-center gap-2 sm:block">
+                          <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-xs font-black text-blue-700">
+                            {index + 1}
+                          </span>
+                          <div className="min-w-0 sm:mt-2">
+                            <p className="truncate text-xs font-bold text-[#1a6fd4]">{course.courseDate}</p>
+                            <p className="mt-0.5 text-xs text-slate-500">
+                              {[course.startTime, course.endTime].filter(Boolean).join("-") || "时间待补充"}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="font-semibold text-slate-950">{course.title}</p>
+                            {teacherNextCourse?.id === course.id ? (
+                              <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-bold text-emerald-700">
+                                下一节课
+                              </span>
+                            ) : null}
+                          </div>
+                          <p className="mt-1 text-sm text-slate-500">
+                            {[course.location, course.instructor].filter(Boolean).join(" · ") || "课程信息待补充"}
+                          </p>
+                          {course.description ? (
+                            <p className="mt-3 text-sm leading-6 text-slate-500">{course.description}</p>
+                          ) : null}
+                        </div>
                       </article>
                     ))
                   )}
