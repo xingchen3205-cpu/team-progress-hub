@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { useParams } from "next/navigation";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { useParams, useRouter, useSearchParams } from "next/navigation";
 import { CheckCircle2, Clock3, ShieldCheck, Shuffle } from "lucide-react";
 
 type TeamDrawState = {
@@ -41,29 +41,49 @@ const formatDateTime = (value?: string | null) => {
 
 export default function TeamDrawPage() {
   const params = useParams<{ token: string }>();
-  const token = params.token ?? "";
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const sessionId = params.token ?? "";
+  const screenToken = searchParams.get("token") ?? "";
   const [drawState, setDrawState] = useState<TeamDrawState | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState("");
+  const currentPath = useMemo(() => {
+    if (!sessionId) return "";
+    const paramsText = screenToken ? `?token=${encodeURIComponent(screenToken)}` : "";
+    return `/review-screen/team-draw/${encodeURIComponent(sessionId)}${paramsText}`;
+  }, [screenToken, sessionId]);
+
+  const redirectToLogin = useCallback(() => {
+    const nextPath = currentPath || "/workspace";
+    router.replace(`/login?next=${encodeURIComponent(nextPath)}`);
+  }, [currentPath, router]);
 
   useEffect(() => {
     let cancelled = false;
 
     const load = async () => {
-      if (!token) {
-        setMessage("团队抽签链接无效");
+      if (!sessionId || !screenToken) {
+        setMessage("团队抽签入口无效");
         setLoading(false);
         return;
       }
 
       try {
-        const response = await fetch(`/api/review-screen/team-draw/${encodeURIComponent(token)}`, {
-          cache: "no-store",
-        });
+        const response = await fetch(
+          `/api/review-screen/team-draw/${encodeURIComponent(sessionId)}?token=${encodeURIComponent(screenToken)}`,
+          {
+            cache: "no-store",
+          },
+        );
         const data = (await response.json().catch(() => null)) as TeamDrawState | { message?: string } | null;
+        if (response.status === 401) {
+          redirectToLogin();
+          return;
+        }
         if (!response.ok) {
-          throw new Error(data && "message" in data ? data.message ?? "团队抽签链接无效" : "团队抽签链接无效");
+          throw new Error(data && "message" in data ? data.message ?? "团队抽签入口无效" : "团队抽签入口无效");
         }
         if (!cancelled) {
           setDrawState(data as TeamDrawState);
@@ -84,7 +104,7 @@ export default function TeamDrawPage() {
     return () => {
       cancelled = true;
     };
-  }, [token]);
+  }, [redirectToLogin, screenToken, sessionId]);
 
   const handleDraw = async () => {
     if (!drawState || submitting || !drawState.canDraw) return;
@@ -94,7 +114,7 @@ export default function TeamDrawPage() {
     try {
       const sessionId = drawState.sessionId;
       const response = await fetch(
-        `/api/review-screen/sessions/${sessionId}/team-draw?token=${encodeURIComponent(token)}`,
+        `/api/review-screen/sessions/${sessionId}/team-draw?token=${encodeURIComponent(screenToken)}`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -220,11 +240,11 @@ export default function TeamDrawPage() {
           <div className="team-draw-header">
             <span className="team-draw-security">
               <ShieldCheck className="h-4 w-4" />
-              团队专属链接
+              登录校验抽签
             </span>
             <h1 className="team-draw-title">团队抽签</h1>
             <p className="mt-2 text-sm font-semibold text-white/78">
-              每个团队仅能抽取自己的路演顺序，抽签后链接自动锁定。
+              登录后系统只开放当前团队的抽签权限，结果实时同步到管理员大屏。
             </p>
           </div>
 
@@ -257,7 +277,7 @@ export default function TeamDrawPage() {
                       <Shuffle className="mb-4 h-9 w-9 text-blue-700" />
                       <p className="text-base font-black text-slate-800">等待你抽取路演顺序</p>
                       <p className="mt-2 px-8 text-center text-xs font-semibold leading-5 text-slate-500">
-                        点击后系统会从剩余序号中随机分配，结果实时显示在大屏。
+                        点击后按先到先得取得隐藏随机队列里的下一个序号。
                       </p>
                     </>
                   )}

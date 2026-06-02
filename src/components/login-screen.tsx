@@ -2,7 +2,7 @@
 
 import Image from "next/image";
 import { startTransition, useEffect, useRef, useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowRight,
   CheckCircle2,
@@ -134,11 +134,24 @@ const getPostLoginWorkspacePath = (user?: PostLoginUser | null) => {
   return "/workspace";
 };
 
+const getSafePostLoginPath = (value?: string | null) => {
+  const nextPath = value?.trim() ?? "";
+  if (!nextPath || !nextPath.startsWith("/") || nextPath.startsWith("//")) {
+    return null;
+  }
+  return nextPath;
+};
+
 const getPostLoginWorkspaceLabel = (targetWorkspacePath: string) =>
-  targetWorkspacePath.includes("tab=teacherTraining") ? "省培系统" : "管理中心";
+  targetWorkspacePath.includes("team-draw")
+    ? "团队抽签"
+    : targetWorkspacePath.includes("tab=teacherTraining")
+      ? "省培系统"
+      : "管理中心";
 
 export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: string }) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const resetToken = initialResetToken.trim();
   const [mode, setMode] = useState<FormMode>("login");
   const [loginValues, setLoginValues] = useState(initialLoginValues);
@@ -501,7 +514,7 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
       setLoginCaptchaRequired(false);
       setHumanVerificationProvider("captcha");
       resetHumanVerification();
-      const targetWorkspacePath = getPostLoginWorkspacePath(payload?.user);
+      const targetWorkspacePath = getSafePostLoginPath(searchParams.get("next")) ?? getPostLoginWorkspacePath(payload?.user);
       setLoginEntryLabel(getPostLoginWorkspaceLabel(targetWorkspacePath));
       setLoginPhase("entering");
       await waitForNextPaint();

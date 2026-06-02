@@ -30,6 +30,15 @@ async function main() {
     console.log("ReviewDisplaySession.teamDrawEnabled already exists");
   }
 
+  if (!sessionColumns.has("teamDrawQueue")) {
+    await prisma.$executeRawUnsafe(
+      `ALTER TABLE ${quoteIdentifier("ReviewDisplaySession")} ADD COLUMN ${quoteIdentifier("teamDrawQueue")} TEXT`,
+    );
+    console.log("added ReviewDisplaySession.teamDrawQueue");
+  } else {
+    console.log("ReviewDisplaySession.teamDrawQueue already exists");
+  }
+
   await prisma.$executeRawUnsafe(`
     CREATE TABLE IF NOT EXISTS ${quoteIdentifier("ReviewDisplayTeamDrawToken")} (
       ${quoteIdentifier("id")} TEXT NOT NULL PRIMARY KEY,

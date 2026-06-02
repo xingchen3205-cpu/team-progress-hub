@@ -9,7 +9,7 @@ import {
   normalizeReviewScreenDisplaySettings,
   pickReviewScreenDisplaySettings,
 } from "@/lib/review-screen-display-settings";
-import { buildReviewDisplaySeatSeeds, createReviewScreenToken } from "@/lib/review-screen-session";
+import { buildReviewDisplaySeatSeeds, createReviewScreenToken, shuffleArray } from "@/lib/review-screen-session";
 
 const clampInteger = (value: unknown, fallback: number, min: number, max: number) => {
   const numericValue = typeof value === "number" ? value : Number(value);
@@ -51,6 +51,7 @@ export async function GET(request: NextRequest) {
       showRankingOnScreen: true,
       selfDrawEnabled: true,
       teamDrawEnabled: true,
+      teamDrawQueue: true,
       status: true,
       startedAt: true,
       createdAt: true,
@@ -280,14 +281,9 @@ export async function POST(request: NextRequest) {
     );
   }
   const { token, tokenHash } = createReviewScreenToken();
-  const teamDrawTokenEntries = drawMode === "team"
-    ? projectOrderRows.map((row) => ({
-        packageId: row.project.id,
-        targetName: row.project.targetName,
-        roundLabel: row.project.roundLabel ?? "",
-        ...createReviewScreenToken(),
-      }))
-    : [];
+  const teamDrawQueue = drawMode === "team"
+    ? JSON.stringify(shuffleArray(projectOrderRows.map((row) => row.orderIndex)))
+    : null;
 
   const { session, seats } = await prisma.$transaction(async (tx) => {
     const firstPackageId = projectOrderRows[0]?.project.id ?? stageReviewPackages[0]?.id ?? reviewPackage.id;
@@ -307,6 +303,7 @@ export async function POST(request: NextRequest) {
         scoringSeconds,
         ...screenDisplay,
         teamDrawEnabled: drawMode === "team",
+        teamDrawQueue,
         phaseStartedAt: drawMode === "manual" ? now : null,
         createdById: user.id,
       },
@@ -325,6 +322,7 @@ export async function POST(request: NextRequest) {
         showRankingOnScreen: true,
         selfDrawEnabled: true,
         teamDrawEnabled: true,
+        teamDrawQueue: true,
         dropHighestCount: true,
         dropLowestCount: true,
         status: true,
@@ -345,17 +343,6 @@ export async function POST(request: NextRequest) {
         selfDrawnAt: drawMode === "self" || drawMode === "team" ? null : now,
       })),
     });
-
-    if (teamDrawTokenEntries.length) {
-      await tx.reviewDisplayTeamDrawToken.createMany({
-        data: teamDrawTokenEntries.map((entry) => ({
-          sessionId: createdSession.id,
-          packageId: entry.packageId,
-          tokenHash: entry.tokenHash,
-          tokenExpiresAt,
-        })),
-      });
-    }
 
     await tx.reviewDisplaySeat.createMany({
       data: buildReviewDisplaySeatSeeds(stageAssignments).map((seat) => ({
@@ -395,7 +382,7 @@ export async function POST(request: NextRequest) {
         projectCount: projectOrderRows.length,
         seatCount: createdSeats.length,
         drawMode,
-        teamDrawLinkCount: teamDrawTokenEntries.length,
+        teamDrawQueue: drawMode === "team" ? "generated" : null,
       },
     });
 
@@ -404,15 +391,8 @@ export async function POST(request: NextRequest) {
 
   const screenUrl = new URL(`/review-screen/session/${session.id}`, request.nextUrl.origin);
   screenUrl.searchParams.set("token", token);
-  const teamDrawLinks = teamDrawTokenEntries.map((entry) => {
-    const url = new URL(`/review-screen/team-draw/${entry.token}`, request.nextUrl.origin);
-    return {
-      packageId: entry.packageId,
-      targetName: entry.targetName,
-      roundLabel: entry.roundLabel,
-      url: url.toString(),
-    };
-  });
+  const teamDrawUrl = new URL(`/review-screen/team-draw/${session.id}`, request.nextUrl.origin);
+  teamDrawUrl.searchParams.set("token", token);
 
   return NextResponse.json(
     {
@@ -430,7 +410,7 @@ export async function POST(request: NextRequest) {
         voidedAt: seat.voidedAt?.toISOString() ?? null,
       })),
       screenUrl: screenUrl.toString(),
-      teamDrawLinks,
+      teamDrawUrl: drawMode === "team" ? teamDrawUrl.toString() : null,
       packageIds: stageReviewPackages.map((stagePackage) => stagePackage.id),
       projectOrder: projectOrderRows.map((row) => ({
         orderIndex: row.orderIndex,

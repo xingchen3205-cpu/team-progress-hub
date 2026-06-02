@@ -719,6 +719,7 @@ model ReviewDisplaySession {
   showRankingOnScreen    Boolean                     @default(false)
   selfDrawEnabled        Boolean                     @default(false)
   teamDrawEnabled        Boolean                     @default(false)
+  teamDrawQueue          String?
   phaseStartedAt         DateTime?
   revealStartedAt        DateTime?
   createdById            String

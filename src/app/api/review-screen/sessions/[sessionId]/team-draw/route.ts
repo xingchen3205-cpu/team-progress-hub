@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { randomInt } from "node:crypto";
 
 import { createAuditLogEntry } from "@/lib/audit-log";
+import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hashReviewScreenToken } from "@/lib/review-screen-session";
 
@@ -17,21 +18,22 @@ type OrderAuditRow = {
   revealedAt: string | null;
 };
 
-const toOrderAuditRows = (
-  rows: Array<{
-    packageId: string;
-    orderIndex: number;
-    groupName: string | null;
-    groupIndex: number;
-    groupSlotIndex: number;
-    selfDrawnAt: Date | null;
-    revealedAt: Date | null;
-    reviewPackage: {
-      targetName: string;
-      roundLabel: string | null;
-    };
-  }>,
-): OrderAuditRow[] =>
+type ProjectOrderRow = {
+  packageId: string;
+  orderIndex: number;
+  groupName: string | null;
+  groupIndex: number;
+  groupSlotIndex: number;
+  selfDrawnAt: Date | null;
+  revealedAt: Date | null;
+  reviewPackage: {
+    targetName: string;
+    roundLabel: string | null;
+    teamGroupId: string | null;
+  };
+};
+
+const toOrderAuditRows = (rows: ProjectOrderRow[]): OrderAuditRow[] =>
   rows.map((row) => ({
     packageId: row.packageId,
     orderIndex: row.orderIndex,
@@ -44,21 +46,7 @@ const toOrderAuditRows = (
     revealedAt: row.revealedAt?.toISOString() ?? null,
   }));
 
-const serializeProjectOrder = (
-  rows: Array<{
-    packageId: string;
-    orderIndex: number;
-    groupName: string | null;
-    groupIndex: number;
-    groupSlotIndex: number;
-    selfDrawnAt: Date | null;
-    revealedAt: Date | null;
-    reviewPackage: {
-      targetName: string;
-      roundLabel: string | null;
-    };
-  }>,
-) =>
+const serializeProjectOrder = (rows: ProjectOrderRow[]) =>
   rows.map((order) => ({
     orderIndex: order.orderIndex,
     packageId: order.packageId,
@@ -71,61 +59,69 @@ const serializeProjectOrder = (
     revealedAt: order.revealedAt?.toISOString() ?? null,
   }));
 
+const parseTeamDrawQueue = (value: string | null | undefined) => {
+  if (!value) return [];
+  try {
+    const parsed = JSON.parse(value) as unknown;
+    return Array.isArray(parsed)
+      ? parsed.filter((item): item is number => Number.isInteger(item) && item >= 0)
+      : [];
+  } catch {
+    return [];
+  }
+};
+
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ sessionId: string }> },
 ) {
   const { sessionId } = await params;
   const token = request.nextUrl.searchParams.get("token")?.trim();
+  const user = await getSessionUser(request);
 
   if (!token) {
-    return NextResponse.json({ message: "缺少团队抽签令牌" }, { status: 401 });
+    return NextResponse.json({ message: "缺少团队抽签入口参数" }, { status: 401 });
+  }
+  if (!user) {
+    return NextResponse.json({ message: "请先登录团队账号" }, { status: 401 });
+  }
+  if (!user.teamGroupId) {
+    return NextResponse.json({ message: "当前账号未绑定参赛团队，不能抽签" }, { status: 403 });
   }
 
-  const tokenHash = hashReviewScreenToken(token);
   const now = new Date();
   let pickedOrderIndex = 0;
 
   const result = await prisma.$transaction(async (tx) => {
-    const drawToken = await tx.reviewDisplayTeamDrawToken.findUnique({
-      where: { tokenHash },
+    const session = await tx.reviewDisplaySession.findUnique({
+      where: { id: sessionId },
       include: {
-        reviewPackage: {
+        creator: {
           select: {
             id: true,
-            targetName: true,
-            roundLabel: true,
+            role: true,
           },
         },
-        session: {
-          include: {
-            creator: {
-              select: {
-                id: true,
-                role: true,
-              },
-            },
+        reviewPackage: {
+          select: {
+            teamGroupId: true,
+          },
+        },
+        projectOrders: {
+          orderBy: [{ orderIndex: "asc" }, { createdAt: "asc" }],
+          select: {
+            packageId: true,
+            orderIndex: true,
+            groupName: true,
+            groupIndex: true,
+            groupSlotIndex: true,
+            selfDrawnAt: true,
+            revealedAt: true,
             reviewPackage: {
               select: {
+                targetName: true,
+                roundLabel: true,
                 teamGroupId: true,
-              },
-            },
-            projectOrders: {
-              orderBy: [{ orderIndex: "asc" }, { createdAt: "asc" }],
-              select: {
-                packageId: true,
-                orderIndex: true,
-                groupName: true,
-                groupIndex: true,
-                groupSlotIndex: true,
-                selfDrawnAt: true,
-                revealedAt: true,
-                reviewPackage: {
-                  select: {
-                    targetName: true,
-                    roundLabel: true,
-                  },
-                },
               },
             },
           },
@@ -133,17 +129,9 @@ export async function POST(
       },
     });
 
-    if (!drawToken || drawToken.sessionId !== sessionId) {
-      throw new Error("团队抽签链接无效");
+    if (!session || session.tokenHash !== hashReviewScreenToken(token)) {
+      throw new Error("团队抽签入口无效");
     }
-    if (drawToken.tokenExpiresAt.getTime() <= now.getTime()) {
-      throw new Error("团队抽签链接已过期");
-    }
-    if (drawToken.usedAt) {
-      throw new Error("该团队已完成抽签");
-    }
-
-    const { session } = drawToken;
     if (!session.teamDrawEnabled) {
       throw new Error("管理员未开启团队线上抽签");
     }
@@ -154,9 +142,9 @@ export async function POST(
       throw new Error("本轮已开始，不能继续团队抽签");
     }
 
-    const targetOrder = session.projectOrders.find((order) => order.packageId === drawToken.packageId);
+    const targetOrder = session.projectOrders.find((order) => order.reviewPackage.teamGroupId === user.teamGroupId);
     if (!targetOrder) {
-      throw new Error("项目不在本轮路演顺序中");
+      throw new Error("当前团队不在本轮抽签名单中");
     }
     if (targetOrder.selfDrawnAt) {
       throw new Error("该团队已完成抽签");
@@ -171,16 +159,24 @@ export async function POST(
       throw new Error("路演顺序数据异常，请重新生成抽签顺序");
     }
 
-    pickedOrderIndex = availableOrderIndexes[randomInt(availableOrderIndexes.length)] ?? targetOrder.orderIndex;
+    const drawnCount = session.projectOrders.length - pendingOrders.length;
+    const availableOrderIndexSet = new Set(availableOrderIndexes);
+    const queuedOrderIndexes = parseTeamDrawQueue(session.teamDrawQueue).filter((orderIndex) =>
+      availableOrderIndexSet.has(orderIndex),
+    );
+    pickedOrderIndex =
+      queuedOrderIndexes[0] ??
+      availableOrderIndexes[randomInt(availableOrderIndexes.length)] ??
+      targetOrder.orderIndex;
     const pickedSlot = pendingOrders.find((order) => order.orderIndex === pickedOrderIndex) ?? targetOrder;
     const beforeOrder = toOrderAuditRows(session.projectOrders);
 
-    if (pickedSlot.packageId !== drawToken.packageId) {
+    if (pickedSlot.packageId !== targetOrder.packageId) {
       await tx.reviewDisplayProjectOrder.update({
         where: {
           sessionId_packageId: {
             sessionId,
-            packageId: drawToken.packageId,
+            packageId: targetOrder.packageId,
           },
         },
         data: {
@@ -208,7 +204,7 @@ export async function POST(
       where: {
         sessionId_packageId: {
           sessionId,
-          packageId: drawToken.packageId,
+          packageId: targetOrder.packageId,
         },
       },
       data: {
@@ -218,11 +214,6 @@ export async function POST(
         groupSlotIndex: pickedSlot.groupSlotIndex,
         selfDrawnAt: now,
       },
-    });
-
-    await tx.reviewDisplayTeamDrawToken.update({
-      where: { id: drawToken.id },
-      data: { usedAt: now },
     });
 
     const rows = await tx.reviewDisplayProjectOrder.findMany({
@@ -240,6 +231,7 @@ export async function POST(
           select: {
             targetName: true,
             roundLabel: true,
+            teamGroupId: true,
           },
         },
       },
@@ -259,30 +251,33 @@ export async function POST(
       action: "review_screen_session.team_drawn",
       objectType: "review_screen_session",
       objectId: sessionId,
-      teamGroupId: session.reviewPackage.teamGroupId,
+      teamGroupId: user.teamGroupId,
       beforeState: {
         projectOrder: beforeOrder,
-        tokenUsedAt: null,
+        usedAt: null,
       },
       afterState: {
         currentPackageId: nextCurrentPackageId,
         projectOrder: toOrderAuditRows(rows),
-        tokenUsedAt: now.toISOString(),
+        usedAt: now.toISOString(),
       },
       metadata: {
         triggeredBy: "team_link",
-        method: "team_wechat_link",
-        drawnPackageId: drawToken.packageId,
+        method: "team_login_first_come",
+        drawnByUserId: user.id,
+        drawnTeamGroupId: user.teamGroupId,
+        drawnPackageId: targetOrder.packageId,
+        drawnCount,
         pickedOrderIndex,
         projectCount: rows.length,
       },
     });
 
-    const confirmedOrder = rows.find((order) => order.packageId === drawToken.packageId);
+    const confirmedOrder = rows.find((order) => order.packageId === targetOrder.packageId);
     return {
-      drawnPackageId: drawToken.packageId,
-      targetName: drawToken.reviewPackage.targetName,
-      roundLabel: drawToken.reviewPackage.roundLabel ?? "",
+      drawnPackageId: targetOrder.packageId,
+      targetName: targetOrder.reviewPackage.targetName,
+      roundLabel: targetOrder.reviewPackage.roundLabel ?? "",
       pickedOrderIndex,
       remainingCount: rows.filter((order) => !order.selfDrawnAt).length,
       session: {

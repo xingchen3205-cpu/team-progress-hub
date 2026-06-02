@@ -48,13 +48,6 @@ type ReviewGroup = {
 
 type ScreenDrawMode = "manual" | "random" | "self" | "team";
 
-type TeamDrawLink = {
-  packageId: string;
-  targetName: string;
-  roundLabel: string;
-  url: string;
-};
-
 type PendingSubmission = {
   assignment: ExpertReviewAssignmentItem;
   kind: "network" | "roadshow";
@@ -86,7 +79,7 @@ type ReviewScreenSessionState = {
   startedAt: string | null;
   phaseStartedAt?: string | null;
   screenDisplay?: ReviewScreenDisplaySettings;
-  teamDrawLinks?: TeamDrawLink[];
+  teamDrawUrl?: string | null;
   seats: Array<{
     id: string;
     seatNo: number;
@@ -563,7 +556,7 @@ export default function ExpertReviewTab() {
   const [reviewScreenSessions, setReviewScreenSessions] = useState<Record<string, ReviewScreenSessionState>>({});
   const [reviewScreenActionKey, setReviewScreenActionKey] = useState<string | null>(null);
   const [copiedScreenGroupKey, setCopiedScreenGroupKey] = useState<string | null>(null);
-  const [copiedTeamDrawPackageId, setCopiedTeamDrawPackageId] = useState<string | null>(null);
+  const [copiedTeamDrawGroupKey, setCopiedTeamDrawGroupKey] = useState<string | null>(null);
   const [reviewConfigModalGroupKey, setReviewConfigModalGroupKey] = useState<string | null>(null);
   const [screenTimingDrafts, setScreenTimingDrafts] = useState<
     Record<string, ReturnType<typeof getDefaultScreenTimingDraft>>
@@ -1030,7 +1023,7 @@ export default function ExpertReviewTab() {
     if (draft) {
       return draft;
     }
-    if (reviewScreenSessions[groupKey]?.teamDrawLinks?.length) {
+    if (reviewScreenSessions[groupKey]?.teamDrawUrl) {
       return "team";
     }
     const currentDisplay = normalizeReviewScreenDisplaySettings(
@@ -1108,7 +1101,7 @@ export default function ExpertReviewTab() {
         };
         seats: ReviewScreenSessionState["seats"];
         screenUrl: string;
-        teamDrawLinks?: TeamDrawLink[];
+        teamDrawUrl?: string | null;
         packageIds?: string[];
         projectOrder?: ReviewScreenProjectOrderItem[];
       }>("/api/review-screen/sessions", {
@@ -1137,7 +1130,7 @@ export default function ExpertReviewTab() {
           startedAt: payload.session.startedAt ?? null,
           phaseStartedAt: payload.session.phaseStartedAt ?? null,
           screenDisplay: normalizeReviewScreenDisplaySettings(payload.session.screenDisplay),
-          teamDrawLinks: payload.teamDrawLinks ?? [],
+          teamDrawUrl: payload.teamDrawUrl ?? null,
           seats: payload.seats,
       };
       setReviewScreenSessions((current) => {
@@ -1185,35 +1178,12 @@ export default function ExpertReviewTab() {
     }, 2000);
   };
 
-  const copyTeamDrawLink = async (link: TeamDrawLink) => {
-    await navigator.clipboard?.writeText(link.url).catch(() => undefined);
-    setCopiedTeamDrawPackageId(link.packageId);
+  const copyTeamDrawUrl = async (groupKey: string, url: string) => {
+    await navigator.clipboard?.writeText(url).catch(() => undefined);
+    setCopiedTeamDrawGroupKey(groupKey);
     window.setTimeout(() => {
-      setCopiedTeamDrawPackageId((current) => (current === link.packageId ? null : current));
+      setCopiedTeamDrawGroupKey((current) => (current === groupKey ? null : current));
     }, 2000);
-  };
-
-  const exportTeamDrawLinks = (group: ReviewGroup, links: TeamDrawLink[]) => {
-    if (!links.length) {
-      setLoadError("当前没有可导出的团队抽签链接");
-      return;
-    }
-    const header = ["项目", "轮次", "团队抽签链接"];
-    const rows = links.map((link) => [link.targetName, link.roundLabel || group.roundLabel, link.url]);
-    const escapeCell = (value: string | number | null | undefined) => {
-      const text = String(value ?? "");
-      return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
-    };
-    const csv = [header, ...rows].map((row) => row.map(escapeCell).join(",")).join("\n");
-    const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const anchor = document.createElement("a");
-    anchor.href = url;
-    anchor.download = `team-draw-links-${new Date().toISOString().slice(0, 10)}.csv`;
-    document.body.appendChild(anchor);
-    anchor.click();
-    anchor.remove();
-    URL.revokeObjectURL(url);
   };
 
   const exportReviewScreenOrder = (group: ReviewGroup) => {
@@ -3071,37 +3041,27 @@ export default function ExpertReviewTab() {
               重生成
             </button>
           </div>
-          {screenSession?.teamDrawLinks?.length ? (
+          {screenSession?.teamDrawUrl ? (
             <div className="mt-4 border-t border-slate-100 pt-4">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-xs font-extrabold text-slate-900">团队抽签链接</p>
-                  <p className="mt-1 text-[11px] text-slate-400">复制团队链接后发到微信；每队只能抽自己的。</p>
+                  <p className="text-xs font-extrabold text-slate-900">团队抽签入口</p>
+                  <p className="mt-1 text-[11px] text-slate-400">复制这一个入口发到微信群；团队登录后只会进入自己的抽签。</p>
                 </div>
                 <button
-                  className="inline-flex shrink-0 items-center justify-center gap-1 rounded-lg border border-emerald-100 bg-emerald-50 px-2.5 py-1.5 text-[11px] font-bold text-emerald-700 transition hover:bg-emerald-100"
-                  onClick={() => exportTeamDrawLinks(group, screenSession.teamDrawLinks ?? [])}
+                  className="inline-flex shrink-0 items-center justify-center gap-1 rounded-lg border border-blue-100 bg-blue-50 px-2.5 py-1.5 text-[11px] font-bold text-blue-700 transition hover:bg-blue-100"
+                  onClick={() => void copyTeamDrawUrl(group.key, screenSession.teamDrawUrl ?? "")}
                   type="button"
                 >
-                  <Download className="h-3.5 w-3.5" />
-                  导出团队链接
+                  <Copy className="h-3.5 w-3.5" />
+                  {copiedTeamDrawGroupKey === group.key ? "已复制" : "复制抽签入口"}
                 </button>
               </div>
-              <div className="mt-3 max-h-56 space-y-2 overflow-y-auto pr-1">
-                {screenSession.teamDrawLinks.map((link) => (
-                  <div className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2" key={link.packageId}>
-                    <p className="truncate text-[11px] font-bold text-slate-700">{link.targetName}</p>
-                    <button
-                      className="mt-2 inline-flex w-full items-center justify-center gap-1 rounded-md border border-blue-100 bg-white px-2 py-1.5 text-[11px] font-bold text-blue-700 transition hover:bg-blue-50"
-                      onClick={() => void copyTeamDrawLink(link)}
-                      type="button"
-                    >
-                      <Copy className="h-3.5 w-3.5" />
-                      {copiedTeamDrawPackageId === link.packageId ? "已复制" : "复制团队链接"}
-                    </button>
-                  </div>
-                ))}
-              </div>
+              <input
+                className="mt-3 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 font-mono text-[11px] text-slate-500 outline-none"
+                readOnly
+                value={screenSession.teamDrawUrl}
+              />
             </div>
           ) : null}
         </article>

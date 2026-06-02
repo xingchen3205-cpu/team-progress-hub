@@ -1,3 +1,5 @@
+import { Suspense } from "react";
+
 import { LoginScreen } from "@/components/login-screen";
 
 export default async function LoginPage({
@@ -8,5 +10,9 @@ export default async function LoginPage({
   const params = await searchParams;
   const resetToken = typeof params.resetToken === "string" ? params.resetToken : "";
 
-  return <LoginScreen initialResetToken={resetToken} />;
+  return (
+    <Suspense fallback={null}>
+      <LoginScreen initialResetToken={resetToken} />
+    </Suspense>
+  );
 }
