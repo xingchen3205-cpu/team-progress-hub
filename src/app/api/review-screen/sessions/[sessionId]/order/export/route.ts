@@ -51,6 +51,7 @@ export async function GET(
       startsAt: true,
       screenPhase: true,
       selfDrawEnabled: true,
+      teamDrawEnabled: true,
       reviewPackage: {
         select: {
           targetName: true,
@@ -89,7 +90,11 @@ export async function GET(
   const title = session.reviewPackage.projectReviewStage?.name || session.reviewPackage.roundLabel || "路演评审";
   const exportedAt = new Date();
   const confirmedCount = session.projectOrders.filter((order) => order.selfDrawnAt).length;
-  const drawMethod = session.selfDrawEnabled ? "项目自助抽签" : "管理员随机/手动确认";
+  const drawMethod = session.teamDrawEnabled
+    ? "团队线上抽签"
+    : session.selfDrawEnabled
+      ? "项目自助抽签"
+      : "管理员随机/手动确认";
   const orderStatus = confirmedCount >= session.projectOrders.length
     ? "顺序已全部确认"
     : `已确认 ${confirmedCount} 项，剩余 ${session.projectOrders.length - confirmedCount} 项待抽签`;

@@ -763,6 +763,44 @@ describe("roadshow review screen session", () => {
     assert.doesNotMatch(selfDrawCandidateRouteSource, /operator:\s*session\.creator/);
   });
 
+  it("supports per-team WeChat draw links while administrators keep the projection screen open", () => {
+    const schemaSource = readSource("prisma/schema.prisma");
+    const sessionRouteSource = readSource("src/app/api/review-screen/sessions/route.ts");
+    const publicRouteSource = readSource("src/app/api/review-screen/sessions/[sessionId]/route.ts");
+    const teamDrawRouteSource = readSource("src/app/api/review-screen/sessions/[sessionId]/team-draw/route.ts");
+    const teamDrawPageSource = readSource("src/app/review-screen/team-draw/[token]/page.tsx");
+    const adminTabSource = readSource("src/components/tabs/expert-review-tab-content.tsx");
+    const screenPageSource = readSource("src/app/review-screen/session/[sessionId]/page.tsx");
+
+    assert.match(schemaSource, /model ReviewDisplayTeamDrawToken/);
+    assert.match(schemaSource, /teamDrawEnabled\s+Boolean\s+@default\(false\)/);
+    assert.match(schemaSource, /tokenHash\s+String\s+@unique/);
+    assert.match(schemaSource, /usedAt\s+DateTime\?/);
+    assert.match(schemaSource, /@@unique\(\[sessionId,\s*packageId\]\)/);
+    assert.match(sessionRouteSource, /drawMode\?:\s*"manual" \| "random" \| "self" \| "team"/);
+    assert.match(sessionRouteSource, /teamDrawEnabled:\s*drawMode === "team"/);
+    assert.match(sessionRouteSource, /teamDrawLinks/);
+    assert.match(sessionRouteSource, /reviewDisplayTeamDrawToken\.createMany/);
+    assert.match(sessionRouteSource, /\/review-screen\/team-draw\//);
+    assert.match(publicRouteSource, /teamDrawEnabled/);
+    assert.match(screenPageSource, /const teamDrawModeActive = Boolean\(payload\?\.session\.teamDrawEnabled\)/);
+    assert.match(screenPageSource, /团队线上抽签/);
+    assert.match(teamDrawRouteSource, /hashReviewScreenToken/);
+    assert.match(teamDrawRouteSource, /reviewDisplayTeamDrawToken/);
+    assert.match(teamDrawRouteSource, /usedAt/);
+    assert.match(teamDrawRouteSource, /availableOrderIndexes/);
+    assert.match(teamDrawRouteSource, /triggeredBy: "team_link"/);
+    assert.doesNotMatch(teamDrawRouteSource, /assertRole\(user\.role/);
+    assert.doesNotMatch(teamDrawRouteSource, /getSessionUser\(request\)/);
+    assert.match(teamDrawPageSource, /团队抽签/);
+    assert.match(teamDrawPageSource, /handleDraw/);
+    assert.match(teamDrawPageSource, /\/api\/review-screen\/sessions\/\$\{sessionId\}\/team-draw/);
+    assert.match(adminTabSource, /团队线上抽签/);
+    assert.match(adminTabSource, /teamDrawLinks/);
+    assert.match(adminTabSource, /复制团队链接/);
+    assert.match(adminTabSource, /导出团队链接/);
+  });
+
   it("lets administrators regenerate a screen link for testing even after the old review deadline", () => {
     const sessionRouteSource = readSource("src/app/api/review-screen/sessions/route.ts");
     const assignmentRouteSource = readSource("src/app/api/expert-reviews/assignments/[id]/route.ts");

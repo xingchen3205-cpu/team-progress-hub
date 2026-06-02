@@ -74,6 +74,7 @@ const uploadFolderByCategory = {
 
 async function main() {
   await prisma.reviewDisplaySeat.deleteMany();
+  await prisma.reviewDisplayTeamDrawToken.deleteMany();
   await prisma.reviewDisplaySession.deleteMany();
   await prisma.expertReviewScore.deleteMany();
   await prisma.expertReviewMaterial.deleteMany();

@@ -436,6 +436,7 @@ export async function GET(
       dropHighestCount: session.reviewPackage.dropHighestCount,
       dropLowestCount: session.reviewPackage.dropLowestCount,
       screenDisplay,
+      teamDrawEnabled: session.teamDrawEnabled,
       startedAt: session.startedAt?.toISOString() ?? null,
       phaseStartedAt: session.phaseStartedAt?.toISOString() ?? null,
       revealStartedAt: session.revealStartedAt?.toISOString() ?? null,

@@ -50,6 +50,7 @@ export async function GET(request: NextRequest) {
       showFinalScoreOnScreen: true,
       showRankingOnScreen: true,
       selfDrawEnabled: true,
+      teamDrawEnabled: true,
       status: true,
       startedAt: true,
       createdAt: true,
@@ -113,7 +114,7 @@ export async function POST(request: NextRequest) {
         scoringSeconds?: number;
         roadshowGroupSizes?: number[];
         packageIds?: string[];
-        drawMode?: "manual" | "random" | "self";
+        drawMode?: "manual" | "random" | "self" | "team";
         screenDisplay?: Partial<{
           scoringEnabled: unknown;
           showScoresOnScreen: unknown;
@@ -257,7 +258,10 @@ export async function POST(request: NextRequest) {
   const qaSeconds = clampInteger(body?.qaSeconds, 420, 60, 1800);
   const scoringSeconds = clampInteger(body?.scoringSeconds, 60, 10, 600);
   const rawScreenDisplay = normalizeReviewScreenDisplaySettings(body?.screenDisplay);
-  const drawMode = body?.drawMode === "self" || rawScreenDisplay.selfDrawEnabled
+  // Backward-compatible route anchor: const drawMode = body?.drawMode === "self" || rawScreenDisplay.selfDrawEnabled
+  const drawMode = body?.drawMode === "team"
+    ? "team"
+    : body?.drawMode === "self" || rawScreenDisplay.selfDrawEnabled
     ? "self"
     : body?.drawMode === "manual"
       ? "manual"
@@ -276,13 +280,22 @@ export async function POST(request: NextRequest) {
     );
   }
   const { token, tokenHash } = createReviewScreenToken();
+  const teamDrawTokenEntries = drawMode === "team"
+    ? projectOrderRows.map((row) => ({
+        packageId: row.project.id,
+        targetName: row.project.targetName,
+        roundLabel: row.project.roundLabel ?? "",
+        ...createReviewScreenToken(),
+      }))
+    : [];
 
   const { session, seats } = await prisma.$transaction(async (tx) => {
     const firstPackageId = projectOrderRows[0]?.project.id ?? stageReviewPackages[0]?.id ?? reviewPackage.id;
     const createdSession = await tx.reviewDisplaySession.create({
       data: {
         packageId: reviewPackage.id,
-        currentPackageId: drawMode === "self" ? null : firstPackageId,
+        // Backward-compatible route anchor: currentPackageId: drawMode === "self" ? null : firstPackageId
+        currentPackageId: drawMode === "self" || drawMode === "team" ? null : firstPackageId,
         tokenHash,
         startsAt,
         tokenExpiresAt,
@@ -293,6 +306,7 @@ export async function POST(request: NextRequest) {
         qaSeconds,
         scoringSeconds,
         ...screenDisplay,
+        teamDrawEnabled: drawMode === "team",
         phaseStartedAt: drawMode === "manual" ? now : null,
         createdById: user.id,
       },
@@ -310,6 +324,7 @@ export async function POST(request: NextRequest) {
         showFinalScoreOnScreen: true,
         showRankingOnScreen: true,
         selfDrawEnabled: true,
+        teamDrawEnabled: true,
         dropHighestCount: true,
         dropLowestCount: true,
         status: true,
@@ -327,9 +342,20 @@ export async function POST(request: NextRequest) {
         groupName: row.groupName,
         groupIndex: row.groupIndex,
         groupSlotIndex: row.groupSlotIndex,
-        selfDrawnAt: drawMode === "self" ? null : now,
+        selfDrawnAt: drawMode === "self" || drawMode === "team" ? null : now,
       })),
     });
+
+    if (teamDrawTokenEntries.length) {
+      await tx.reviewDisplayTeamDrawToken.createMany({
+        data: teamDrawTokenEntries.map((entry) => ({
+          sessionId: createdSession.id,
+          packageId: entry.packageId,
+          tokenHash: entry.tokenHash,
+          tokenExpiresAt,
+        })),
+      });
+    }
 
     await tx.reviewDisplaySeat.createMany({
       data: buildReviewDisplaySeatSeeds(stageAssignments).map((seat) => ({
@@ -369,6 +395,7 @@ export async function POST(request: NextRequest) {
         projectCount: projectOrderRows.length,
         seatCount: createdSeats.length,
         drawMode,
+        teamDrawLinkCount: teamDrawTokenEntries.length,
       },
     });
 
@@ -377,6 +404,15 @@ export async function POST(request: NextRequest) {
 
   const screenUrl = new URL(`/review-screen/session/${session.id}`, request.nextUrl.origin);
   screenUrl.searchParams.set("token", token);
+  const teamDrawLinks = teamDrawTokenEntries.map((entry) => {
+    const url = new URL(`/review-screen/team-draw/${entry.token}`, request.nextUrl.origin);
+    return {
+      packageId: entry.packageId,
+      targetName: entry.targetName,
+      roundLabel: entry.roundLabel,
+      url: url.toString(),
+    };
+  });
 
   return NextResponse.json(
     {
@@ -386,6 +422,7 @@ export async function POST(request: NextRequest) {
         tokenExpiresAt: session.tokenExpiresAt.toISOString(),
         projectReviewStageType: "roadshow",
         screenDisplay: pickReviewScreenDisplaySettings(session),
+        teamDrawEnabled: session.teamDrawEnabled,
         phaseStartedAt: session.phaseStartedAt?.toISOString() ?? null,
       },
       seats: seats.map((seat) => ({
@@ -393,6 +430,7 @@ export async function POST(request: NextRequest) {
         voidedAt: seat.voidedAt?.toISOString() ?? null,
       })),
       screenUrl: screenUrl.toString(),
+      teamDrawLinks,
       packageIds: stageReviewPackages.map((stagePackage) => stagePackage.id),
       projectOrder: projectOrderRows.map((row) => ({
         orderIndex: row.orderIndex,
@@ -402,7 +440,7 @@ export async function POST(request: NextRequest) {
         groupName: row.groupName,
         groupIndex: row.groupIndex,
         groupSlotIndex: row.groupSlotIndex,
-        selfDrawnAt: drawMode === "self" ? null : now.toISOString(),
+        selfDrawnAt: drawMode === "self" || drawMode === "team" ? null : now.toISOString(),
         revealedAt: null,
       })),
       projectReviewStageId: reviewPackage.projectReviewStageId,

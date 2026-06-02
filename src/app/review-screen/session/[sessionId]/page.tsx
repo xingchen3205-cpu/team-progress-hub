@@ -86,6 +86,7 @@ type ScreenPayload = {
     currentProjectIndex: number;
     totalProjectCount: number;
     screenDisplay: ReviewScreenDisplaySettings;
+    teamDrawEnabled?: boolean;
   };
   reviewPackage: {
     targetName: string;
@@ -481,6 +482,7 @@ export default function ReviewScreenSessionPage() {
   const serverClockOffsetRef = useServerClockOffset(payload?.serverTime);
   const screenDisplay = normalizeReviewScreenDisplaySettings(payload?.session.screenDisplay);
   const selfDrawEnabled = screenDisplay.selfDrawEnabled;
+  const teamDrawModeActive = Boolean(payload?.session.teamDrawEnabled);
   const phaseRemaining = payload?.session.phaseRemainingSeconds ?? 0;
   const countdownTone = getCountdownTone(phaseRemaining);
   const projectOrder = useMemo(() => payload?.projectOrder ?? [], [payload?.projectOrder]);
@@ -495,7 +497,8 @@ export default function ReviewScreenSessionPage() {
     [projectOrder],
   );
   const selfDrawModeActive = selfDrawEnabled;
-  const drawEnabled = selfDrawModeActive || (phase === "draw" && hasDrawStarted);
+  const screenSelfDrawModeActive = selfDrawModeActive && !teamDrawModeActive;
+  const drawEnabled = teamDrawModeActive || screenSelfDrawModeActive || (phase === "draw" && hasDrawStarted);
   const screenStateLabels = [
     drawEnabled ? "抽签分组" : null,
     "评审打分",
@@ -519,7 +522,7 @@ export default function ReviewScreenSessionPage() {
         projects: group.projects.sort((left, right) => left.groupSlotIndex - right.groupSlotIndex),
       }));
   }, [projectOrder]);
-  const visibleDrawGroups = drawEnabled && (hasDrawStarted || selfDrawModeActive) ? drawGroups : [];
+  const visibleDrawGroups = drawEnabled && (hasDrawStarted || selfDrawModeActive || teamDrawModeActive) ? drawGroups : [];
   const pendingSelfDrawKey = useMemo(
     () => pendingSelfDrawProjects.map((project) => project.packageId).join("|"),
     [pendingSelfDrawProjects],
@@ -627,7 +630,7 @@ export default function ReviewScreenSessionPage() {
   }, [drawAnimationDuration, drawAnimationStartedAt]);
 
   useEffect(() => {
-    if (!selfDrawModeActive || phase !== "draw") {
+    if (!screenSelfDrawModeActive || phase !== "draw") {
       setSelfDrawCandidatePackageId(null);
       setSelfDrawStagePhase("pickName");
       setSelfDrawReelMode("name");
@@ -671,20 +674,20 @@ export default function ReviewScreenSessionPage() {
     pendingSelfDrawProjects,
     phase,
     selfDrawCandidatePackageId,
-    selfDrawModeActive,
+    screenSelfDrawModeActive,
     selfDrawReelSpinning,
   ]);
 
   useEffect(() => {
-    if (!selfDrawModeActive || phase !== "draw" || selfDrawReelSpinning) return;
+    if (!screenSelfDrawModeActive || phase !== "draw" || selfDrawReelSpinning) return;
     const currentPackageId = payload?.session.currentPackageId ?? null;
     if (currentPackageId && pendingSelfDrawProjects.some((project) => project.packageId === currentPackageId)) {
       setSelfDrawCandidatePackageId(currentPackageId);
     }
-  }, [payload?.session.currentPackageId, pendingSelfDrawProjects, phase, selfDrawModeActive, selfDrawReelSpinning]);
+  }, [payload?.session.currentPackageId, pendingSelfDrawProjects, phase, screenSelfDrawModeActive, selfDrawReelSpinning]);
 
   useEffect(() => {
-    if (!selfDrawModeActive || phase !== "draw" || selfDrawReelSpinning) return;
+    if (!screenSelfDrawModeActive || phase !== "draw" || selfDrawReelSpinning) return;
     if (!pendingSelfDrawProjects.length) {
       setSelfDrawStagePhase("done");
       return;
@@ -706,7 +709,7 @@ export default function ReviewScreenSessionPage() {
     pendingSelfDrawProjects.length,
     phase,
     selectedSelfDrawProject,
-    selfDrawModeActive,
+    screenSelfDrawModeActive,
     selfDrawReelSpinning,
   ]);
 
@@ -1076,7 +1079,7 @@ export default function ReviewScreenSessionPage() {
   };
 
   const drawReviewScreenOrderFromScreen = async () => {
-    if (!params.sessionId || !token || selfDrawModeActive || phase !== "draw" || drawOrderSubmitting) {
+    if (!params.sessionId || !token || selfDrawModeActive || teamDrawModeActive || phase !== "draw" || drawOrderSubmitting) {
       return;
     }
 
@@ -1126,7 +1129,7 @@ export default function ReviewScreenSessionPage() {
   };
 
   const drawSelfDrawCandidate = async () => {
-    if (!params.sessionId || !token || !selfDrawModeActive || phase !== "draw") {
+    if (!params.sessionId || !token || !screenSelfDrawModeActive || phase !== "draw") {
       return null;
     }
 
@@ -1159,7 +1162,7 @@ export default function ReviewScreenSessionPage() {
   };
 
   const selfDrawProject = async (packageId: string) => {
-    if (!params.sessionId || !token || !selfDrawModeActive || phase !== "draw") {
+    if (!params.sessionId || !token || !screenSelfDrawModeActive || phase !== "draw") {
       return null;
     }
 
@@ -1194,7 +1197,7 @@ export default function ReviewScreenSessionPage() {
       selfDrawMainSubmitting ||
       selfDrawReelSpinning ||
       selfDrawStagePhase === "done" ||
-      !selfDrawModeActive ||
+      !screenSelfDrawModeActive ||
       phase !== "draw"
     ) {
       return;
@@ -1318,7 +1321,7 @@ export default function ReviewScreenSessionPage() {
   };
 
   useEffect(() => {
-    if (!selfDrawModeActive || phase !== "draw" || hasDrawStarted || selfDrawReelSpinning) {
+    if (!screenSelfDrawModeActive || phase !== "draw" || hasDrawStarted || selfDrawReelSpinning) {
       stopSelfDrawAutoScroll();
       return;
     }
@@ -1332,7 +1335,7 @@ export default function ReviewScreenSessionPage() {
     pendingSelfDrawKey,
     phase,
     projectOrderKey,
-    selfDrawModeActive,
+    screenSelfDrawModeActive,
     selfDrawReelSpinning,
     startSelfDrawAutoScroll,
     stopSelfDrawAutoScroll,
@@ -2758,7 +2761,7 @@ export default function ReviewScreenSessionPage() {
             <div className="waiting-stage-content">
               <h2 className="waiting-stage-title">{waitingScreen.title}</h2>
               <p className="waiting-stage-description">{waitingScreen.description}</p>
-              {phase === "draw" && !selfDrawModeActive && !hasDrawStarted && projectOrder.length > 0 ? (
+              {phase === "draw" && !selfDrawModeActive && !teamDrawModeActive && !hasDrawStarted && projectOrder.length > 0 ? (
                 <button
                   className="mt-9 rounded-2xl bg-[#1f4ea7] px-10 py-5 text-2xl font-black text-white shadow-[0_18px_42px_rgba(31,78,167,0.25)] transition hover:-translate-y-0.5 hover:bg-[#1a3f86] disabled:cursor-not-allowed disabled:bg-slate-300"
                   disabled={drawOrderSubmitting}
@@ -2800,7 +2803,73 @@ export default function ReviewScreenSessionPage() {
               </div>
             ) : null}
 
-            {selfDrawModeActive && !hasDrawStarted ? (
+            {teamDrawModeActive && !hasDrawStarted ? (
+              <div className="grid min-h-0 flex-1 gap-4 overflow-hidden lg:grid-cols-[minmax(0,1fr)_320px]">
+                <article className="contest-card min-h-0 overflow-hidden">
+                  <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
+                    <div>
+                      <p className="text-xs font-black tracking-[2px] text-[#c22832]">团队线上抽签</p>
+                      <h3 className="mt-1 text-xl font-black text-[#0f2040]">微信链接实时监控</h3>
+                    </div>
+                    <span className="rounded-full bg-blue-50 px-3 py-1.5 text-xs font-black text-blue-700">
+                      已抽 {selfDrawAssignedCount} / {projectOrder.length}
+                    </span>
+                  </div>
+                  <div className="grid max-h-full auto-rows-min grid-cols-[repeat(auto-fit,minmax(260px,1fr))] gap-3 overflow-y-auto p-5">
+                    {[...projectOrder]
+                      .sort((left, right) => left.orderIndex - right.orderIndex)
+                      .map((item) => {
+                        const drawn = Boolean(item.selfDrawnAt);
+                        return (
+                          <div
+                            className={`rounded-2xl border px-4 py-3 ${
+                              drawn ? "border-emerald-100 bg-emerald-50" : "border-slate-200 bg-white"
+                            }`}
+                            key={item.packageId}
+                          >
+                            <div className="flex items-center justify-between gap-3">
+                              <span
+                                className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-xl font-mono text-base font-black ${
+                                  drawn ? "bg-emerald-600 text-white" : "bg-slate-100 text-slate-400"
+                                }`}
+                              >
+                                {drawn ? item.orderIndex + 1 : "—"}
+                              </span>
+                              <span
+                                className={`rounded-full px-2.5 py-1 text-[11px] font-black ${
+                                  drawn ? "bg-white text-emerald-700" : "bg-slate-100 text-slate-500"
+                                }`}
+                              >
+                                {drawn ? "已抽签" : "待团队抽签"}
+                              </span>
+                            </div>
+                            <p className="mt-3 break-words text-sm font-black leading-5 text-slate-900">{item.targetName}</p>
+                            <p className="mt-1 truncate text-xs font-semibold text-slate-500">
+                              {item.groupName || `第${item.groupIndex + 1}组`}
+                            </p>
+                          </div>
+                        );
+                      })}
+                  </div>
+                </article>
+
+                <aside className="contest-card flex flex-col justify-between p-5">
+                  <div>
+                    <p className="text-xs font-black tracking-[2px] text-blue-600">监控状态</p>
+                    <h3 className="mt-2 text-2xl font-black text-[#0f2040]">等待各团队微信抽签</h3>
+                    <p className="mt-3 text-sm font-bold leading-6 text-slate-500">
+                      管理员保持本屏打开即可；团队通过专属链接抽取自己的顺序，结果会自动刷新到这里。
+                    </p>
+                  </div>
+                  <div className="mt-6 rounded-2xl bg-blue-50 px-5 py-4">
+                    <p className="text-xs font-black text-blue-500">剩余未抽</p>
+                    <p className="mt-2 font-mono text-5xl font-black text-blue-700">
+                      {Math.max(0, projectOrder.length - selfDrawAssignedCount)}
+                    </p>
+                  </div>
+                </aside>
+              </div>
+            ) : screenSelfDrawModeActive && !hasDrawStarted ? (
               <div className="self-draw-grid overflow-hidden">
                 <article className="self-draw-panel">
                   <div className="self-draw-panel-title">

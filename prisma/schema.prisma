@@ -602,6 +602,7 @@ model ExpertReviewPackage {
   assignments          ExpertReviewAssignment[]
   displaySessions      ReviewDisplaySession[]
   projectOrders        ReviewDisplayProjectOrder[]
+  teamDrawTokens       ReviewDisplayTeamDrawToken[]
 
   @@index([teamGroupId, createdAt])
   @@index([projectReviewStageId, createdAt])
@@ -717,6 +718,7 @@ model ReviewDisplaySession {
   showFinalScoreOnScreen Boolean                     @default(false)
   showRankingOnScreen    Boolean                     @default(false)
   selfDrawEnabled        Boolean                     @default(false)
+  teamDrawEnabled        Boolean                     @default(false)
   phaseStartedAt         DateTime?
   revealStartedAt        DateTime?
   createdById            String
@@ -726,6 +728,7 @@ model ReviewDisplaySession {
   creator                User                        @relation("ReviewDisplaySessionCreator", fields: [createdById], references: [id])
   seats                  ReviewDisplaySeat[]
   projectOrders          ReviewDisplayProjectOrder[]
+  teamDrawTokens         ReviewDisplayTeamDrawToken[]
 
   @@index([packageId, status])
   @@index([tokenExpiresAt])
@@ -779,6 +782,24 @@ model ReviewDisplayProjectOrder {
   @@unique([sessionId, packageId])
   @@unique([sessionId, orderIndex])
   @@index([sessionId, orderIndex])
+}
+
+model ReviewDisplayTeamDrawToken {
+  id             String               @id @default(cuid())
+  sessionId      String
+  packageId      String
+  tokenHash      String               @unique
+  tokenExpiresAt DateTime
+  usedAt         DateTime?
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+  session        ReviewDisplaySession @relation(fields: [sessionId], references: [id], onDelete: Cascade)
+  reviewPackage  ExpertReviewPackage  @relation(fields: [packageId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId, packageId])
+  @@index([sessionId, usedAt])
+  @@index([packageId])
+  @@index([tokenExpiresAt])
 }
 
 model TrainingQuestion {

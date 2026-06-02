@@ -46,7 +46,14 @@ type ReviewGroup = {
   items: ExpertReviewAssignmentItem[];
 };
 
-type ScreenDrawMode = "manual" | "random" | "self";
+type ScreenDrawMode = "manual" | "random" | "self" | "team";
+
+type TeamDrawLink = {
+  packageId: string;
+  targetName: string;
+  roundLabel: string;
+  url: string;
+};
 
 type PendingSubmission = {
   assignment: ExpertReviewAssignmentItem;
@@ -79,6 +86,7 @@ type ReviewScreenSessionState = {
   startedAt: string | null;
   phaseStartedAt?: string | null;
   screenDisplay?: ReviewScreenDisplaySettings;
+  teamDrawLinks?: TeamDrawLink[];
   seats: Array<{
     id: string;
     seatNo: number;
@@ -555,6 +563,7 @@ export default function ExpertReviewTab() {
   const [reviewScreenSessions, setReviewScreenSessions] = useState<Record<string, ReviewScreenSessionState>>({});
   const [reviewScreenActionKey, setReviewScreenActionKey] = useState<string | null>(null);
   const [copiedScreenGroupKey, setCopiedScreenGroupKey] = useState<string | null>(null);
+  const [copiedTeamDrawPackageId, setCopiedTeamDrawPackageId] = useState<string | null>(null);
   const [reviewConfigModalGroupKey, setReviewConfigModalGroupKey] = useState<string | null>(null);
   const [screenTimingDrafts, setScreenTimingDrafts] = useState<
     Record<string, ReturnType<typeof getDefaultScreenTimingDraft>>
@@ -1021,6 +1030,9 @@ export default function ExpertReviewTab() {
     if (draft) {
       return draft;
     }
+    if (reviewScreenSessions[groupKey]?.teamDrawLinks?.length) {
+      return "team";
+    }
     const currentDisplay = normalizeReviewScreenDisplaySettings(
       screenDisplayDrafts[groupKey] ?? screenLiveData[groupKey]?.screenDisplay ?? reviewScreenSessions[groupKey]?.screenDisplay,
     );
@@ -1096,6 +1108,7 @@ export default function ExpertReviewTab() {
         };
         seats: ReviewScreenSessionState["seats"];
         screenUrl: string;
+        teamDrawLinks?: TeamDrawLink[];
         packageIds?: string[];
         projectOrder?: ReviewScreenProjectOrderItem[];
       }>("/api/review-screen/sessions", {
@@ -1124,6 +1137,7 @@ export default function ExpertReviewTab() {
           startedAt: payload.session.startedAt ?? null,
           phaseStartedAt: payload.session.phaseStartedAt ?? null,
           screenDisplay: normalizeReviewScreenDisplaySettings(payload.session.screenDisplay),
+          teamDrawLinks: payload.teamDrawLinks ?? [],
           seats: payload.seats,
       };
       setReviewScreenSessions((current) => {
@@ -1169,6 +1183,37 @@ export default function ExpertReviewTab() {
     window.setTimeout(() => {
       setCopiedScreenGroupKey((current) => (current === groupKey ? null : current));
     }, 2000);
+  };
+
+  const copyTeamDrawLink = async (link: TeamDrawLink) => {
+    await navigator.clipboard?.writeText(link.url).catch(() => undefined);
+    setCopiedTeamDrawPackageId(link.packageId);
+    window.setTimeout(() => {
+      setCopiedTeamDrawPackageId((current) => (current === link.packageId ? null : current));
+    }, 2000);
+  };
+
+  const exportTeamDrawLinks = (group: ReviewGroup, links: TeamDrawLink[]) => {
+    if (!links.length) {
+      setLoadError("当前没有可导出的团队抽签链接");
+      return;
+    }
+    const header = ["项目", "轮次", "团队抽签链接"];
+    const rows = links.map((link) => [link.targetName, link.roundLabel || group.roundLabel, link.url]);
+    const escapeCell = (value: string | number | null | undefined) => {
+      const text = String(value ?? "");
+      return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+    };
+    const csv = [header, ...rows].map((row) => row.map(escapeCell).join(",")).join("\n");
+    const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `team-draw-links-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
   };
 
   const exportReviewScreenOrder = (group: ReviewGroup) => {
@@ -2519,11 +2564,19 @@ export default function ExpertReviewTab() {
         description: "大屏先随机抽上台项目，再由该项目抽取路演顺序。",
         meta: "两步抽签",
       },
+      {
+        key: "team",
+        title: "团队线上抽签",
+        description: "管理员保持大屏监控，团队通过微信专属链接只抽自己的顺序。",
+        meta: "微信链接",
+      },
     ];
     const selectedDrawMode = drawModeOptions.find((option) => option.key === drawMode) ?? drawModeOptions[1];
     const drawModeHelpText =
       drawMode === "manual"
         ? "手动排序模式：保存序号后生成大屏链接，大屏不再执行抽签。"
+        : drawMode === "team"
+          ? "团队线上抽签模式：后台生成大屏监控链接和团队专属链接，团队在微信里只抽自己的顺序。"
         : drawMode === "self"
           ? "自助抽签模式：后台只生成链接和导出结果，所有抽签动作都在大屏完成。"
           : "随机抽签模式：后台生成链接后，现场打开大屏点击“开始随机抽签”。";
@@ -2572,7 +2625,7 @@ export default function ExpertReviewTab() {
                 当前：{selectedDrawMode.title}
               </span>
             </div>
-            <div className="mt-3 grid gap-3 md:grid-cols-3">
+            <div className="mt-3 grid gap-3 md:grid-cols-4">
               {drawModeOptions.map((option) => {
                 const active = option.key === drawMode;
                 return (
@@ -2701,7 +2754,7 @@ export default function ExpertReviewTab() {
               <div>
                 <p className="text-sm font-extrabold text-slate-950">4 确认顺序并生成大屏链接</p>
                 <p className="mt-1 text-xs text-slate-400">
-                  {drawModeHelpText} 随机抽签和自助抽签都在大屏窗口完成，后台只同步结果和导出顺序表。
+                  {drawModeHelpText} 随机抽签和自助抽签都在大屏窗口完成；团队线上抽签由团队链接完成，后台同步结果和导出顺序表。
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -2718,7 +2771,7 @@ export default function ExpertReviewTab() {
                   type="button"
                 >
                   <Shuffle className="h-3.5 w-3.5" />
-                  {drawMode === "self" ? "打开自助抽签大屏" : "打开大屏抽签"}
+                  {drawMode === "self" ? "打开自助抽签大屏" : drawMode === "team" ? "打开监控大屏" : "打开大屏抽签"}
                 </button>
                 <button
                   className="inline-flex items-center justify-center gap-1 rounded-lg border border-emerald-100 bg-white px-3 py-2 text-xs font-bold text-emerald-700 transition hover:bg-emerald-50 disabled:cursor-not-allowed disabled:opacity-45"
@@ -2793,7 +2846,7 @@ export default function ExpertReviewTab() {
                       <span className={`shrink-0 rounded-lg px-3 py-1.5 text-[11px] font-bold ${
                         project.selfDrawnAt ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"
                       }`}>
-                        {project.selfDrawnAt ? "已抽取" : "待大屏抽取"}
+                        {project.selfDrawnAt ? "已抽取" : drawMode === "team" ? "待团队抽取" : "待大屏抽取"}
                       </span>
                     )}
                   </div>
@@ -3018,6 +3071,39 @@ export default function ExpertReviewTab() {
               重生成
             </button>
           </div>
+          {screenSession?.teamDrawLinks?.length ? (
+            <div className="mt-4 border-t border-slate-100 pt-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-extrabold text-slate-900">团队抽签链接</p>
+                  <p className="mt-1 text-[11px] text-slate-400">复制团队链接后发到微信；每队只能抽自己的。</p>
+                </div>
+                <button
+                  className="inline-flex shrink-0 items-center justify-center gap-1 rounded-lg border border-emerald-100 bg-emerald-50 px-2.5 py-1.5 text-[11px] font-bold text-emerald-700 transition hover:bg-emerald-100"
+                  onClick={() => exportTeamDrawLinks(group, screenSession.teamDrawLinks ?? [])}
+                  type="button"
+                >
+                  <Download className="h-3.5 w-3.5" />
+                  导出团队链接
+                </button>
+              </div>
+              <div className="mt-3 max-h-56 space-y-2 overflow-y-auto pr-1">
+                {screenSession.teamDrawLinks.map((link) => (
+                  <div className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2" key={link.packageId}>
+                    <p className="truncate text-[11px] font-bold text-slate-700">{link.targetName}</p>
+                    <button
+                      className="mt-2 inline-flex w-full items-center justify-center gap-1 rounded-md border border-blue-100 bg-white px-2 py-1.5 text-[11px] font-bold text-blue-700 transition hover:bg-blue-50"
+                      onClick={() => void copyTeamDrawLink(link)}
+                      type="button"
+                    >
+                      <Copy className="h-3.5 w-3.5" />
+                      {copiedTeamDrawPackageId === link.packageId ? "已复制" : "复制团队链接"}
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
         </article>
       </aside>
     );
