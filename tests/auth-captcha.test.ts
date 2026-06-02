@@ -35,7 +35,7 @@ test("captcha api route returns svg and sets an HttpOnly challenge cookie", () =
   assert.match(source, /no-store/);
 });
 
-test("desktop login requires captcha while mobile web login can skip it", () => {
+test("login only requires captcha after suspicious failures instead of on every attempt", () => {
   const source = readFileSync(
     path.join(process.cwd(), "src/app/api/auth/login/route.ts"),
     "utf8",
@@ -43,23 +43,29 @@ test("desktop login requires captcha while mobile web login can skip it", () => 
 
   assert.match(source, /captcha\?:\s*string/);
   assert.match(source, /isMobileWebRequest/);
-  assert.match(source, /Mobile\|Android\|iPhone\|iPad\|iPod\|Windows Phone\|MicroMessenger\|Mobi/);
-  assert.match(source, /const captchaRequired = !isMobileWebRequest/);
+  assert.match(source, /LOGIN_ACCOUNT_CAPTCHA_FAILURE_THRESHOLD = 2/);
+  assert.match(source, /LOGIN_IP_CAPTCHA_FAILURE_THRESHOLD = 20/);
+  assert.match(source, /shouldRequireLoginCaptcha/);
+  assert.match(source, /recordFailedLoginCaptchaChallenge/);
+  assert.match(source, /const captchaRequired = shouldRequireLoginCaptcha\(request, account\)/);
   assert.match(source, /verifyCaptchaChallenge/);
   assert.match(source, /clearCaptchaCookie/);
+  assert.match(source, /requiresCaptcha/);
   assert.match(source, /请输入验证码/);
 });
 
-test("login screen keeps desktop captcha but hides and skips it on mobile web", () => {
+test("login screen shows captcha only after the server asks for it", () => {
   const source = readFileSync(
     path.join(process.cwd(), "src/components/login-screen.tsx"),
     "utf8",
   );
 
-  assert.match(source, /isMobileLoginViewport/);
-  assert.match(source, /hasHydratedLoginViewport/);
-  assert.match(source, /const captchaRequired = !hasHydratedLoginViewport \|\| !isMobileLoginViewport/);
-  assert.match(source, /hidden gap-3 sm:grid/);
+  assert.match(source, /loginCaptchaRequired/);
+  assert.match(source, /setLoginCaptchaRequired\(true\)/);
+  assert.match(source, /const captchaRequired = loginCaptchaRequired/);
+  assert.doesNotMatch(source, /isMobileLoginViewport/);
+  assert.doesNotMatch(source, /hasHydratedLoginViewport/);
+  assert.doesNotMatch(source, /hidden gap-3 sm:grid/);
   assert.match(source, /captchaVersion/);
   assert.match(source, /\/api\/auth\/captcha\?v=/);
   assert.match(source, /请输入验证码/);

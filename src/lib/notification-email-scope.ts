@@ -10,10 +10,10 @@ type NotificationEmailCandidate = {
 
 export const filterNotificationEmailRecipients = (
   recipients: NotificationEmailCandidate[],
-  { emailTeamGroupId }: { emailTeamGroupId?: string | null },
+  { emailTeamGroupId, includeAdmins = false }: { emailTeamGroupId?: string | null; includeAdmins?: boolean },
 ) => {
   return recipients
-    .filter((recipient) => recipient.role !== "admin")
+    .filter((recipient) => includeAdmins || recipient.role !== "admin")
     .filter((recipient) => recipient.approvalStatus === "approved")
     .filter((recipient) => Boolean(recipient.email?.trim()))
     .filter((recipient) => {

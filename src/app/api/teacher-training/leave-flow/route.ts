@@ -16,8 +16,8 @@ const normalizeApprovalSteps = (steps: unknown): TeacherTrainingLeaveFlowStep[] 
   return parsedSteps.map((step, index) => ({
     ...step,
     key: step.key || `step-${index + 1}`,
-    name: step.name || `第${index + 1}步审批`,
-    requiredCount: Math.min(Math.max(1, step.requiredCount), step.approverIds.length),
+    name: step.name || (index === 0 ? "请假审批" : `补充审批 ${index + 1}`),
+    requiredCount: Math.max(1, step.requiredCount),
   }));
 };
 
@@ -46,9 +46,15 @@ export async function POST(request: NextRequest) {
   if (!cohortId || approvalSteps.length === 0) {
     return NextResponse.json({ message: "请先选择班次并配置至少一个审批步骤" }, { status: 400 });
   }
+  if (approvalSteps.some((step) => step.approverIds.length === 0)) {
+    return NextResponse.json({ message: "每个审批步骤至少选择一名审批人" }, { status: 400 });
+  }
+  if (approvalSteps.some((step) => step.requiredCount > step.approverIds.length)) {
+    return NextResponse.json({ message: "每步通过人数不能超过已选审批人数" }, { status: 400 });
+  }
 
-  const cohort = await prisma.teacherTrainingCohort.findUnique({
-    where: { id: cohortId },
+  const cohort = await prisma.teacherTrainingCohort.findFirst({
+    where: { id: cohortId, deletedAt: null },
     select: { id: true },
   });
   if (!cohort) {
@@ -61,14 +67,25 @@ export async function POST(request: NextRequest) {
       id: {
         in: approverIds,
       },
-      role: {
-        in: ["admin", "school_admin"],
-      },
       approvalStatus: "approved",
+      OR: [
+        {
+          role: {
+            in: ["admin", "school_admin"],
+          },
+        },
+        {
+          teacherTrainingManagedCohorts: {
+            some: {
+              cohortId,
+            },
+          },
+        },
+      ],
     },
   });
   if (approverCount !== approverIds.length) {
-    return NextResponse.json({ message: "审批人必须是已启用的系统管理员或校级管理员" }, { status: 400 });
+    return NextResponse.json({ message: "审批人必须是已启用的管理员、当前班次省培负责人或班主任" }, { status: 400 });
   }
 
   const leaveFlow = await prisma.teacherTrainingLeaveFlow.upsert({

@@ -1,7 +1,6 @@
 import type { Role } from "@prisma/client";
 
 import { serializeUser } from "@/lib/api-serializers";
-import { hasGlobalAdminPrivileges } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
 export type TeacherTrainingAccessUser = {
@@ -16,10 +15,12 @@ export type TeacherTrainingAccessFlags = {
   teacherTrainingManagedCohortCount: number;
 };
 
+export const isTeacherTrainingSystemAdmin = (user: TeacherTrainingAccessUser) => user.role === "admin";
+
 export const getTeacherTrainingAccessFlags = async (
   user: TeacherTrainingAccessUser,
 ): Promise<TeacherTrainingAccessFlags> => {
-  if (hasGlobalAdminPrivileges(user.role)) {
+  if (isTeacherTrainingSystemAdmin(user)) {
     return {
       hasTeacherTrainingAccess: true,
       hasTeacherTrainingManagerAccess: true,
@@ -28,18 +29,32 @@ export const getTeacherTrainingAccessFlags = async (
     };
   }
 
-  const [participantCount, managedCohortCount] = await Promise.all([
-    prisma.teacherTrainingParticipant.count({
+  const [participantProfile, managedCohort] = await Promise.all([
+    prisma.teacherTrainingParticipant.findFirst({
       where: {
         accountUserId: user.id,
+        cohort: {
+          deletedAt: null,
+        },
+      },
+      select: {
+        id: true,
       },
     }),
-    prisma.teacherTrainingCohortManager.count({
+    prisma.teacherTrainingCohortManager.findFirst({
       where: {
         userId: user.id,
+        cohort: {
+          deletedAt: null,
+        },
+      },
+      select: {
+        id: true,
       },
     }),
   ]);
+  const participantCount = participantProfile ? 1 : 0;
+  const managedCohortCount = managedCohort ? 1 : 0;
 
   return {
     hasTeacherTrainingAccess: user.role === "training_teacher" || participantCount > 0 || managedCohortCount > 0,
@@ -60,14 +75,24 @@ export const serializeUserWithTeacherTrainingAccess = async <T extends Parameter
   };
 };
 
-export const getManagedTeacherTrainingCohortIds = async (user: TeacherTrainingAccessUser) => {
-  if (hasGlobalAdminPrivileges(user.role)) {
+export const getManagedTeacherTrainingCohortIds = async (
+  user: TeacherTrainingAccessUser,
+  options: { includeDeleted?: boolean } = {},
+) => {
+  if (isTeacherTrainingSystemAdmin(user)) {
     return null;
   }
 
   const rows = await prisma.teacherTrainingCohortManager.findMany({
     where: {
       userId: user.id,
+      ...(options.includeDeleted
+        ? {}
+        : {
+            cohort: {
+              deletedAt: null,
+            },
+          }),
     },
     select: {
       cohortId: true,
@@ -80,8 +105,9 @@ export const getManagedTeacherTrainingCohortIds = async (user: TeacherTrainingAc
 export const hasTeacherTrainingCohortManageAccess = async (
   user: TeacherTrainingAccessUser,
   cohortId: string,
+  options: { includeDeleted?: boolean } = {},
 ) => {
-  if (hasGlobalAdminPrivileges(user.role)) {
+  if (isTeacherTrainingSystemAdmin(user)) {
     return true;
   }
 
@@ -94,8 +120,13 @@ export const hasTeacherTrainingCohortManageAccess = async (
     },
     select: {
       id: true,
+      cohort: {
+        select: {
+          deletedAt: true,
+        },
+      },
     },
   });
 
-  return Boolean(assignment);
+  return Boolean(assignment && (options.includeDeleted || !assignment.cohort.deletedAt));
 };

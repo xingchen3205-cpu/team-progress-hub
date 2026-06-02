@@ -1,7 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { validateRequiredEmail } from "@/lib/account-policy";
 import { getSessionUser } from "@/lib/auth";
+import { buildAppUrl, isEmailConfigured, renderSystemEmail, sendEmail } from "@/lib/email";
 import { prisma } from "@/lib/prisma";
+import { isTeacherTrainingArrivalAtValue, mergeTeacherTrainingParticipantExtraInfo } from "@/lib/teacher-training";
 
 export async function PATCH(request: NextRequest) {
   const user = await getSessionUser(request);
@@ -16,30 +19,88 @@ export async function PATCH(request: NextRequest) {
         organization?: string;
         phone?: string;
         groupName?: string;
+        title?: string;
+        email?: string;
+        arrivalTransportation?: string;
+        arrivalAt?: string;
+        arrivalVehicleNo?: string;
+        arrivalDeparture?: string;
         note?: string;
       }
     | null;
   const participantId = body?.participantId?.trim();
   const name = body?.name?.trim();
   const organization = body?.organization?.trim();
+  const phone = body?.phone?.trim() || "";
+  const groupName = body?.groupName?.trim() || "";
+  const title = body?.title?.trim() || "";
+  const email = body?.email?.trim() || "";
+  const arrivalTransportation = body?.arrivalTransportation?.trim() || "";
+  const arrivalAt = body?.arrivalAt?.trim() || "";
+  const arrivalVehicleNo = body?.arrivalVehicleNo?.trim() || "";
+  const arrivalDeparture = body?.arrivalDeparture?.trim() || "";
 
-  if (!participantId || !name || !organization) {
-    return NextResponse.json({ message: "请填写姓名和单位" }, { status: 400 });
+  if (
+    !participantId ||
+    !name ||
+    !organization ||
+    !phone ||
+    !groupName ||
+    !title ||
+    !email ||
+    !arrivalAt ||
+    !arrivalTransportation ||
+    !arrivalVehicleNo ||
+    !arrivalDeparture
+  ) {
+    return NextResponse.json(
+      { message: "请填写姓名、单位、手机、分组、职务、邮箱、预计到达时间、交通方式、车次/航班/车牌和出发地" },
+      { status: 400 },
+    );
+  }
+  const emailError = validateRequiredEmail(email);
+  if (emailError) {
+    return NextResponse.json({ message: emailError }, { status: 400 });
+  }
+  if (!isTeacherTrainingArrivalAtValue(arrivalAt)) {
+    return NextResponse.json({ message: "预计到达时间格式不正确" }, { status: 400 });
+  }
+  const emailConflict = await prisma.user.findFirst({
+    where: {
+      id: { not: user.id },
+      OR: [{ email }, { username: email }],
+    },
+    select: { id: true },
+  });
+  if (emailConflict) {
+    return NextResponse.json({ message: "邮箱已被其他账号使用，请更换后再保存" }, { status: 409 });
   }
 
   const participant = await prisma.teacherTrainingParticipant.findFirst({
     where: {
       id: participantId,
       accountUserId: user.id,
+      cohort: {
+        deletedAt: null,
+      },
     },
     select: {
       id: true,
       accountUserId: true,
+      extraInfo: true,
+      cohort: {
+        select: {
+          title: true,
+        },
+      },
     },
   });
   if (!participant) {
     return NextResponse.json({ message: "未找到当前省培账号对应的参训档案" }, { status: 404 });
   }
+
+  const emailChanged = Boolean(email && email !== (user.email ?? ""));
+  let emailStatus: "unchanged" | "not_configured" | "sent" | "failed" = emailChanged ? "not_configured" : "unchanged";
 
   await prisma.$transaction([
     prisma.teacherTrainingParticipant.update({
@@ -47,8 +108,16 @@ export async function PATCH(request: NextRequest) {
       data: {
         name,
         organization,
-        phone: body?.phone?.trim() || null,
-        groupName: body?.groupName?.trim() || null,
+        phone,
+        groupName,
+        extraInfo: mergeTeacherTrainingParticipantExtraInfo(participant.extraInfo, {
+          title,
+          email,
+          arrivalTransportation,
+          arrivalAt,
+          arrivalVehicleNo,
+          arrivalDeparture,
+        }) || null,
         note: body?.note?.trim() || null,
       },
     }),
@@ -56,10 +125,42 @@ export async function PATCH(request: NextRequest) {
       where: { id: user.id },
       data: {
         name,
+        email,
         avatar: name.slice(0, 1),
       },
     }),
   ]);
 
-  return NextResponse.json({ ok: true });
+  if (emailChanged && isEmailConfigured()) {
+    try {
+      await sendEmail({
+        to: email,
+        subject: "省培资料已完善",
+        html: renderSystemEmail({
+          title: "省培资料已完善",
+          detail: `你已完成${participant.cohort.title}的省培个人资料填写。\n请及时修改初始密码，并按平台提示完成报到、签到、任务汇报和请假等事项。`,
+          actionUrl: buildAppUrl("/workspace?tab=teacherTraining"),
+          actionLabel: "进入省培系统",
+          recipientName: name,
+          noticeType: "省培账号",
+        }),
+      });
+      emailStatus = "sent";
+    } catch (error) {
+      emailStatus = "failed";
+      console.error("Teacher training profile completion email failed", error);
+      void prisma.auditLog.create({
+        data: {
+          operatorId: user.id,
+          operatorRole: user.role,
+          action: "teacher_training.notification.failed",
+          objectType: "teacher_training_profile",
+          objectId: participant.id,
+          metadata: JSON.stringify({ stage: "profile", message: error instanceof Error ? error.message : String(error) }),
+        },
+      }).catch(() => undefined);
+    }
+  }
+
+  return NextResponse.json({ ok: true, emailStatus });
 }

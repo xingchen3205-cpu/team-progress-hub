@@ -1,8 +1,30 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { getSessionUser } from "@/lib/auth";
+import { createNotifications } from "@/lib/notifications";
 import { prisma } from "@/lib/prisma";
-import { parseTeacherTrainingLeaveSteps, serializeTeacherTrainingLeaveRequest } from "@/lib/teacher-training";
+import {
+  parseTeacherTrainingLeaveSteps,
+  serializeTeacherTrainingLeaveRequest,
+  validateTeacherTrainingLeaveRange,
+} from "@/lib/teacher-training";
+
+const formatLeavePeriod = ({
+  startDate,
+  endDate,
+  startTime,
+  endTime,
+}: {
+  startDate: string;
+  endDate: string;
+  startTime?: string | null;
+  endTime?: string | null;
+}) => {
+  const start = startTime ? `${startDate} ${startTime}` : startDate;
+  const end = endTime ? `${endDate} ${endTime}` : endDate;
+
+  return start === end ? start : `${start} 至 ${end}`;
+};
 
 export async function POST(request: NextRequest) {
   const user = await getSessionUser(request);
@@ -15,6 +37,8 @@ export async function POST(request: NextRequest) {
         participantId?: string;
         startDate?: string;
         endDate?: string;
+        startTime?: string;
+        endTime?: string;
         sessionLabel?: string;
         reason?: string;
       }
@@ -22,16 +46,25 @@ export async function POST(request: NextRequest) {
   const participantId = body?.participantId?.trim();
   const startDate = body?.startDate?.trim();
   const endDate = body?.endDate?.trim() || startDate;
+  const startTime = body?.startTime?.trim() || null;
+  const endTime = body?.endTime?.trim() || null;
   const reason = body?.reason?.trim();
 
   if (!participantId || !startDate || !endDate || !reason) {
     return NextResponse.json({ message: "请填写请假日期和原因" }, { status: 400 });
+  }
+  const leaveRangeError = validateTeacherTrainingLeaveRange({ startDate, endDate, startTime, endTime });
+  if (leaveRangeError) {
+    return NextResponse.json({ message: leaveRangeError }, { status: 400 });
   }
 
   const participant = await prisma.teacherTrainingParticipant.findFirst({
     where: {
       id: participantId,
       accountUserId: user.id,
+      cohort: {
+        deletedAt: null,
+      },
     },
     include: {
       cohort: {
@@ -57,6 +90,8 @@ export async function POST(request: NextRequest) {
       submittedById: user.id,
       startDate,
       endDate,
+      startTime,
+      endTime,
       sessionLabel: body?.sessionLabel?.trim() || "请假",
       reason,
       status: "pending",
@@ -80,6 +115,29 @@ export async function POST(request: NextRequest) {
         },
       },
     },
+  });
+
+  await createNotifications({
+    userIds: approvalSteps[0]?.approverIds ?? [],
+    title: "省培请假待审批",
+    detail: `${participant.name} 提交了 ${formatLeavePeriod({ startDate, endDate, startTime, endTime })} 的请假申请，请及时审批。`,
+    type: "teacher_training_leave_review",
+    targetTab: "teacherTraining",
+    relatedId: leaveRequest.id,
+    senderId: user.id,
+    email: { noticeType: "省培请假审批", actionLabel: "进入省培处理", includeAdmins: true },
+  }).catch((error) => {
+    console.error("Teacher training leave submit notification failed", error);
+    void prisma.auditLog.create({
+      data: {
+        operatorId: user.id,
+        operatorRole: user.role,
+        action: "teacher_training.notification.failed",
+        objectType: "teacher_training_leave_request",
+        objectId: leaveRequest.id,
+        metadata: JSON.stringify({ stage: "submit", message: error instanceof Error ? error.message : String(error) }),
+      },
+    }).catch(() => undefined);
   });
 
   return NextResponse.json({ leaveRequest: serializeTeacherTrainingLeaveRequest(leaveRequest) }, { status: 201 });

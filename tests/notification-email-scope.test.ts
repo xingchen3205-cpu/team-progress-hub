@@ -82,6 +82,18 @@ describe("notification email recipient filtering", () => {
     );
   });
 
+  it("can include system administrators for explicit approval workflows", () => {
+    assert.deepEqual(
+      filterNotificationEmailRecipients(recipients, { includeAdmins: true }),
+      [
+        { email: "admin@example.com", name: "系统管理员" },
+        { email: "teacher-a@example.com", name: "指导教师A" },
+        { email: "leader-a@example.com", name: "负责人A" },
+        { email: "member-b@example.com", name: "成员B" },
+      ],
+    );
+  });
+
   it("does not apply team group email filtering to direct manual reminders", () => {
     const route = readFileSync(
       path.join(process.cwd(), "src/app/api/notifications/route.ts"),

@@ -2,18 +2,31 @@ import { NextRequest, NextResponse } from "next/server";
 import type { Prisma } from "@prisma/client";
 
 import { getSessionUser } from "@/lib/auth";
-import { assertRole, hasGlobalAdminPrivileges } from "@/lib/permissions";
+import { assertRole } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
-import { getTeacherTrainingAccessFlags } from "@/lib/teacher-training-access";
-import { serializeTeacherTrainingCohort } from "@/lib/teacher-training";
+import {
+  getTeacherTrainingAccessFlags,
+  hasTeacherTrainingCohortManageAccess,
+  isTeacherTrainingSystemAdmin,
+} from "@/lib/teacher-training-access";
+import { serializeTeacherTrainingCohort, type TeacherTrainingCohortItem } from "@/lib/teacher-training";
 
-const buildTeacherTrainingInclude = () => ({
+const buildTeacherTrainingInclude = (options: { participantAccountUserId?: string } = {}) => {
+  const participantWhere = options.participantAccountUserId
+    ? { accountUserId: options.participantAccountUserId }
+    : undefined;
+  const participantOwnedWhere = options.participantAccountUserId
+    ? { participant: { is: { accountUserId: options.participantAccountUserId } } }
+    : undefined;
+
+  return {
   creator: {
     select: {
       name: true,
     },
   },
   participants: {
+    where: participantWhere,
     orderBy: [{ createdAt: "asc" as const }],
     include: {
       accountUser: {
@@ -80,6 +93,9 @@ const buildTeacherTrainingInclude = () => ({
     },
   },
   courseSessions: {
+    where: {
+      deletedAt: null,
+    },
     orderBy: [{ courseDate: "asc" as const }, { startTime: "asc" as const }, { createdAt: "asc" as const }],
     include: {
       creator: {
@@ -90,6 +106,7 @@ const buildTeacherTrainingInclude = () => ({
     },
   },
   attendances: {
+    where: participantOwnedWhere,
     orderBy: [{ sessionDate: "desc" as const }, { sessionLabel: "asc" as const }, { markedAt: "desc" as const }],
     include: {
       markedBy: {
@@ -100,6 +117,9 @@ const buildTeacherTrainingInclude = () => ({
     },
   },
   checkInTasks: {
+    where: {
+      deletedAt: null,
+    },
     orderBy: [{ signDate: "desc" as const }, { startTime: "asc" as const }, { createdAt: "desc" as const }],
     include: {
       creator: {
@@ -108,6 +128,7 @@ const buildTeacherTrainingInclude = () => ({
         },
       },
       records: {
+        where: participantOwnedWhere,
         orderBy: [{ signedAt: "desc" as const }],
         include: {
           participant: {
@@ -121,6 +142,7 @@ const buildTeacherTrainingInclude = () => ({
   },
   leaveFlow: true,
   leaveRequests: {
+    where: participantOwnedWhere,
     orderBy: [{ submittedAt: "desc" as const }],
     include: {
       participant: {
@@ -142,6 +164,9 @@ const buildTeacherTrainingInclude = () => ({
     },
   },
   tasks: {
+    where: {
+      deletedAt: null,
+    },
     orderBy: [{ createdAt: "desc" as const }],
     include: {
       creator: {
@@ -150,6 +175,7 @@ const buildTeacherTrainingInclude = () => ({
         },
       },
       submissions: {
+        where: participantOwnedWhere,
         orderBy: [{ submittedAt: "desc" as const }],
         include: {
           participant: {
@@ -166,11 +192,150 @@ const buildTeacherTrainingInclude = () => ({
       },
     },
   },
-}) satisfies Prisma.TeacherTrainingCohortInclude;
+  } satisfies Prisma.TeacherTrainingCohortInclude;
+};
+
+const buildTeacherTrainingSummaryInclude = () =>
+  ({
+    creator: {
+      select: {
+        name: true,
+      },
+    },
+    managers: {
+      orderBy: [{ createdAt: "asc" as const }],
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            username: true,
+            role: true,
+          },
+        },
+      },
+    },
+    attendances: {
+      select: {
+        participantId: true,
+        sessionLabel: true,
+        status: true,
+      },
+    },
+    checkInTasks: {
+      where: {
+        deletedAt: null,
+      },
+      select: {
+        _count: {
+          select: {
+            records: true,
+          },
+        },
+      },
+    },
+    tasks: {
+      where: {
+        deletedAt: null,
+      },
+      select: {
+        _count: {
+          select: {
+            submissions: true,
+          },
+        },
+      },
+    },
+    courseSessions: {
+      where: {
+        deletedAt: null,
+      },
+      select: {
+        id: true,
+      },
+    },
+    _count: {
+      select: {
+        participants: true,
+        leaveRequests: true,
+        managers: true,
+      },
+    },
+  }) satisfies Prisma.TeacherTrainingCohortInclude;
 
 type TeacherTrainingCohortWithRelations = Prisma.TeacherTrainingCohortGetPayload<{
   include: ReturnType<typeof buildTeacherTrainingInclude>;
 }>;
+
+type TeacherTrainingCohortSummaryWithRelations = Prisma.TeacherTrainingCohortGetPayload<{
+  include: ReturnType<typeof buildTeacherTrainingSummaryInclude>;
+}>;
+
+const toSummaryDateTimeLabel = (value: Date | string | null | undefined) => {
+  if (!value) return "";
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const year = date.getFullYear();
+  const month = `${date.getMonth() + 1}`.padStart(2, "0");
+  const day = `${date.getDate()}`.padStart(2, "0");
+  const hours = `${date.getHours()}`.padStart(2, "0");
+  const minutes = `${date.getMinutes()}`.padStart(2, "0");
+  return `${year}-${month}-${day} ${hours}:${minutes}`;
+};
+
+const serializeTeacherTrainingCohortSummary = (
+  cohort: TeacherTrainingCohortSummaryWithRelations,
+): TeacherTrainingCohortItem => {
+  const registeredParticipantIds = new Set(
+    cohort.attendances
+      .filter((attendance) => attendance.status === "present" && attendance.sessionLabel === "报到")
+      .map((attendance) => attendance.participantId),
+  );
+  const leaveCount = cohort.attendances.filter((attendance) => attendance.status === "leave").length;
+  const absentCount = cohort.attendances.filter((attendance) => attendance.status === "absent").length;
+
+  return {
+    id: cohort.id,
+    includeDetails: false,
+    title: cohort.title,
+    location: cohort.location ?? "",
+    startDate: cohort.startDate,
+    endDate: cohort.endDate,
+    description: cohort.description ?? "",
+    createdAt: toSummaryDateTimeLabel(cohort.createdAt),
+    createdByName: cohort.creator?.name ?? "管理员",
+    courseSessions: [],
+    participants: [],
+    attendances: [],
+    checkInTasks: [],
+    leaveFlow: null,
+    leaveRequests: [],
+    managers: cohort.managers.map((manager) => ({
+      id: manager.id,
+      cohortId: manager.cohortId,
+      userId: manager.userId,
+      name: manager.user?.name ?? "工作人员",
+      username: manager.user?.username ?? "",
+      role: manager.user?.role ?? "",
+      title: manager.title || "班主任",
+      createdAt: toSummaryDateTimeLabel(manager.createdAt),
+    })),
+    tasks: [],
+    stats: {
+      participantCount: cohort._count.participants,
+      presentCount: registeredParticipantIds.size,
+      leaveCount,
+      absentCount,
+      courseCount: cohort.courseSessions.length,
+      checkInTaskCount: cohort.checkInTasks.length,
+      checkInRecordCount: cohort.checkInTasks.reduce((total, task) => total + task._count.records, 0),
+      leaveRequestCount: cohort._count.leaveRequests,
+      managerCount: cohort._count.managers,
+      taskCount: cohort.tasks.length,
+      submissionCount: cohort.tasks.reduce((total, task) => total + task._count.submissions, 0),
+    },
+  };
+};
 
 const filterCohortForParticipantOnly = (
   cohort: TeacherTrainingCohortWithRelations,
@@ -214,50 +379,82 @@ export async function GET(request: NextRequest) {
     return NextResponse.json({ message: "无权限查看省培平台" }, { status: 403 });
   }
 
-  const isManager = hasGlobalAdminPrivileges(user.role);
+  const { searchParams } = new URL(request.url);
+  const mode = searchParams.get("mode");
+  const cohortId = searchParams.get("cohortId");
+  const isManager = isTeacherTrainingSystemAdmin(user);
   const managerAssignments = isManager
     ? []
     : await prisma.teacherTrainingCohortManager.findMany({
         where: {
           userId: user.id,
+          cohort: {
+            deletedAt: null,
+          },
         },
         select: {
           cohortId: true,
         },
       });
   const managedCohortIds = new Set(managerAssignments.map((assignment) => assignment.cohortId));
+  const isParticipantOnly = !isManager && managedCohortIds.size === 0;
+  const baseWhere: Prisma.TeacherTrainingCohortWhereInput = isManager
+    ? {
+        deletedAt: null,
+      }
+    : {
+        deletedAt: null,
+        OR: [
+          {
+            participants: {
+              some: {
+                accountUserId: user.id,
+              },
+            },
+          },
+          {
+            managers: {
+              some: {
+                userId: user.id,
+              },
+            },
+          },
+        ],
+      };
+  const where: Prisma.TeacherTrainingCohortWhereInput = cohortId
+    ? {
+        AND: [baseWhere, { id: cohortId }],
+      }
+    : baseWhere;
+  const shouldLoadSummary = mode === "summary" && !cohortId && !isParticipantOnly;
   const [cohorts, approverOptions, managerOptions] = await Promise.all([
     prisma.teacherTrainingCohort.findMany({
-      where: isManager
-        ? undefined
-        : {
-            OR: [
-              {
-                participants: {
-                  some: {
-                    accountUserId: user.id,
-                  },
-                },
-              },
-              {
-                managers: {
-                  some: {
-                    userId: user.id,
-                  },
-                },
-              },
-            ],
-          },
+      where,
       orderBy: [{ startDate: "desc" }, { createdAt: "desc" }],
-      include: buildTeacherTrainingInclude(),
+      include: shouldLoadSummary
+        ? buildTeacherTrainingSummaryInclude()
+        : buildTeacherTrainingInclude(isParticipantOnly ? { participantAccountUserId: user.id } : undefined),
     }),
     isManager
       ? prisma.user.findMany({
           where: {
-            role: {
-              in: ["admin", "school_admin"],
-            },
             approvalStatus: "approved",
+            OR: [
+              {
+                role: {
+                  in: ["admin", "school_admin"],
+                },
+              },
+              {
+                teacherTrainingManagedCohorts: {
+                  some: {
+                    cohort: {
+                      deletedAt: null,
+                    },
+                  },
+                },
+              },
+            ],
           },
           orderBy: [{ role: "asc" }, { name: "asc" }],
           select: {
@@ -286,12 +483,20 @@ export async function GET(request: NextRequest) {
         })
       : Promise.resolve([]),
   ]);
-  const visibleCohorts = isManager
+  const visibleCohorts = shouldLoadSummary
     ? cohorts
-    : cohorts.map((cohort) => filterCohortForParticipantOnly(cohort, user.id, managedCohortIds));
+    : isManager
+    ? cohorts
+    : isParticipantOnly
+      ? cohorts
+      : (cohorts as TeacherTrainingCohortWithRelations[]).map((cohort) =>
+          filterCohortForParticipantOnly(cohort, user.id, managedCohortIds),
+        );
 
   return NextResponse.json({
-    cohorts: visibleCohorts.map(serializeTeacherTrainingCohort),
+    cohorts: shouldLoadSummary
+      ? (visibleCohorts as TeacherTrainingCohortSummaryWithRelations[]).map(serializeTeacherTrainingCohortSummary)
+      : (visibleCohorts as TeacherTrainingCohortWithRelations[]).map(serializeTeacherTrainingCohort),
     approverOptions,
     managerOptions,
   });
@@ -304,7 +509,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    assertRole(user.role, ["admin", "school_admin"]);
+    assertRole(user.role, ["admin"]);
   } catch {
     return NextResponse.json({ message: "无权限创建省培班次" }, { status: 403 });
   }
@@ -339,4 +544,114 @@ export async function POST(request: NextRequest) {
   });
 
   return NextResponse.json({ cohort: serializeTeacherTrainingCohort(cohort) }, { status: 201 });
+}
+
+export async function PATCH(request: NextRequest) {
+  const user = await getSessionUser(request);
+  if (!user) {
+    return NextResponse.json({ message: "未登录" }, { status: 401 });
+  }
+
+  const body = (await request.json().catch(() => null)) as
+    | {
+        id?: string;
+        title?: string;
+        location?: string;
+        startDate?: string;
+        endDate?: string;
+        description?: string;
+      }
+    | null;
+  const id = body?.id?.trim();
+  const title = body?.title?.trim();
+  const startDate = body?.startDate?.trim();
+  const endDate = body?.endDate?.trim();
+
+  if (!id || !title || !startDate || !endDate) {
+    return NextResponse.json({ message: "请填写班次、培训名称、开始日期和结束日期" }, { status: 400 });
+  }
+
+  const existing = await prisma.teacherTrainingCohort.findFirst({
+    where: { id, deletedAt: null },
+    select: { id: true },
+  });
+  if (!existing) {
+    return NextResponse.json({ message: "省培班次不存在" }, { status: 404 });
+  }
+  const canManageCohort = await hasTeacherTrainingCohortManageAccess(user, id);
+  if (!canManageCohort) {
+    return NextResponse.json({ message: "无权限修改该省培班次" }, { status: 403 });
+  }
+
+  const cohort = await prisma.teacherTrainingCohort.update({
+    where: { id },
+    data: {
+      title,
+      location: body?.location?.trim() || null,
+      startDate,
+      endDate,
+      description: body?.description?.trim() || null,
+    },
+    include: buildTeacherTrainingInclude(),
+  });
+
+  return NextResponse.json({ cohort: serializeTeacherTrainingCohort(cohort) });
+}
+
+export async function DELETE(request: NextRequest) {
+  const user = await getSessionUser(request);
+  if (!user) {
+    return NextResponse.json({ message: "未登录" }, { status: 401 });
+  }
+
+  const body = (await request.json().catch(() => null)) as { id?: string; confirmCascade?: boolean } | null;
+  const id = body?.id?.trim();
+  if (!id) {
+    return NextResponse.json({ message: "请先选择要删除的省培班次" }, { status: 400 });
+  }
+
+  const existing = await prisma.teacherTrainingCohort.findFirst({
+    where: { id, deletedAt: null },
+    select: {
+      id: true,
+      _count: {
+        select: {
+          participants: true,
+          courseSessions: true,
+          checkInTasks: true,
+          leaveRequests: true,
+          tasks: true,
+          attendances: true,
+        },
+      },
+    },
+  });
+  if (!existing) {
+    return NextResponse.json({ message: "省培班次不存在" }, { status: 404 });
+  }
+  const canManageCohort = await hasTeacherTrainingCohortManageAccess(user, id);
+  if (!canManageCohort) {
+    return NextResponse.json({ message: "无权限删除该省培班次" }, { status: 403 });
+  }
+
+  const relatedCount = Object.values(existing._count).reduce((sum, count) => sum + count, 0);
+  if (relatedCount > 0 && !body?.confirmCascade) {
+    return NextResponse.json(
+      {
+        message: `删除前请确认：该班次下已有 ${existing._count.participants} 位参训教师、${existing._count.courseSessions} 节课程、${existing._count.checkInTasks} 个签到、${existing._count.leaveRequests} 条请假、${existing._count.tasks} 个任务和 ${existing._count.attendances} 条考勤记录。`,
+      },
+      { status: 409 },
+    );
+  }
+
+  await prisma.teacherTrainingCohort.update({
+    where: { id },
+    data: {
+      deletedAt: new Date(),
+      deletedById: user.id,
+      deletedByName: user.name,
+    },
+  });
+
+  return NextResponse.json({ ok: true });
 }

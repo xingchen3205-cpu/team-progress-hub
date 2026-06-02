@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { startTransition, useEffect, useState } from "react";
+import { startTransition, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import {
   ArrowRight,
@@ -19,6 +19,13 @@ import { EMAIL_RULE_HINT, USERNAME_RULE_HINT, validateRequiredEmail, validateUse
 
 type FormMode = "login" | "register" | "forgot" | "reset";
 type LoginPhase = "idle" | "authenticating" | "entering";
+type LoginHumanVerificationProvider = "none" | "captcha" | "turnstile";
+type PostLoginUser = {
+  role?: string;
+  hasTeacherTrainingAccess?: boolean;
+  teacherTrainingParticipantCount?: number;
+  teacherTrainingManagedCohortCount?: number;
+};
 
 const selfRegistrationEnabled = false;
 const registerRoleOptions = ["指导教师", "项目负责人", "团队成员"] as const;
@@ -74,6 +81,31 @@ const modeCopy: Record<FormMode, { title: string; subtitle: string; lead: string
   },
 };
 
+const LOGIN_REQUEST_TIMEOUT_MS = 20_000;
+const WORKSPACE_NAVIGATION_FALLBACK_MS = 5_000;
+const WORKSPACE_PREFETCH_IDLE_TIMEOUT_MS = 2_500;
+const turnstileSiteKey = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY?.trim() ?? "";
+
+type TurnstileWidgetId = string;
+
+declare global {
+  interface Window {
+    turnstile?: {
+      render: (
+        container: HTMLElement,
+        options: {
+          sitekey: string;
+          callback?: (token: string) => void;
+          "expired-callback"?: () => void;
+          "error-callback"?: () => void;
+        },
+      ) => TurnstileWidgetId;
+      reset: (widgetId?: TurnstileWidgetId) => void;
+      remove?: (widgetId: TurnstileWidgetId) => void;
+    };
+  }
+}
+
 const waitForNextPaint = () =>
   new Promise<void>((resolve) => {
     if (typeof window === "undefined") {
@@ -83,6 +115,27 @@ const waitForNextPaint = () =>
 
     window.requestAnimationFrame(() => resolve());
   });
+
+const getPostLoginWorkspacePath = (user?: PostLoginUser | null) => {
+  const shouldOpenTeacherTraining =
+    Boolean(user?.hasTeacherTrainingAccess) &&
+    (user?.role === "training_teacher" ||
+      (user?.teacherTrainingParticipantCount ?? 0) > 0 ||
+      (user?.teacherTrainingManagedCohortCount ?? 0) > 0);
+
+  if (shouldOpenTeacherTraining) {
+    return "/workspace?tab=teacherTraining";
+  }
+
+  if (user?.role === "expert") {
+    return "/workspace?tab=review";
+  }
+
+  return "/workspace";
+};
+
+const getPostLoginWorkspaceLabel = (targetWorkspacePath: string) =>
+  targetWorkspacePath.includes("tab=teacherTraining") ? "省培系统" : "管理中心";
 
 export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: string }) {
   const router = useRouter();
@@ -94,8 +147,6 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
   const [resetValues, setResetValues] = useState(initialResetValues);
   const [sessionCheckPending, setSessionCheckPending] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
-  const [hasHydratedLoginViewport, setHasHydratedLoginViewport] = useState(false);
-  const [isMobileLoginViewport, setIsMobileLoginViewport] = useState(false);
   const [captchaVersion, setCaptchaVersion] = useState(() => Date.now());
   const [captchaError, setCaptchaError] = useState(false);
   const [loginErrors, setLoginErrors] = useState<{
@@ -128,14 +179,113 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [loginPhase, setLoginPhase] = useState<LoginPhase>("idle");
+  const [loginEntryLabel, setLoginEntryLabel] = useState("管理中心");
+  const [loginCaptchaRequired, setLoginCaptchaRequired] = useState(false);
+  const [humanVerificationProvider, setHumanVerificationProvider] =
+    useState<LoginHumanVerificationProvider>("captcha");
+  const [humanVerificationToken, setHumanVerificationToken] = useState("");
+  const [humanVerificationError, setHumanVerificationError] = useState("");
   const [isSendingRegisterEmailCode, setIsSendingRegisterEmailCode] = useState(false);
+  const navigationFallbackTimeoutRef = useRef<number | null>(null);
+  const turnstileContainerRef = useRef<HTMLDivElement | null>(null);
+  const turnstileWidgetIdRef = useRef<TurnstileWidgetId | null>(null);
 
   const isStudentRegisterRole = registerValues.role === "项目负责人" || registerValues.role === "团队成员";
-  const captchaRequired = !hasHydratedLoginViewport || !isMobileLoginViewport;
+  const captchaRequired = loginCaptchaRequired;
+  const humanVerificationRequired = captchaRequired && humanVerificationProvider === "turnstile";
+  const localCaptchaRequired = captchaRequired && humanVerificationProvider === "captcha";
 
   useEffect(() => {
-    router.prefetch("/workspace");
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const prefetchWorkspaces = () => {
+      router.prefetch("/workspace");
+      router.prefetch("/workspace?tab=teacherTraining");
+    };
+
+    const idleWindow = window as typeof window & {
+      requestIdleCallback?: (callback: () => void, options?: { timeout?: number }) => number;
+      cancelIdleCallback?: (handle: number) => void;
+    };
+
+    if (typeof idleWindow.requestIdleCallback === "function") {
+      const idleId = idleWindow.requestIdleCallback(prefetchWorkspaces, {
+        timeout: WORKSPACE_PREFETCH_IDLE_TIMEOUT_MS,
+      });
+      return () => idleWindow.cancelIdleCallback?.(idleId);
+    }
+
+    const timeoutId = window.setTimeout(prefetchWorkspaces, 1_200);
+    return () => window.clearTimeout(timeoutId);
   }, [router]);
+
+  useEffect(() => {
+    return () => {
+      if (navigationFallbackTimeoutRef.current) {
+        clearTimeout(navigationFallbackTimeoutRef.current);
+      }
+      if (turnstileWidgetIdRef.current) {
+        window.turnstile?.remove?.(turnstileWidgetIdRef.current);
+        turnstileWidgetIdRef.current = null;
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!humanVerificationRequired || !turnstileSiteKey || typeof window === "undefined") {
+      return;
+    }
+
+    const renderTurnstile = () => {
+      if (!turnstileContainerRef.current || !window.turnstile || turnstileWidgetIdRef.current) {
+        return;
+      }
+
+      turnstileWidgetIdRef.current = window.turnstile.render(turnstileContainerRef.current, {
+        sitekey: turnstileSiteKey,
+        callback: (token) => {
+          setHumanVerificationToken(token);
+          setHumanVerificationError("");
+          setLoginErrors((current) => ({ ...current, captcha: undefined, submit: undefined }));
+        },
+        "expired-callback": () => {
+          setHumanVerificationToken("");
+          setHumanVerificationError("人机验证已过期，请重新确认。");
+        },
+        "error-callback": () => {
+          setHumanVerificationToken("");
+          setHumanVerificationError("人机验证加载失败，请稍后重试。");
+        },
+      });
+    };
+
+    if (window.turnstile) {
+      renderTurnstile();
+      return;
+    }
+
+    const existingScript = document.querySelector<HTMLScriptElement>('script[src="https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit"]');
+    if (existingScript) {
+      existingScript.addEventListener("load", renderTurnstile, { once: true });
+      return () => existingScript.removeEventListener("load", renderTurnstile);
+    }
+
+    const script = document.createElement("script");
+    script.src = "https://challenges.cloudflare.com/turnstile/v0/api.js?render=explicit";
+    script.async = true;
+    script.defer = true;
+    script.addEventListener("load", renderTurnstile, { once: true });
+    script.addEventListener(
+      "error",
+      () => {
+        setHumanVerificationError("人机验证加载失败，请检查网络后重试。");
+      },
+      { once: true },
+    );
+    document.head.appendChild(script);
+  }, [humanVerificationRequired]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -152,25 +302,6 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
       username: rememberedAccount,
       remember: true,
     }));
-  }, []);
-
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-
-    const mediaQuery = window.matchMedia("(max-width: 639px)");
-    const syncMobileViewport = () => {
-      setIsMobileLoginViewport(mediaQuery.matches);
-      setHasHydratedLoginViewport(true);
-    };
-
-    syncMobileViewport();
-    mediaQuery.addEventListener("change", syncMobileViewport);
-
-    return () => {
-      mediaQuery.removeEventListener("change", syncMobileViewport);
-    };
   }, []);
 
   useEffect(() => {
@@ -192,8 +323,10 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
 
         clearTimeout(timeoutId);
 
+        const payload = (await response.json().catch(() => null)) as { user?: PostLoginUser } | null;
+
         if (response.ok && isMounted) {
-          router.replace("/workspace");
+          router.replace(getPostLoginWorkspacePath(payload?.user));
           return;
         }
       } catch {
@@ -247,6 +380,10 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
     setSuccessMessage(null);
     setShowPassword(false);
     setLoginPhase("idle");
+    setLoginEntryLabel("管理中心");
+    setLoginCaptchaRequired(false);
+    setHumanVerificationProvider("captcha");
+    resetHumanVerification();
 
     if (resetToken && nextMode !== "reset") {
       router.replace("/login");
@@ -259,13 +396,27 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
     setLoginValues((current) => ({ ...current, captcha: "" }));
   };
 
+  const resetHumanVerification = () => {
+    setHumanVerificationToken("");
+    setHumanVerificationError("");
+    if (turnstileWidgetIdRef.current) {
+      window.turnstile?.reset(turnstileWidgetIdRef.current);
+    }
+  };
+
   const handleLoginSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
 
     const nextErrors = {
       username: loginValues.username.trim() ? undefined : "请输入账号",
       password: loginValues.password.trim() ? undefined : "请输入密码",
-      captcha: loginValues.captcha.trim() ? undefined : captchaRequired ? "请输入验证码" : undefined,
+      captcha: humanVerificationRequired
+        ? humanVerificationToken
+          ? undefined
+          : "请完成人机验证"
+        : localCaptchaRequired && !loginValues.captcha.trim()
+          ? "请输入验证码"
+          : undefined,
       submit: undefined,
     };
 
@@ -277,30 +428,62 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
 
     setLoginPhase("authenticating");
     setIsSubmitting(true);
+    let loginTimeoutId: ReturnType<typeof setTimeout> | null = null;
     try {
       await waitForNextPaint();
+      const controller = new AbortController();
+      loginTimeoutId = setTimeout(() => controller.abort(), LOGIN_REQUEST_TIMEOUT_MS);
       const response = await fetch("/api/auth/login", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
+        signal: controller.signal,
         body: JSON.stringify({
           email: loginValues.username.trim(),
           username: loginValues.username.trim(),
           password: loginValues.password.trim(),
-          captcha: captchaRequired ? loginValues.captcha.trim() : undefined,
+          captcha: localCaptchaRequired ? loginValues.captcha.trim() : undefined,
+          humanVerificationToken: humanVerificationRequired ? humanVerificationToken : undefined,
         }),
       });
+      clearTimeout(loginTimeoutId);
+      loginTimeoutId = null;
 
-      const payload = (await response.json().catch(() => null)) as { message?: string } | null;
+      const payload = (await response.json().catch(() => null)) as
+        | {
+            message?: string;
+            requiresCaptcha?: boolean;
+            humanVerificationProvider?: LoginHumanVerificationProvider;
+            user?: PostLoginUser;
+          }
+        | null;
 
       if (!response.ok) {
+        const serverRequiresCaptcha = Boolean(payload?.requiresCaptcha);
+        const message = payload?.message || "登录失败，请稍后重试。";
+        const nextHumanVerificationProvider =
+          payload?.humanVerificationProvider === "turnstile" ? "turnstile" : "captcha";
+        const isCaptchaError = serverRequiresCaptcha && (message.includes("验证码") || message.includes("人机验证"));
+        if (serverRequiresCaptcha) {
+          setLoginCaptchaRequired(true);
+          setHumanVerificationProvider(nextHumanVerificationProvider);
+          if (nextHumanVerificationProvider === "turnstile") {
+            resetHumanVerification();
+          } else {
+            refreshCaptcha();
+          }
+        }
         setLoginErrors((current) => ({
           ...current,
-          submit: payload?.message || "登录失败，请稍后重试。",
+          captcha: isCaptchaError ? message : undefined,
+          submit: isCaptchaError ? undefined : message,
         }));
-        if (captchaRequired) {
+        if (localCaptchaRequired && !serverRequiresCaptcha) {
           refreshCaptcha();
+        }
+        if (humanVerificationRequired && !serverRequiresCaptcha) {
+          resetHumanVerification();
         }
         setLoginPhase("idle");
         setIsSubmitting(false);
@@ -315,21 +498,42 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
         }
       }
 
+      setLoginCaptchaRequired(false);
+      setHumanVerificationProvider("captcha");
+      resetHumanVerification();
+      const targetWorkspacePath = getPostLoginWorkspacePath(payload?.user);
+      setLoginEntryLabel(getPostLoginWorkspaceLabel(targetWorkspacePath));
       setLoginPhase("entering");
       await waitForNextPaint();
+      if (typeof window !== "undefined") {
+        if (navigationFallbackTimeoutRef.current) {
+          window.clearTimeout(navigationFallbackTimeoutRef.current);
+        }
+        navigationFallbackTimeoutRef.current = window.setTimeout(() => {
+          window.location.assign(targetWorkspacePath);
+        }, WORKSPACE_NAVIGATION_FALLBACK_MS);
+      }
       startTransition(() => {
-        router.push("/workspace", { scroll: false });
+        router.replace(targetWorkspacePath, { scroll: false });
       });
-    } catch {
+    } catch (error) {
+      const isAbortError = error instanceof Error && error.name === "AbortError";
       setLoginErrors((current) => ({
         ...current,
-        submit: "登录请求失败，请稍后重试。",
+        submit: isAbortError ? "登录响应超时，请检查网络后重试。" : "登录请求失败，请稍后重试。",
       }));
-      if (captchaRequired) {
+      if (localCaptchaRequired) {
         refreshCaptcha();
+      }
+      if (humanVerificationRequired) {
+        resetHumanVerification();
       }
       setLoginPhase("idle");
       setIsSubmitting(false);
+    } finally {
+      if (loginTimeoutId) {
+        clearTimeout(loginTimeoutId);
+      }
     }
   };
 
@@ -573,8 +777,8 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
 
   return (
     <main className="min-h-screen bg-white text-[#16305c]">
-      <div className="login-shell min-h-screen overflow-hidden bg-white shadow-[0_18px_60px_rgba(15,23,42,0.08)] lg:grid lg:min-w-[1200px] lg:grid-cols-[55fr_45fr]">
-        <section className="login-visual-panel relative min-h-[46vh] overflow-hidden lg:min-h-screen">
+      <div className="login-shell min-h-screen overflow-hidden bg-white shadow-[0_18px_60px_rgba(15,23,42,0.08)] lg:grid lg:grid-cols-[55fr_45fr]">
+        <section className="login-visual-panel relative min-h-[34vh] overflow-hidden sm:min-h-[42vh] lg:min-h-screen">
           <Image
             alt="南京铁道职业技术学院校园背景"
             className="object-cover object-center"
@@ -591,7 +795,7 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
           <div className="absolute inset-x-0 bottom-[14%] h-px rotate-[-8deg] bg-[linear-gradient(100deg,transparent_0%,rgba(255,255,255,0.14)_36%,rgba(96,211,255,0.46)_55%,transparent_76%)]" />
           <div className="absolute right-[17%] bottom-[10%] h-2 w-2 rounded-full bg-cyan-100 shadow-[0_0_30px_12px_rgba(96,211,255,0.46)]" />
 
-          <div className="relative z-10 flex min-h-[46vh] flex-col px-5 py-8 sm:px-12 lg:min-h-screen lg:px-16 lg:py-12 xl:px-20">
+          <div className="relative z-10 flex min-h-[34vh] flex-col px-5 py-6 sm:min-h-[42vh] sm:px-12 sm:py-8 lg:min-h-screen lg:px-16 lg:py-12 xl:px-20">
             <div className="flex items-center">
               <Image
                 alt="南京铁道职业技术学院"
@@ -607,7 +811,7 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
             </div>
 
             <div className="flex flex-1 items-center justify-center text-center">
-              <div className="mx-auto max-w-[48rem] pb-8 pt-12 lg:min-w-[540px] lg:max-w-none lg:pb-0 lg:pt-0">
+              <div className="mx-auto max-w-[48rem] pb-5 pt-8 lg:min-w-[540px] lg:max-w-none lg:pb-0 lg:pt-0">
                 <h1 className="text-[1.9rem] font-extrabold leading-[1.18] tracking-normal text-white drop-shadow-[0_16px_34px_rgba(0,0,0,0.34)] sm:text-[3.25rem] sm:tracking-[0.025em] lg:text-[3.2rem] xl:text-[3.8rem] 2xl:text-[4.1rem]">
                   <span className="block whitespace-nowrap">南京铁道职业技术学院</span>
                   <span className="mt-2 block whitespace-nowrap">创新创业管理平台</span>
@@ -630,7 +834,7 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
           </div>
         </section>
 
-        <section className="login-function-panel flex min-h-screen flex-col bg-[#f3f6fb] px-6 py-8 sm:px-10 lg:px-12 xl:px-16">
+        <section className="login-function-panel flex min-h-[66vh] flex-col bg-[#f3f6fb] px-6 py-7 sm:px-10 sm:py-8 lg:min-h-screen lg:px-12 xl:px-16">
           {sessionCheckPending ? (
             <div className="mx-auto mb-3 flex w-full max-w-[560px] items-center justify-center gap-2 rounded-xl bg-white px-4 py-2 text-xs font-medium text-[#1d5cff] shadow-sm">
               <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -741,67 +945,98 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
                         <div className="mb-5" />
                       )}
 
-                      <div className="mb-2 hidden gap-3 sm:grid sm:grid-cols-[1fr_auto]">
-                        <div
-                          className={`group relative rounded-[14px] border bg-white px-4 transition duration-200 ${
-                            captchaRequired && loginErrors.captcha
-                              ? "border-[#ef4444] ring-4 ring-[#ef4444]/10"
-                              : "border-[#e6ebf2] focus-within:border-[#1d5cff] focus-within:ring-4 focus-within:ring-[#1d5cff]/10"
-                          }`}
-                        >
-                          <ShieldUser className="absolute left-5 top-1/2 h-5 w-5 -translate-y-1/2 text-[#b7c1d0] transition group-focus-within:text-[#1d5cff]" />
-                          <input
-                            autoComplete="off"
-                            className="h-[54px] w-full border-0 bg-transparent pl-10 pr-0 text-base tracking-[0.18em] text-[#16305c] outline-none placeholder:tracking-normal placeholder:text-[#9aa6b6]"
-                            inputMode="text"
-                            maxLength={4}
-                            placeholder="请输入验证码"
-                            type="text"
-                            value={loginValues.captcha}
-                            onChange={(event) => {
-                              setLoginValues((current) => ({
-                                ...current,
-                                captcha: event.target.value.toUpperCase(),
-                              }));
-                              setLoginErrors((current) => ({
-                                ...current,
-                                captcha: undefined,
-                                submit: undefined,
-                              }));
-                              setSuccessMessage(null);
-                            }}
-                          />
-                        </div>
-                        <button
-                          aria-label="刷新验证码"
-                          className="relative flex h-[54px] w-[140px] shrink-0 items-center justify-center overflow-hidden rounded-[14px] border border-[#d8e2f1] bg-[#f8fbff] transition hover:border-[#1d5cff] hover:bg-white focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#1d5cff]/10"
-                          onClick={refreshCaptcha}
-                          type="button"
-                        >
-                          {captchaError ? (
-                            <span className="px-2 text-xs font-medium text-[#ef4444]">
-                              验证码加载失败，点击刷新
+                      {humanVerificationRequired ? (
+                        <div className="mb-2 rounded-[14px] border border-[#d8e2f1] bg-white px-4 py-3">
+                          <div className="flex items-start gap-3">
+                            <span className="mt-0.5 inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#eef4ff] text-[#1d5cff]">
+                              <ShieldUser className="h-4 w-4" />
                             </span>
-                          ) : (
-                            <>
-                              {/* eslint-disable-next-line @next/next/no-img-element */}
-                              <img
-                                alt="验证码"
-                                className="h-11 w-[132px] rounded-[12px] object-cover"
-                                draggable={false}
-                                height={44}
-                                loading="eager"
-                                src={`/api/auth/captcha?v=${captchaVersion}`}
-                                width={132}
-                                onError={() => setCaptchaError(true)}
-                              />
-                            </>
-                          )}
-                        </button>
-                      </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-semibold text-[#16305c]">请完成人机验证</p>
+                              <p className="mt-1 text-xs leading-5 text-[#8a96a8]">
+                                检测到登录风险后才会出现，正常登录不会打扰。
+                              </p>
+                              {turnstileSiteKey ? (
+                                <div className="mt-3 min-h-[65px]" ref={turnstileContainerRef} />
+                              ) : (
+                                <p className="mt-3 rounded-lg bg-[#fff7ed] px-3 py-2 text-xs leading-5 text-[#c2410c]">
+                                  人机验证暂未配置，请联系管理员检查站点密钥。
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ) : localCaptchaRequired ? (
+                        <div className="mb-2 grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto]">
+                          <div
+                            className={`group relative rounded-[14px] border bg-white px-4 transition duration-200 ${
+                              loginErrors.captcha
+                                ? "border-[#ef4444] ring-4 ring-[#ef4444]/10"
+                                : "border-[#e6ebf2] focus-within:border-[#1d5cff] focus-within:ring-4 focus-within:ring-[#1d5cff]/10"
+                            }`}
+                          >
+                            <ShieldUser className="absolute left-5 top-1/2 h-5 w-5 -translate-y-1/2 text-[#b7c1d0] transition group-focus-within:text-[#1d5cff]" />
+                            <input
+                              autoComplete="off"
+                              className="h-[54px] w-full border-0 bg-transparent pl-10 pr-0 text-base tracking-[0.18em] text-[#16305c] outline-none placeholder:tracking-normal placeholder:text-[#9aa6b6]"
+                              inputMode="text"
+                              maxLength={4}
+                              placeholder="请输入验证码"
+                              type="text"
+                              value={loginValues.captcha}
+                              onChange={(event) => {
+                                setLoginValues((current) => ({
+                                  ...current,
+                                  captcha: event.target.value.toUpperCase(),
+                                }));
+                                setLoginErrors((current) => ({
+                                  ...current,
+                                  captcha: undefined,
+                                  submit: undefined,
+                                }));
+                                setSuccessMessage(null);
+                              }}
+                            />
+                          </div>
+                          <button
+                            aria-label="刷新验证码"
+                            className="relative flex h-[54px] w-full shrink-0 items-center justify-center overflow-hidden rounded-[14px] border border-[#d8e2f1] bg-[#f8fbff] transition hover:border-[#1d5cff] hover:bg-white focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-[#1d5cff]/10 sm:w-[140px]"
+                            onClick={refreshCaptcha}
+                            type="button"
+                          >
+                            {captchaError ? (
+                              <span className="px-2 text-xs font-medium text-[#ef4444]">
+                                验证码加载失败，点击刷新
+                              </span>
+                            ) : (
+                              <>
+                                {/* eslint-disable-next-line @next/next/no-img-element */}
+                                <img
+                                  alt="验证码"
+                                  className="h-11 w-[132px] rounded-[12px] object-cover"
+                                  draggable={false}
+                                  height={44}
+                                  loading="eager"
+                                  src={`/api/auth/captcha?v=${captchaVersion}`}
+                                  width={132}
+                                  onError={() => setCaptchaError(true)}
+                                />
+                              </>
+                            )}
+                          </button>
+                        </div>
+                      ) : (
+                        <div className="mb-5" />
+                      )}
                       {captchaRequired && loginErrors.captcha ? (
                         <p className="mt-2 mb-5 text-sm leading-6 text-[#ef4444]">{loginErrors.captcha}</p>
-                      ) : captchaRequired ? (
+                      ) : humanVerificationRequired && humanVerificationError ? (
+                        <p className="mt-2 mb-5 text-sm leading-6 text-[#ef4444]">{humanVerificationError}</p>
+                      ) : humanVerificationRequired ? (
+                        <p className="mt-2 mb-5 text-xs leading-5 text-[#8a96a8]">
+                          验证通过后即可继续登录，不需要输入图片验证码。
+                        </p>
+                      ) : localCaptchaRequired ? (
                         <p className="mt-2 mb-5 text-xs leading-5 text-[#8a96a8]">看不清可点击图片刷新验证码。</p>
                       ) : (
                         <div className="mb-5" />
@@ -845,7 +1080,11 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
                         {loginPhase !== "idle" ? (
                           <span className="inline-flex items-center justify-center gap-2">
                             <Loader2 className="h-5 w-5 animate-spin" />
-                            {loginPhase === "entering" ? "正在进入管理中心..." : "正在登录..."}
+                            {loginPhase === "entering"
+                              ? loginEntryLabel === "省培系统"
+                                ? "正在打开省培系统..."
+                                : "正在进入管理中心..."
+                              : "正在登录..."}
                           </span>
                         ) : (
                           "登录"

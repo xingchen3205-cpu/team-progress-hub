@@ -71,6 +71,13 @@ describe("school admin permissions", () => {
     assert.equal(canDeleteUser("member", "member"), false);
   });
 
+  it("lets teachers create and manage lower-role project accounts", () => {
+    assert.equal(canManageUser("teacher", "leader"), true);
+    assert.equal(canManageUser("teacher", "member"), true);
+    assert.equal(canManageUser("teacher", "expert"), false);
+    assert.equal(canManageUser("teacher", "member", "leader"), true);
+  });
+
   it("keeps account password resets reserved to system and school administrators", () => {
     assert.equal(canResetUserPassword("admin", "school_admin"), true);
     assert.equal(canResetUserPassword("admin", "teacher"), true);

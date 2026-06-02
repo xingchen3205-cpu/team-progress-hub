@@ -11,9 +11,9 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    assertRole(user.role, ["admin", "school_admin"]);
+    assertRole(user.role, ["admin"]);
   } catch {
-    return NextResponse.json({ message: "无权限设置省培班主任" }, { status: 403 });
+    return NextResponse.json({ message: "无权限设置省培负责人或班主任" }, { status: 403 });
   }
 
   const body = (await request.json().catch(() => null)) as
@@ -32,8 +32,8 @@ export async function POST(request: NextRequest) {
   }
 
   const [cohort, targetUser] = await Promise.all([
-    prisma.teacherTrainingCohort.findUnique({
-      where: { id: cohortId },
+    prisma.teacherTrainingCohort.findFirst({
+      where: { id: cohortId, deletedAt: null },
       select: { id: true },
     }),
     prisma.user.findFirst({
@@ -52,7 +52,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: "省培班次不存在" }, { status: 404 });
   }
   if (!targetUser) {
-    return NextResponse.json({ message: "只能选择已审核通过的非专家账号作为班主任" }, { status: 404 });
+    return NextResponse.json({ message: "只能选择已审核通过的非专家账号作为省培负责人或班主任" }, { status: 404 });
   }
 
   const manager = await prisma.teacherTrainingCohortManager.upsert({
@@ -94,9 +94,9 @@ export async function DELETE(request: NextRequest) {
   }
 
   try {
-    assertRole(user.role, ["admin", "school_admin"]);
+    assertRole(user.role, ["admin"]);
   } catch {
-    return NextResponse.json({ message: "无权限移除省培班主任" }, { status: 403 });
+    return NextResponse.json({ message: "无权限移除省培负责人或班主任" }, { status: 403 });
   }
 
   const body = (await request.json().catch(() => null)) as

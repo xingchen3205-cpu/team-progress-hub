@@ -74,7 +74,8 @@ describe("login screen defaults", () => {
   });
 
   it("keeps the campus hero visible on mobile instead of replacing it with a compact brand header", () => {
-    assert.match(loginScreenSource, /login-visual-panel relative min-h-\[46vh\]/);
+    assert.match(loginScreenSource, /login-visual-panel relative min-h-\[34vh\]/);
+    assert.match(loginScreenSource, /sm:min-h-\[42vh\]/);
     assert.doesNotMatch(loginScreenSource, /login-visual-panel relative hidden/);
     assert.doesNotMatch(loginScreenSource, /Mobile brand header/);
   });
@@ -101,28 +102,56 @@ describe("login screen defaults", () => {
     assert.match(loginScreenSource, /h-11\s+w-\[132px\]/);
   });
 
-  it("removes captcha login from mobile web while keeping it on desktop", () => {
-    assert.match(loginScreenSource, /isMobileLoginViewport/);
-    assert.match(loginScreenSource, /hasHydratedLoginViewport/);
-    assert.match(loginScreenSource, /const captchaRequired = !hasHydratedLoginViewport \|\| !isMobileLoginViewport/);
-    assert.match(loginScreenSource, /hidden gap-3 sm:grid/);
-    assert.match(loginScreenSource, /captchaRequired \? "请输入验证码" : undefined/);
+  it("uses adaptive captcha that stays hidden until the server asks for it", () => {
+    assert.match(loginScreenSource, /loginCaptchaRequired/);
+    assert.match(loginScreenSource, /const captchaRequired = loginCaptchaRequired/);
+    assert.match(loginScreenSource, /const localCaptchaRequired = captchaRequired && humanVerificationProvider === "captcha"/);
+    assert.match(loginScreenSource, /setLoginCaptchaRequired\(true\)/);
+    assert.match(loginScreenSource, /requiresCaptcha\?: boolean/);
+    assert.doesNotMatch(loginScreenSource, /isMobileWebUserAgent\(window\.navigator\.userAgent\)/);
+    assert.doesNotMatch(loginScreenSource, /!hasHydratedLoginUserAgent \|\| !isMobileLoginUserAgent/);
+    assert.match(loginScreenSource, /\{humanVerificationRequired \? \(/);
+    assert.match(loginScreenSource, /\) : localCaptchaRequired \? \(/);
+    assert.match(loginScreenSource, /<div className="mb-2 grid grid-cols-1 gap-3 sm:grid-cols-\[1fr_auto\]">/);
+    assert.doesNotMatch(loginScreenSource, /hidden sm:grid/);
+    assert.match(loginScreenSource, /localCaptchaRequired && !loginValues\.captcha\.trim\(\)/);
     assert.match(loginScreenSource, /captchaRequired && loginErrors\.captcha/);
+    assert.doesNotMatch(loginScreenSource, /matchMedia\("\(max-width: 639px\)"\)/);
+  });
+
+  it("does not render the captcha image at all when mobile web disables captcha", () => {
+    assert.match(
+      loginScreenSource,
+      /\) : localCaptchaRequired \? \(\s*<div[\s\S]*src=\{\`\/api\/auth\/captcha\?v=\$\{captchaVersion\}\`\}[\s\S]*\)\s*:\s*\(/,
+    );
   });
 
   it("shows mobile login submitting feedback before waiting on the network request", () => {
-    assert.match(loginScreenSource, /setHasHydratedLoginViewport\(true\)/);
+    assert.match(loginScreenSource, /loginCaptchaRequired/);
     assert.match(loginScreenSource, /window\.requestAnimationFrame/);
     assert.match(loginScreenSource, /setIsSubmitting\(true\)[\s\S]*await waitForNextPaint\(\)/);
     assert.match(loginScreenSource, /正在登录\.\.\./);
   });
 
   it("keeps login navigation responsive without forcing mobile scroll jumps", () => {
+    assert.match(loginScreenSource, /prefetchWorkspaces/);
+    assert.match(loginScreenSource, /requestIdleCallback/);
     assert.match(loginScreenSource, /router\.prefetch\("\/workspace"\)/);
+    assert.match(loginScreenSource, /router\.prefetch\("\/workspace\?tab=teacherTraining"\)/);
+    assert.doesNotMatch(loginScreenSource, /useEffect\(\(\)\s*=>\s*\{\s*router\.prefetch\("\/workspace"\)/);
     assert.match(loginScreenSource, /setLoginPhase\("entering"\)/);
     assert.match(loginScreenSource, /正在进入管理中心\.\.\./);
-    assert.match(loginScreenSource, /router\.push\("\/workspace",\s*\{\s*scroll:\s*false\s*\}\)/);
+    assert.match(loginScreenSource, /router\.replace\(targetWorkspacePath,\s*\{\s*scroll:\s*false\s*\}\)/);
     assert.doesNotMatch(loginScreenSource, /window\.scrollTo/);
+  });
+
+  it("prevents mobile login from staying forever in entering state", () => {
+    assert.match(loginScreenSource, /LOGIN_REQUEST_TIMEOUT_MS/);
+    assert.match(loginScreenSource, /AbortController/);
+    assert.match(loginScreenSource, /signal:\s*controller\.signal/);
+    assert.match(loginScreenSource, /登录响应超时，请检查网络后重试。/);
+    assert.match(loginScreenSource, /navigationFallbackTimeoutRef/);
+    assert.match(loginScreenSource, /window\.location\.assign\(targetWorkspacePath\)/);
   });
 
   it("reduces aggressive letter-spacing on mobile", () => {
@@ -141,8 +170,11 @@ describe("login screen defaults", () => {
     assert.match(loginScreenSource, /lg:whitespace-nowrap/);
   });
 
-  it("sets a minimum desktop shell width to prevent layout crush", () => {
-    assert.match(loginScreenSource, /lg:min-w-\[1200px\]/);
+  it("does not force horizontal scroll on tablet and narrow desktop login screens", () => {
+    assert.match(loginScreenSource, /lg:grid-cols-\[55fr_45fr\]/);
+    assert.doesNotMatch(loginScreenSource, /lg:min-w-\[1200px\]/);
+    assert.match(loginScreenSource, /login-function-panel flex min-h-\[66vh\]/);
+    assert.match(loginScreenSource, /lg:min-h-screen/);
   });
 
   it("does not expose employeeId field or 工号 label in registration form", () => {

@@ -6,6 +6,7 @@ export type EmailReminderSettings = {
   announcementEnabled: boolean;
   directReminderEnabled: boolean;
   documentReviewEnabled: boolean;
+  teacherTrainingLeaveEnabled: boolean;
   reportSubmitEnabled: boolean;
   dailyReportMissingEnabled: boolean;
   dailyReportHour: number;
@@ -17,6 +18,7 @@ export type EmailReminderCategory =
   | "announcement"
   | "directReminder"
   | "documentReview"
+  | "teacherTrainingLeave"
   | "reportSubmit"
   | "dailyReportMissing";
 
@@ -28,6 +30,7 @@ export const defaultEmailReminderSettings: EmailReminderSettings = {
   announcementEnabled: true,
   directReminderEnabled: true,
   documentReviewEnabled: true,
+  teacherTrainingLeaveEnabled: true,
   reportSubmitEnabled: true,
   dailyReportMissingEnabled: true,
   dailyReportHour: 20,
@@ -44,6 +47,8 @@ const categoryByNotificationType: Record<string, EmailReminderCategory> = {
   directive: "directReminder",
   document_review: "documentReview",
   document_review_result: "documentReview",
+  teacher_training_leave_review: "teacherTrainingLeave",
+  teacher_training_leave_result: "teacherTrainingLeave",
   report_submit: "reportSubmit",
   report_daily_missing: "dailyReportMissing",
 };
@@ -54,6 +59,7 @@ const settingKeyByCategory = {
   announcement: "announcementEnabled",
   directReminder: "directReminderEnabled",
   documentReview: "documentReviewEnabled",
+  teacherTrainingLeave: "teacherTrainingLeaveEnabled",
   reportSubmit: "reportSubmitEnabled",
   dailyReportMissing: "dailyReportMissingEnabled",
 } as const satisfies Record<EmailReminderCategory, keyof EmailReminderSettings>;

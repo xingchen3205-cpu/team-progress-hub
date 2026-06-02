@@ -518,16 +518,17 @@ model Notification {
 }
 
 model EmailReminderSetting {
-  id                        String   @id
-  taskAssignmentEnabled     Boolean  @default(true)
-  taskReviewEnabled         Boolean  @default(true)
-  announcementEnabled       Boolean  @default(true)
-  directReminderEnabled     Boolean  @default(true)
-  documentReviewEnabled     Boolean  @default(true)
-  reportSubmitEnabled       Boolean  @default(true)
-  dailyReportMissingEnabled Boolean  @default(true)
-  dailyReportHour           Int      @default(20)
-  updatedAt                 DateTime @updatedAt
+  id                          String   @id
+  taskAssignmentEnabled       Boolean  @default(true)
+  taskReviewEnabled           Boolean  @default(true)
+  announcementEnabled         Boolean  @default(true)
+  directReminderEnabled       Boolean  @default(true)
+  documentReviewEnabled       Boolean  @default(true)
+  teacherTrainingLeaveEnabled Boolean  @default(true)
+  reportSubmitEnabled         Boolean  @default(true)
+  dailyReportMissingEnabled   Boolean  @default(true)
+  dailyReportHour             Int      @default(20)
+  updatedAt                   DateTime @updatedAt
 }
 
 model ProjectReviewStage {
@@ -824,6 +825,9 @@ model TeacherTrainingCohort {
   endDate        String
   description    String?
   createdById    String
+  deletedAt      DateTime?
+  deletedById    String?
+  deletedByName  String?
   createdAt      DateTime                       @default(now())
   updatedAt      DateTime                       @updatedAt
   creator        User                           @relation("TeacherTrainingCohortCreator", fields: [createdById], references: [id])
@@ -838,6 +842,7 @@ model TeacherTrainingCohort {
 
   @@index([startDate, createdAt])
   @@index([createdById, createdAt])
+  @@index([deletedAt])
 }
 
 model TeacherTrainingCohortManager {
@@ -858,24 +863,28 @@ model TeacherTrainingCohortManager {
 }
 
 model TeacherTrainingCourseSession {
-  id           String                       @id @default(cuid())
-  cohortId     String
-  title        String
-  courseDate   String
-  startTime    String?
-  endTime      String?
-  location     String?
-  instructor   String?
-  description  String?
-  createdById  String
-  createdAt    DateTime                     @default(now())
-  updatedAt    DateTime                     @updatedAt
-  cohort       TeacherTrainingCohort        @relation(fields: [cohortId], references: [id], onDelete: Cascade)
-  creator      User                         @relation("TeacherTrainingCourseSessionCreator", fields: [createdById], references: [id])
-  checkInTasks TeacherTrainingCheckInTask[]
+  id            String                       @id @default(cuid())
+  cohortId      String
+  title         String
+  courseDate    String
+  startTime     String?
+  endTime       String?
+  location      String?
+  instructor    String?
+  description   String?
+  createdById   String
+  deletedAt     DateTime?
+  deletedById   String?
+  deletedByName String?
+  createdAt     DateTime                     @default(now())
+  updatedAt     DateTime                     @updatedAt
+  cohort        TeacherTrainingCohort        @relation(fields: [cohortId], references: [id], onDelete: Cascade)
+  creator       User                         @relation("TeacherTrainingCourseSessionCreator", fields: [createdById], references: [id])
+  checkInTasks  TeacherTrainingCheckInTask[]
 
   @@index([cohortId, courseDate, startTime])
   @@index([createdById, createdAt])
+  @@index([deletedAt])
 }
 
 model TeacherTrainingParticipant {
@@ -915,6 +924,9 @@ model TeacherTrainingCheckInTask {
   radiusMeters    Int                            @default(300)
   isActive        Boolean                        @default(true)
   createdById     String
+  deletedAt       DateTime?
+  deletedById     String?
+  deletedByName   String?
   createdAt       DateTime                       @default(now())
   updatedAt       DateTime                       @updatedAt
   cohort          TeacherTrainingCohort          @relation(fields: [cohortId], references: [id], onDelete: Cascade)
@@ -925,6 +937,7 @@ model TeacherTrainingCheckInTask {
   @@index([cohortId, signDate, createdAt])
   @@index([courseSessionId])
   @@index([createdById, createdAt])
+  @@index([deletedAt])
 }
 
 model TeacherTrainingCheckInRecord {
@@ -967,6 +980,8 @@ model TeacherTrainingLeaveRequest {
   submittedById         String
   startDate             String
   endDate               String
+  startTime             String?
+  endTime               String?
   sessionLabel          String?
   reason                String
   status                String                         @default("pending")
@@ -1030,6 +1045,9 @@ model TeacherTrainingTask {
   dueDate           String?
   requireAttachment Boolean                     @default(false)
   createdById       String
+  deletedAt         DateTime?
+  deletedById       String?
+  deletedByName     String?
   createdAt         DateTime                    @default(now())
   updatedAt         DateTime                    @updatedAt
   cohort            TeacherTrainingCohort       @relation(fields: [cohortId], references: [id], onDelete: Cascade)
@@ -1038,6 +1056,7 @@ model TeacherTrainingTask {
 
   @@index([cohortId, dueDate])
   @@index([createdById, createdAt])
+  @@index([deletedAt])
 }
 
 model TeacherTrainingSubmission {

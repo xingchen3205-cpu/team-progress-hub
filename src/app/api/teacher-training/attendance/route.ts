@@ -3,7 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hasTeacherTrainingCohortManageAccess } from "@/lib/teacher-training-access";
-import type { TeacherTrainingAttendanceStatus } from "@/lib/teacher-training";
+import { buildTeacherTrainingAttendanceNote, type TeacherTrainingAttendanceStatus } from "@/lib/teacher-training";
 
 const attendanceStatusSet = new Set<TeacherTrainingAttendanceStatus>(["present", "leave", "absent"]);
 
@@ -20,6 +20,8 @@ export async function POST(request: NextRequest) {
         sessionDate?: string;
         sessionLabel?: string;
         status?: TeacherTrainingAttendanceStatus;
+        roomNumber?: string;
+        materialsComplete?: boolean;
         note?: string;
       }
     | null;
@@ -28,18 +30,26 @@ export async function POST(request: NextRequest) {
   const sessionDate = body?.sessionDate?.trim();
   const sessionLabel = body?.sessionLabel?.trim() || "报到";
   const status = body?.status;
+  const roomNumber = body?.roomNumber?.trim() || "";
+  const materialsComplete = typeof body?.materialsComplete === "boolean" ? body.materialsComplete : null;
 
   if (!cohortId || !participantId || !sessionDate || !status || !attendanceStatusSet.has(status)) {
-    return NextResponse.json({ message: "签到信息不完整" }, { status: 400 });
+    return NextResponse.json({ message: "报到信息不完整" }, { status: 400 });
+  }
+  if (status === "present" && sessionLabel === "报到" && (!roomNumber || materialsComplete === null)) {
+    return NextResponse.json({ message: "请填写酒店房号并确认报到材料是否齐全" }, { status: 400 });
   }
   if (!(await hasTeacherTrainingCohortManageAccess(user, cohortId))) {
-    return NextResponse.json({ message: "无权限登记该省培班次签到" }, { status: 403 });
+    return NextResponse.json({ message: "无权限登记该省培班次报到" }, { status: 403 });
   }
 
   const participant = await prisma.teacherTrainingParticipant.findFirst({
     where: {
       id: participantId,
       cohortId,
+      cohort: {
+        deletedAt: null,
+      },
     },
     select: {
       id: true,
@@ -59,7 +69,14 @@ export async function POST(request: NextRequest) {
     },
     update: {
       status,
-      note: body?.note?.trim() || null,
+      note:
+        status === "present" && sessionLabel === "报到"
+          ? buildTeacherTrainingAttendanceNote({
+              roomNumber,
+              materialsComplete,
+              registrationNote: body?.note?.trim() || "",
+            }) || null
+          : body?.note?.trim() || null,
       markedById: user.id,
       markedAt: new Date(),
     },
@@ -69,7 +86,14 @@ export async function POST(request: NextRequest) {
       sessionDate,
       sessionLabel,
       status,
-      note: body?.note?.trim() || null,
+      note:
+        status === "present" && sessionLabel === "报到"
+          ? buildTeacherTrainingAttendanceNote({
+              roomNumber,
+              materialsComplete,
+              registrationNote: body?.note?.trim() || "",
+            }) || null
+          : body?.note?.trim() || null,
       markedById: user.id,
     },
   });

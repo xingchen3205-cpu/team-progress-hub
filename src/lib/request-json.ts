@@ -1,12 +1,16 @@
 const pendingJsonRequests = new Map<string, Promise<unknown>>();
 const completedJsonResponses = new Map<string, { expiresAt: number; payload: unknown }>();
 const defaultGetCacheTtlMs = 10_000;
+const defaultRequestTimeoutMs = 15_000;
+const defaultGetRetryCount = 1;
 
 const jsonMethods = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
 type RequestJsonOptions = {
   cacheTtlMs?: number;
   force?: boolean;
+  retryCount?: number;
+  timeoutMs?: number;
 };
 
 function buildHeaders(init?: RequestInit) {
@@ -28,14 +32,65 @@ function getPendingRequestKey(input: string, init?: RequestInit) {
   return `${method}:${input}`;
 }
 
-async function executeJsonRequest<T>(input: string, init?: RequestInit) {
+function createRequestError(kind: "timeout" | "network", fallbackMessage: string) {
+  const error = new Error(fallbackMessage);
+  error.name = kind === "timeout" ? "RequestTimeoutError" : "NetworkError";
+  return error;
+}
+
+function isAbortError(error: unknown) {
+  return error instanceof Error && error.name === "AbortError";
+}
+
+function isNetworkError(error: unknown) {
+  return error instanceof TypeError || (error instanceof Error && /Failed to fetch|NetworkError/i.test(error.message));
+}
+
+async function executeJsonRequestAttempt<T>(input: string, init?: RequestInit, options?: RequestJsonOptions) {
   const method = (init?.method ?? "GET").toUpperCase();
-  const response = await fetch(input, {
-    ...init,
-    credentials: "same-origin",
-    headers: buildHeaders(init),
-    cache: "no-store",
-  });
+  const timeoutMs = options?.timeoutMs ?? defaultRequestTimeoutMs;
+  const controller = new AbortController();
+  const externalSignal = init?.signal;
+  let didTimeout = false;
+
+  const abortFromExternalSignal = () => controller.abort();
+  if (externalSignal?.aborted) {
+    controller.abort();
+  } else {
+    externalSignal?.addEventListener("abort", abortFromExternalSignal, { once: true });
+  }
+
+  const timeoutId =
+    timeoutMs > 0
+      ? setTimeout(() => {
+          didTimeout = true;
+          controller.abort();
+        }, timeoutMs)
+      : null;
+
+  let response: Response;
+  try {
+    response = await fetch(input, {
+      ...init,
+      credentials: "same-origin",
+      headers: buildHeaders(init),
+      cache: "no-store",
+      signal: controller.signal,
+    });
+  } catch (error) {
+    if (didTimeout || isAbortError(error)) {
+      throw createRequestError("timeout", "请求超时，请检查网络后重试。");
+    }
+    if (isNetworkError(error)) {
+      throw createRequestError("network", "网络连接失败，请稍后重试。");
+    }
+    throw error;
+  } finally {
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+    }
+    externalSignal?.removeEventListener("abort", abortFromExternalSignal);
+  }
 
   const payload = (await response.json().catch(() => null)) as (T & { message?: string }) | null;
 
@@ -48,6 +103,25 @@ async function executeJsonRequest<T>(input: string, init?: RequestInit) {
   }
 
   return payload as T;
+}
+
+async function executeJsonRequest<T>(input: string, init?: RequestInit, options?: RequestJsonOptions) {
+  const method = (init?.method ?? "GET").toUpperCase();
+  const retryCount = method === "GET" || method === "HEAD" ? (options?.retryCount ?? defaultGetRetryCount) : 0;
+  let lastError: unknown;
+
+  for (let attemptIndex = 0; attemptIndex <= retryCount; attemptIndex += 1) {
+    try {
+      return await executeJsonRequestAttempt<T>(input, init, options);
+    } catch (error) {
+      lastError = error;
+      if (!(error instanceof Error) || error.name !== "NetworkError" || attemptIndex >= retryCount) {
+        throw error;
+      }
+    }
+  }
+
+  throw lastError;
 }
 
 export function clearPendingJsonRequests() {
@@ -68,7 +142,7 @@ export function invalidateJsonCache(input?: string) {
 export async function requestJson<T>(input: string, init?: RequestInit, options?: RequestJsonOptions) {
   const requestKey = getPendingRequestKey(input, init);
   if (!requestKey) {
-    return executeJsonRequest<T>(input, init);
+    return executeJsonRequest<T>(input, init, options);
   }
 
   const cachedResponse = completedJsonResponses.get(requestKey);
@@ -81,7 +155,7 @@ export async function requestJson<T>(input: string, init?: RequestInit, options?
     return existingRequest as Promise<T>;
   }
 
-  const request = executeJsonRequest<T>(input, init)
+  const request = executeJsonRequest<T>(input, init, options)
     .then((payload) => {
       const cacheTtlMs = options?.cacheTtlMs ?? defaultGetCacheTtlMs;
       if (cacheTtlMs > 0) {

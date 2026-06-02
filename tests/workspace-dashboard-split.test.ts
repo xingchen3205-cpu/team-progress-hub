@@ -57,6 +57,20 @@ test("workspace shared context and skeleton exist", () => {
   assert.ok(existsSync(path.join(root, "src/components/tab-skeleton.tsx")));
 });
 
+test("mobile login opens province training accounts directly and keeps workspace boot lightweight", () => {
+  const loginSource = read("src/components/login-screen.tsx");
+  const contextSource = read("src/components/workspace-context.tsx");
+
+  assert.match(loginSource, /getPostLoginWorkspacePath/);
+  assert.match(loginSource, /teacherTrainingParticipantCount/);
+  assert.match(loginSource, /teacherTrainingManagedCohortCount/);
+  assert.match(loginSource, /router\.replace\(targetWorkspacePath/);
+  assert.match(loginSource, /"正在打开省培系统\.\.\."/);
+  assert.match(contextSource, /loadNotificationsInBackground/);
+  assert.doesNotMatch(contextSource, /const \[mePayload, notificationsPayload\] = await Promise\.all/);
+  assert.match(contextSource, /requestJson<\{ user: CurrentUser \}>\("\/api\/auth\/me"\)/);
+});
+
 test("tasks tab avoids a large fixed minimum height that leaves empty tails", () => {
   const source = read("src/components/tabs/tasks-tab.tsx");
 

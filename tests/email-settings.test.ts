@@ -17,6 +17,8 @@ describe("email reminder settings", () => {
     assert.equal(getEmailReminderCategoryForNotificationType("directive"), "directReminder");
     assert.equal(getEmailReminderCategoryForNotificationType("document_review"), "documentReview");
     assert.equal(getEmailReminderCategoryForNotificationType("document_review_result"), "documentReview");
+    assert.equal(getEmailReminderCategoryForNotificationType("teacher_training_leave_review"), "teacherTrainingLeave");
+    assert.equal(getEmailReminderCategoryForNotificationType("teacher_training_leave_result"), "teacherTrainingLeave");
     assert.equal(getEmailReminderCategoryForNotificationType("report_submit"), "reportSubmit");
     assert.equal(getEmailReminderCategoryForNotificationType("report_daily_missing"), "dailyReportMissing");
   });
@@ -25,6 +27,7 @@ describe("email reminder settings", () => {
     assert.equal(isEmailReminderEnabled(defaultEmailReminderSettings, "task_assign"), true);
     assert.equal(isEmailReminderEnabled(defaultEmailReminderSettings, "announcement"), true);
     assert.equal(isEmailReminderEnabled(defaultEmailReminderSettings, "report_daily_missing"), true);
+    assert.equal(isEmailReminderEnabled(defaultEmailReminderSettings, "teacher_training_leave_review"), true);
   });
 
   it("allows admins to disable individual email reminder categories", () => {
@@ -39,6 +42,16 @@ describe("email reminder settings", () => {
       false,
     );
     assert.equal(isEmailReminderEnabled(defaultEmailReminderSettings, "unknown_custom_type"), true);
+    assert.equal(
+      isEmailReminderEnabled(
+        {
+          ...defaultEmailReminderSettings,
+          teacherTrainingLeaveEnabled: false,
+        },
+        "teacher_training_leave_result",
+      ),
+      false,
+    );
   });
 
   it("runs daily report reminders only when enabled and the configured hour arrives", () => {

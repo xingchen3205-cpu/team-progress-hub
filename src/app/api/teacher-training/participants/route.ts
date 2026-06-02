@@ -3,9 +3,31 @@ import bcrypt from "bcryptjs";
 
 import { validateUsername } from "@/lib/account-policy";
 import { getSessionUser } from "@/lib/auth";
-import { assertRole } from "@/lib/permissions";
 import { generateTemporaryPassword } from "@/lib/passwords";
 import { prisma } from "@/lib/prisma";
+import { mergeTeacherTrainingParticipantExtraInfo } from "@/lib/teacher-training";
+import { hasTeacherTrainingCohortManageAccess } from "@/lib/teacher-training-access";
+
+type TeacherTrainingParticipantInput = {
+  cohortId?: string;
+  name?: string;
+  organization?: string;
+  phone?: string;
+  groupName?: string;
+  title?: string;
+  email?: string;
+  arrivalTransportation?: string;
+  arrivalAt?: string;
+  arrivalVehicleNo?: string;
+  arrivalDeparture?: string;
+  extraInfo?: string;
+  accountUsername?: string;
+  accountPassword?: string;
+  note?: string;
+};
+
+const getParticipantIdentityKey = (participant: { name: string; organization: string }) =>
+  `${participant.name.trim()}@@${participant.organization.trim()}`.toLocaleLowerCase("zh-CN");
 
 export async function POST(request: NextRequest) {
   const user = await getSessionUser(request);
@@ -13,25 +35,87 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: "未登录" }, { status: 401 });
   }
 
-  try {
-    assertRole(user.role, ["admin", "school_admin"]);
-  } catch {
-    return NextResponse.json({ message: "无权限维护参训教师名单" }, { status: 403 });
+  const body = (await request.json().catch(() => null)) as
+    | (TeacherTrainingParticipantInput & {
+        participants?: TeacherTrainingParticipantInput[];
+      })
+    | null;
+
+  if (Array.isArray(body?.participants)) {
+    const cohortId = body?.cohortId?.trim();
+    if (!cohortId) {
+      return NextResponse.json({ message: "请先选择省培班次" }, { status: 400 });
+    }
+    const cohort = await prisma.teacherTrainingCohort.findFirst({
+      where: { id: cohortId, deletedAt: null },
+      select: { id: true },
+    });
+    if (!cohort) {
+      return NextResponse.json({ message: "省培班次不存在" }, { status: 404 });
+    }
+    if (!(await hasTeacherTrainingCohortManageAccess(user, cohortId))) {
+      return NextResponse.json({ message: "无权限维护该省培班次参训教师名单" }, { status: 403 });
+    }
+
+    const rows = body.participants.map((participant) => ({
+      name: participant.name?.trim() ?? "",
+      organization: participant.organization?.trim() ?? "",
+      phone: participant.phone?.trim() || null,
+      groupName: participant.groupName?.trim() || null,
+      extraInfo: mergeTeacherTrainingParticipantExtraInfo(participant.extraInfo?.trim() || "", {
+        title: participant.title?.trim() || "",
+        email: participant.email?.trim() || "",
+        arrivalTransportation: participant.arrivalTransportation?.trim() || "",
+        arrivalAt: participant.arrivalAt?.trim() || "",
+        arrivalVehicleNo: participant.arrivalVehicleNo?.trim() || "",
+        arrivalDeparture: participant.arrivalDeparture?.trim() || "",
+      }) || null,
+      note: participant.note?.trim() || null,
+    }));
+    if (rows.length === 0 || rows.some((participant) => !participant.name || !participant.organization)) {
+      return NextResponse.json({ message: "导入名单需包含姓名和单位" }, { status: 400 });
+    }
+    const importedParticipantKeys = rows.map(getParticipantIdentityKey);
+    const duplicatedImportedParticipantKeys = importedParticipantKeys.filter(
+      (key, index) => importedParticipantKeys.indexOf(key) !== index,
+    );
+    if (duplicatedImportedParticipantKeys.length > 0) {
+      return NextResponse.json({ message: "名单中存在重复教师，请先合并后再导入" }, { status: 400 });
+    }
+
+    const importedPhones = rows.map((participant) => participant.phone).filter((phone): phone is string => Boolean(phone));
+    const existingParticipants = await prisma.teacherTrainingParticipant.findMany({
+      where: {
+        cohortId,
+        OR: [
+          ...rows.map((participant) => ({
+            name: participant.name,
+            organization: participant.organization,
+          })),
+          ...(importedPhones.length ? [{ phone: { in: importedPhones } }] : []),
+        ],
+      },
+      select: {
+        id: true,
+      },
+    });
+    if (existingParticipants.length > 0) {
+      return NextResponse.json(
+        { message: "该班次已存在相同姓名和单位或相同手机号的参训教师，请核对后再导入" },
+        { status: 409 },
+      );
+    }
+
+    await prisma.teacherTrainingParticipant.createMany({
+      data: rows.map((participant) => ({
+        cohortId,
+        ...participant,
+      })),
+    });
+
+    return NextResponse.json({ count: rows.length }, { status: 201 });
   }
 
-  const body = (await request.json().catch(() => null)) as
-    | {
-        cohortId?: string;
-        name?: string;
-        organization?: string;
-        phone?: string;
-        groupName?: string;
-        extraInfo?: string;
-        accountUsername?: string;
-        accountPassword?: string;
-        note?: string;
-      }
-    | null;
   const cohortId = body?.cohortId?.trim();
   const name = body?.name?.trim();
   const organization = body?.organization?.trim();
@@ -40,12 +124,34 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: "请填写班次、姓名和单位" }, { status: 400 });
   }
 
-  const cohort = await prisma.teacherTrainingCohort.findUnique({
-    where: { id: cohortId },
+  const cohort = await prisma.teacherTrainingCohort.findFirst({
+    where: { id: cohortId, deletedAt: null },
     select: { id: true },
   });
   if (!cohort) {
     return NextResponse.json({ message: "省培班次不存在" }, { status: 404 });
+  }
+  if (!(await hasTeacherTrainingCohortManageAccess(user, cohortId))) {
+    return NextResponse.json({ message: "无权限维护该省培班次参训教师名单" }, { status: 403 });
+  }
+  const existingParticipant = await prisma.teacherTrainingParticipant.findFirst({
+    where: {
+      cohortId,
+      OR: [
+        {
+          name,
+          organization,
+        },
+        ...(body?.phone?.trim() ? [{ phone: body.phone.trim() }] : []),
+      ],
+    },
+    select: { id: true },
+  });
+  if (existingParticipant) {
+    return NextResponse.json(
+      { message: "该班次已存在相同姓名和单位或相同手机号的参训教师，请核对后再保存" },
+      { status: 409 },
+    );
   }
 
   const accountUsername = body?.accountUsername?.trim();
@@ -103,7 +209,14 @@ export async function POST(request: NextRequest) {
       phone: body?.phone?.trim() || null,
       groupName: body?.groupName?.trim() || null,
       accountUserId,
-      extraInfo: body?.extraInfo?.trim() || null,
+      extraInfo: mergeTeacherTrainingParticipantExtraInfo(body?.extraInfo?.trim() || "", {
+        title: body?.title?.trim() || "",
+        email: body?.email?.trim() || "",
+        arrivalTransportation: body?.arrivalTransportation?.trim() || "",
+        arrivalAt: body?.arrivalAt?.trim() || "",
+        arrivalVehicleNo: body?.arrivalVehicleNo?.trim() || "",
+        arrivalDeparture: body?.arrivalDeparture?.trim() || "",
+      }) || null,
       note: body?.note?.trim() || null,
     },
   });

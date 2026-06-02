@@ -14,7 +14,7 @@ const PdfPreview = dynamic(() => import("@/components/pdf-preview").then((mod) =
 
 function WorkspaceUnitFooter() {
   return (
-    <footer className="pointer-events-none fixed hidden sm:block inset-x-0 bottom-0 z-20 border-t border-white/70 bg-white/85 px-4 py-2 text-center text-[12px] leading-5 text-slate-500 shadow-[0_-8px_24px_rgba(15,23,42,0.06)] backdrop-blur">
+    <footer className="pointer-events-none mt-8 hidden border-t border-white/70 bg-white/70 px-4 py-2 text-center text-[12px] leading-5 text-slate-500 sm:block">
       <span>用户单位：南京铁道职业技术学院</span>
       <span className="mx-3 text-slate-300">|</span>
       <span>支持单位：南京君如玉科技有限公司</span>
@@ -25,6 +25,7 @@ function WorkspaceUnitFooter() {
 export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
   const {
     currentUser,
+    teacherTrainingCohorts,
     currentDateTime,
     isBooting,
     loadError,
@@ -157,12 +158,14 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
     setReviewComment,
     currentRole,
     hasGlobalAdminRole,
+    hasTeacherTrainingAccess,
     permissions,
     isTeacherTrainingPlatform,
     sidebarTabs,
     teacherTrainingSidebarSections,
     activeTeacherTrainingSection,
     setActiveTeacherTrainingSection,
+    activeTeacherTrainingCohortId,
     safeActiveTab,
     taskAssignableMembers,
     expertMembers,
@@ -280,6 +283,16 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
   const [customRoadshowOcrLoading, setCustomRoadshowOcrLoading] = useState(false);
   const [reportAttachmentUploading, setReportAttachmentUploading] = useState(false);
   const uploadedReportAttachment = Workspace.decodeReportAttachmentFile(reportDraft.attachment);
+  const sidebarRoleLabel =
+    currentUser && isTeacherTrainingPlatform
+      ? Workspace.getTeacherTrainingEffectiveRoleLabel({
+          user: currentUser,
+          cohorts: teacherTrainingCohorts,
+          activeCohortId: activeTeacherTrainingCohortId,
+        })
+      : roleLabels[currentRole];
+  const canSwitchWorkspacePlatform =
+    hasTeacherTrainingAccess && currentRole !== "training_teacher";
   const customRoadshowProjectNames = parseCustomReviewTargetNames(reviewAssignmentDraft.customTargetNames);
   const remainingReviewScoreCount = Math.max(
     0,
@@ -459,7 +472,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
     : safeActiveTab === "overview"
       ? "首页概览"
       : activeTopbarLabel;
-  const mobileNavigationTitle = isTeacherTrainingPlatform ? "打开省培模块导航" : "打开工作台导航";
+  const mobileNavigationTitle = "打开工作台导航";
   const mobileNavigationCloseTitle = isTeacherTrainingPlatform ? "关闭省培模块导航" : "关闭工作台导航";
   const openTeacherTrainingSection = (key: Workspace.TeacherTrainingSectionKey) => {
     setActiveTeacherTrainingSection(key);
@@ -599,7 +612,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
             <div className="min-w-0">
               <p className="loading-title tracking-[-0.02em]">正在进入管理中心</p>
               <p className="loading-sub leading-7">
-                正在同步角色权限、任务概览和最近通知，马上就好。
+                正在同步账号权限和首屏数据，马上就好。
               </p>
             </div>
           </div>
@@ -754,13 +767,14 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
       <main className="workspace-depth-bg workspace-shell-fade-in min-h-screen overflow-x-hidden p-4 pb-14 md:p-6 md:pb-14">
         <div aria-hidden className="workspace-orb-field" />
         <div className="relative z-[1] mx-auto flex max-w-[1500px] flex-col gap-4 overflow-x-hidden xl:flex-row">
-          {mobileSidebarOpen ? (
+          {mobileSidebarOpen && !isTeacherTrainingPlatform ? (
             <div
               className="fixed inset-0 z-40 bg-slate-950/40 xl:hidden"
               onClick={() => setMobileSidebarOpen(false)}
             />
           ) : null}
 
+          {!isTeacherTrainingPlatform ? (
           <aside className="hidden xl:sticky xl:top-4 xl:block xl:h-[calc(100svh-2rem)] xl:w-[260px] xl:flex-none xl:self-start">
             <div className="depth-sidebar depth-sidebar-enhanced sidebar-government-pattern flex h-full flex-col rounded-xl px-4 py-6 text-white">
               <div className="sidebar-header pb-5">
@@ -776,31 +790,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
               </div>
 
               <nav className="sidebar-nav mt-5 flex-1 overflow-y-auto space-y-1 pr-1">
-                {isTeacherTrainingPlatform ? (
-                  <div className="space-y-1" aria-label="省培左侧模块">
-                    {teacherTrainingSidebarSections.map((item) => {
-                      const Icon = item.icon;
-                      const isActive = item.key === activeTeacherTrainingSection;
-
-                      return (
-                        <button
-                          key={item.key}
-                          aria-label={`${item.label}：${item.description}`}
-                          aria-current={isActive ? "page" : undefined}
-                          className={`sidebar-nav-item w-full border-0 bg-transparent text-left font-[inherit] ${isActive ? "sidebar-nav-item-active" : ""}`}
-                          data-section-key={item.key}
-                          onClick={() => openTeacherTrainingSection(item.key)}
-                          title={item.description}
-                          type="button"
-                        >
-                          <Icon className="h-[18px] w-[18px] shrink-0" strokeWidth={2.1} />
-                          <span className="min-w-0 flex-1 truncate">{item.label}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  sidebarTabs.map((item) => {
+                {sidebarTabs.map((item) => {
                     const Icon = item.icon;
                     const isActive = item.key === safeActiveTab;
                     const href =
@@ -818,8 +808,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                         <span>{getSidebarTabLabel(item)}</span>
                       </Link>
                     );
-                  })
-                )}
+                  })}
               </nav>
 
               <div className="sidebar-user-area mt-auto">
@@ -833,7 +822,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                   />
                   <div className="min-w-0">
                     <p className="sidebar-user-name truncate">{currentUser.profile.name}</p>
-                    <p className="sidebar-user-role mt-0.5">{roleLabels[currentRole]}</p>
+                    <p className="sidebar-user-role mt-0.5">{sidebarRoleLabel}</p>
                     <p className="mt-0.5 text-[11px] text-white/45">{getSidebarUserMeta()}</p>
                   </div>
                 </div>
@@ -850,8 +839,9 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
               </div>
             </div>
           </aside>
+          ) : null}
 
-          {mobileSidebarOpen ? (
+          {mobileSidebarOpen && !isTeacherTrainingPlatform ? (
             <aside className="depth-sidebar depth-sidebar-enhanced sidebar-government-pattern fixed inset-y-0 left-0 z-50 w-[min(82vw,260px)] translate-x-0 overflow-hidden px-4 py-6 text-white opacity-100 shadow-xl transition-all duration-200 xl:hidden">
               <div className="sidebar flex h-full flex-col">
                 <div className="sidebar-header flex items-center justify-between pb-5">
@@ -876,34 +866,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                 </div>
 
                 <nav className="sidebar-nav mt-5 space-y-1">
-                  {isTeacherTrainingPlatform ? (
-                    <div className="space-y-1" aria-label="省培左侧模块">
-                      {teacherTrainingSidebarSections.map((item) => {
-                        const Icon = item.icon;
-                        const isActive = item.key === activeTeacherTrainingSection;
-
-                        return (
-                          <button
-                            key={`mobile-${item.key}`}
-                            aria-label={`${item.label}：${item.description}`}
-                            aria-current={isActive ? "page" : undefined}
-                            className={`sidebar-nav-item w-full border-0 bg-transparent text-left font-[inherit] ${isActive ? "sidebar-nav-item-active" : ""}`}
-                            data-section-key={item.key}
-                            onClick={() => {
-                              openTeacherTrainingSection(item.key);
-                              setMobileSidebarOpen(false);
-                            }}
-                            title={item.description}
-                            type="button"
-                          >
-                            <Icon className="h-[18px] w-[18px] shrink-0" strokeWidth={2.1} />
-                            <span className="min-w-0 flex-1 truncate">{item.label}</span>
-                          </button>
-                        );
-                      })}
-                    </div>
-                  ) : (
-                    sidebarTabs.map((item) => {
+                  {sidebarTabs.map((item) => {
                       const Icon = item.icon;
                       const isActive = item.key === safeActiveTab;
                       const href =
@@ -922,8 +885,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                           <span>{getSidebarTabLabel(item)}</span>
                         </Link>
                       );
-                    })
-                  )}
+                    })}
                 </nav>
 
                 <div className="sidebar-user-area mt-auto">
@@ -937,7 +899,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                     />
                     <div className="min-w-0">
                       <p className="sidebar-user-name truncate">{currentUser.profile.name}</p>
-                      <p className="sidebar-user-role mt-0.5">{roleLabels[currentRole]}</p>
+                      <p className="sidebar-user-role mt-0.5">{sidebarRoleLabel}</p>
                       <p className="mt-0.5 text-[11px] text-white/45">{getSidebarUserMeta()}</p>
                     </div>
                   </div>
@@ -960,21 +922,23 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
             <header className="topbar-enhanced relative z-50 mx-auto max-w-[1200px] overflow-visible">
               <div className="topbar-left">
                 <div className="flex shrink-0 items-center gap-3">
-                  <button
-                    className="topbar-mobile-menu xl:hidden"
-                    aria-label={mobileNavigationTitle}
-                    onClick={() => setMobileSidebarOpen(true)}
-                    type="button"
-                    title={mobileNavigationTitle}
-                  >
-                    <Menu className="h-5 w-5" />
-                  </button>
+                  {!isTeacherTrainingPlatform ? (
+                    <button
+                      className="topbar-mobile-menu xl:hidden"
+                      aria-label={mobileNavigationTitle}
+                      onClick={() => setMobileSidebarOpen(true)}
+                      type="button"
+                      title={mobileNavigationTitle}
+                    >
+                      <Menu className="h-5 w-5" />
+                    </button>
+                  ) : null}
                   <div className="topbar-page-stack">
                     <span className="topbar-page-title">{topbarPageTitle}</span>
                   </div>
                 </div>
 
-                {hasGlobalAdminRole ? (
+                {canSwitchWorkspacePlatform ? (
                   <div
                     aria-label="平台切换"
                     className="topbar-platform-switch inline-flex rounded-xl border border-slate-200/80 bg-white/75 p-1 shadow-[0_10px_24px_rgba(15,23,42,0.08)] backdrop-blur"
@@ -1107,6 +1071,40 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                 </div>
               </div>
             </header>
+
+            {isTeacherTrainingPlatform ? (
+              <nav
+                aria-label="省培顶部模块"
+                className="teacher-training-top-nav mx-auto mt-3 max-w-[1200px] overflow-x-auto rounded-2xl border border-blue-100/80 bg-white/82 p-2 shadow-sm shadow-blue-100/40 backdrop-blur"
+              >
+                <div className="flex min-w-max items-center gap-2">
+                  {teacherTrainingSidebarSections.map((item) => {
+                    const Icon = item.icon;
+                    const isActive = item.key === activeTeacherTrainingSection;
+
+                    return (
+                      <button
+                        key={item.key}
+                        aria-label={`${item.label}：${item.description}`}
+                        aria-current={isActive ? "page" : undefined}
+                        className={`inline-flex h-10 items-center gap-2 rounded-xl border px-3 text-sm font-semibold transition ${
+                          isActive
+                            ? "border-blue-200 bg-blue-600 text-white shadow-[0_10px_22px_rgba(37,99,235,0.22)]"
+                            : "border-slate-200 bg-white text-slate-600 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
+                        }`}
+                        data-section-key={item.key}
+                        onClick={() => openTeacherTrainingSection(item.key)}
+                        title={item.description}
+                        type="button"
+                      >
+                        <Icon className="h-4 w-4 shrink-0" strokeWidth={2.1} />
+                        <span>{item.label}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              </nav>
+            ) : null}
 
             <div className="mx-auto mt-4 flex max-w-[1200px] flex-col gap-4">
               {tabContent}

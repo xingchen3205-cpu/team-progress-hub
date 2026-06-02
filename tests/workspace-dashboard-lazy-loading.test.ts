@@ -14,11 +14,13 @@ const dashboardSource = readFileSync(
 
 test("workspace bootstrap only preloads auth and notifications", () => {
   const bootstrapEffectStart = contextSource.indexOf("const loadWorkspaceData = async () => {");
-  const bootstrapEffectEnd = contextSource.indexOf("const loadReports = async () => {");
+  const bootstrapEffectEnd = contextSource.indexOf("const loadActiveTabResources = async () => {", bootstrapEffectStart);
   const bootstrapBlock = contextSource.slice(bootstrapEffectStart, bootstrapEffectEnd);
 
   assert.match(bootstrapBlock, /requestJson<\{ user: CurrentUser \}>\("\/api\/auth\/me"\)/);
-  assert.match(bootstrapBlock, /requestJson<\{ notifications: NotificationItem\[\] \}>\("\/api\/notifications"\)/);
+  assert.match(bootstrapBlock, /void loadNotificationsInBackground\(\)/);
+  assert.match(contextSource, /requestJson<\{ notifications: NotificationItem\[\] \}>\("\/api\/notifications"/);
+  assert.doesNotMatch(bootstrapBlock, /await requestJson<\{ notifications: NotificationItem\[\] \}>/);
   assert.doesNotMatch(bootstrapBlock, /requestJson<\{ tasks: BoardTask\[\] \}>\("\/api\/tasks"\)/);
   assert.doesNotMatch(bootstrapBlock, /requestJson<\{ announcements: Announcement\[\] \}>\("\/api\/announcements"\)/);
   assert.doesNotMatch(bootstrapBlock, /requestJson<\{ members: TeamMember\[\]; pendingMembers: TeamMember\[\]; groups\?: TeamGroupItem\[\] \}>\("\/api\/team"\)/);

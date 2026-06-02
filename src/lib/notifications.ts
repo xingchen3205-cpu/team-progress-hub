@@ -54,6 +54,7 @@ const getEmailErrorMessage = (
 const getSkippedEmailReason = (
   recipient: NotificationEmailRecipient | undefined,
   emailTeamGroupId: string | null | undefined,
+  includeAdmins: boolean,
 ) => {
   if (!recipient?.email?.trim()) {
     return "收件人未填写邮箱";
@@ -63,7 +64,7 @@ const getSkippedEmailReason = (
     return "账号尚未通过审核";
   }
 
-  if (recipient.role === "admin") {
+  if (!includeAdmins && recipient.role === "admin") {
     return "系统管理员不接收此类邮件提醒";
   }
 
@@ -116,7 +117,7 @@ export async function createNotifications({
   documentId?: string | null;
   relatedId?: string | null;
   senderId?: string | null;
-  email?: boolean | { subject?: string; actionLabel?: string; noticeType?: string };
+  email?: boolean | { subject?: string; actionLabel?: string; noticeType?: string; includeAdmins?: boolean };
   emailTeamGroupId?: string | null;
 }): Promise<NotificationDeliveryResult> {
   const dedupedUserIds = [...new Set(userIds.filter(Boolean))];
@@ -193,7 +194,12 @@ export async function createNotifications({
     },
   });
 
-  const recipientEmails = filterNotificationEmailRecipients(recipients, { emailTeamGroupId });
+  const emailOptions = typeof email === "object" ? email : {};
+  const includeAdminEmailRecipients = Boolean(emailOptions.includeAdmins);
+  const recipientEmails = filterNotificationEmailRecipients(recipients, {
+    emailTeamGroupId,
+    includeAdmins: includeAdminEmailRecipients,
+  });
   const recipientByEmail = new Map(
     recipients
       .filter((recipient) => Boolean(recipient.email?.trim()))
@@ -226,6 +232,7 @@ export async function createNotifications({
             emailError: getSkippedEmailReason(
               recipients.find((recipient) => recipient.id === notification.userId),
               emailTeamGroupId,
+              includeAdminEmailRecipients,
             ),
             emailSentAt: null,
           },
@@ -241,7 +248,6 @@ export async function createNotifications({
     };
   }
 
-  const emailOptions = typeof email === "object" ? email : {};
   const actionUrl = buildWorkspaceUrl(targetTab);
 
   const results = await Promise.allSettled(
@@ -306,6 +312,7 @@ export async function createNotifications({
             emailError: getSkippedEmailReason(
               recipients.find((recipient) => recipient.id === notification.userId),
               emailTeamGroupId,
+              includeAdminEmailRecipients,
             ),
             emailSentAt: null,
           },

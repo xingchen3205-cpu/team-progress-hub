@@ -65,7 +65,8 @@ export const authRateLimits = {
   loginIp: {
     namespace: "auth:login:ip",
     windowMs: 60_000,
-    max: 30,
+    // 同一培训现场常见学校/酒店共享出口，50+ 人同时登录和少量重试不能被误拦截。
+    max: 240,
   },
   loginAccount: {
     namespace: "auth:login:account",

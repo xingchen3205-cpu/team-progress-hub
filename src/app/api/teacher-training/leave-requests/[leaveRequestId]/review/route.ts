@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { getSessionUser } from "@/lib/auth";
-import { assertRole } from "@/lib/permissions";
+import { createNotifications } from "@/lib/notifications";
 import { prisma } from "@/lib/prisma";
 import { parseTeacherTrainingLeaveSteps, serializeTeacherTrainingLeaveRequest } from "@/lib/teacher-training";
 
@@ -20,7 +20,7 @@ const buildDateRange = (startDate: string, endDate: string) => {
 
   const dates: string[] = [];
   const cursor = new Date(start);
-  while (cursor <= end && dates.length < 31) {
+  while (cursor <= end) {
     dates.push(cursor.toISOString().slice(0, 10));
     cursor.setUTCDate(cursor.getUTCDate() + 1);
   }
@@ -28,16 +28,78 @@ const buildDateRange = (startDate: string, endDate: string) => {
   return dates;
 };
 
+const notifyLeaveReviewChange = async ({
+  leaveRequestId,
+  participantName,
+  submittedById,
+  senderId,
+  previousStepIndex,
+  reviewedStepIndex,
+  reviewStatus,
+  approvalSteps,
+}: {
+  leaveRequestId: string;
+  participantName: string;
+  submittedById: string;
+  senderId: string;
+  previousStepIndex: number;
+  reviewedStepIndex: number;
+  reviewStatus: "pending" | "approved" | "rejected";
+  approvalSteps: ReturnType<typeof parseTeacherTrainingLeaveSteps>;
+}) => {
+  if (reviewStatus === "rejected") {
+    await createNotifications({
+      userIds: [submittedById],
+      title: "省培请假审批未通过",
+      detail: `${participantName} 的省培请假申请已被驳回，请查看审批意见。`,
+      type: "teacher_training_leave_result",
+      targetTab: "teacherTraining",
+      relatedId: leaveRequestId,
+      senderId,
+      email: { noticeType: "省培请假结果", actionLabel: "查看请假申请", includeAdmins: true },
+    });
+    return;
+  }
+
+  if (reviewStatus === "approved") {
+    await createNotifications({
+      userIds: [submittedById],
+      title: "省培请假审批已通过",
+      detail: `${participantName} 的省培请假申请已全部审批通过，可导出请假单。`,
+      type: "teacher_training_leave_result",
+      targetTab: "teacherTraining",
+      relatedId: leaveRequestId,
+      senderId,
+      email: { noticeType: "省培请假结果", actionLabel: "查看请假申请", includeAdmins: true },
+    });
+    return;
+  }
+
+  if (reviewedStepIndex <= previousStepIndex) {
+    return;
+  }
+
+  const nextStep = approvalSteps[reviewedStepIndex];
+  if (!nextStep) {
+    return;
+  }
+
+  await createNotifications({
+    userIds: nextStep.approverIds,
+    title: "省培请假待审批",
+    detail: `${participantName} 的省培请假申请已流转至「${nextStep.name}」，请及时审批。`,
+    type: "teacher_training_leave_review",
+    targetTab: "teacherTraining",
+    relatedId: leaveRequestId,
+    senderId,
+    email: { noticeType: "省培请假审批", actionLabel: "进入省培处理", includeAdmins: true },
+  });
+};
+
 export async function POST(request: NextRequest, context: RouteContext) {
   const user = await getSessionUser(request);
   if (!user) {
     return NextResponse.json({ message: "未登录" }, { status: 401 });
-  }
-
-  try {
-    assertRole(user.role, ["admin", "school_admin"]);
-  } catch {
-    return NextResponse.json({ message: "无权限审批省培请假" }, { status: 403 });
   }
 
   const { leaveRequestId } = await context.params;
@@ -49,8 +111,13 @@ export async function POST(request: NextRequest, context: RouteContext) {
     | null;
   const decision = body?.decision === "reject" ? "reject" : "approve";
 
-  const leaveRequest = await prisma.teacherTrainingLeaveRequest.findUnique({
-    where: { id: leaveRequestId },
+  const leaveRequest = await prisma.teacherTrainingLeaveRequest.findFirst({
+    where: {
+      id: leaveRequestId,
+      cohort: {
+        deletedAt: null,
+      },
+    },
     include: {
       participant: {
         select: {
@@ -74,7 +141,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
   if (!currentStep) {
     return NextResponse.json({ message: "请假流程配置异常" }, { status: 400 });
   }
-  if (!currentStep.approverIds.includes(user.id) && user.role !== "admin") {
+  if (!currentStep.approverIds.includes(user.id)) {
     return NextResponse.json({ message: "当前步骤未配置你为审批人" }, { status: 403 });
   }
 
@@ -162,6 +229,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
       where: { id: leaveRequestId },
       data: {
         status: "approved",
+        currentStepIndex: approvalSteps.length,
         completedAt: new Date(),
       },
       include: {
@@ -203,6 +271,29 @@ export async function POST(request: NextRequest, context: RouteContext) {
     );
 
     return approvedRequest;
+  });
+
+  await notifyLeaveReviewChange({
+    leaveRequestId,
+    participantName: leaveRequest.participant.name,
+    submittedById: leaveRequest.submittedById,
+    senderId: user.id,
+    previousStepIndex: leaveRequest.currentStepIndex,
+    reviewedStepIndex: reviewedRequest.currentStepIndex,
+    reviewStatus: reviewedRequest.status as "pending" | "approved" | "rejected",
+    approvalSteps,
+  }).catch((error) => {
+    console.error("Teacher training leave review notification failed", error);
+    void prisma.auditLog.create({
+      data: {
+        operatorId: user.id,
+        operatorRole: user.role,
+        action: "teacher_training.notification.failed",
+        objectType: "teacher_training_leave_request",
+        objectId: leaveRequestId,
+        metadata: JSON.stringify({ stage: "review", message: error instanceof Error ? error.message : String(error) }),
+      },
+    }).catch(() => undefined);
   });
 
   return NextResponse.json({ leaveRequest: serializeTeacherTrainingLeaveRequest(reviewedRequest) });

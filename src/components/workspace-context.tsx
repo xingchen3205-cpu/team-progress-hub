@@ -143,6 +143,7 @@ export * from "@/lib/expert-review";
 export * from "@/lib/document-reminder";
 export * from "@/lib/training-import";
 export * from "@/lib/teacher-training";
+export * from "@/lib/teacher-training-submission-attachments";
 export * from "@/lib/task-workflow";
 export * from "@/lib/request-json";
 
@@ -247,6 +248,7 @@ export type TrainingTimerPreset = {
 };
 
 export type TeacherTrainingCohortDraft = {
+  id?: string;
   title: string;
   location: string;
   startDate: string;
@@ -260,6 +262,12 @@ export type TeacherTrainingParticipantDraft = {
   organization: string;
   phone: string;
   groupName: string;
+  title: string;
+  email: string;
+  arrivalTransportation: string;
+  arrivalAt: string;
+  arrivalVehicleNo: string;
+  arrivalDeparture: string;
   accountUsername: string;
   accountPassword: string;
   extraInfo: string;
@@ -267,6 +275,7 @@ export type TeacherTrainingParticipantDraft = {
 };
 
 export type TeacherTrainingCheckInTaskDraft = {
+  id?: string;
   cohortId: string;
   courseSessionId: string;
   title: string;
@@ -308,6 +317,8 @@ export type TeacherTrainingLeaveRequestDraft = {
   participantId: string;
   startDate: string;
   endDate: string;
+  startTime: string;
+  endTime: string;
   sessionLabel: string;
   reason: string;
 };
@@ -319,6 +330,7 @@ export type TeacherTrainingLeaveReviewDraft = {
 };
 
 export type TeacherTrainingTaskDraft = {
+  id?: string;
   cohortId: string;
   title: string;
   description: string;
@@ -327,6 +339,7 @@ export type TeacherTrainingTaskDraft = {
 };
 
 export type TeacherTrainingCourseSessionDraft = {
+  id?: string;
   cohortId: string;
   title: string;
   courseDate: string;
@@ -350,6 +363,12 @@ export type TeacherTrainingProfileDraft = {
   organization: string;
   phone: string;
   groupName: string;
+  title: string;
+  email: string;
+  arrivalTransportation: string;
+  arrivalAt: string;
+  arrivalVehicleNo: string;
+  arrivalDeparture: string;
   note: string;
 };
 
@@ -405,6 +424,7 @@ export type EmailReminderSettingsDraft = {
   announcementEnabled: boolean;
   directReminderEnabled: boolean;
   documentReviewEnabled: boolean;
+  teacherTrainingLeaveEnabled: boolean;
   reportSubmitEnabled: boolean;
   dailyReportMissingEnabled: boolean;
   dailyReportHour: number;
@@ -868,8 +888,8 @@ export const teacherTrainingSectionTabs: TeacherTrainingSectionItem[] = [
   },
   {
     key: "attendance",
-    label: "报到登记",
-    description: "工作人员后台勾选",
+    label: "参训教师报到",
+    description: "房号和材料情况",
     icon: CheckCircle2,
     managerOnly: true,
   },
@@ -1209,7 +1229,6 @@ export const rolePermissions = {
       "overview",
       "timeline",
       "board",
-      "teacherTraining",
       "reports",
       "experts",
       "review",
@@ -1694,6 +1713,7 @@ export const defaultEmailReminderSettingsDraft: EmailReminderSettingsDraft = {
   announcementEnabled: true,
   directReminderEnabled: true,
   documentReviewEnabled: true,
+  teacherTrainingLeaveEnabled: true,
   reportSubmitEnabled: true,
   dailyReportMissingEnabled: true,
   dailyReportHour: 20,
@@ -1728,6 +1748,11 @@ export const emailReminderSettingItems: Array<{
     key: "documentReviewEnabled",
     title: "文档审批流转",
     description: "文档待审、审批结果、打回修改时同步邮件。",
+  },
+  {
+    key: "teacherTrainingLeaveEnabled",
+    title: "省培请假审批",
+    description: "省培请假待审、审批结果通过独立邮件开关控制。",
   },
   {
     key: "reportSubmitEnabled",
@@ -2270,6 +2295,7 @@ function useWorkspaceController({
   const [activeTabResourceLoading, setActiveTabResourceLoading] = useState(false);
   const [activeTeacherTrainingSection, setActiveTeacherTrainingSection] =
     useState<TeacherTrainingSectionKey>("overview");
+  const [activeTeacherTrainingCohortId, setActiveTeacherTrainingCohortId] = useState("");
   const loadedWorkspaceResourcesRef = useRef<Set<string>>(new Set());
   const refreshResourceQueueRef = useRef<Set<WorkspaceResourceKey>>(new Set());
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
@@ -2369,6 +2395,7 @@ function useWorkspaceController({
   const [questionImportError, setQuestionImportError] = useState<string | null>(null);
   const [selectedTrainingQuestionIds, setSelectedTrainingQuestionIds] = useState<string[]>([]);
   const [activeDrillQuestionId, setActiveDrillQuestionId] = useState<string | null>(null);
+  const [answeredDrillQuestionIds, setAnsweredDrillQuestionIds] = useState<string[]>([]);
   const [selectedDrillCategory, setSelectedDrillCategory] = useState(allTrainingQuestionCategoriesLabel);
   const [qaDrillStats, setQaDrillStats] = useState({ total: 0, hit: 0 });
   const [trainingTimerDuration, setTrainingTimerDuration] = useState(8 * 60);
@@ -2472,19 +2499,22 @@ function useWorkspaceController({
   const isSystemAdmin = currentRole === "admin";
   const isSchoolAdmin = currentRole === "school_admin";
   const hasGlobalAdminRole = isSystemAdmin || isSchoolAdmin;
-  const hasTeacherTrainingAccess = hasGlobalAdminRole || Boolean(currentUser?.hasTeacherTrainingAccess);
-  const hasTeacherTrainingManagerAccess = hasGlobalAdminRole || Boolean(currentUser?.hasTeacherTrainingManagerAccess);
+  const hasTeacherTrainingSystemAdminRole = isSystemAdmin;
+  const hasTeacherTrainingAccess = hasTeacherTrainingSystemAdminRole || Boolean(currentUser?.hasTeacherTrainingAccess);
+  const hasTeacherTrainingManagerAccess =
+    hasTeacherTrainingSystemAdminRole || Boolean(currentUser?.hasTeacherTrainingManagerAccess);
   const canManageTeacherTraining = hasTeacherTrainingManagerAccess;
   const currentMemberId = currentUser?.id ?? "";
   const basePermissions = rolePermissions[currentRole];
+  const baseVisibleTabsWithoutTeacherTraining = basePermissions.visibleTabs.filter((key) => key !== "teacherTraining");
   const visibleTabPermissionKeys =
-    hasTeacherTrainingAccess && !basePermissions.visibleTabs.includes("teacherTraining")
+    hasTeacherTrainingAccess
       ? [
-          ...basePermissions.visibleTabs.filter((key) => key !== "profile"),
+          ...baseVisibleTabsWithoutTeacherTraining.filter((key) => key !== "profile"),
           "teacherTraining" as TabKey,
-          ...(basePermissions.visibleTabs.includes("profile") ? (["profile"] as TabKey[]) : []),
+          ...(baseVisibleTabsWithoutTeacherTraining.includes("profile") ? (["profile"] as TabKey[]) : []),
         ]
-      : ([...basePermissions.visibleTabs] as TabKey[]);
+      : ([...baseVisibleTabsWithoutTeacherTraining] as TabKey[]);
   const permissions = {
     ...basePermissions,
     visibleTabs: visibleTabPermissionKeys,
@@ -2503,11 +2533,15 @@ function useWorkspaceController({
       return false;
     }
 
+    if (item.key === "teacherTraining") {
+      return false;
+    }
+
     if (!hasGlobalAdminRole) {
       return true;
     }
 
-    return isTeacherTrainingPlatform ? item.key === "teacherTraining" : item.key !== "teacherTraining";
+    return !isTeacherTrainingPlatform;
   });
   const visibleTeacherTrainingSectionTabs = teacherTrainingSectionTabs.filter((section) => {
     if (section.globalOnly && !hasGlobalAdminRole) return false;
@@ -2987,6 +3021,31 @@ function useWorkspaceController({
     [buildReportsRequestUrl],
   );
 
+  const mergeTeacherTrainingCohortDetails = useCallback(
+    (currentCohorts: TeacherTrainingCohortItem[], detailCohort: TeacherTrainingCohortItem) => {
+      const hydratedCohort = { ...detailCohort, includeDetails: true };
+      if (!currentCohorts.some((cohort) => cohort.id === detailCohort.id)) {
+        return [hydratedCohort, ...currentCohorts];
+      }
+
+      return currentCohorts.map((cohort) => (cohort.id === detailCohort.id ? hydratedCohort : cohort));
+    },
+    [],
+  );
+
+  const loadTeacherTrainingCohortDetails = useCallback(
+    async (cohortId: string) => {
+      if (!cohortId) return;
+      const payload = await requestJson<{ cohorts: TeacherTrainingCohortItem[] }>(
+        `/api/teacher-training?cohortId=${encodeURIComponent(cohortId)}`,
+      );
+      const detailCohort = payload.cohorts[0];
+      if (!detailCohort) return;
+      setTeacherTrainingCohorts((current) => mergeTeacherTrainingCohortDetails(current, detailCohort));
+    },
+    [mergeTeacherTrainingCohortDetails],
+  );
+
   const loadWorkspaceResource = useCallback(
     async (resourceKey: WorkspaceResourceKey, role: CurrentUser["role"]) => {
       switch (resourceKey) {
@@ -3060,10 +3119,17 @@ function useWorkspaceController({
             cohorts: TeacherTrainingCohortItem[];
             approverOptions: TeacherTrainingApproverOptionItem[];
             managerOptions: TeacherTrainingApproverOptionItem[];
-          }>("/api/teacher-training");
+          }>("/api/teacher-training?mode=summary");
           setTeacherTrainingCohorts(payload.cohorts);
           setTeacherTrainingApproverOptions(payload.approverOptions ?? []);
           setTeacherTrainingManagerOptions(payload.managerOptions ?? []);
+          const detailCohortId =
+            activeTeacherTrainingCohortId && payload.cohorts.some((cohort) => cohort.id === activeTeacherTrainingCohortId)
+              ? activeTeacherTrainingCohortId
+              : payload.cohorts[0]?.id;
+          if (detailCohortId && payload.cohorts.some((cohort) => cohort.id === detailCohortId && cohort.includeDetails === false)) {
+            await loadTeacherTrainingCohortDetails(detailCohortId);
+          }
           return;
         }
         case "reviewAssignments": {
@@ -3097,7 +3163,14 @@ function useWorkspaceController({
           return;
       }
     },
-    [applyReportsPayload, applyReviewAssignments, applyTeamPayload, buildReportsRequestUrl],
+    [
+      activeTeacherTrainingCohortId,
+      applyReportsPayload,
+      applyReviewAssignments,
+      applyTeamPayload,
+      buildReportsRequestUrl,
+      loadTeacherTrainingCohortDetails,
+    ],
   );
 
   const loadWorkspaceResources = useCallback(
@@ -3122,6 +3195,19 @@ function useWorkspaceController({
     [getWorkspaceResourceLoadedKey, loadWorkspaceResource],
   );
 
+  const loadNotificationsInBackground = useCallback(async () => {
+    try {
+      const payload = await requestJson<{ notifications: NotificationItem[] }>("/api/notifications");
+      setNotifications(payload.notifications);
+      loadedWorkspaceResourcesRef.current.add("notifications");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "通知加载失败";
+      if (message === "未登录") {
+        window.location.replace("/login");
+      }
+    }
+  }, []);
+
   useEffect(() => {
     let isMounted = true;
 
@@ -3130,20 +3216,16 @@ function useWorkspaceController({
       setIsBooting(true);
 
       try {
-        const [mePayload, notificationsPayload] = await Promise.all([
-          requestJson<{ user: CurrentUser }>("/api/auth/me"),
-          requestJson<{ notifications: NotificationItem[] }>("/api/notifications"),
-        ]);
+        const mePayload = await requestJson<{ user: CurrentUser }>("/api/auth/me");
 
         if (!isMounted) {
           return;
         }
 
         setCurrentUser(mePayload.user);
-        setNotifications(notificationsPayload.notifications);
-        loadedWorkspaceResourcesRef.current.add("notifications");
         setActiveTabResourceLoading(true);
         setIsBooting(false);
+        void loadNotificationsInBackground();
         if (!["admin", "school_admin", "teacher"].includes(mePayload.user.role)) {
           setSentReminders([]);
         }
@@ -3174,7 +3256,7 @@ function useWorkspaceController({
     return () => {
       isMounted = false;
     };
-  }, [clearNonExpertWorkspaceData]);
+  }, [clearNonExpertWorkspaceData, loadNotificationsInBackground]);
 
   useEffect(() => {
     const currentUserRole = currentUser?.role;
@@ -3463,7 +3545,14 @@ function useWorkspaceController({
     setSelectedTrainingQuestionIds((current) =>
       current.filter((questionId) => trainingQuestions.some((question) => question.id === questionId)),
     );
+    setAnsweredDrillQuestionIds((current) =>
+      current.filter((questionId) => trainingQuestions.some((question) => question.id === questionId)),
+    );
   }, [trainingQuestions]);
+
+  useEffect(() => {
+    setAnsweredDrillQuestionIds([]);
+  }, [selectedDrillCategory]);
 
   const membersMap = useMemo(
     () => Object.fromEntries(members.map((item) => [item.id, item])),
@@ -5050,7 +5139,7 @@ function useWorkspaceController({
     });
   };
 
-  const drawRandomTrainingQuestion = () => {
+  const drawRandomTrainingQuestionFromPool = (answeredQuestionIds = answeredDrillQuestionIds) => {
     const questionPool = getDrillQuestionPool();
     if (questionPool.length === 0) {
       setLoadError(
@@ -5061,10 +5150,19 @@ function useWorkspaceController({
       return;
     }
 
+    const currentDrillQuestionId = activeDrillQuestion?.id ?? activeDrillQuestionId;
+    const unansweredCandidates = questionPool.filter(
+      (question) => question.id !== currentDrillQuestionId && !answeredQuestionIds.includes(question.id),
+    );
     const candidates =
-      questionPool.length === 1
-        ? questionPool
-        : questionPool.filter((question) => question.id !== activeDrillQuestionId);
+      unansweredCandidates.length > 0
+        ? unansweredCandidates
+        : questionPool.length === 1
+          ? questionPool
+          : questionPool.filter((question) => question.id !== currentDrillQuestionId);
+    if (unansweredCandidates.length === 0) {
+      setAnsweredDrillQuestionIds([]);
+    }
     const nextQuestion = candidates[Math.floor(Math.random() * candidates.length)];
     if (!nextQuestion) {
       return;
@@ -5073,12 +5171,22 @@ function useWorkspaceController({
     setActiveDrillQuestionId(nextQuestion.id);
   };
 
+  const drawRandomTrainingQuestion = () => {
+    drawRandomTrainingQuestionFromPool();
+  };
+
   const recordDrillAnswer = (hit: boolean) => {
+    const answeredQuestionId = activeDrillQuestion?.id;
+    const nextAnsweredDrillQuestionIds = answeredQuestionId
+      ? [...answeredDrillQuestionIds.filter((questionId) => questionId !== answeredQuestionId), answeredQuestionId]
+      : answeredDrillQuestionIds;
+
     setQaDrillStats((current) => ({
       total: current.total + 1,
       hit: current.hit + (hit ? 1 : 0),
     }));
-    drawRandomTrainingQuestion();
+    setAnsweredDrillQuestionIds(nextAnsweredDrillQuestionIds);
+    drawRandomTrainingQuestionFromPool(nextAnsweredDrillQuestionIds);
   };
 
   const applyTrainingTimerPreset = (preset: TrainingTimerPreset) => {
@@ -5153,8 +5261,9 @@ function useWorkspaceController({
     setIsSaving(true);
     try {
       await requestJson("/api/teacher-training", {
-        method: "POST",
+        method: draft.id ? "PATCH" : "POST",
         body: JSON.stringify({
+          id: draft.id,
           title,
           location: draft.location.trim(),
           startDate,
@@ -5162,10 +5271,33 @@ function useWorkspaceController({
           description: draft.description.trim(),
         }),
       });
-      showSuccessToast("省培班次已创建", "省培管理平台已经更新。");
+      showSuccessToast(draft.id ? "省培班次已修改" : "省培班次已创建", "省培管理平台已经更新。");
       refreshWorkspace("teacherTraining");
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "省培班次创建失败");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const deleteTeacherTrainingCohort = async (cohortId: string) => {
+    if (!cohortId) {
+      setLoadError("请先选择要删除的省培班次");
+      return false;
+    }
+
+    setIsSaving(true);
+    try {
+      await requestJson("/api/teacher-training", {
+        method: "DELETE",
+        body: JSON.stringify({ id: cohortId, confirmCascade: true }),
+      });
+      showSuccessToast("省培班次已移入回收站", "课程、签到、任务、汇报和附件暂不删除，可在回收站恢复。");
+      refreshWorkspace("teacherTraining");
+      return true;
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "省培班次删除失败");
+      return false;
     } finally {
       setIsSaving(false);
     }
@@ -5191,6 +5323,12 @@ function useWorkspaceController({
           organization,
           phone: draft.phone.trim(),
           groupName: draft.groupName.trim(),
+          title: draft.title.trim(),
+          email: draft.email.trim(),
+          arrivalTransportation: draft.arrivalTransportation.trim(),
+          arrivalAt: draft.arrivalAt.trim(),
+          arrivalVehicleNo: draft.arrivalVehicleNo.trim(),
+          arrivalDeparture: draft.arrivalDeparture.trim(),
           accountUsername: draft.accountUsername.trim(),
           accountPassword: draft.accountPassword.trim(),
           extraInfo: draft.extraInfo.trim(),
@@ -5201,6 +5339,33 @@ function useWorkspaceController({
       refreshWorkspace("teacherTraining");
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "参训教师保存失败");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const importTeacherTrainingParticipants = async (
+    cohortId: string,
+    participants: Array<Pick<TeacherTrainingParticipantDraft, "name" | "organization" | "phone" | "groupName" | "title" | "email" | "arrivalTransportation" | "arrivalAt" | "arrivalVehicleNo" | "arrivalDeparture" | "extraInfo" | "note">>,
+  ) => {
+    if (!cohortId || participants.length === 0) {
+      setLoadError("请先选择班次并填写导入名单");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      await requestJson("/api/teacher-training/participants", {
+        method: "POST",
+        body: JSON.stringify({
+          cohortId,
+          participants,
+        }),
+      });
+      showSuccessToast("参训教师已导入", "名单已经批量写入当前省培班次。");
+      refreshWorkspace("teacherTraining");
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "参训教师导入失败");
     } finally {
       setIsSaving(false);
     }
@@ -5219,8 +5384,9 @@ function useWorkspaceController({
     setIsSaving(true);
     try {
       await requestJson("/api/teacher-training/course-sessions", {
-        method: "POST",
+        method: draft.id ? "PATCH" : "POST",
         body: JSON.stringify({
+          id: draft.id,
           cohortId,
           title,
           courseDate,
@@ -5231,10 +5397,58 @@ function useWorkspaceController({
           description: draft.description.trim(),
         }),
       });
-      showSuccessToast("课程安排已保存", "参训教师的省培课程表已经更新。");
+      showSuccessToast(draft.id ? "课程安排已修改" : "课程安排已保存", "参训教师的省培课程表已经更新。");
       refreshWorkspace("teacherTraining");
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "课程安排保存失败");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const importTeacherTrainingCourses = async (
+    cohortId: string,
+    courses: Array<Pick<TeacherTrainingCourseSessionDraft, "title" | "courseDate" | "startTime" | "endTime" | "location" | "instructor" | "description">>,
+  ) => {
+    if (!cohortId || courses.length === 0) {
+      setLoadError("请先选择班次并填写导入课程");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      await requestJson("/api/teacher-training/course-sessions", {
+        method: "POST",
+        body: JSON.stringify({
+          cohortId,
+          courses,
+        }),
+      });
+      showSuccessToast("课程已导入", "课程表已经批量写入当前省培班次。");
+      refreshWorkspace("teacherTraining");
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "课程导入失败");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const deleteTeacherTrainingCourseSession = async (courseSessionId: string) => {
+    if (!courseSessionId) {
+      setLoadError("请先选择要删除的课程");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      await requestJson("/api/teacher-training/course-sessions", {
+        method: "DELETE",
+        body: JSON.stringify({ id: courseSessionId }),
+      });
+      showSuccessToast("课程已移入回收站", "参训教师课程表已经更新，必要时可从回收站恢复。");
+      refreshWorkspace("teacherTraining");
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "课程删除失败");
     } finally {
       setIsSaving(false);
     }
@@ -5253,8 +5467,9 @@ function useWorkspaceController({
     setIsSaving(true);
     try {
       await requestJson("/api/teacher-training/check-ins", {
-        method: "POST",
+        method: draft.id ? "PATCH" : "POST",
         body: JSON.stringify({
+          id: draft.id,
           cohortId,
           courseSessionId: draft.courseSessionId.trim(),
           title,
@@ -5267,10 +5482,31 @@ function useWorkspaceController({
           radiusMeters: draft.radiusMeters.trim(),
         }),
       });
-      showSuccessToast("签到任务已发布", "参训教师可在省培账号里进行定位签到。");
+      showSuccessToast(draft.id ? "签到任务已修改" : "签到任务已发布", "参训教师可在省培账号里进行定位签到。");
       refreshWorkspace("teacherTraining");
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "签到任务发布失败");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const deleteTeacherTrainingCheckInTask = async (checkInTaskId: string) => {
+    if (!checkInTaskId) {
+      setLoadError("请先选择要删除的签到任务");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      await requestJson("/api/teacher-training/check-ins", {
+        method: "DELETE",
+        body: JSON.stringify({ id: checkInTaskId }),
+      });
+      showSuccessToast("签到任务已移入回收站", "参训教师签到列表已经更新，签到记录暂不删除。");
+      refreshWorkspace("teacherTraining");
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "签到任务删除失败");
     } finally {
       setIsSaving(false);
     }
@@ -5303,6 +5539,8 @@ function useWorkspaceController({
     sessionDate,
     sessionLabel,
     status,
+    roomNumber = "",
+    materialsComplete = null,
     note = "",
   }: {
     cohortId: string;
@@ -5310,6 +5548,8 @@ function useWorkspaceController({
     sessionDate: string;
     sessionLabel: string;
     status: TeacherTrainingAttendanceStatus;
+    roomNumber?: string;
+    materialsComplete?: boolean | null;
     note?: string;
   }) => {
     if (!cohortId || !participantId || !sessionDate || !sessionLabel) {
@@ -5327,12 +5567,15 @@ function useWorkspaceController({
           sessionDate,
           sessionLabel,
           status,
+          roomNumber,
+          materialsComplete,
           note,
         }),
       });
+      showSuccessToast("报到信息已保存", "报到状态、房号和材料情况已同步更新。");
       refreshWorkspace("teacherTraining");
     } catch (error) {
-      setLoadError(error instanceof Error ? error.message : "签到状态保存失败");
+      setLoadError(error instanceof Error ? error.message : "报到状态保存失败");
     } finally {
       setIsSaving(false);
     }
@@ -5366,6 +5609,59 @@ function useWorkspaceController({
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "账号消息生成失败");
       return "";
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const updateTeacherTrainingParticipantAccount = async ({
+    participantId,
+    accountUsername = "",
+    accountPassword = "",
+  }: TeacherTrainingAccountMessageDraft) => {
+    if (!participantId) {
+      setLoadError("请先选择参训教师");
+      return "";
+    }
+
+    setIsSaving(true);
+    try {
+      const payload = await requestJson<{ messageText?: string }>(
+        `/api/teacher-training/participants/${encodeURIComponent(participantId)}/account`,
+        {
+          method: "PATCH",
+          body: JSON.stringify({
+            accountUsername: accountUsername.trim(),
+            accountPassword: accountPassword.trim(),
+          }),
+        },
+      );
+      showSuccessToast("省培账号已修改", "参训教师可使用新的省培账号信息登录。");
+      refreshWorkspace("teacherTraining");
+      return payload.messageText ?? "";
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "省培账号修改失败");
+      return "";
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const deleteTeacherTrainingParticipantAccount = async (participantId: string) => {
+    if (!participantId) {
+      setLoadError("请先选择参训教师");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      await requestJson(`/api/teacher-training/participants/${encodeURIComponent(participantId)}/account`, {
+        method: "DELETE",
+      });
+      showSuccessToast("省培账号已删除", "参训档案和历史记录保留，账号已无法登录。");
+      refreshWorkspace("teacherTraining");
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "省培账号删除失败");
     } finally {
       setIsSaving(false);
     }
@@ -5463,6 +5759,8 @@ function useWorkspaceController({
     const participantId = draft.participantId.trim();
     const startDate = draft.startDate.trim();
     const endDate = draft.endDate.trim();
+    const startTime = draft.startTime.trim();
+    const endTime = draft.endTime.trim();
     const reason = draft.reason.trim();
 
     if (!participantId || !startDate || !endDate || !reason) {
@@ -5478,6 +5776,8 @@ function useWorkspaceController({
           participantId,
           startDate,
           endDate,
+          startTime,
+          endTime,
           sessionLabel: draft.sessionLabel.trim(),
           reason,
         }),
@@ -5532,8 +5832,9 @@ function useWorkspaceController({
     setIsSaving(true);
     try {
       await requestJson("/api/teacher-training/tasks", {
-        method: "POST",
+        method: draft.id ? "PATCH" : "POST",
         body: JSON.stringify({
+          id: draft.id,
           cohortId,
           title,
           description,
@@ -5541,10 +5842,31 @@ function useWorkspaceController({
           requireAttachment: draft.requireAttachment,
         }),
       });
-      showSuccessToast("省培任务已发布", "参训教师的任务汇报清单已经更新。");
+      showSuccessToast(draft.id ? "省培任务已修改" : "省培任务已发布", "参训教师的任务汇报清单已经更新。");
       refreshWorkspace("teacherTraining");
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "省培任务发布失败");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const deleteTeacherTrainingTask = async (taskId: string) => {
+    if (!taskId) {
+      setLoadError("请先选择要删除的省培任务");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      await requestJson("/api/teacher-training/tasks", {
+        method: "DELETE",
+        body: JSON.stringify({ id: taskId }),
+      });
+      showSuccessToast("省培任务已移入回收站", "任务汇报和附件暂不删除，可在回收站恢复。");
+      refreshWorkspace("teacherTraining");
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "省培任务删除失败");
     } finally {
       setIsSaving(false);
     }
@@ -5557,7 +5879,7 @@ function useWorkspaceController({
 
     if (!taskId || !participantId || !content) {
       setLoadError("请先选择任务、参训教师并填写汇报内容");
-      return;
+      return false;
     }
 
     setIsSaving(true);
@@ -5573,8 +5895,10 @@ function useWorkspaceController({
       });
       showSuccessToast("任务汇报已登记", "汇报记录已经进入导出表。");
       refreshWorkspace("teacherTraining");
+      return true;
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "任务汇报保存失败");
+      return false;
     } finally {
       setIsSaving(false);
     }
@@ -5592,7 +5916,9 @@ function useWorkspaceController({
 
     setIsSaving(true);
     try {
-      await requestJson("/api/teacher-training/profile", {
+      const payload = await requestJson<{ emailStatus?: "unchanged" | "not_configured" | "sent" | "failed" }>(
+        "/api/teacher-training/profile",
+        {
         method: "PATCH",
         body: JSON.stringify({
           participantId,
@@ -5600,14 +5926,23 @@ function useWorkspaceController({
           organization,
           phone: draft.phone.trim(),
           groupName: draft.groupName.trim(),
+          title: draft.title.trim(),
+          email: draft.email.trim(),
+          arrivalTransportation: draft.arrivalTransportation.trim(),
+          arrivalAt: draft.arrivalAt.trim(),
+          arrivalVehicleNo: draft.arrivalVehicleNo.trim(),
+          arrivalDeparture: draft.arrivalDeparture.trim(),
           note: draft.note.trim(),
         }),
-      });
+        },
+      );
       showSuccessToast("个人信息已保存", "省培档案已经同步更新。");
       refreshWorkspace("teacherTraining");
       refreshWorkspace("team");
+      return { ok: true, emailStatus: payload.emailStatus ?? "unchanged" };
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "个人信息保存失败");
+      return { ok: false, emailStatus: "failed" as const };
     } finally {
       setIsSaving(false);
     }
@@ -7469,6 +7804,8 @@ function useWorkspaceController({
     isActiveTabResourceLoading: activeTabResourceLoading && !isBooting,
     activeTeacherTrainingSection: effectiveTeacherTrainingSection,
     setActiveTeacherTrainingSection,
+    activeTeacherTrainingCohortId,
+    setActiveTeacherTrainingCohortId,
     loadError,
     setLoadError,
     reloadToken,
@@ -7492,6 +7829,7 @@ function useWorkspaceController({
     setTrainingStats,
     teacherTrainingCohorts,
     setTeacherTrainingCohorts,
+    loadTeacherTrainingCohortDetails,
     teacherTrainingApproverOptions,
     setTeacherTrainingApproverOptions,
     teacherTrainingManagerOptions,
@@ -7960,18 +8298,26 @@ function useWorkspaceController({
     resetTrainingTimer,
     saveTrainingSession,
     createTeacherTrainingCohort,
+    deleteTeacherTrainingCohort,
     addTeacherTrainingParticipant,
+    importTeacherTrainingParticipants,
     createTeacherTrainingCourseSession,
+    importTeacherTrainingCourses,
+    deleteTeacherTrainingCourseSession,
     createTeacherTrainingCheckInTask,
+    deleteTeacherTrainingCheckInTask,
     signTeacherTrainingCheckIn,
     markTeacherTrainingAttendance,
     generateTeacherTrainingAccountMessage,
+    updateTeacherTrainingParticipantAccount,
+    deleteTeacherTrainingParticipantAccount,
     assignTeacherTrainingCohortManager,
     removeTeacherTrainingCohortManager,
     updateTeacherTrainingLeaveFlow,
     submitTeacherTrainingLeaveRequest,
     reviewTeacherTrainingLeaveRequest,
     createTeacherTrainingTask,
+    deleteTeacherTrainingTask,
     saveTeacherTrainingSubmission,
     updateTeacherTrainingProfile,
     publishAnnouncement,
