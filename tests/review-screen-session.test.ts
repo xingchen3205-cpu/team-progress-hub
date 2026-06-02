@@ -767,6 +767,7 @@ describe("roadshow review screen session", () => {
     const schemaSource = readSource("prisma/schema.prisma");
     const sessionRouteSource = readSource("src/app/api/review-screen/sessions/route.ts");
     const publicRouteSource = readSource("src/app/api/review-screen/sessions/[sessionId]/route.ts");
+    const sessionLibSource = readSource("src/lib/review-screen-session.ts");
     const teamDrawRouteSource = readSource("src/app/api/review-screen/sessions/[sessionId]/team-draw/route.ts");
     const teamDrawInfoRouteSource = readSource("src/app/api/review-screen/team-draw/[token]/route.ts");
     const teamDrawPageSource = readSource("src/app/review-screen/team-draw/[token]/page.tsx");
@@ -783,6 +784,7 @@ describe("roadshow review screen session", () => {
     assert.match(sessionRouteSource, /drawMode\?:\s*"manual" \| "random" \| "self" \| "team"/);
     assert.match(sessionRouteSource, /teamDrawEnabled:\s*drawMode === "team"/);
     assert.match(sessionRouteSource, /teamDrawQueue/);
+    assert.match(sessionRouteSource, /JSON\.stringify\(shuffleArray\(projectOrderRows\.map\(\(row\) => row\.orderIndex\)\)\)/);
     assert.match(sessionRouteSource, /teamDrawUrl/);
     assert.match(sessionRouteSource, /\/review-screen\/team-draw\//);
     assert.doesNotMatch(sessionRouteSource, /teamDrawLinks/);
@@ -795,6 +797,7 @@ describe("roadshow review screen session", () => {
     assert.match(teamDrawRouteSource, /user\.teamGroupId/);
     assert.match(teamDrawRouteSource, /reviewPackage:\s*\{\s*select:\s*\{\s*teamGroupId:\s*true/);
     assert.match(teamDrawRouteSource, /teamDrawQueue/);
+    assert.match(teamDrawRouteSource, /queuedOrderIndexes\[0\]/);
     assert.match(teamDrawRouteSource, /drawnCount/);
     assert.match(teamDrawRouteSource, /usedAt/);
     assert.match(teamDrawRouteSource, /availableOrderIndexes/);
@@ -802,6 +805,7 @@ describe("roadshow review screen session", () => {
     assert.match(teamDrawRouteSource, /method: "team_login_first_come"/);
     assert.doesNotMatch(teamDrawRouteSource, /assertRole\(user\.role/);
     assert.doesNotMatch(teamDrawRouteSource, /reviewDisplayTeamDrawToken\.findUnique/);
+    assert.match(sessionLibSource, /const j = randomInt\(i \+ 1\)/);
     assert.match(teamDrawInfoRouteSource, /getSessionUser\(request\)/);
     assert.match(teamDrawInfoRouteSource, /user\.teamGroupId/);
     assert.match(teamDrawPageSource, /团队抽签/);
