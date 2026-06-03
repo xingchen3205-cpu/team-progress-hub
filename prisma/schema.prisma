@@ -166,6 +166,8 @@ model User {
   expertReviewPackages              ExpertReviewPackage[]          @relation("ExpertReviewPackageCreator")
   expertAssignments                 ExpertReviewAssignment[]       @relation("ExpertAssignmentUser")
   expertScores                      ExpertReviewScore[]            @relation("ExpertScoreReviewer")
+  expertReviewGuestTokens           ExpertReviewGuestToken[]       @relation("ExpertReviewGuestTokenExpert")
+  createdExpertReviewGuestTokens    ExpertReviewGuestToken[]       @relation("ExpertReviewGuestTokenCreator")
   reviewDisplaySessions             ReviewDisplaySession[]         @relation("ReviewDisplaySessionCreator")
   reviewDisplaySeats                ReviewDisplaySeat[]            @relation("ReviewDisplaySeatExpert")
   voidedReviewDisplaySeats          ReviewDisplaySeat[]            @relation("ReviewDisplaySeatVoider")
@@ -547,6 +549,7 @@ model ProjectReviewStage {
   teamGroup   TeamGroup?                  @relation(fields: [teamGroupId], references: [id], onDelete: SetNull)
   submissions ProjectMaterialSubmission[]
   packages    ExpertReviewPackage[]
+  guestTokens ExpertReviewGuestToken[]
 
   @@index([isOpen, deadline])
   @@index([teamGroupId, createdAt])
@@ -673,6 +676,26 @@ model ExpertReviewScoreHistory {
   @@index([teamGroupId, createdAt])
   @@index([assignmentId, createdAt])
   @@index([resetById, createdAt])
+}
+
+model ExpertReviewGuestToken {
+  id                   String             @id @default(cuid())
+  expertUserId         String
+  projectReviewStageId String
+  tokenHash            String             @unique
+  tokenExpiresAt       DateTime
+  revokedAt            DateTime?
+  lastUsedAt           DateTime?
+  createdById          String
+  createdAt            DateTime           @default(now())
+  updatedAt            DateTime           @updatedAt
+  expertUser           User               @relation("ExpertReviewGuestTokenExpert", fields: [expertUserId], references: [id], onDelete: Cascade)
+  projectReviewStage   ProjectReviewStage @relation(fields: [projectReviewStageId], references: [id], onDelete: Cascade)
+  creator              User               @relation("ExpertReviewGuestTokenCreator", fields: [createdById], references: [id])
+
+  @@unique([expertUserId, projectReviewStageId])
+  @@index([projectReviewStageId, revokedAt])
+  @@index([expertUserId, tokenExpiresAt])
 }
 
 model AuditLog {

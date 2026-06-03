@@ -13,6 +13,7 @@ First phase:
 - One guest review link per expert per review round or stage.
 - No platform login required for the expert.
 - The page shows all projects assigned to that expert within the linked round.
+- Projects are displayed in the generated roadshow order when a review screen draw/order exists; otherwise they fall back to the review assignment creation order.
 - Experts can score projects independently within the configured review window.
 - Submitted scores are stored in the existing `ExpertReviewScore` table and lock after submit.
 - Admin backend sees score progress in near real time through the existing review assignment data refresh.
@@ -33,9 +34,11 @@ Out of scope for first phase:
 4. Admin sends each expert their own link through WeChat or other channels.
 5. Expert opens the link and lands directly on the lightweight scoring page.
 6. Expert sees assigned projects, score status, review deadline, and progress count.
-7. Expert opens a project, reviews materials if available, enters a 0.00-100.00 score and optional comment, then submits.
-8. Submitted projects show as locked. The expert continues with remaining projects.
-9. Admin monitors submitted counts, raw scores, calculable status, and exports scoring details later.
+7. Projects are listed in roadshow order, so the expert can follow the actual presentation order without the page being controlled by the big screen.
+8. Expert opens a project, reviews materials if available, enters a 0.00-100.00 score and optional comment, then submits.
+9. Submitted projects show as locked. The expert continues with remaining projects.
+10. After all assigned projects are submitted, the page shows a completion message thanking the expert for their work.
+11. Admin monitors submitted counts, raw scores, calculable status, and exports scoring details later.
 
 ## Data Model
 
@@ -104,6 +107,7 @@ For the first phase, guest links use independent scoring mode:
 - Network review projects follow `startAt` and `deadline`.
 - Roadshow projects in guest independent mode also follow `startAt` and `deadline`.
 - Guest independent mode does not require a `ReviewDisplaySession` or big screen scoring phase.
+- If a review screen draw/order exists, guest assignments are sorted by `ReviewDisplayProjectOrder.orderIndex`; opening the big screen is not required for scoring.
 - Score precision remains 0.00-100.00, stored as cents in `totalScore`.
 - Existing rules for cancelled packages, excluded assignments, locked assignments, and already submitted scores still apply.
 
@@ -139,7 +143,9 @@ Guest side:
 - Mobile-first layout.
 - No platform navigation, no workspace sidebar, no login prompt.
 - Project list first, with submitted/pending status.
+- Project list order follows roadshow order when available.
 - Project scoring view with score input, optional comment, submit confirmation, and locked submitted state.
+- Completion state thanks the expert after every assigned project has a submitted score.
 - Clear expired/revoked/error states.
 
 ## Security

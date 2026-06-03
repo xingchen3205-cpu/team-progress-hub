@@ -89,6 +89,17 @@ type ReviewScreenSessionState = {
   }>;
 };
 
+type GuestExpertLink = {
+  expertUserId: string;
+  expertName: string;
+  expertEmail?: string;
+  assignmentCount: number;
+  tokenExpiresAt: string;
+  revokedAt?: string | null;
+  lastUsedAt?: string | null;
+  url?: string;
+};
+
 type ReviewScreenConsoleSeat = ReviewScreenSessionState["seats"][number];
 type ReviewScreenLiveSeat = Pick<ReviewScreenConsoleSeat, "seatNo" | "displayName" | "status"> & {
   assignmentId?: string;
@@ -557,6 +568,9 @@ export default function ExpertReviewTab() {
   const [reviewScreenActionKey, setReviewScreenActionKey] = useState<string | null>(null);
   const [copiedScreenGroupKey, setCopiedScreenGroupKey] = useState<string | null>(null);
   const [copiedTeamDrawGroupKey, setCopiedTeamDrawGroupKey] = useState<string | null>(null);
+  const [guestExpertLinks, setGuestExpertLinks] = useState<Record<string, GuestExpertLink[]>>({});
+  const [guestExpertLinkActionKey, setGuestExpertLinkActionKey] = useState<string | null>(null);
+  const [copiedGuestExpertLinkKey, setCopiedGuestExpertLinkKey] = useState<string | null>(null);
   const [reviewConfigModalGroupKey, setReviewConfigModalGroupKey] = useState<string | null>(null);
   const [screenTimingDrafts, setScreenTimingDrafts] = useState<
     Record<string, ReturnType<typeof getDefaultScreenTimingDraft>>
@@ -1183,6 +1197,42 @@ export default function ExpertReviewTab() {
     setCopiedTeamDrawGroupKey(groupKey);
     window.setTimeout(() => {
       setCopiedTeamDrawGroupKey((current) => (current === groupKey ? null : current));
+    }, 2000);
+  };
+
+  const generateGuestExpertLinks = async (group: ReviewGroup) => {
+    if (!group.projectReviewStageId) {
+      setLoadError("请先选择项目管理评审轮次，再生成专家免登录评分链接");
+      return;
+    }
+
+    setGuestExpertLinkActionKey(group.key);
+    try {
+      const payload = await requestJson<{ links: GuestExpertLink[] }>("/api/expert-reviews/guest-links", {
+        method: "POST",
+        body: JSON.stringify({ projectReviewStageId: group.projectReviewStageId }),
+      });
+      setGuestExpertLinks((current) => ({
+        ...current,
+        [group.key]: payload.links,
+      }));
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "专家免登录评分链接生成失败");
+    } finally {
+      setGuestExpertLinkActionKey(null);
+    }
+  };
+
+  const copyGuestExpertLink = async (groupKey: string, link: GuestExpertLink) => {
+    if (!link.url) {
+      setLoadError("请重新生成链接后再复制");
+      return;
+    }
+    await navigator.clipboard?.writeText(link.url).catch(() => undefined);
+    const copyKey = `${groupKey}:${link.expertUserId}`;
+    setCopiedGuestExpertLinkKey(copyKey);
+    window.setTimeout(() => {
+      setCopiedGuestExpertLinkKey((current) => (current === copyKey ? null : current));
     }, 2000);
   };
 
@@ -2935,6 +2985,55 @@ export default function ExpertReviewTab() {
               </div>
             ))}
           </div>
+        </article>
+
+        <article className="rounded-xl border border-[var(--line)] bg-white p-4">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <h3 className="text-sm font-extrabold text-slate-950">专家免登录评分链接</h3>
+              <p className="mt-1 text-[11px] text-slate-400">每位专家一个链接，按路演顺序显示全部分配项目。</p>
+            </div>
+            <button
+              className="inline-flex shrink-0 items-center justify-center gap-1 rounded-lg border border-blue-100 bg-blue-50 px-2.5 py-1.5 text-[11px] font-bold text-blue-700 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
+              disabled={!group.projectReviewStageId || guestExpertLinkActionKey === group.key}
+              onClick={() => void generateGuestExpertLinks(group)}
+              type="button"
+            >
+              <RefreshCw className={`h-3.5 w-3.5 ${guestExpertLinkActionKey === group.key ? "animate-spin" : ""}`} />
+              {guestExpertLinks[group.key]?.length ? "重新生成" : "生成链接"}
+            </button>
+          </div>
+          {guestExpertLinks[group.key]?.length ? (
+            <div className="mt-3 max-h-56 space-y-2 overflow-y-auto pr-1">
+              {guestExpertLinks[group.key].map((link) => {
+                const copyKey = `${group.key}:${link.expertUserId}`;
+                return (
+                  <div className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2" key={link.expertUserId}>
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-[11px] font-black text-slate-800">{link.expertName}</p>
+                        <p className="mt-0.5 text-[10px] font-semibold text-slate-400">
+                          {link.assignmentCount} 个项目 · 有效期至 {formatDateTime(link.tokenExpiresAt)}
+                        </p>
+                      </div>
+                      <button
+                        className="inline-flex shrink-0 items-center justify-center gap-1 rounded-md border border-blue-100 bg-white px-2 py-1.5 text-[11px] font-bold text-blue-700 transition hover:bg-blue-50"
+                        onClick={() => void copyGuestExpertLink(group.key, link)}
+                        type="button"
+                      >
+                        <Copy className="h-3.5 w-3.5" />
+                        {copiedGuestExpertLinkKey === copyKey ? "已复制" : "复制链接"}
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <p className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-[11px] font-semibold text-slate-400">
+              生成后可逐个复制发给专家微信；专家无需登录即可进入自己的评分界面。
+            </p>
+          )}
         </article>
 
         <article className="rounded-xl border border-[var(--line)] bg-white p-4">
