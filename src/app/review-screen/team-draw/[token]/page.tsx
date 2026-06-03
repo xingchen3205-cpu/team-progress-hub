@@ -372,6 +372,16 @@ export default function TeamDrawPage() {
         .team-draw-option:active {
           transform: scale(.99);
         }
+        .team-draw-option:disabled {
+          cursor: not-allowed;
+          border-color: #e5e7eb;
+          background: #f8fafc;
+          opacity: .72;
+          box-shadow: none;
+        }
+        .team-draw-option:disabled:active {
+          transform: none;
+        }
         .team-draw-input {
           height: 48px;
           width: 100%;
@@ -668,7 +678,12 @@ export default function TeamDrawPage() {
                     );
                   })}
                 </div>
-                <button className="team-draw-button" disabled={!selectedProject || !claimState.canRegister} onClick={startProjectClaim} type="button">
+                <button
+                  className="team-draw-button"
+                  disabled={!selectedProject || !claimState.canRegister || selectedProject.registered || selectedProject.drawn}
+                  onClick={startProjectClaim}
+                  type="button"
+                >
                   <LockKeyhole className="h-5 w-5" />
                   确认项目并注册
                 </button>

@@ -827,6 +827,9 @@ describe("roadshow review screen session", () => {
     assert.match(teamDrawRegisterRouteSource, /studentId\?:\s*string/);
     assert.match(teamDrawRegisterRouteSource, /role:\s*"leader"/);
     assert.match(teamDrawRegisterRouteSource, /reviewDisplayTeamDrawToken\.create/);
+    assert.match(teamDrawRegisterRouteSource, /tx\.teamGroup\.create/);
+    assert.match(teamDrawRegisterRouteSource, /tx\.expertReviewPackage\.update/);
+    assert.doesNotMatch(teamDrawRegisterRouteSource, /该项目未绑定参赛团队，不能自助注册/);
     assert.match(teamDrawRegisterRouteSource, /P2002/);
     assert.match(teamDrawRegisterRouteSource, /该项目已注册团队账号/);
     assert.match(teamDrawRegisterRouteSource, /手机号或邮箱已存在/);
@@ -835,6 +838,8 @@ describe("roadshow review screen session", () => {
     assert.match(teamDrawPageSource, /confirmStep/);
     assert.match(teamDrawPageSource, /再次确认/);
     assert.match(teamDrawPageSource, /registrationDraft/);
+    assert.match(teamDrawPageSource, /selectedProject\.registered \|\| selectedProject\.drawn/);
+    assert.match(teamDrawPageSource, /team-draw-option:disabled/);
     assert.match(teamDrawPageSource, /手机号将作为登录账号/);
     assert.match(teamDrawPageSource, /专业班级/);
     assert.match(teamDrawPageSource, /学号/);

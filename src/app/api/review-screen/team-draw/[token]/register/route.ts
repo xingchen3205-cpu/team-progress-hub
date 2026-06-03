@@ -119,7 +119,9 @@ export async function POST(
           selfDrawnAt: true,
           reviewPackage: {
             select: {
+              id: true,
               targetName: true,
+              roundLabel: true,
               teamGroupId: true,
               teamGroup: {
                 select: {
@@ -138,9 +140,32 @@ export async function POST(
       if (projectOrder.selfDrawnAt) {
         throw new Error("该项目已完成抽签，不能重复注册");
       }
-      const teamGroup = projectOrder.reviewPackage.teamGroup;
-      if (!projectOrder.reviewPackage.teamGroupId || !teamGroup) {
-        throw new Error("该项目未绑定参赛团队，不能自助注册");
+      let teamGroup = projectOrder.reviewPackage.teamGroup;
+      if (!teamGroup) {
+        const targetName = projectOrder.reviewPackage.targetName.trim();
+        if (!targetName) {
+          throw new Error("项目名称为空，不能自助注册");
+        }
+
+        const existingTeamGroup = await tx.teamGroup.findUnique({
+          where: { name: targetName },
+          select: { id: true, name: true },
+        });
+        teamGroup =
+          existingTeamGroup ??
+          (await tx.teamGroup.create({
+            data: {
+              name: targetName,
+              description: `${projectOrder.reviewPackage.roundLabel ?? "项目路演评审"}自助注册创建`,
+            },
+            select: { id: true, name: true },
+          }));
+
+        await tx.expertReviewPackage.update({
+          where: { id: projectOrder.reviewPackage.id },
+          data: { teamGroupId: teamGroup.id },
+          select: { id: true },
+        });
       }
 
       const existingTeamAccount = await tx.user.findFirst({
