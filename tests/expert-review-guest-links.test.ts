@@ -94,4 +94,13 @@ describe("guest expert review links", () => {
     assert.match(tab, /复制链接/);
     assert.doesNotMatch(tab, /项目评分链接/);
   });
+
+  it("keeps admin score progress refreshing even when the big screen is not open", () => {
+    const tab = readSource("src/components/tabs/expert-review-tab-content.tsx");
+
+    assert.match(tab, /canManageReviewMaterials/);
+    assert.match(tab, /refreshWorkspace\("reviewAssignments"\)/);
+    assert.match(tab, /setInterval\(refreshAdminReviewAssignments,\s*5000\)/);
+    assert.doesNotMatch(tab, /!canManageReviewMaterials \|\| Object\.keys\(reviewScreenSessions\)\.length === 0/);
+  });
 });

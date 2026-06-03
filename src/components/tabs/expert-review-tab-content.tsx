@@ -732,16 +732,27 @@ export default function ExpertReviewTab() {
     };
   }, [currentRole, refreshWorkspace]);
   useEffect(() => {
-    if (!canManageReviewMaterials || Object.keys(reviewScreenSessions).length === 0) {
+    if (!canManageReviewMaterials) {
       return;
     }
 
-    const timer = window.setInterval(() => {
+    const refreshAdminReviewAssignments = () => {
+      if (document.visibilityState !== "visible") {
+        return;
+      }
       refreshWorkspace("reviewAssignments");
-    }, 5000);
+    };
 
-    return () => window.clearInterval(timer);
-  }, [canManageReviewMaterials, refreshWorkspace, reviewScreenSessions]);
+    const timer = window.setInterval(refreshAdminReviewAssignments, 5000);
+    window.addEventListener("focus", refreshAdminReviewAssignments);
+    document.addEventListener("visibilitychange", refreshAdminReviewAssignments);
+
+    return () => {
+      window.clearInterval(timer);
+      window.removeEventListener("focus", refreshAdminReviewAssignments);
+      document.removeEventListener("visibilitychange", refreshAdminReviewAssignments);
+    };
+  }, [canManageReviewMaterials, refreshWorkspace]);
 
   const openResetHistory = async () => {
     setResetHistoryOpen(true);

@@ -130,21 +130,50 @@ export default function GuestExpertReviewPage() {
   };
 
   return (
-    <main className="min-h-screen bg-[#f5f7fb] px-4 py-5 text-slate-950">
+    <main className="guest-review-page min-h-screen px-4 py-5 text-slate-950">
       <style>{`
+        .guest-review-page {
+          background:
+            linear-gradient(180deg, rgba(14, 43, 82, .06), rgba(244, 246, 250, 0) 280px),
+            repeating-linear-gradient(90deg, rgba(15, 23, 42, .035) 0, rgba(15, 23, 42, .035) 1px, transparent 1px, transparent 42px),
+            #f4f6fa;
+          font-family: "PingFang SC", "Microsoft YaHei", ui-sans-serif, system-ui, sans-serif;
+        }
         .guest-review-shell {
           margin: 0 auto;
           max-width: 980px;
+          animation: guestReviewEnter .42s ease both;
         }
         .guest-review-header {
-          border-radius: 22px;
-          background: #14315f;
+          position: relative;
+          overflow: hidden;
+          border: 1px solid rgba(255,255,255,.2);
+          border-radius: 24px;
+          background: linear-gradient(135deg, #102442 0%, #173c6c 56%, #8f2635 100%);
           color: white;
-          padding: 22px;
+          padding: 24px;
+          box-shadow: 0 24px 70px rgba(11, 31, 61, .2);
+        }
+        .guest-review-header::after {
+          content: "";
+          position: absolute;
+          inset: auto 20px 0 20px;
+          height: 1px;
+          background: linear-gradient(90deg, transparent, rgba(255,255,255,.6), transparent);
+        }
+        .guest-review-eyebrow {
+          display: inline-flex;
+          align-items: center;
+          border: 1px solid rgba(255,255,255,.22);
+          border-radius: 999px;
+          background: rgba(255,255,255,.1);
+          padding: 7px 11px;
+          font-size: 12px;
+          font-weight: 900;
         }
         .guest-review-grid {
           display: grid;
-          gap: 14px;
+          gap: 16px;
           grid-template-columns: minmax(0, 1fr);
         }
         @media (min-width: 860px) {
@@ -154,18 +183,28 @@ export default function GuestExpertReviewPage() {
           }
         }
         .guest-review-card {
-          border: 1px solid #dce5f2;
-          border-radius: 18px;
+          border: 1px solid #d8e1ee;
+          border-radius: 20px;
           background: white;
+          box-shadow: 0 16px 44px rgba(15, 35, 65, .08);
+          transition: border-color .18s ease, box-shadow .18s ease, transform .18s ease;
+        }
+        .guest-review-card:hover {
+          border-color: #c7d5e7;
         }
         .guest-review-project {
           width: 100%;
           border: 0;
           background: transparent;
           text-align: left;
+          transition: background .18s ease, transform .14s ease, box-shadow .18s ease;
         }
         .guest-review-project-active {
-          background: #edf5ff;
+          background: linear-gradient(90deg, #edf5ff, #fff);
+          box-shadow: inset 4px 0 0 #1d4ed8;
+        }
+        .guest-review-project:active {
+          transform: scale(.99);
         }
         .guest-review-score-input {
           width: 100%;
@@ -175,6 +214,11 @@ export default function GuestExpertReviewPage() {
           font-size: 28px;
           font-weight: 900;
           outline: none;
+          transition: border-color .18s ease, box-shadow .18s ease, background .18s ease;
+        }
+        .guest-review-score-input:focus {
+          border-color: #2563eb;
+          box-shadow: 0 0 0 4px rgba(37, 99, 235, .12);
         }
         .guest-review-submit {
           display: inline-flex;
@@ -185,22 +229,49 @@ export default function GuestExpertReviewPage() {
           gap: 8px;
           border: 0;
           border-radius: 14px;
-          background: #1d4ed8;
+          background: linear-gradient(135deg, #1d4ed8, #153e75);
           color: white;
           font-weight: 900;
+          transition: transform .14s ease, background .18s ease, opacity .18s ease;
+        }
+        .guest-review-submit:active:not(:disabled) {
+          transform: scale(.985);
         }
         .guest-review-submit:disabled {
           opacity: .45;
         }
+        .guest-review-progress {
+          height: 8px;
+          overflow: hidden;
+          border-radius: 999px;
+          background: rgba(255,255,255,.18);
+        }
+        .guest-review-progress-bar {
+          height: 100%;
+          border-radius: inherit;
+          background: linear-gradient(90deg, #f9d77e, #fff);
+          transition: width .28s ease;
+        }
+        @keyframes guestReviewEnter {
+          from {
+            opacity: 0;
+            transform: translateY(10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
       `}</style>
       <div className="guest-review-shell space-y-4">
         <section className="guest-review-header">
-          <p className="text-xs font-black tracking-[0.18em] text-blue-100">专家评分入口</p>
+          <p className="guest-review-eyebrow">创新创业评审系统</p>
           <h1 className="mt-3 text-2xl font-black leading-tight">{state?.stageName ?? "项目评审"}</h1>
           <p className="mt-2 text-sm font-semibold text-white/75">
-            {state ? `${state.expertName}，请按路演顺序完成项目评分` : "正在加载评分任务"}
+            {state ? `${state.expertName}，请按路演顺序完成本轮评审` : "正在加载评审任务"}
           </p>
           {state ? (
+            <>
             <div className="mt-4 grid grid-cols-3 gap-2 text-center">
               <div className="rounded-2xl bg-white/12 px-3 py-2">
                 <p className="text-lg font-black">{state.totalCount}</p>
@@ -215,6 +286,13 @@ export default function GuestExpertReviewPage() {
                 <p className="text-[11px] font-bold text-white/70">待评分</p>
               </div>
             </div>
+            <div className="guest-review-progress mt-4">
+              <div
+                className="guest-review-progress-bar"
+                style={{ width: `${state.totalCount ? Math.round((state.submittedCount / state.totalCount) * 100) : 0}%` }}
+              />
+            </div>
+            </>
           ) : null}
         </section>
 

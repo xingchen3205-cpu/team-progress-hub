@@ -149,33 +149,51 @@ export default function TeamDrawPage() {
   const canDraw = Boolean(drawState?.canDraw && !submitting);
 
   return (
-    <main className="min-h-screen bg-[#f3f7fb] px-4 py-5 text-slate-950">
+    <main className="team-draw-page min-h-screen px-4 py-5 text-slate-950">
       <style>{`
+        .team-draw-page {
+          background:
+            linear-gradient(180deg, rgba(16, 36, 66, .06), rgba(244, 247, 251, 0) 310px),
+            repeating-linear-gradient(90deg, rgba(15, 23, 42, .035) 0, rgba(15, 23, 42, .035) 1px, transparent 1px, transparent 44px),
+            #f4f7fb;
+          font-family: "PingFang SC", "Microsoft YaHei", ui-sans-serif, system-ui, sans-serif;
+        }
         .team-draw-shell {
           min-height: calc(100vh - 40px);
           display: flex;
           align-items: center;
           justify-content: center;
+          animation: teamDrawEnter .42s ease both;
         }
         .team-draw-panel {
           width: min(100%, 520px);
           overflow: hidden;
-          border: 1px solid #dbe5f2;
-          border-radius: 24px;
+          border: 1px solid #d6e1ef;
+          border-radius: 28px;
           background: #fff;
-          box-shadow: 0 18px 50px rgba(15, 32, 64, .12);
+          box-shadow: 0 26px 78px rgba(12, 31, 61, .16);
         }
         .team-draw-header {
-          background: linear-gradient(135deg, #1a3a6e, #2856a0 62%, #c22832);
-          padding: 22px 22px 24px;
+          position: relative;
+          overflow: hidden;
+          background: linear-gradient(135deg, #102442, #1d4f8a 60%, #9b2d3a);
+          padding: 24px 24px 26px;
           color: #fff;
+        }
+        .team-draw-header::after {
+          content: "";
+          position: absolute;
+          inset: auto 24px 0 24px;
+          height: 1px;
+          background: linear-gradient(90deg, transparent, rgba(255,255,255,.55), transparent);
         }
         .team-draw-security {
           display: inline-flex;
           align-items: center;
           gap: 6px;
           border-radius: 999px;
-          background: rgba(255,255,255,.16);
+          border: 1px solid rgba(255,255,255,.22);
+          background: rgba(255,255,255,.12);
           padding: 7px 11px;
           font-size: 12px;
           font-weight: 900;
@@ -187,31 +205,37 @@ export default function TeamDrawPage() {
           line-height: 1.12;
         }
         .team-draw-body {
-          padding: 22px;
+          padding: 24px;
         }
         .team-draw-project {
-          border: 1px solid #e2e8f0;
-          border-radius: 18px;
-          background: #f8fbff;
+          border: 1px solid #dbe5f0;
+          border-radius: 20px;
+          background: linear-gradient(180deg, #f8fbff, #fff);
           padding: 16px;
+          box-shadow: 0 10px 30px rgba(15, 35, 65, .06);
         }
         .team-draw-result {
           display: flex;
-          min-height: 172px;
+          min-height: 184px;
           flex-direction: column;
           align-items: center;
           justify-content: center;
-          border-radius: 20px;
-          background: #eef5ff;
+          border: 1px solid #dbe7f6;
+          border-radius: 24px;
+          background:
+            linear-gradient(180deg, #edf5ff, #f8fbff);
           color: #0f2040;
+          transition: transform .18s ease, box-shadow .18s ease;
         }
         .team-draw-number {
-          color: #1f4ea7;
+          color: #173f88;
           font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
-          font-size: 92px;
+          font-size: 96px;
           font-weight: 900;
           line-height: .95;
           font-variant-numeric: tabular-nums;
+          text-shadow: 0 12px 28px rgba(23, 63, 136, .14);
+          animation: teamDrawNumber .38s ease both;
         }
         .team-draw-button {
           display: inline-flex;
@@ -221,18 +245,40 @@ export default function TeamDrawPage() {
           justify-content: center;
           gap: 9px;
           border: 0;
-          border-radius: 16px;
-          background: #1f4ea7;
+          border-radius: 18px;
+          background: linear-gradient(135deg, #1d4ed8, #153e75);
           color: #fff;
           font-size: 16px;
           font-weight: 900;
-          transition: transform .12s ease, background .2s ease, opacity .2s ease;
+          box-shadow: 0 16px 34px rgba(29, 78, 216, .22);
+          transition: transform .14s ease, box-shadow .18s ease, opacity .18s ease;
         }
         .team-draw-button:active:not(:disabled) {
-          transform: scale(.98);
+          transform: scale(.985);
         }
         .team-draw-button:disabled {
           opacity: .42;
+          box-shadow: none;
+        }
+        @keyframes teamDrawEnter {
+          from {
+            opacity: 0;
+            transform: translateY(10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        @keyframes teamDrawNumber {
+          from {
+            opacity: 0;
+            transform: scale(.92) translateY(6px);
+          }
+          to {
+            opacity: 1;
+            transform: scale(1) translateY(0);
+          }
         }
       `}</style>
       <div className="team-draw-shell">
@@ -240,11 +286,11 @@ export default function TeamDrawPage() {
           <div className="team-draw-header">
             <span className="team-draw-security">
               <ShieldCheck className="h-4 w-4" />
-              登录校验抽签
+              创新创业大赛抽签
             </span>
             <h1 className="team-draw-title">团队抽签</h1>
             <p className="mt-2 text-sm font-semibold text-white/78">
-              登录后系统只开放当前团队的抽签权限，结果实时同步到管理员大屏。
+              登录后仅开放本团队抽签权限，抽取结果将同步至管理端。
             </p>
           </div>
 
@@ -277,7 +323,7 @@ export default function TeamDrawPage() {
                       <Shuffle className="mb-4 h-9 w-9 text-blue-700" />
                       <p className="text-base font-black text-slate-800">等待你抽取路演顺序</p>
                       <p className="mt-2 px-8 text-center text-xs font-semibold leading-5 text-slate-500">
-                        点击后按先到先得取得隐藏随机队列里的下一个序号。
+                        点击后从系统随机队列中确认本团队路演顺序。
                       </p>
                     </>
                   )}
