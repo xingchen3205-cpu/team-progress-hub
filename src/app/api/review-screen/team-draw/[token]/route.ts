@@ -16,13 +16,6 @@ export async function GET(
   if (!sessionId || !screenToken) {
     return NextResponse.json({ message: "缺少团队抽签入口参数" }, { status: 401 });
   }
-  if (!user) {
-    return NextResponse.json({ message: "请先登录团队账号" }, { status: 401 });
-  }
-  if (!user.teamGroupId) {
-    return NextResponse.json({ message: "当前账号未绑定参赛团队，不能抽签" }, { status: 403 });
-  }
-
   const session = await prisma.reviewDisplaySession.findUnique({
     where: { id: sessionId },
     select: {
@@ -76,7 +69,7 @@ export async function GET(
     session.screenPhase === "draw" &&
     !session.startedAt;
 
-  if (!user) {
+  if (!user?.teamGroupId) {
     return NextResponse.json({
       mode: "claim",
       sessionId: session.id,

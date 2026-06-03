@@ -811,10 +811,13 @@ describe("roadshow review screen session", () => {
     assert.doesNotMatch(teamDrawRouteSource, /reviewDisplayTeamDrawToken\.findUnique/);
     assert.match(sessionLibSource, /const j = randomInt\(i \+ 1\)/);
     assert.match(teamDrawInfoRouteSource, /getSessionUser\(request\)/);
+    assert.match(teamDrawInfoRouteSource, /if \(!user\?\.teamGroupId\)/);
     assert.match(teamDrawInfoRouteSource, /mode:\s*"claim"/);
     assert.match(teamDrawInfoRouteSource, /projects:\s*session\.projectOrders\.map/);
     assert.match(teamDrawInfoRouteSource, /registered:\s*Boolean/);
     assert.match(teamDrawInfoRouteSource, /user\.teamGroupId/);
+    assert.doesNotMatch(teamDrawInfoRouteSource, /请先登录团队账号/);
+    assert.doesNotMatch(teamDrawInfoRouteSource, /当前账号未绑定参赛团队/);
     assert.match(teamDrawRegisterRouteSource, /setAuthCookie/);
     assert.match(teamDrawRegisterRouteSource, /signAuthToken/);
     assert.match(teamDrawRegisterRouteSource, /validateRequiredEmail/);
