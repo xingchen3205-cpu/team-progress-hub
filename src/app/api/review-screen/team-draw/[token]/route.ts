@@ -33,6 +33,33 @@ export async function GET(
       startedAt: true,
       tokenExpiresAt: true,
       teamDrawEnabled: true,
+      projectOrders: {
+        orderBy: [{ orderIndex: "asc" }, { createdAt: "asc" }],
+        select: {
+          packageId: true,
+          orderIndex: true,
+          selfDrawnAt: true,
+          reviewPackage: {
+            select: {
+              targetName: true,
+              roundLabel: true,
+              teamGroupId: true,
+              teamGroup: {
+                select: {
+                  members: {
+                    where: {
+                      role: { in: ["leader", "member"] },
+                      approvalStatus: "approved",
+                    },
+                    take: 1,
+                    select: { id: true },
+                  },
+                },
+              },
+            },
+          },
+        },
+      },
     },
   });
 
@@ -40,34 +67,43 @@ export async function GET(
     return NextResponse.json({ message: "团队抽签入口无效" }, { status: 404 });
   }
 
-  const projectOrder = await prisma.reviewDisplayProjectOrder.findFirst({
-    where: {
-      sessionId,
-      reviewPackage: {
-        teamGroupId: user.teamGroupId,
-      },
-    },
-    select: {
-      packageId: true,
-      orderIndex: true,
-      selfDrawnAt: true,
-      reviewPackage: {
-        select: {
-          targetName: true,
-          roundLabel: true,
-        },
-      },
-    },
-  });
+  const now = new Date();
+  const expired = session.tokenExpiresAt.getTime() <= now.getTime();
+  const canRegister =
+    !expired &&
+    session.teamDrawEnabled &&
+    session.status === "waiting" &&
+    session.screenPhase === "draw" &&
+    !session.startedAt;
+
+  if (!user) {
+    return NextResponse.json({
+      mode: "claim",
+      sessionId: session.id,
+      roundLabel: session.projectOrders[0]?.reviewPackage.roundLabel ?? "项目路演评审",
+      tokenExpiresAt: session.tokenExpiresAt.toISOString(),
+      expired,
+      canRegister,
+      projects: session.projectOrders.map((order) => ({
+        packageId: order.packageId,
+        targetName: order.reviewPackage.targetName,
+        roundLabel: order.reviewPackage.roundLabel ?? "项目路演评审",
+        registered: Boolean(order.reviewPackage.teamGroup?.members.length),
+        drawn: Boolean(order.selfDrawnAt),
+      })),
+    });
+  }
+
+  const projectOrder = session.projectOrders.find(
+    (order) => order.reviewPackage.teamGroupId === user.teamGroupId,
+  );
 
   if (!projectOrder) {
     return NextResponse.json({ message: "当前团队不在本轮抽签名单中" }, { status: 403 });
   }
 
-  const now = new Date();
-  const expired = session.tokenExpiresAt.getTime() <= now.getTime();
-
   return NextResponse.json({
+    mode: "draw",
     sessionId: session.id,
     packageId: projectOrder.packageId,
     targetName: projectOrder.reviewPackage.targetName,

@@ -1,8 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import Image from "next/image";
 import { useParams } from "next/navigation";
-import { CheckCircle2, Clock3, Send, Star } from "lucide-react";
+import { CheckCircle2, Clock3, Send, ShieldCheck, Star } from "lucide-react";
 
 type GuestProject = {
   assignmentId: string;
@@ -12,6 +13,10 @@ type GuestProject = {
   targetName: string;
   roundLabel: string;
   overview: string;
+  startAt: string | null;
+  deadline: string | null;
+  reviewWindowState: "not_started" | "open" | "ended";
+  reviewWindowLabel: "未开始" | "进行中" | "已结束";
   status: string;
   scoreText: string | null;
   submittedAt: string | null;
@@ -35,6 +40,15 @@ type GuestReviewState = {
   projects: GuestProject[];
 };
 
+type PendingGuestSubmission = {
+  assignmentId: string;
+  targetName: string;
+  orderNumber: number;
+  score: number;
+  displayScore: string;
+  commentTotal: string;
+};
+
 const formatDateTime = (value?: string | null) => {
   if (!value) return "";
   const date = new Date(value);
@@ -56,6 +70,7 @@ export default function GuestExpertReviewPage() {
   const [commentDrafts, setCommentDrafts] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(true);
   const [submittingId, setSubmittingId] = useState<string | null>(null);
+  const [pendingSubmission, setPendingSubmission] = useState<PendingGuestSubmission | null>(null);
   const [message, setMessage] = useState("");
 
   const load = async () => {
@@ -95,32 +110,65 @@ export default function GuestExpertReviewPage() {
     [projects, selectedAssignmentId],
   );
   const allSubmitted = Boolean(state && state.totalCount > 0 && state.pendingCount === 0);
+  const selectedCanSubmit = Boolean(
+    selectedProject &&
+      selectedProject.status !== "submitted" &&
+      selectedProject.reviewWindowState === "open",
+  );
 
-  const submitScore = async () => {
+  const getReviewWindowHint = (project: GuestProject) => {
+    if (project.reviewWindowState === "not_started") {
+      return `评审尚未开始${project.startAt ? `，开始时间 ${formatDateTime(project.startAt)}` : ""}`;
+    }
+    if (project.reviewWindowState === "ended") {
+      return `评审已截止${project.deadline ? `，截止时间 ${formatDateTime(project.deadline)}` : ""}`;
+    }
+    return project.deadline ? `当前可评分，截止时间 ${formatDateTime(project.deadline)}` : "当前可评分";
+  };
+
+  const openSubmitConfirmation = () => {
     if (!selectedProject || selectedProject.status === "submitted" || submittingId) return;
-
+    if (selectedProject.reviewWindowState !== "open") {
+      setMessage(getReviewWindowHint(selectedProject));
+      return;
+    }
     const score = Number(scoreDrafts[selectedProject.assignmentId]);
     if (!Number.isFinite(score) || score < 0 || score > 100 || !Number.isInteger(score * 100)) {
       setMessage("请输入 0.00-100.00 的分数，最多两位小数");
       return;
     }
+    const displayScore = score.toFixed(2);
+    setMessage("");
+    setPendingSubmission({
+      assignmentId: selectedProject.assignmentId,
+      targetName: selectedProject.targetName,
+      orderNumber: selectedProject.orderNumber,
+      score,
+      displayScore,
+      commentTotal: commentDrafts[selectedProject.assignmentId] ?? "",
+    });
+  };
 
-    setSubmittingId(selectedProject.assignmentId);
+  const submitScore = async () => {
+    if (!pendingSubmission || submittingId) return;
+
+    setSubmittingId(pendingSubmission.assignmentId);
     setMessage("");
     try {
       const response = await fetch(`/api/expert-reviews/guest/${encodeURIComponent(token)}/scores`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          assignmentId: selectedProject.assignmentId,
-          score,
-          commentTotal: commentDrafts[selectedProject.assignmentId] ?? "",
+          assignmentId: pendingSubmission.assignmentId,
+          score: pendingSubmission.score,
+          commentTotal: pendingSubmission.commentTotal,
         }),
       });
       const data = (await response.json().catch(() => null)) as { message?: string } | null;
       if (!response.ok) {
         throw new Error(data?.message ?? "评分提交失败，请刷新后重试");
       }
+      setPendingSubmission(null);
       await load();
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "评分提交失败，请刷新后重试");
@@ -149,7 +197,9 @@ export default function GuestExpertReviewPage() {
           overflow: hidden;
           border: 1px solid rgba(255,255,255,.2);
           border-radius: 24px;
-          background: linear-gradient(135deg, #102442 0%, #173c6c 56%, #8f2635 100%);
+          background:
+            linear-gradient(135deg, rgba(8, 28, 58, .96) 0%, rgba(15, 52, 103, .94) 58%, rgba(120, 28, 42, .93) 100%),
+            #102442;
           color: white;
           padding: 24px;
           box-shadow: 0 24px 70px rgba(11, 31, 61, .2);
@@ -160,6 +210,29 @@ export default function GuestExpertReviewPage() {
           inset: auto 20px 0 20px;
           height: 1px;
           background: linear-gradient(90deg, transparent, rgba(255,255,255,.6), transparent);
+        }
+        .guest-review-brand {
+          display: flex;
+          align-items: center;
+          gap: 12px;
+        }
+        .guest-review-logo-mark {
+          display: flex;
+          min-height: 46px;
+          width: 116px;
+          align-items: center;
+        }
+        .guest-review-logo-mark img {
+          height: auto;
+          max-height: 42px;
+          width: 100%;
+          object-fit: contain;
+          filter: brightness(0) invert(1) drop-shadow(0 8px 18px rgba(0,0,0,.22));
+        }
+        .guest-review-brand-title {
+          min-width: 0;
+          border-left: 1px solid rgba(255,255,255,.24);
+          padding-left: 12px;
         }
         .guest-review-eyebrow {
           display: inline-flex;
@@ -220,6 +293,21 @@ export default function GuestExpertReviewPage() {
           border-color: #2563eb;
           box-shadow: 0 0 0 4px rgba(37, 99, 235, .12);
         }
+        .guest-review-textarea {
+          min-height: 96px;
+          width: 100%;
+          resize: none;
+          border-radius: 18px;
+          border: 1px solid #d8e1ee;
+          padding: 13px 15px;
+          font-size: 14px;
+          outline: none;
+          transition: border-color .18s ease, box-shadow .18s ease;
+        }
+        .guest-review-textarea:focus {
+          border-color: #2563eb;
+          box-shadow: 0 0 0 4px rgba(37, 99, 235, .1);
+        }
         .guest-review-submit {
           display: inline-flex;
           width: 100%;
@@ -239,6 +327,25 @@ export default function GuestExpertReviewPage() {
         }
         .guest-review-submit:disabled {
           opacity: .45;
+        }
+        .guest-review-confirm-overlay {
+          position: fixed;
+          inset: 0;
+          z-index: 50;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: rgba(15, 23, 42, .48);
+          padding: 18px;
+          backdrop-filter: blur(8px);
+        }
+        .guest-review-confirm-panel {
+          width: min(100%, 430px);
+          border: 1px solid rgba(226, 232, 240, .9);
+          border-radius: 22px;
+          background: #fff;
+          box-shadow: 0 28px 80px rgba(15, 23, 42, .28);
+          animation: guestReviewConfirmEnter .2s ease both;
         }
         .guest-review-progress {
           height: 8px;
@@ -262,10 +369,39 @@ export default function GuestExpertReviewPage() {
             transform: translateY(0);
           }
         }
+        @keyframes guestReviewConfirmEnter {
+          from {
+            opacity: 0;
+            transform: translateY(8px) scale(.98);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0) scale(1);
+          }
+        }
+        @media (max-width: 520px) {
+          .guest-review-brand {
+            align-items: flex-start;
+            flex-direction: column;
+          }
+          .guest-review-brand-title {
+            border-left: 0;
+            padding-left: 0;
+          }
+        }
       `}</style>
       <div className="guest-review-shell space-y-4">
         <section className="guest-review-header">
-          <p className="guest-review-eyebrow">创新创业评审系统</p>
+          <div className="guest-review-brand">
+            <div className="guest-review-logo-mark">
+              <Image alt="南京铁道职业技术学院" height={77} priority src="/official-logo.png" width={430} />
+            </div>
+            <div className="guest-review-brand-title">
+              <p className="text-sm font-black leading-tight text-white">南京铁道职业技术学院</p>
+              <p className="mt-1 text-xs font-bold text-white/72">创新创业管理平台</p>
+            </div>
+          </div>
+          <p className="guest-review-eyebrow mt-5">专家临时评审入口</p>
           <h1 className="mt-3 text-2xl font-black leading-tight">{state?.stageName ?? "项目评审"}</h1>
           <p className="mt-2 text-sm font-semibold text-white/75">
             {state ? `${state.expertName}，请按路演顺序完成本轮评审` : "正在加载评审任务"}
@@ -329,9 +465,16 @@ export default function GuestExpertReviewPage() {
                         <div>
                           <p className="text-xs font-black text-blue-600">第 {project.orderNumber} 项</p>
                           <p className="mt-1 line-clamp-2 text-sm font-black text-slate-900">{project.targetName}</p>
+                          <p className="mt-1 text-[11px] font-semibold text-slate-400">{getReviewWindowHint(project)}</p>
                         </div>
-                        <span className={`shrink-0 rounded-full px-2 py-1 text-[11px] font-black ${project.status === "submitted" ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
-                          {project.status === "submitted" ? "已评分" : "待评分"}
+                        <span className={`shrink-0 rounded-full px-2 py-1 text-[11px] font-black ${
+                          project.status === "submitted"
+                            ? "bg-emerald-50 text-emerald-700"
+                            : project.reviewWindowState === "open"
+                              ? "bg-blue-50 text-blue-700"
+                              : "bg-slate-100 text-slate-500"
+                        }`}>
+                          {project.status === "submitted" ? "已评分" : project.reviewWindowLabel}
                         </span>
                       </div>
                     </button>
@@ -370,6 +513,13 @@ export default function GuestExpertReviewPage() {
                     </div>
                   ) : (
                     <div className="mt-5 space-y-4">
+                      <div className={`rounded-2xl px-4 py-3 text-sm font-bold ${
+                        selectedProject.reviewWindowState === "open"
+                          ? "border border-blue-100 bg-blue-50 text-blue-700"
+                          : "border border-slate-200 bg-slate-50 text-slate-500"
+                      }`}>
+                        {getReviewWindowHint(selectedProject)}
+                      </div>
                       <label className="block">
                         <span className="text-sm font-black text-slate-800">评分</span>
                         <input
@@ -391,7 +541,7 @@ export default function GuestExpertReviewPage() {
                       <label className="block">
                         <span className="text-sm font-black text-slate-800">评语</span>
                         <textarea
-                          className="mt-2 min-h-24 w-full resize-none rounded-2xl border border-slate-200 px-4 py-3 text-sm outline-none"
+                          className="guest-review-textarea mt-2"
                           onChange={(event) =>
                             setCommentDrafts((current) => ({
                               ...current,
@@ -404,8 +554,8 @@ export default function GuestExpertReviewPage() {
                       </label>
                       <button
                         className="guest-review-submit"
-                        disabled={submittingId === selectedProject.assignmentId}
-                        onClick={submitScore}
+                        disabled={submittingId === selectedProject.assignmentId || !selectedCanSubmit}
+                        onClick={openSubmitConfirmation}
                         type="button"
                       >
                         {submittingId === selectedProject.assignmentId ? (
@@ -413,7 +563,11 @@ export default function GuestExpertReviewPage() {
                         ) : (
                           <Send className="h-4 w-4" />
                         )}
-                        提交评分
+                        {selectedProject.reviewWindowState === "not_started"
+                          ? "未到评分时间"
+                          : selectedProject.reviewWindowState === "ended"
+                            ? "已截止"
+                            : "提交评分"}
                       </button>
                     </div>
                   )}
@@ -436,6 +590,47 @@ export default function GuestExpertReviewPage() {
           </p>
         ) : null}
       </div>
+      {pendingSubmission ? (
+        <div className="guest-review-confirm-overlay" role="dialog" aria-modal="true">
+          <section className="guest-review-confirm-panel p-5">
+            <div className="flex items-start gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-blue-50 text-blue-700">
+                <ShieldCheck className="h-5 w-5" />
+              </div>
+              <div className="min-w-0">
+                <h2 className="text-lg font-black text-slate-950">确认提交评分</h2>
+                <p className="mt-1 text-sm font-semibold leading-6 text-slate-500">
+                  提交后该项目评分将锁定，不能再次修改。
+                </p>
+              </div>
+            </div>
+            <div className="mt-5 rounded-2xl border border-slate-100 bg-slate-50 p-4">
+              <p className="text-xs font-black text-blue-600">第 {pendingSubmission.orderNumber} 项</p>
+              <p className="mt-1 text-sm font-black leading-6 text-slate-900">{pendingSubmission.targetName}</p>
+              <p className="mt-3 font-mono text-3xl font-black text-slate-950">{pendingSubmission.displayScore}</p>
+            </div>
+            <div className="mt-5 grid grid-cols-2 gap-3">
+              <button
+                className="h-11 rounded-xl border border-slate-200 bg-white text-sm font-black text-slate-600 transition hover:bg-slate-50"
+                disabled={submittingId === pendingSubmission.assignmentId}
+                onClick={() => setPendingSubmission(null)}
+                type="button"
+              >
+                返回修改
+              </button>
+              <button
+                className="guest-review-submit h-11"
+                disabled={submittingId === pendingSubmission.assignmentId}
+                onClick={submitScore}
+                type="button"
+              >
+                {submittingId === pendingSubmission.assignmentId ? <Clock3 className="h-4 w-4 animate-spin" /> : null}
+                确认提交
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
     </main>
   );
 }

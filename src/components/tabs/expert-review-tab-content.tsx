@@ -1142,7 +1142,7 @@ export default function ExpertReviewTab() {
         }),
       });
 
-      await navigator.clipboard?.writeText(payload.screenUrl).catch(() => undefined);
+      await navigator.clipboard?.writeText(payload.teamDrawUrl ?? payload.screenUrl).catch(() => undefined);
       const stageGroupKeys = payload.packageIds?.length
         ? groupedAssignments
             .filter((candidate) => payload.packageIds?.includes(candidate.key))
@@ -3104,15 +3104,18 @@ export default function ExpertReviewTab() {
 
         <article className="rounded-xl border border-[var(--line)] bg-white p-4">
           <div className="flex items-center justify-between gap-3">
-            <h3 className="text-sm font-extrabold text-slate-950">大屏投屏</h3>
+            <h3 className="text-sm font-extrabold text-slate-950">抽签入口与可选大屏</h3>
             <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${screenSession ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-500"}`}>
               {screenSession ? "已连接" : "未生成"}
             </span>
           </div>
+          <p className="mt-2 text-[11px] leading-5 text-slate-400">
+            先让团队完成线上抽签并生成路演顺序；现场是否打开大屏，可按活动安排决定。
+          </p>
           <input
             className="mt-3 w-full rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 font-mono text-[11px] text-slate-500 outline-none"
             readOnly
-            value={screenSession?.screenUrl ?? "请先生成投屏链接"}
+            value={screenSession?.screenUrl ?? "请先生成抽签/大屏链接"}
           />
           <div className="mt-3 grid grid-cols-2 gap-2">
             <button
@@ -3122,7 +3125,7 @@ export default function ExpertReviewTab() {
               type="button"
             >
               <Copy className="h-3.5 w-3.5" />
-              {copiedScreenGroupKey === group.key ? "已复制" : "复制"}
+              {copiedScreenGroupKey === group.key ? "已复制" : "复制大屏"}
             </button>
             <button
               className="inline-flex items-center justify-center gap-1 rounded-lg border border-slate-200 bg-white px-2 py-2 text-[11px] font-bold text-slate-600 transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
@@ -3156,7 +3159,7 @@ export default function ExpertReviewTab() {
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-xs font-extrabold text-slate-900">团队抽签入口</p>
-                  <p className="mt-1 text-[11px] text-slate-400">复制这一个入口发到微信群；团队登录后只会进入自己的抽签。</p>
+                  <p className="mt-1 text-[11px] text-slate-400">复制这一个入口发到微信群；团队进入后选择自己的项目，确认后注册并抽签。</p>
                 </div>
                 <button
                   className="inline-flex shrink-0 items-center justify-center gap-1 rounded-lg border border-blue-100 bg-blue-50 px-2.5 py-1.5 text-[11px] font-bold text-blue-700 transition hover:bg-blue-100"

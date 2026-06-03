@@ -43,6 +43,7 @@ describe("guest expert review links", () => {
     const route = readSource("src/app/api/expert-reviews/guest/[token]/route.ts");
 
     assert.doesNotMatch(route, /getSessionUser/);
+    assert.match(route, /getExpertReviewWindowState/);
     assert.match(route, /hashExpertReviewGuestToken/);
     assert.match(route, /revokedAt:\s*null/);
     assert.match(route, /tokenExpiresAt:\s*\{\s*gt:\s*now/);
@@ -50,6 +51,8 @@ describe("guest expert review links", () => {
     assert.match(route, /projectReviewStageId:\s*guestToken\.projectReviewStageId/);
     assert.match(route, /reviewDisplayProjectOrder\.findMany/);
     assert.match(route, /orderIndex/);
+    assert.match(route, /reviewWindowState/);
+    assert.match(route, /reviewWindowLabel/);
     assert.match(route, /completionMessage/);
   });
 
@@ -80,6 +83,10 @@ describe("guest expert review links", () => {
     assert.match(page, /pendingCount/);
     assert.match(page, /submittedCount/);
     assert.match(page, /\/scores/);
+    assert.match(page, /official-logo\.png/);
+    assert.match(page, /pendingSubmission/);
+    assert.match(page, /确认提交评分/);
+    assert.match(page, /reviewWindowState/);
     assert.match(page, /感谢/);
     assert.doesNotMatch(page, /workspace/);
   });

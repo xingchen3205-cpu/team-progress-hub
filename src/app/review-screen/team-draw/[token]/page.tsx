@@ -1,10 +1,30 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
+import Image from "next/image";
 import { useParams, useRouter, useSearchParams } from "next/navigation";
-import { CheckCircle2, Clock3, ShieldCheck, Shuffle } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Clock3, LockKeyhole, ShieldCheck, Shuffle, UserCheck } from "lucide-react";
+
+type TeamDrawProjectOption = {
+  packageId: string;
+  targetName: string;
+  roundLabel: string;
+  registered: boolean;
+  drawn: boolean;
+};
+
+type TeamDrawClaimState = {
+  mode: "claim";
+  sessionId: string;
+  roundLabel: string;
+  tokenExpiresAt: string;
+  expired: boolean;
+  canRegister: boolean;
+  projects: TeamDrawProjectOption[];
+};
 
 type TeamDrawState = {
+  mode?: "draw";
   sessionId: string;
   packageId: string;
   targetName: string;
@@ -27,6 +47,28 @@ type TeamDrawResult = {
   message?: string;
 };
 
+type RegistrationDraft = {
+  name: string;
+  phone: string;
+  email: string;
+  college: string;
+  className: string;
+  studentId: string;
+  password: string;
+  confirmPassword: string;
+};
+
+const initialRegistrationDraft: RegistrationDraft = {
+  name: "",
+  phone: "",
+  email: "",
+  college: "",
+  className: "",
+  studentId: "",
+  password: "",
+  confirmPassword: "",
+};
+
 const formatDateTime = (value?: string | null) => {
   if (!value) return "";
   const date = new Date(value);
@@ -45,66 +87,165 @@ export default function TeamDrawPage() {
   const searchParams = useSearchParams();
   const sessionId = params.token ?? "";
   const screenToken = searchParams.get("token") ?? "";
+  const [claimState, setClaimState] = useState<TeamDrawClaimState | null>(null);
   const [drawState, setDrawState] = useState<TeamDrawState | null>(null);
+  const [selectedPackageId, setSelectedPackageId] = useState<string>("");
+  const [confirmStep, setConfirmStep] = useState<"first" | "second" | null>(null);
+  const [registrationOpen, setRegistrationOpen] = useState(false);
+  const [registrationDraft, setRegistrationDraft] = useState<RegistrationDraft>(initialRegistrationDraft);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [message, setMessage] = useState("");
+
   const currentPath = useMemo(() => {
     if (!sessionId) return "";
     const paramsText = screenToken ? `?token=${encodeURIComponent(screenToken)}` : "";
     return `/review-screen/team-draw/${encodeURIComponent(sessionId)}${paramsText}`;
   }, [screenToken, sessionId]);
 
-  const redirectToLogin = useCallback(() => {
-    const nextPath = currentPath || "/workspace";
-    router.replace(`/login?next=${encodeURIComponent(nextPath)}`);
-  }, [currentPath, router]);
+  const selectedProject = useMemo(
+    () => claimState?.projects.find((project) => project.packageId === selectedPackageId) ?? null,
+    [claimState?.projects, selectedPackageId],
+  );
+
+  const loadDrawState = useCallback(async () => {
+    if (!sessionId || !screenToken) {
+      setMessage("团队抽签入口无效");
+      setLoading(false);
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const response = await fetch(
+        `/api/review-screen/team-draw/${encodeURIComponent(sessionId)}?token=${encodeURIComponent(screenToken)}`,
+        { cache: "no-store" },
+      );
+      const data = (await response.json().catch(() => null)) as TeamDrawClaimState | TeamDrawState | { message?: string } | null;
+      if (!response.ok) {
+        throw new Error(data && "message" in data ? data.message ?? "团队抽签入口无效" : "团队抽签入口无效");
+      }
+      if (data && "mode" in data && data.mode === "claim") {
+        setClaimState(data);
+        setDrawState(null);
+        setSelectedPackageId((current) => current || data.projects.find((project) => !project.registered && !project.drawn)?.packageId || data.projects[0]?.packageId || "");
+      } else {
+        setDrawState(data as TeamDrawState);
+        setClaimState(null);
+        setRegistrationOpen(false);
+        setConfirmStep(null);
+      }
+      setMessage("");
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "团队抽签链接无效");
+    } finally {
+      setLoading(false);
+    }
+  }, [screenToken, sessionId]);
 
   useEffect(() => {
-    let cancelled = false;
+    void loadDrawState();
+  }, [loadDrawState]);
 
-    const load = async () => {
-      if (!sessionId || !screenToken) {
-        setMessage("团队抽签入口无效");
-        setLoading(false);
-        return;
+  const startProjectClaim = () => {
+    if (!claimState || !selectedProject) {
+      setMessage("请先选择自己的项目");
+      return;
+    }
+    if (!claimState.canRegister || claimState.expired) {
+      setMessage("当前抽签入口不可注册，请联系管理员");
+      return;
+    }
+    if (selectedProject.drawn) {
+      setMessage("该项目已完成抽签，不能重复注册");
+      return;
+    }
+    if (selectedProject.registered) {
+      setMessage("该项目已注册团队账号，请使用已注册账号进入抽签");
+      return;
+    }
+    setMessage("");
+    setConfirmStep("first");
+  };
+
+  const continueConfirmation = () => {
+    if (confirmStep === "first") {
+      setConfirmStep("second");
+      return;
+    }
+    setConfirmStep(null);
+    setRegistrationOpen(true);
+  };
+
+  const submitRegistration = async () => {
+    if (!selectedProject || submitting) return;
+
+    const phone = registrationDraft.phone.replace(/\D/g, "");
+    if (!registrationDraft.name.trim()) {
+      setMessage("请填写项目负责人姓名");
+      return;
+    }
+    if (!phone) {
+      setMessage("请填写项目负责人手机号");
+      return;
+    }
+    if (!registrationDraft.email.trim()) {
+      setMessage("请填写邮箱");
+      return;
+    }
+    if (!registrationDraft.college.trim()) {
+      setMessage("请填写所属学院");
+      return;
+    }
+    if (!registrationDraft.className.trim()) {
+      setMessage("请填写专业班级");
+      return;
+    }
+    if (!registrationDraft.studentId.trim()) {
+      setMessage("请填写学号");
+      return;
+    }
+    if (registrationDraft.password.trim().length < 6) {
+      setMessage("密码至少需要 6 位");
+      return;
+    }
+    if (registrationDraft.password.trim() !== registrationDraft.confirmPassword.trim()) {
+      setMessage("两次输入的密码不一致");
+      return;
+    }
+
+    setSubmitting(true);
+    setMessage("");
+    try {
+      const response = await fetch(
+        `/api/review-screen/team-draw/${encodeURIComponent(sessionId)}/register?token=${encodeURIComponent(screenToken)}`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            packageId: selectedProject.packageId,
+            name: registrationDraft.name.trim(),
+            phone,
+            email: registrationDraft.email.trim(),
+            college: registrationDraft.college.trim(),
+            className: registrationDraft.className.trim(),
+            studentId: registrationDraft.studentId.trim(),
+            password: registrationDraft.password.trim(),
+          }),
+        },
+      );
+      const data = (await response.json().catch(() => null)) as { message?: string } | null;
+      if (!response.ok) {
+        throw new Error(data?.message ?? "注册失败，请刷新后重试");
       }
-
-      try {
-        const response = await fetch(
-          `/api/review-screen/team-draw/${encodeURIComponent(sessionId)}?token=${encodeURIComponent(screenToken)}`,
-          {
-            cache: "no-store",
-          },
-        );
-        const data = (await response.json().catch(() => null)) as TeamDrawState | { message?: string } | null;
-        if (response.status === 401) {
-          redirectToLogin();
-          return;
-        }
-        if (!response.ok) {
-          throw new Error(data && "message" in data ? data.message ?? "团队抽签入口无效" : "团队抽签入口无效");
-        }
-        if (!cancelled) {
-          setDrawState(data as TeamDrawState);
-          setMessage("");
-        }
-      } catch (error) {
-        if (!cancelled) {
-          setMessage(error instanceof Error ? error.message : "团队抽签链接无效");
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-        }
-      }
-    };
-
-    void load();
-    return () => {
-      cancelled = true;
-    };
-  }, [redirectToLogin, screenToken, sessionId]);
+      setRegistrationDraft(initialRegistrationDraft);
+      await loadDrawState();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : "注册失败，请刷新后重试");
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   const handleDraw = async () => {
     if (!drawState || submitting || !drawState.canDraw) return;
@@ -112,9 +253,8 @@ export default function TeamDrawPage() {
     setSubmitting(true);
     setMessage("");
     try {
-      const sessionId = drawState.sessionId;
       const response = await fetch(
-        `/api/review-screen/sessions/${sessionId}/team-draw?token=${encodeURIComponent(screenToken)}`,
+        `/api/review-screen/sessions/${drawState.sessionId}/team-draw?token=${encodeURIComponent(screenToken)}`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
@@ -166,7 +306,7 @@ export default function TeamDrawPage() {
           animation: teamDrawEnter .42s ease both;
         }
         .team-draw-panel {
-          width: min(100%, 520px);
+          width: min(100%, 620px);
           overflow: hidden;
           border: 1px solid #d6e1ef;
           border-radius: 28px;
@@ -176,16 +316,18 @@ export default function TeamDrawPage() {
         .team-draw-header {
           position: relative;
           overflow: hidden;
-          background: linear-gradient(135deg, #102442, #1d4f8a 60%, #9b2d3a);
+          background:
+            linear-gradient(135deg, rgba(8, 28, 58, .96), rgba(20, 70, 128, .94) 62%, rgba(135, 35, 48, .92)),
+            #102442;
           padding: 24px 24px 26px;
           color: #fff;
         }
-        .team-draw-header::after {
-          content: "";
-          position: absolute;
-          inset: auto 24px 0 24px;
-          height: 1px;
-          background: linear-gradient(90deg, transparent, rgba(255,255,255,.55), transparent);
+        .team-draw-logo img {
+          height: auto;
+          max-height: 38px;
+          width: 118px;
+          object-fit: contain;
+          filter: brightness(0) invert(1) drop-shadow(0 8px 18px rgba(0,0,0,.22));
         }
         .team-draw-security {
           display: inline-flex;
@@ -214,6 +356,37 @@ export default function TeamDrawPage() {
           padding: 16px;
           box-shadow: 0 10px 30px rgba(15, 35, 65, .06);
         }
+        .team-draw-option {
+          width: 100%;
+          border: 1px solid #dbe5f0;
+          border-radius: 16px;
+          background: #fff;
+          padding: 13px 14px;
+          text-align: left;
+          transition: border-color .18s ease, box-shadow .18s ease, transform .14s ease;
+        }
+        .team-draw-option-active {
+          border-color: #2563eb;
+          box-shadow: 0 0 0 4px rgba(37, 99, 235, .1);
+        }
+        .team-draw-option:active {
+          transform: scale(.99);
+        }
+        .team-draw-input {
+          height: 48px;
+          width: 100%;
+          border: 1px solid #d8e1ee;
+          border-radius: 14px;
+          padding: 0 14px;
+          font-size: 14px;
+          font-weight: 700;
+          outline: none;
+          transition: border-color .18s ease, box-shadow .18s ease;
+        }
+        .team-draw-input:focus {
+          border-color: #2563eb;
+          box-shadow: 0 0 0 4px rgba(37, 99, 235, .1);
+        }
         .team-draw-result {
           display: flex;
           min-height: 184px;
@@ -222,10 +395,8 @@ export default function TeamDrawPage() {
           justify-content: center;
           border: 1px solid #dbe7f6;
           border-radius: 24px;
-          background:
-            linear-gradient(180deg, #edf5ff, #f8fbff);
+          background: linear-gradient(180deg, #edf5ff, #f8fbff);
           color: #0f2040;
-          transition: transform .18s ease, box-shadow .18s ease;
         }
         .team-draw-number {
           color: #173f88;
@@ -240,15 +411,15 @@ export default function TeamDrawPage() {
         .team-draw-button {
           display: inline-flex;
           width: 100%;
-          height: 54px;
+          min-height: 52px;
           align-items: center;
           justify-content: center;
           gap: 9px;
           border: 0;
-          border-radius: 18px;
+          border-radius: 16px;
           background: linear-gradient(135deg, #1d4ed8, #153e75);
           color: #fff;
-          font-size: 16px;
+          font-size: 15px;
           font-weight: 900;
           box-shadow: 0 16px 34px rgba(29, 78, 216, .22);
           transition: transform .14s ease, box-shadow .18s ease, opacity .18s ease;
@@ -259,6 +430,25 @@ export default function TeamDrawPage() {
         .team-draw-button:disabled {
           opacity: .42;
           box-shadow: none;
+        }
+        .team-draw-confirm-overlay {
+          position: fixed;
+          inset: 0;
+          z-index: 50;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: rgba(15, 23, 42, .48);
+          padding: 18px;
+          backdrop-filter: blur(8px);
+        }
+        .team-draw-confirm-panel {
+          width: min(100%, 440px);
+          border: 1px solid rgba(226, 232, 240, .9);
+          border-radius: 22px;
+          background: #fff;
+          box-shadow: 0 28px 80px rgba(15, 23, 42, .28);
+          animation: teamDrawEnter .2s ease both;
         }
         @keyframes teamDrawEnter {
           from {
@@ -284,13 +474,16 @@ export default function TeamDrawPage() {
       <div className="team-draw-shell">
         <section className="team-draw-panel">
           <div className="team-draw-header">
-            <span className="team-draw-security">
+            <div className="team-draw-logo">
+              <Image alt="南京铁道职业技术学院" height={77} priority src="/official-logo.png" width={430} />
+            </div>
+            <span className="team-draw-security mt-5">
               <ShieldCheck className="h-4 w-4" />
               创新创业大赛抽签
             </span>
-            <h1 className="team-draw-title">团队抽签</h1>
-            <p className="mt-2 text-sm font-semibold text-white/78">
-              登录后仅开放本团队抽签权限，抽取结果将同步至管理端。
+            <h1 className="team-draw-title">团队线上抽签</h1>
+            <p className="mt-2 text-sm font-semibold leading-6 text-white/78">
+              请选择本团队项目并完成负责人注册，一个项目只允许首次注册一次。
             </p>
           </div>
 
@@ -303,7 +496,7 @@ export default function TeamDrawPage() {
             ) : drawState ? (
               <>
                 <div className="team-draw-project">
-                  <p className="text-xs font-black tracking-[0.16em] text-blue-600">{drawState.roundLabel}</p>
+                  <p className="text-xs font-black text-blue-600">{drawState.roundLabel}</p>
                   <h2 className="mt-2 text-lg font-black leading-snug text-slate-950">{drawState.targetName}</h2>
                   <p className="mt-2 text-xs font-semibold text-slate-500">
                     链接有效期至 {formatDateTime(drawState.tokenExpiresAt)}
@@ -316,7 +509,7 @@ export default function TeamDrawPage() {
                       <CheckCircle2 className="mb-3 h-7 w-7 text-emerald-600" />
                       <p className="text-sm font-black text-slate-500">你的路演顺序</p>
                       <div className="team-draw-number">{orderNumber}</div>
-                      <p className="text-xs font-bold text-slate-500">已同步到管理员大屏</p>
+                      <p className="text-xs font-bold text-slate-500">已同步到管理员后台</p>
                     </>
                   ) : (
                     <>
@@ -331,7 +524,160 @@ export default function TeamDrawPage() {
 
                 <button className="team-draw-button" disabled={!canDraw} onClick={handleDraw} type="button">
                   <Shuffle className="h-5 w-5" />
-                  {submitting ? "抽签中" : orderNumber ? "已完成抽签" : drawState.expired ? "链接已过期" : "开始抽签"}
+                  {submitting ? "抽签中" : orderNumber ? "已完成抽签，可关闭页面" : drawState.expired ? "链接已过期" : "开始抽签"}
+                </button>
+              </>
+            ) : claimState && registrationOpen && selectedProject ? (
+              <>
+                <div className="team-draw-project">
+                  <p className="text-xs font-black text-blue-600">已选择项目</p>
+                  <h2 className="mt-2 text-lg font-black leading-snug text-slate-950">{selectedProject.targetName}</h2>
+                  <p className="mt-2 text-xs font-semibold leading-5 text-slate-500">
+                    项目名由系统带入，请填写项目负责人信息。手机号将作为登录账号。
+                  </p>
+                </div>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label className="block text-xs font-black text-slate-600">
+                    负责人姓名
+                    <input
+                      className="team-draw-input mt-1"
+                      onChange={(event) => setRegistrationDraft((current) => ({ ...current, name: event.target.value }))}
+                      placeholder="请输入姓名"
+                      value={registrationDraft.name}
+                    />
+                  </label>
+                  <label className="block text-xs font-black text-slate-600">
+                    手机号
+                    <input
+                      className="team-draw-input mt-1"
+                      inputMode="tel"
+                      onChange={(event) => setRegistrationDraft((current) => ({ ...current, phone: event.target.value }))}
+                      placeholder="作为登录账号"
+                      value={registrationDraft.phone}
+                    />
+                  </label>
+                  <label className="block text-xs font-black text-slate-600">
+                    邮箱
+                    <input
+                      className="team-draw-input mt-1"
+                      inputMode="email"
+                      onChange={(event) => setRegistrationDraft((current) => ({ ...current, email: event.target.value }))}
+                      placeholder="请输入邮箱"
+                      value={registrationDraft.email}
+                    />
+                  </label>
+                  <label className="block text-xs font-black text-slate-600">
+                    学院
+                    <input
+                      className="team-draw-input mt-1"
+                      onChange={(event) => setRegistrationDraft((current) => ({ ...current, college: event.target.value }))}
+                      placeholder="请输入所属学院"
+                      value={registrationDraft.college}
+                    />
+                  </label>
+                  <label className="block text-xs font-black text-slate-600">
+                    专业班级
+                    <input
+                      className="team-draw-input mt-1"
+                      onChange={(event) => setRegistrationDraft((current) => ({ ...current, className: event.target.value }))}
+                      placeholder="请输入专业班级"
+                      value={registrationDraft.className}
+                    />
+                  </label>
+                  <label className="block text-xs font-black text-slate-600">
+                    学号
+                    <input
+                      className="team-draw-input mt-1"
+                      onChange={(event) => setRegistrationDraft((current) => ({ ...current, studentId: event.target.value }))}
+                      placeholder="请输入学号"
+                      value={registrationDraft.studentId}
+                    />
+                  </label>
+                  <label className="block text-xs font-black text-slate-600">
+                    设置密码
+                    <input
+                      className="team-draw-input mt-1"
+                      onChange={(event) => setRegistrationDraft((current) => ({ ...current, password: event.target.value }))}
+                      placeholder="至少 6 位"
+                      type="password"
+                      value={registrationDraft.password}
+                    />
+                  </label>
+                  <label className="block text-xs font-black text-slate-600">
+                    确认密码
+                    <input
+                      className="team-draw-input mt-1"
+                      onChange={(event) => setRegistrationDraft((current) => ({ ...current, confirmPassword: event.target.value }))}
+                      placeholder="再次输入密码"
+                      type="password"
+                      value={registrationDraft.confirmPassword}
+                    />
+                  </label>
+                </div>
+                <p className="rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3 text-xs font-bold leading-5 text-amber-800">
+                  注册成功后，本项目不能再次注册负责人账号；请确认项目和负责人信息准确。
+                </p>
+                <div className="grid grid-cols-2 gap-3">
+                  <button
+                    className="h-12 rounded-2xl border border-slate-200 bg-white text-sm font-black text-slate-600"
+                    disabled={submitting}
+                    onClick={() => setRegistrationOpen(false)}
+                    type="button"
+                  >
+                    返回选项目
+                  </button>
+                  <button className="team-draw-button" disabled={submitting} onClick={submitRegistration} type="button">
+                    <UserCheck className="h-5 w-5" />
+                    {submitting ? "注册中" : "注册并进入抽签"}
+                  </button>
+                </div>
+              </>
+            ) : claimState ? (
+              <>
+                <div className="team-draw-project">
+                  <p className="text-xs font-black text-blue-600">{claimState.roundLabel}</p>
+                  <h2 className="mt-2 text-lg font-black leading-snug text-slate-950">选择本团队项目</h2>
+                  <p className="mt-2 text-xs font-semibold leading-5 text-slate-500">
+                    请只选择自己所属项目。选错项目会影响抽签顺序、专家评分和后续统计。
+                  </p>
+                </div>
+                <div className="max-h-[44vh] space-y-2 overflow-y-auto pr-1">
+                  {claimState.projects.map((project) => {
+                    const active = project.packageId === selectedPackageId;
+                    const locked = project.registered || project.drawn;
+                    return (
+                      <button
+                        className={`team-draw-option ${active ? "team-draw-option-active" : ""}`}
+                        disabled={locked}
+                        key={project.packageId}
+                        onClick={() => setSelectedPackageId(project.packageId)}
+                        type="button"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="text-xs font-black text-blue-600">{project.roundLabel}</p>
+                            <p className="mt-1 text-sm font-black leading-6 text-slate-900">{project.targetName}</p>
+                          </div>
+                          <span className={`shrink-0 rounded-full px-2 py-1 text-[11px] font-black ${
+                            project.drawn || project.registered ? "bg-slate-100 text-slate-500" : "bg-emerald-50 text-emerald-700"
+                          }`}>
+                            {project.drawn ? "已抽签" : project.registered ? "已注册" : "可注册"}
+                          </span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+                <button className="team-draw-button" disabled={!selectedProject || !claimState.canRegister} onClick={startProjectClaim} type="button">
+                  <LockKeyhole className="h-5 w-5" />
+                  确认项目并注册
+                </button>
+                <button
+                  className="w-full text-center text-xs font-bold text-blue-700"
+                  onClick={() => router.push(`/login?next=${encodeURIComponent(currentPath)}`)}
+                  type="button"
+                >
+                  已注册项目账号，直接登录抽签
                 </button>
               </>
             ) : null}
@@ -344,6 +690,40 @@ export default function TeamDrawPage() {
           </div>
         </section>
       </div>
+
+      {confirmStep && selectedProject ? (
+        <div className="team-draw-confirm-overlay" role="dialog" aria-modal="true">
+          <section className="team-draw-confirm-panel p-5">
+            <div className="flex items-start gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-amber-50 text-amber-700">
+                <AlertTriangle className="h-5 w-5" />
+              </div>
+              <div>
+                <h2 className="text-lg font-black text-slate-950">
+                  {confirmStep === "first" ? "确认项目归属" : "再次确认"}
+                </h2>
+                <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">
+                  {confirmStep === "first"
+                    ? `请确认你属于“${selectedProject.targetName}”。确认后将进入本项目负责人注册。`
+                    : "本项目首次注册成功后不能重复注册；选错项目会影响抽签和后续评审安排。"}
+                </p>
+              </div>
+            </div>
+            <div className="mt-5 grid grid-cols-2 gap-3">
+              <button
+                className="h-11 rounded-xl border border-slate-200 bg-white text-sm font-black text-slate-600 transition hover:bg-slate-50"
+                onClick={() => setConfirmStep(null)}
+                type="button"
+              >
+                返回
+              </button>
+              <button className="team-draw-button min-h-11" onClick={continueConfirmation} type="button">
+                {confirmStep === "first" ? "我确认属于该项目" : "再次确认并注册"}
+              </button>
+            </div>
+          </section>
+        </div>
+      ) : null}
     </main>
   );
 }

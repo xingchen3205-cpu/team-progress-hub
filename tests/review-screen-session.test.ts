@@ -763,18 +763,21 @@ describe("roadshow review screen session", () => {
     assert.doesNotMatch(selfDrawCandidateRouteSource, /operator:\s*session\.creator/);
   });
 
-  it("supports one login-gated team draw entry while administrators keep the projection screen open", () => {
+  it("supports one shared team draw entry with project claim registration before drawing", () => {
     const schemaSource = readSource("prisma/schema.prisma");
+    const schemaScriptSource = readSource("scripts/apply-team-draw-schema.ts");
     const sessionRouteSource = readSource("src/app/api/review-screen/sessions/route.ts");
     const publicRouteSource = readSource("src/app/api/review-screen/sessions/[sessionId]/route.ts");
     const sessionLibSource = readSource("src/lib/review-screen-session.ts");
     const teamDrawRouteSource = readSource("src/app/api/review-screen/sessions/[sessionId]/team-draw/route.ts");
     const teamDrawInfoRouteSource = readSource("src/app/api/review-screen/team-draw/[token]/route.ts");
+    const teamDrawRegisterRouteSource = readSource("src/app/api/review-screen/team-draw/[token]/register/route.ts");
     const teamDrawPageSource = readSource("src/app/review-screen/team-draw/[token]/page.tsx");
-    const loginScreenSource = readSource("src/components/login-screen.tsx");
     const adminTabSource = readSource("src/components/tabs/expert-review-tab-content.tsx");
     const screenPageSource = readSource("src/app/review-screen/session/[sessionId]/page.tsx");
 
+    assert.match(schemaSource, /phone\s+String\?/);
+    assert.match(schemaScriptSource, /ALTER TABLE \$\{quoteIdentifier\("User"\)\} ADD COLUMN \$\{quoteIdentifier\("phone"\)\} TEXT/);
     assert.match(schemaSource, /model ReviewDisplayTeamDrawToken/);
     assert.match(schemaSource, /teamDrawEnabled\s+Boolean\s+@default\(false\)/);
     assert.match(schemaSource, /teamDrawQueue\s+String\?/);
@@ -787,6 +790,7 @@ describe("roadshow review screen session", () => {
     assert.match(sessionRouteSource, /JSON\.stringify\(shuffleArray\(projectOrderRows\.map\(\(row\) => row\.orderIndex\)\)\)/);
     assert.match(sessionRouteSource, /teamDrawUrl/);
     assert.match(sessionRouteSource, /\/review-screen\/team-draw\//);
+    assert.match(adminTabSource, /payload\.teamDrawUrl \?\? payload\.screenUrl/);
     assert.doesNotMatch(sessionRouteSource, /teamDrawLinks/);
     assert.doesNotMatch(sessionRouteSource, /reviewDisplayTeamDrawToken\.createMany/);
     assert.match(publicRouteSource, /teamDrawEnabled/);
@@ -807,18 +811,38 @@ describe("roadshow review screen session", () => {
     assert.doesNotMatch(teamDrawRouteSource, /reviewDisplayTeamDrawToken\.findUnique/);
     assert.match(sessionLibSource, /const j = randomInt\(i \+ 1\)/);
     assert.match(teamDrawInfoRouteSource, /getSessionUser\(request\)/);
+    assert.match(teamDrawInfoRouteSource, /mode:\s*"claim"/);
+    assert.match(teamDrawInfoRouteSource, /projects:\s*session\.projectOrders\.map/);
+    assert.match(teamDrawInfoRouteSource, /registered:\s*Boolean/);
     assert.match(teamDrawInfoRouteSource, /user\.teamGroupId/);
-    assert.match(teamDrawPageSource, /团队抽签/);
+    assert.match(teamDrawRegisterRouteSource, /setAuthCookie/);
+    assert.match(teamDrawRegisterRouteSource, /signAuthToken/);
+    assert.match(teamDrawRegisterRouteSource, /validateRequiredEmail/);
+    assert.match(teamDrawRegisterRouteSource, /phone\?:\s*string/);
+    assert.match(teamDrawRegisterRouteSource, /college\?:\s*string/);
+    assert.match(teamDrawRegisterRouteSource, /className\?:\s*string/);
+    assert.match(teamDrawRegisterRouteSource, /studentId\?:\s*string/);
+    assert.match(teamDrawRegisterRouteSource, /role:\s*"leader"/);
+    assert.match(teamDrawRegisterRouteSource, /reviewDisplayTeamDrawToken\.create/);
+    assert.match(teamDrawRegisterRouteSource, /P2002/);
+    assert.match(teamDrawRegisterRouteSource, /该项目已注册团队账号/);
+    assert.match(teamDrawRegisterRouteSource, /手机号或邮箱已存在/);
+    assert.match(teamDrawPageSource, /团队线上抽签/);
+    assert.match(teamDrawPageSource, /selectedPackageId/);
+    assert.match(teamDrawPageSource, /confirmStep/);
+    assert.match(teamDrawPageSource, /再次确认/);
+    assert.match(teamDrawPageSource, /registrationDraft/);
+    assert.match(teamDrawPageSource, /手机号将作为登录账号/);
+    assert.match(teamDrawPageSource, /专业班级/);
+    assert.match(teamDrawPageSource, /学号/);
+    assert.match(teamDrawPageSource, /register\?token=/);
     assert.match(teamDrawPageSource, /handleDraw/);
-    assert.match(teamDrawPageSource, /redirectToLogin/);
-    assert.match(teamDrawPageSource, /next=/);
-    assert.match(teamDrawPageSource, /\/api\/review-screen\/sessions\/\$\{sessionId\}\/team-draw/);
-    assert.match(loginScreenSource, /useSearchParams/);
-    assert.match(loginScreenSource, /getSafePostLoginPath/);
-    assert.match(loginScreenSource, /searchParams\.get\("next"\)/);
+    assert.doesNotMatch(teamDrawPageSource, /redirectToLogin/);
+    assert.match(teamDrawPageSource, /\/api\/review-screen\/sessions\/\$\{drawState\.sessionId\}\/team-draw/);
     assert.match(adminTabSource, /团队线上抽签/);
     assert.match(adminTabSource, /teamDrawUrl/);
     assert.match(adminTabSource, /复制抽签入口/);
+    assert.match(adminTabSource, /团队进入后选择自己的项目，确认后注册并抽签/);
     assert.doesNotMatch(adminTabSource, /复制团队链接/);
     assert.doesNotMatch(adminTabSource, /导出团队链接/);
   });

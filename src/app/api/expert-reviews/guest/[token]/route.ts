@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
+import { getExpertReviewWindowState } from "@/lib/expert-review";
 import { hashExpertReviewGuestToken } from "@/lib/expert-review-guest-token";
 import { prisma } from "@/lib/prisma";
 
@@ -126,6 +127,13 @@ export async function GET(
   const projects = assignments
     .map((assignment, index) => {
       const orderIndex = orderIndexByPackageId.get(assignment.reviewPackage.id) ?? index;
+      const startAt = assignment.reviewPackage.startAt ?? guestToken.projectReviewStage.startAt ?? null;
+      const deadline = assignment.reviewPackage.deadline ?? guestToken.projectReviewStage.deadline ?? null;
+      const reviewWindowState = getExpertReviewWindowState({
+        startAt,
+        deadline,
+        lockedAt: assignment.score?.lockedAt ?? null,
+      });
       return {
         assignmentId: assignment.id,
         packageId: assignment.reviewPackage.id,
@@ -134,8 +142,10 @@ export async function GET(
         targetName: assignment.reviewPackage.targetName,
         roundLabel: assignment.reviewPackage.roundLabel ?? guestToken.projectReviewStage.name,
         overview: assignment.reviewPackage.overview ?? "",
-        startAt: assignment.reviewPackage.startAt?.toISOString() ?? guestToken.projectReviewStage.startAt?.toISOString() ?? null,
-        deadline: assignment.reviewPackage.deadline?.toISOString() ?? guestToken.projectReviewStage.deadline?.toISOString() ?? null,
+        startAt: startAt?.toISOString() ?? null,
+        deadline: deadline?.toISOString() ?? null,
+        reviewWindowState: reviewWindowState.key,
+        reviewWindowLabel: reviewWindowState.label,
         status: assignment.score ? "submitted" : assignment.status,
         scoreText: formatScore(assignment.score),
         submittedAt: assignment.score?.submittedAt.toISOString() ?? null,

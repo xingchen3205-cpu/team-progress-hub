@@ -20,6 +20,16 @@ async function getColumnNames(table: string) {
 }
 
 async function main() {
+  const userColumns = await getColumnNames("User");
+  if (!userColumns.has("phone")) {
+    await prisma.$executeRawUnsafe(
+      `ALTER TABLE ${quoteIdentifier("User")} ADD COLUMN ${quoteIdentifier("phone")} TEXT`,
+    );
+    console.log("added User.phone");
+  } else {
+    console.log("User.phone already exists");
+  }
+
   const sessionColumns = await getColumnNames("ReviewDisplaySession");
   if (!sessionColumns.has("teamDrawEnabled")) {
     await prisma.$executeRawUnsafe(
