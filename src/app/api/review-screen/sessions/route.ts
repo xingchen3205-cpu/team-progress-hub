@@ -420,6 +420,7 @@ export async function POST(request: NextRequest) {
         groupName: row.groupName,
         groupIndex: row.groupIndex,
         groupSlotIndex: row.groupSlotIndex,
+        registered: drawMode !== "team",
         selfDrawnAt: drawMode === "self" || drawMode === "team" ? null : now.toISOString(),
         revealedAt: null,
       })),

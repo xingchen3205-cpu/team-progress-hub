@@ -141,6 +141,7 @@ type ReviewScreenProjectOrderItem = {
   groupName: string | null;
   groupIndex: number;
   groupSlotIndex: number;
+  registered?: boolean;
   selfDrawnAt: string | null;
   revealedAt: string | null;
 };
@@ -1667,6 +1668,7 @@ export default function ExpertReviewTab() {
         groupName: null,
         groupIndex: 0,
         groupSlotIndex: index,
+        registered: false,
         selfDrawnAt: null,
         revealedAt: null,
       })),
@@ -1840,11 +1842,14 @@ export default function ExpertReviewTab() {
     const consoleSeats = mergeConsoleSeats(screenSession?.seats ?? [], liveData?.seats ?? []);
     const timingDraft = screenTimingDrafts[group.key] ?? getDefaultScreenTimingDraft();
     const projectOrder = getReviewScreenProjectOrderForGroup(group);
+    const drawMode = getScreenDrawMode(group.key);
+    const registeredProjectCount = projectOrder.filter((project) => project.registered || project.selfDrawnAt).length;
+    const drawnProjectCount = projectOrder.filter((project) => Boolean(project.selfDrawnAt)).length;
+    const teamDrawBlockingStart = drawMode === "team" && projectOrder.length > 0 && drawnProjectCount < projectOrder.length;
     const currentPhase = liveData?.screenPhase ?? "draw";
     const screenDisplay = normalizeReviewScreenDisplaySettings(
       screenDisplayDrafts[group.key] ?? liveData?.screenDisplay ?? screenSession?.screenDisplay,
     );
-    const drawMode = getScreenDrawMode(group.key);
     const currentProjectIndex = liveData?.currentProjectIndex ?? Math.max(
       0,
       projectOrder.findIndex((project) => project.packageId === group.key),
@@ -1940,6 +1945,9 @@ export default function ExpertReviewTab() {
       hasStaleProjectionOrder ? "投屏项目数与当前本轮项目不一致，已停止使用旧大屏链接，请关闭旧链接后重新生成。" : null,
       !screenSession ? "尚未生成投屏链接，现场大屏无法打开。" : null,
       scoreRuleIsInvalid ? "当前去高去低规则导致有效评分不足 2 个，不能计算最终得分。" : null,
+      teamDrawBlockingStart
+        ? `团队线上抽签尚未完成：已注册 ${registeredProjectCount}/${projectOrder.length}，已抽签 ${drawnProjectCount}/${projectOrder.length}。`
+        : null,
       currentPhase === "scoring" && currentPendingSeatNos.length > 0
         ? `仍有专家 ${currentPendingSeatNos.join("、")} 未提交评分。`
         : null,
@@ -2142,9 +2150,11 @@ export default function ExpertReviewTab() {
           }
         : guideStepKey === "config"
           ? {
-              label: "正式开始当前项目路演",
-              description: "抽签/排序已完成并可导出留档；评审尚未开始，等现场准备好后再进入当前项目路演展示。",
-              disabled: !canStartPresentation || reviewScreenActionKey?.startsWith(`${group.key}:`),
+              label: teamDrawBlockingStart ? "等待团队完成抽签" : "正式开始当前项目路演",
+              description: teamDrawBlockingStart
+                ? `团队线上抽签需全部完成后才能开始路演。当前已注册 ${registeredProjectCount}/${projectOrder.length}，已抽签 ${drawnProjectCount}/${projectOrder.length}。`
+                : "抽签/排序已完成并可导出留档；评审尚未开始，等现场准备好后再进入当前项目路演展示。",
+              disabled: teamDrawBlockingStart || !canStartPresentation || reviewScreenActionKey?.startsWith(`${group.key}:`),
               onClick: workflowSteps[0].onClick,
             }
           : currentPhase === "presentation"
@@ -3177,6 +3187,46 @@ export default function ExpertReviewTab() {
               />
             </div>
           ) : null}
+          {drawMode === "team" && projectOrder.length > 0 ? (
+            <div className="mt-4 border-t border-slate-100 pt-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-extrabold text-slate-900">团队抽签状态</p>
+                  <p className="mt-1 text-[11px] text-slate-400">
+                    已注册 {registeredProjectCount}/{projectOrder.length} · 已抽签 {drawnProjectCount}/{projectOrder.length}
+                  </p>
+                </div>
+                <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${
+                  drawnProjectCount === projectOrder.length ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"
+                }`}>
+                  {drawnProjectCount === projectOrder.length ? "可开始" : "等待团队"}
+                </span>
+              </div>
+              <div className="mt-3 max-h-56 space-y-2 overflow-y-auto pr-1">
+                {projectOrder.map((project, index) => {
+                  const registered = Boolean(project.registered || project.selfDrawnAt);
+                  const drawn = Boolean(project.selfDrawnAt);
+                  return (
+                    <div className="flex items-center gap-3 rounded-lg border border-slate-100 bg-slate-50 px-3 py-2" key={project.packageId}>
+                      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md bg-white font-mono text-[11px] font-black text-slate-500 ring-1 ring-slate-100">
+                        {index + 1}
+                      </span>
+                      <p className="min-w-0 flex-1 truncate text-[11px] font-black text-slate-800">{project.targetName}</p>
+                      <span className={`shrink-0 rounded-full px-2 py-1 text-[10px] font-black ${
+                        drawn
+                          ? "bg-emerald-50 text-emerald-700"
+                          : registered
+                            ? "bg-blue-50 text-blue-700"
+                            : "bg-slate-100 text-slate-500"
+                      }`}>
+                        {drawn ? "已抽签" : registered ? "已注册待抽" : "未注册"}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
         </article>
       </aside>
     );
@@ -3728,6 +3778,7 @@ export default function ExpertReviewTab() {
         groupName: null,
         groupIndex: 0,
         groupSlotIndex: index,
+        registered: false,
         selfDrawnAt: null,
         revealedAt: null,
       }));
@@ -3845,15 +3896,23 @@ export default function ExpertReviewTab() {
     const commandProjectCount = activeStageGroups.length || groupedAssignments.length;
     const commandTotalScoreSlots = reviewAssignments.length;
     const commandSubmittedScoreSlots = reviewAssignments.filter((assignment) => Boolean(assignment.score)).length;
+    const commandProjectOrder = activeGroupLiveData?.projectOrder?.length ? activeGroupLiveData.projectOrder : activeProjectListSource;
+    const registeredProjectCount = commandProjectOrder.filter((project) => project.registered || project.selfDrawnAt).length;
+    const drawnProjectCount = commandProjectOrder.filter((project) => Boolean(project.selfDrawnAt)).length;
+    const activeGuestLinks = activeGroup ? guestExpertLinks[activeGroup.key] ?? [] : [];
+    const activeGuestLinkCount = activeGuestLinks.length;
+    const activeGuestLinkUsedCount = activeGuestLinks.filter((link) => Boolean(link.lastUsedAt)).length;
+    const teamDrawReady = !activeGroupIsRoadshow || !activeScreenSession?.teamDrawUrl || (
+      commandProjectOrder.length > 0 && drawnProjectCount >= commandProjectOrder.length
+    );
     const commandActiveStep =
       groupedAssignments.length === 0
         ? "prepare"
-        : activeGroupIsRoadshow && !activeScreenSession
+        : activeGroupIsRoadshow && (!activeScreenSession || !teamDrawReady)
           ? "draw"
           : pendingReviewCount > 0
             ? "score"
             : "archive";
-    const activeGuestLinkCount = activeGroup ? guestExpertLinks[activeGroup.key]?.length ?? 0 : 0;
     const commandPrimaryAction =
       groupedAssignments.length === 0
         ? {
@@ -3864,10 +3923,18 @@ export default function ExpertReviewTab() {
           }
         : commandActiveStep === "draw" && activeGroup
           ? {
-              label: "配置抽签与大屏",
-              description: "生成一个团队抽签入口；需要大屏时再打开监控。",
+              label: activeScreenSession?.teamDrawUrl ? "复制团队抽签入口" : "配置抽签与大屏",
+              description: activeScreenSession?.teamDrawUrl
+                ? `团队抽签进行中：已注册 ${registeredProjectCount}/${commandProjectOrder.length}，已抽签 ${drawnProjectCount}/${commandProjectOrder.length}。`
+                : "生成一个团队抽签入口；需要大屏时再打开监控。",
               disabled: !canManageReviewMaterials,
-              onClick: () => setReviewConfigModalGroupKey(activeGroup.key),
+              onClick: () => {
+                if (activeScreenSession?.teamDrawUrl) {
+                  void copyTeamDrawUrl(activeGroup.key, activeScreenSession.teamDrawUrl);
+                  return;
+                }
+                setReviewConfigModalGroupKey(activeGroup.key);
+              },
             }
           : commandActiveStep === "score" && activeGroup && activeGuestLinkCount === 0
             ? {
@@ -3895,124 +3962,112 @@ export default function ExpertReviewTab() {
         title: "准备评审",
         icon: BookOpen,
         metric: commandProjectCount > 0 ? `${commandProjectCount} 个项目` : "待创建",
-        description: "导入项目、临时专家、评审时间",
+        description: `专家 ${activeExpertSeatCount || 0} 位 · ${activeGroup ? "已进入本轮" : "等待导入"}`,
       },
       {
         key: "draw",
         title: "团队抽签",
         icon: Shuffle,
-        metric: activeScreenSession?.teamDrawUrl ? "入口已生成" : activeScreenSession ? "大屏已生成" : "按需开启",
-        description: "一个入口发微信群，团队自选项目后注册抽签",
+        metric: activeScreenSession?.teamDrawUrl
+          ? `${drawnProjectCount}/${commandProjectOrder.length || commandProjectCount || 0} 已抽`
+          : activeScreenSession
+            ? "大屏已生成"
+            : "待生成入口",
+        description: activeScreenSession?.teamDrawUrl
+          ? `注册 ${registeredProjectCount}/${commandProjectOrder.length || commandProjectCount || 0} · 一个入口发微信群`
+          : "一个入口发微信群，团队自选项目后注册抽签",
       },
       {
         key: "score",
         title: "专家评分",
         icon: Users,
         metric: `${commandSubmittedScoreSlots}/${commandTotalScoreSlots || 0} 已提交`,
-        description: "每位专家一个临时评分链接，不打开大屏也能收分",
+        description: activeGuestLinkCount
+          ? `链接 ${activeGuestLinkCount}/${activeExpertSeatCount || activeGuestLinkCount} · 已访问 ${activeGuestLinkUsedCount}`
+          : "每位专家一个临时评分链接，不打开大屏也能收分",
       },
       {
         key: "archive",
         title: "汇总归档",
         icon: Download,
         metric: activeGroupFinalScoreText === "--" ? "待汇总" : activeGroupFinalScoreText,
-        description: "导出评分明细与顺序表",
+        description: "完成后归档复核",
       },
+    ];
+    const commandStatusLabel =
+      groupedAssignments.length === 0
+        ? "待创建"
+        : commandActiveStep === "draw"
+          ? "抽签与顺序准备"
+          : commandActiveStep === "score"
+            ? "专家评分收集中"
+            : "收尾归档";
+    const normalizedCurrentRoundLabel = activeGroup?.roundLabel?.trim() ?? "";
+    const currentRoundModeLabel = activeGroupIsRoadshow ? "项目路演" : "网络评审";
+    const roundLabelLooksNumeric = /^\d+$/.test(normalizedCurrentRoundLabel);
+    const currentRoundTitle = activeGroup
+      ? roundLabelLooksNumeric
+        ? `第 ${normalizedCurrentRoundLabel} 轮${currentRoundModeLabel}`
+        : normalizedCurrentRoundLabel || `本轮${currentRoundModeLabel}`
+      : "尚未创建本轮评审";
+    const currentRoundSubtitle = activeGroup
+      ? `${activeStageGroups.length || groupedAssignments.length || 1} 个项目 · ${activeExpertSeatCount || 0} 位专家 · ${
+          activeGroupIsRoadshow ? "项目路演" : "网络评审"
+        }`
+      : "先导入本轮项目和专家，后续抽签、评分、统计都围绕这一轮展开。";
+    const essentialStats = [
+      { label: "本轮项目", value: commandProjectCount || 0 },
+      { label: "专家席位", value: activeExpertSeatCount || 0 },
+      { label: "已提交", value: `${commandSubmittedScoreSlots}/${commandTotalScoreSlots || 0}` },
+      { label: "待提交", value: pendingReviewCount },
     ];
 
     return (
       <section className="review-command-center overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
-        <div className="grid gap-4 bg-[linear-gradient(135deg,#0f2b55,#174c8e_58%,#8b1e32)] px-5 py-5 text-white lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+        <div className="review-current-round-panel grid gap-5 bg-[linear-gradient(135deg,#0f2b55,#174c8e_58%,#8b1e32)] px-5 py-5 text-white xl:grid-cols-[minmax(0,1fr)_320px] xl:items-stretch">
           <div className="min-w-0">
             <p className="text-xs font-black tracking-[0.18em] text-white/65">COMPETITION REVIEW</p>
-            <h3 className="mt-2 text-2xl font-black tracking-normal">评审总控台</h3>
+            <h3 className="mt-2 text-2xl font-black tracking-normal">当前轮次工作台</h3>
             <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-white/74">
-              按准备、抽签、评分、归档四步推进；常用入口放在首屏，现场控制和详细矩阵保留下方。
+              当前环节只展示本轮需要处理的事项；后台维护、历史复核和导出统一收进更多管理。
             </p>
-          </div>
-          <div className="rounded-2xl border border-white/15 bg-white/10 px-4 py-3 backdrop-blur">
-            <p className="text-xs font-black text-white/60">下一步建议</p>
-            <p className="mt-1 text-base font-black">{commandPrimaryAction.label}</p>
-            <p className="mt-1 max-w-[260px] text-xs font-semibold leading-5 text-white/68">{commandPrimaryAction.description}</p>
-          </div>
-        </div>
-
-        <div className="grid gap-3 border-b border-slate-100 bg-slate-50/70 p-4 xl:grid-cols-4">
-          {workflowCards.map((card, index) => {
-            const Icon = card.icon;
-            const active = card.key === commandActiveStep;
-            return (
-              <article
-                className={`rounded-2xl border bg-white p-4 transition ${
-                  active
-                    ? "border-blue-200 shadow-[0_14px_34px_rgba(30,94,255,0.12)]"
-                    : "border-slate-200"
-                }`}
-                key={card.key}
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <span
-                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${
-                      active ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-500"
-                    }`}
-                  >
-                    <Icon className="h-5 w-5" />
-                  </span>
-                  <span
-                    className={`rounded-full px-2.5 py-1 font-mono text-[11px] font-black ${
-                      active ? "bg-blue-50 text-blue-700" : "bg-slate-100 text-slate-500"
-                    }`}
-                  >
-                    {String(index + 1).padStart(2, "0")}
-                  </span>
+            <div className="mt-5 rounded-2xl border border-white/15 bg-white/10 p-4 backdrop-blur">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                <div className="min-w-0">
+                  <p className="text-xs font-black text-white/55">本轮状态</p>
+                  <h4 className="mt-1 truncate text-xl font-black text-white">{currentRoundTitle}</h4>
+                  <p className="mt-1 text-sm font-semibold leading-6 text-white/68">{currentRoundSubtitle}</p>
                 </div>
-                <h4 className="mt-4 text-base font-black text-slate-950">{card.title}</h4>
-                <p className={`mt-2 font-mono text-xl font-black ${active ? "text-blue-700" : "text-slate-700"}`}>
-                  {card.metric}
-                </p>
-                <p className="mt-2 min-h-10 text-xs font-semibold leading-5 text-slate-500">{card.description}</p>
-              </article>
-            );
-          })}
-        </div>
-
-        <div className="flex flex-col gap-3 px-4 py-4 md:flex-row md:items-center">
-          <div className="grid flex-1 gap-2 text-xs font-bold text-slate-500 sm:grid-cols-3">
-            <span className="rounded-xl bg-slate-50 px-3 py-2">本轮项目：{commandProjectCount || 0}</span>
-            <span className="rounded-xl bg-slate-50 px-3 py-2">专家席位：{activeExpertSeatCount || 0}</span>
-            <span className="rounded-xl bg-slate-50 px-3 py-2">待提交：{pendingReviewCount}</span>
+                <span className="w-fit shrink-0 rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-xs font-black text-white">
+                  {commandStatusLabel}
+                </span>
+              </div>
+              <div className="mt-4 grid gap-2 sm:grid-cols-4">
+                {essentialStats.map((item) => (
+                  <div className="rounded-xl bg-white/10 px-3 py-3" key={item.label}>
+                    <p className="font-mono text-lg font-black text-white">{item.value}</p>
+                    <p className="mt-1 text-[10px] font-black text-white/48">{item.label}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
-          <div className="flex flex-wrap gap-2 md:justify-end">
-            {canCreateReviewPackage ? (
-              <button
-                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
-                onClick={() => openReviewAssignmentModal()}
-                type="button"
-              >
-                <Plus className="h-4 w-4" />
-                新建评审
-              </button>
-            ) : null}
-            {canManageReviewMaterials ? (
-              <button
-                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
-                onClick={() => void openResetHistory()}
-                type="button"
-              >
-                <Clock3 className="h-4 w-4" />
-                重置历史
-              </button>
-            ) : null}
+          <div className="review-primary-command flex flex-col justify-between rounded-2xl border border-white/15 bg-white px-4 py-4 text-slate-950 shadow-[0_18px_40px_rgba(8,15,28,0.20)]">
+            <div>
+              <p className="text-xs font-black tracking-[0.16em] text-blue-600">下一步主操作</p>
+              <p className="mt-2 text-xl font-black">{commandPrimaryAction.label}</p>
+            </div>
+            <p className="mt-2 max-w-[260px] text-xs font-semibold leading-5 text-slate-500">{commandPrimaryAction.description}</p>
+            <div className="mt-4 grid gap-2 text-[11px] font-black text-slate-600">
+              <span className="rounded-lg bg-blue-50 px-3 py-2 text-blue-700">
+                团队抽签：注册 {registeredProjectCount}/{commandProjectOrder.length || commandProjectCount || 0} · 抽签 {drawnProjectCount}/{commandProjectOrder.length || commandProjectCount || 0}
+              </span>
+              <span className="rounded-lg bg-emerald-50 px-3 py-2 text-emerald-700">
+                专家评分：链接 {activeGuestLinkCount}/{activeExpertSeatCount || 0} · 提交 {commandSubmittedScoreSlots}/{commandTotalScoreSlots || 0}
+              </span>
+            </div>
             <button
-              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
-              onClick={downloadReviewScoreDetails}
-              type="button"
-            >
-              <Download className="h-4 w-4" />
-              导出评分
-            </button>
-            <button
-              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 text-xs font-black text-white shadow-[0_12px_24px_rgba(37,99,235,0.22)] transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
+              className="mt-5 inline-flex min-h-12 items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 text-sm font-black text-white shadow-[0_12px_24px_rgba(37,99,235,0.22)] transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
               disabled={commandPrimaryAction.disabled}
               onClick={commandPrimaryAction.onClick}
               type="button"
@@ -4022,6 +4077,90 @@ export default function ExpertReviewTab() {
             </button>
           </div>
         </div>
+
+        <div className="review-workflow-strip grid gap-2 border-b border-slate-100 bg-slate-50/70 p-3 xl:grid-cols-4">
+          {workflowCards.map((card, index) => {
+            const Icon = card.icon;
+            const active = card.key === commandActiveStep;
+            return (
+              <article
+                className={`review-step-gate rounded-2xl border bg-white p-3 transition ${
+                  active
+                    ? "border-blue-200 shadow-[0_14px_34px_rgba(30,94,255,0.12)]"
+                    : "border-slate-200"
+                }`}
+                key={card.key}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <span
+                    className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-xl ${
+                      active ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-500"
+                    }`}
+                  >
+                    <Icon className="h-4 w-4" />
+                  </span>
+                  <span
+                    className={`rounded-full px-2.5 py-1 font-mono text-[11px] font-black ${
+                      active ? "bg-blue-50 text-blue-700" : "bg-slate-100 text-slate-500"
+                    }`}
+                  >
+                    {String(index + 1).padStart(2, "0")}
+                  </span>
+                </div>
+                <h4 className="mt-3 text-sm font-black text-slate-950">{card.title}</h4>
+                <p className={`mt-2 font-mono text-base font-black ${active ? "text-blue-700" : "text-slate-700"}`}>
+                  {card.metric}
+                </p>
+                <p className="mt-1 min-h-8 text-[11px] font-semibold leading-4 text-slate-500">{card.description}</p>
+              </article>
+            );
+          })}
+        </div>
+
+        <details className="review-management-drawer group border-t border-slate-100 bg-white">
+          <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-black text-slate-700 transition hover:bg-slate-50">
+            <span>更多管理</span>
+            <span className="inline-flex items-center gap-1 text-xs text-blue-600">
+              展开
+              <ChevronRight className="h-4 w-4 transition group-open:rotate-90" />
+            </span>
+          </summary>
+          <div className="flex flex-col gap-3 border-t border-slate-100 bg-slate-50/60 px-4 py-4 md:flex-row md:items-center md:justify-between">
+            <p className="max-w-2xl text-xs font-semibold leading-5 text-slate-500">
+              这里放低频操作：补建评审、查看重置记录、导出明细。正常评审时不用展开。
+            </p>
+            <div className="flex flex-wrap gap-2 md:justify-end">
+              {canCreateReviewPackage ? (
+                <button
+                  className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
+                  onClick={() => openReviewAssignmentModal()}
+                  type="button"
+                >
+                  <Plus className="h-4 w-4" />
+                  新建评审
+                </button>
+              ) : null}
+              {canManageReviewMaterials ? (
+                <button
+                  className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
+                  onClick={() => void openResetHistory()}
+                  type="button"
+                >
+                  <Clock3 className="h-4 w-4" />
+                  重置历史
+                </button>
+              ) : null}
+              <button
+                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
+                onClick={downloadReviewScoreDetails}
+                type="button"
+              >
+                <Download className="h-4 w-4" />
+                导出评分
+              </button>
+            </div>
+          </div>
+        </details>
       </section>
     );
   };
@@ -4288,16 +4427,12 @@ export default function ExpertReviewTab() {
 
       {canManageReviewMaterials ? renderCompetitionReviewCommandCenter() : null}
 
-      {renderAdvancedProjectStageReuse()}
-
       {groupedAssignments.length === 0 ? (
         <section className="rounded-3xl border border-slate-200 bg-white p-8">
           <EmptyState description="先新建大赛评审，导入本轮项目并选择专家后，这里会实时显示每位专家的原始分数。" icon={FileCheck} title="暂无评审任务" />
         </section>
       ) : activeGroupIsRoadshow && activeGroup ? (
         <main className="space-y-5">
-          {renderRawScoreMatrix()}
-          {renderRoadshowGroupCards()}
           {activeRoadshowConsoleFinished ? (
             <section className="rounded-2xl border border-emerald-100 bg-emerald-50 p-6 shadow-sm">
               <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
@@ -4322,6 +4457,8 @@ export default function ExpertReviewTab() {
           ) : (
             renderReviewScreenConsole(activeGroup)
           )}
+          {renderRawScoreMatrix()}
+          {renderRoadshowGroupCards()}
         </main>
       ) : (
         <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
@@ -4526,6 +4663,8 @@ export default function ExpertReviewTab() {
           </aside>
         </div>
       )}
+
+      {renderAdvancedProjectStageReuse()}
       <ReviewScreenRevealConfirmModal
         isSubmitting={Boolean(pendingRevealConfirmation && reviewScreenActionKey === `${pendingRevealConfirmation.groupKey}:reveal`)}
         onCancel={() => setPendingRevealConfirmation(null)}

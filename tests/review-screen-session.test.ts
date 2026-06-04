@@ -427,8 +427,8 @@ describe("roadshow review screen session", () => {
     assert.doesNotMatch(adminTabSource, /投屏同步中/);
     assert.doesNotMatch(adminTabSource, /phase-control-bar/);
     assert.doesNotMatch(adminTabSource, /现场检查/);
-    assert.match(adminTabSource, /评审总控台/);
-    assert.match(adminTabSource, /下一步建议/);
+    assert.match(adminTabSource, /当前轮次工作台/);
+    assert.match(adminTabSource, /下一步主操作/);
     assert.match(adminTabSource, /流程控制/);
     assert.doesNotMatch(adminTabSource, /本轮进度/);
     assert.match(adminTabSource, /projectProgressItems/);
@@ -818,6 +818,8 @@ describe("roadshow review screen session", () => {
     assert.match(teamDrawInfoRouteSource, /teamDrawTokens:\s*\{/);
     assert.match(teamDrawInfoRouteSource, /where:\s*\{\s*sessionId\s*\}/);
     assert.match(teamDrawInfoRouteSource, /registered:\s*Boolean\(\s*order\.reviewPackage\.teamDrawTokens\.length/);
+    assert.match(publicRouteSource, /registered:\s*Boolean\(/);
+    assert.match(publicRouteSource, /teamDrawTokens:\s*\{/);
     assert.match(teamDrawInfoRouteSource, /user\.teamGroupId/);
     assert.doesNotMatch(teamDrawInfoRouteSource, /请先登录团队账号/);
     assert.doesNotMatch(teamDrawInfoRouteSource, /当前账号未绑定参赛团队/);
@@ -860,6 +862,11 @@ describe("roadshow review screen session", () => {
     assert.match(adminTabSource, /teamDrawUrl/);
     assert.match(adminTabSource, /复制抽签入口/);
     assert.match(adminTabSource, /团队进入后选择自己的项目，确认后注册并抽签/);
+    assert.match(adminTabSource, /团队抽签状态/);
+    assert.match(adminTabSource, /registeredProjectCount/);
+    assert.match(adminTabSource, /drawnProjectCount/);
+    assert.match(adminTabSource, /teamDrawBlockingStart/);
+    assert.match(adminTabSource, /等待团队完成抽签/);
     assert.doesNotMatch(adminTabSource, /复制团队链接/);
     assert.doesNotMatch(adminTabSource, /导出团队链接/);
   });

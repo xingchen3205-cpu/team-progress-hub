@@ -390,8 +390,8 @@ describe("expert review v2 constraints", () => {
     const tabSource = readSource("src/components/tabs/expert-review-tab-content.tsx");
 
     assert.match(tabSource, /renderCompetitionReviewCommandCenter/);
-    assert.match(tabSource, /评审总控台/);
-    assert.match(tabSource, /下一步建议/);
+    assert.match(tabSource, /当前轮次工作台/);
+    assert.match(tabSource, /下一步主操作/);
     assert.match(tabSource, /准备评审/);
     assert.match(tabSource, /团队抽签/);
     assert.match(tabSource, /专家评分/);
@@ -399,8 +399,57 @@ describe("expert review v2 constraints", () => {
     assert.match(tabSource, /一个入口发微信群/);
     assert.match(tabSource, /每位专家一个临时评分链接/);
     assert.match(tabSource, /不打开大屏也能收分/);
-    assert.match(tabSource, /导出评分明细与顺序表/);
+    assert.match(tabSource, /完成后归档复核/);
     assert.match(tabSource, /review-command-center/);
+    assert.match(tabSource, /review-step-gate/);
+    assert.match(tabSource, /注册/);
+    assert.match(tabSource, /抽签/);
+    assert.match(tabSource, /activeGuestLinkUsedCount/);
+  });
+
+  it("keeps secondary management out of the current round command surface", () => {
+    const tabSource = readSource("src/components/tabs/expert-review-tab-content.tsx");
+    const primaryStart = tabSource.indexOf("review-primary-command");
+    const drawerStart = tabSource.indexOf("review-management-drawer");
+
+    assert.notEqual(primaryStart, -1, "missing primary command area");
+    assert.notEqual(drawerStart, -1, "missing secondary management drawer");
+    assert.ok(primaryStart < drawerStart, "secondary management drawer should follow the primary command area");
+
+    const primaryCommandArea = tabSource.slice(primaryStart, drawerStart);
+    assert.match(primaryCommandArea, /下一步主操作/);
+    assert.match(primaryCommandArea, /团队抽签/);
+    assert.match(primaryCommandArea, /专家评分/);
+    assert.doesNotMatch(primaryCommandArea, /重置历史/);
+    assert.doesNotMatch(primaryCommandArea, /导出评分/);
+    assert.doesNotMatch(primaryCommandArea, /常用入口放在首屏/);
+
+    const secondaryDrawer = tabSource.slice(drawerStart, drawerStart + 3600);
+    assert.match(secondaryDrawer, /更多管理/);
+    assert.match(secondaryDrawer, /新建评审/);
+    assert.match(secondaryDrawer, /重置历史/);
+    assert.match(secondaryDrawer, /导出评分/);
+  });
+
+  it("formats numeric round labels into readable current round titles", () => {
+    const tabSource = readSource("src/components/tabs/expert-review-tab-content.tsx");
+
+    assert.match(tabSource, /roundLabelLooksNumeric/);
+    assert.match(tabSource, /第 \$\{normalizedCurrentRoundLabel\} 轮\$\{currentRoundModeLabel\}/);
+    assert.doesNotMatch(tabSource, /const currentRoundTitle = activeGroup\?\.roundLabel \?\?/);
+  });
+
+  it("puts live roadshow controls before score monitoring and advanced reuse", () => {
+    const tabSource = readSource("src/components/tabs/expert-review-tab-content.tsx");
+    const firstConsoleCall = tabSource.indexOf("renderReviewScreenConsole(activeGroup)");
+    const firstMatrixCall = tabSource.indexOf("{renderRawScoreMatrix()}");
+    const advancedReuseCall = tabSource.indexOf("{renderAdvancedProjectStageReuse()}");
+
+    assert.notEqual(firstConsoleCall, -1, "missing live review console call");
+    assert.notEqual(firstMatrixCall, -1, "missing raw score matrix call");
+    assert.notEqual(advancedReuseCall, -1, "missing advanced reuse panel call");
+    assert.ok(firstConsoleCall < firstMatrixCall, "live controls should appear before score monitoring");
+    assert.ok(firstConsoleCall < advancedReuseCall, "advanced reuse should not interrupt the current round workflow");
   });
 
   it("keeps the review page intro informational and leaves commands in the command center", () => {

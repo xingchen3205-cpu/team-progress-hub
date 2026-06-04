@@ -130,6 +130,23 @@ export async function GET(
                   },
                 },
               },
+              teamDrawTokens: {
+                where: { sessionId },
+                take: 1,
+                select: { id: true, usedAt: true },
+              },
+              teamGroup: {
+                select: {
+                  members: {
+                    where: {
+                      role: { in: ["leader", "member"] },
+                      approvalStatus: "approved",
+                    },
+                    take: 1,
+                    select: { id: true },
+                  },
+                },
+              },
             },
           },
         },
@@ -408,6 +425,9 @@ export async function GET(
       groupName: order?.groupName ?? "第一组",
       groupIndex: order?.groupIndex ?? 0,
       groupSlotIndex: order?.groupSlotIndex ?? index,
+      registered: Boolean(
+        order?.reviewPackage.teamDrawTokens.length || order?.reviewPackage.teamGroup?.members.length,
+      ),
       selfDrawnAt: order?.selfDrawnAt?.toISOString() ?? null,
       revealedAt: order?.revealedAt?.toISOString() ?? null,
     };
