@@ -3993,6 +3993,16 @@ export default function ExpertReviewTab() {
                 新建评审
               </button>
             ) : null}
+            {canManageReviewMaterials ? (
+              <button
+                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
+                onClick={() => void openResetHistory()}
+                type="button"
+              >
+                <Clock3 className="h-4 w-4" />
+                重置历史
+              </button>
+            ) : null}
             <button
               className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
               onClick={downloadReviewScoreDetails}
@@ -4248,40 +4258,31 @@ export default function ExpertReviewTab() {
           </div>
         </Workspace.Modal>
       ) : null}
-      <section className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-        <div>
-          <h2 className="text-[22px] font-extrabold text-slate-950">专家评审</h2>
-          <p className="mt-1 text-sm text-slate-500">
-            {activeGroup
-              ? `${activeGroup.roundLabel} · ${isRoadshowAssignment(activeGroup.items[0]) ? "项目路演" : "网络评审"} · 评审管理与投屏控制`
-              : "导入项目、分配专家、收集评分；大屏和抽签按需要开启"}
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {canManageReviewMaterials ? (
-            <button
-              className="rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
-              onClick={() => void openResetHistory()}
-              type="button"
-            >
-              重置历史
-            </button>
-          ) : null}
-          <button
-            className="rounded-lg border border-slate-200 bg-white px-4 py-2.5 text-sm font-bold text-slate-700 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
-            onClick={downloadReviewScoreDetails}
-            type="button"
-          >
-            导出评分明细
-          </button>
-          {canCreateReviewPackage ? (
-            <ActionButton onClick={openReviewAssignmentModal} variant="primary">
-              <span className="inline-flex items-center gap-2">
-                <Plus className="h-4 w-4" />
-                新建大赛评审
-              </span>
-            </ActionButton>
-          ) : null}
+      <section className="review-page-intro rounded-2xl border border-slate-200 bg-white/85 px-5 py-4 shadow-sm backdrop-blur">
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+          <div className="min-w-0">
+            <p className="text-xs font-black tracking-[0.18em] text-blue-600">REVIEW WORKFLOW</p>
+            <h2 className="mt-1 text-[22px] font-black text-slate-950">评审流程中台</h2>
+            <p className="mt-1 max-w-3xl text-sm font-semibold leading-6 text-slate-500">
+              {activeGroup
+                ? `${activeGroup.roundLabel} · ${isRoadshowAssignment(activeGroup.items[0]) ? "项目路演" : "网络评审"} · 操作入口已集中到下方总控台`
+                : "导入项目、分配专家、收集评分；操作入口已集中到下方总控台，大屏和抽签按需要开启。"}
+            </p>
+          </div>
+          <div className="grid shrink-0 grid-cols-3 gap-2 text-center">
+            <div className="rounded-xl bg-slate-50 px-3 py-2">
+              <p className="font-mono text-lg font-black text-slate-950">{activeStageGroups.length || groupedAssignments.length || 0}</p>
+              <p className="mt-0.5 text-[10px] font-bold text-slate-400">项目</p>
+            </div>
+            <div className="rounded-xl bg-blue-50 px-3 py-2">
+              <p className="font-mono text-lg font-black text-blue-700">{activeExpertSeatCount || 0}</p>
+              <p className="mt-0.5 text-[10px] font-bold text-slate-400">专家</p>
+            </div>
+            <div className="rounded-xl bg-emerald-50 px-3 py-2">
+              <p className="font-mono text-lg font-black text-emerald-700">{finishedReviewCount}</p>
+              <p className="mt-0.5 text-[10px] font-bold text-slate-400">提交</p>
+            </div>
+          </div>
         </div>
       </section>
 

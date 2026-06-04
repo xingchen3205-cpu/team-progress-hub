@@ -151,7 +151,7 @@ describe("expert review v2 constraints", () => {
     assert.match(tabSource, /项目网络评审/);
     assert.match(tabSource, /项目路演评审/);
     assert.match(tabSource, /确认提交/);
-    assert.match(tabSource, /评审管理/);
+    assert.match(tabSource, /评审流程中台/);
     assert.match(tabSource, /导出评分明细/);
     assert.match(tabSource, /downloadReviewScoreDetails/);
     assert.match(tabSource, /提交评分/);
@@ -401,6 +401,26 @@ describe("expert review v2 constraints", () => {
     assert.match(tabSource, /不打开大屏也能收分/);
     assert.match(tabSource, /导出评分明细与顺序表/);
     assert.match(tabSource, /review-command-center/);
+  });
+
+  it("keeps the review page intro informational and leaves commands in the command center", () => {
+    const tabSource = readSource("src/components/tabs/expert-review-tab-content.tsx");
+    const introMatch = tabSource.match(/<section className="review-page-intro[\s\S]*?<\/section>/);
+
+    assert.ok(introMatch, "missing review page intro section");
+    assert.match(introMatch[0], /评审流程中台/);
+    assert.match(introMatch[0], /操作入口已集中到下方总控台/);
+    assert.doesNotMatch(introMatch[0], /onClick=/);
+    assert.doesNotMatch(introMatch[0], /ActionButton/);
+    assert.doesNotMatch(introMatch[0], /新建大赛评审/);
+    assert.doesNotMatch(introMatch[0], /导出评分明细/);
+    assert.doesNotMatch(introMatch[0], /重置历史/);
+
+    const commandCenterMatch = tabSource.match(/<section className="review-command-center[\s\S]*?<\/section>/);
+    assert.ok(commandCenterMatch, "missing review command center");
+    assert.match(commandCenterMatch[0], /新建评审/);
+    assert.match(commandCenterMatch[0], /导出评分/);
+    assert.match(commandCenterMatch[0], /重置历史/);
   });
 
   it("uses an independent expert review window instead of the project material upload window", () => {
