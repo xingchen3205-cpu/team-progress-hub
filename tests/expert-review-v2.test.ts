@@ -278,10 +278,10 @@ describe("expert review v2 constraints", () => {
     assert.match(routeSource, /expertUserIds/);
     assert.match(routeSource, /createMany/);
     assert.match(routeSource, /expertReviewMaterial/);
-    assert.match(shellSource, /选择项目管理轮次/);
+    assert.match(shellSource, /项目管理来源（可选）/);
     assert.match(shellSource, /选择已生效项目材料/);
-    assert.match(shellSource, /批量选择专家/);
-    assert.match(tabSource, /可分配评审阶段/);
+    assert.match(shellSource, /选择专家/);
+    assert.match(tabSource, /复用已建评审阶段/);
     assert.match(tabSource, /分配专家并设置评审时间/);
     assert.doesNotMatch(shellSource, /评审对象 \/ 项目名称/);
     assert.doesNotMatch(shellSource, /和主文档中心完全分离/);
@@ -293,7 +293,7 @@ describe("expert review v2 constraints", () => {
     const contextSource = readSource("src/components/workspace-context.tsx");
     const routeSource = readSource("src/app/api/expert-reviews/assignments/route.ts");
 
-    assert.match(shellSource, /自定义项目名称/);
+    assert.match(shellSource, /临时评审项目名称/);
     assert.match(shellSource, /不绑定项目管理/);
     assert.match(contextSource, /请填写自定义项目名称/);
     assert.match(contextSource, /targetName:\s*reviewAssignmentDraft\.targetName\.trim\(\)/);
@@ -320,6 +320,12 @@ describe("expert review v2 constraints", () => {
     assert.match(shellSource, /handleCustomRoadshowProjectImageImport/);
     assert.match(shellSource, /max-w-\[min\(96vw,1120px\)\]/);
     assert.match(shellSource, /系统会自动读取“项目名称”列/);
+    assert.match(shellSource, /大赛评审向导/);
+    assert.match(shellSource, /导入本轮项目/);
+    assert.match(shellSource, /选择专家/);
+    assert.match(shellSource, /设置评审时间/);
+    assert.match(shellSource, /项目管理来源（可选）/);
+    assert.doesNotMatch(shellSource, /项目来源\s*<\/span>/);
     assert.match(contextSource, /customTargetNames:\s*\[\]/);
     assert.match(contextSource, /parseCustomReviewTargetNames\(reviewAssignmentDraft\.customTargetNames\)/);
     assert.match(contextSource, /请至少选择一个路演项目组或填写一个自定义项目/);
@@ -333,6 +339,16 @@ describe("expert review v2 constraints", () => {
     assert.match(ocrLibSource, /files\/upload/);
     assert.match(ocrLibSource, /transfer_method:\s*"local_file"/);
     assert.match(ocrLibSource, /projectNames/);
+  });
+
+  it("presents competition review creation as the primary admin workflow", () => {
+    const tabSource = readSource("src/components/tabs/expert-review-tab-content.tsx");
+
+    assert.match(tabSource, /新建大赛评审/);
+    assert.match(tabSource, /导入项目、分配专家、收集评分/);
+    assert.match(tabSource, /可选项目管理来源/);
+    assert.doesNotMatch(tabSource, /项目管理创建网络评审或项目路演后，可在这里分配专家/);
+    assert.doesNotMatch(tabSource, /从项目管理选择已生效材料并分配专家后/);
   });
 
   it("uses an independent expert review window instead of the project material upload window", () => {

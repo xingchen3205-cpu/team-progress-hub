@@ -1952,7 +1952,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
 
       {reviewAssignmentModalOpen ? (
         <Modal
-          title={isEditingReviewAssignment ? "编辑专家评审设置" : "分配专家评审"}
+          title={isEditingReviewAssignment ? "编辑大赛评审设置" : "大赛评审向导"}
           onClose={closeReviewAssignmentModal}
           panelClassName="max-w-[min(96vw,1120px)]"
         >
@@ -1962,9 +1962,31 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                 正在编辑已生成的评审包。可调整轮次名称、截止时间、说明和专家名单；已有评分的专家不会被移除，避免误删成绩。
               </div>
             ) : (
+              <div className="rounded-3xl border border-blue-100 bg-[linear-gradient(135deg,#eff6ff,#ffffff_52%,#f8fafc)] p-5">
+                <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                  <div>
+                    <p className="text-xs font-black tracking-wide text-blue-600">大赛评审向导</p>
+                    <h3 className="mt-1 text-xl font-black text-slate-950">按比赛当天的顺序创建本轮评审</h3>
+                    <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
+                      先导入本轮项目，再选择专家，最后设置评审时间；抽签、大屏、最终计分后续按需要开启。
+                    </p>
+                  </div>
+                  <div className="grid min-w-[280px] gap-2 sm:grid-cols-3 lg:min-w-[360px]">
+                    {["导入本轮项目", "选择专家", "设置评审时间"].map((label, index) => (
+                      <div className="rounded-2xl border border-blue-100 bg-white px-3 py-2 text-center shadow-sm" key={label}>
+                        <p className="font-mono text-sm font-black text-blue-600">{index + 1}</p>
+                        <p className="mt-1 text-xs font-black text-slate-700">{label}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {!isEditingReviewAssignment ? (
               <label className="block text-sm text-slate-500">
-                项目来源
-                <span className="ml-2 text-xs text-slate-400">可选择项目管理轮次，也可直接自定义项目名称</span>
+                项目管理来源（可选）
+                <span className="ml-2 text-xs text-slate-400">需要复用已建阶段时再选择；普通路演评审优先导入本轮项目</span>
                 <select
                   className={fieldClassName}
                   value={reviewAssignmentDraft.stageId}
@@ -1979,7 +2001,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                     }));
                   }}
                 >
-                  <option value="">自定义项目名称（不绑定项目管理）</option>
+                  <option value="">直接创建临时评审（不绑定项目管理）</option>
                   {projectStages.map((stage) => (
                     <option key={stage.id} value={stage.id}>
                       {stage.name} · {stage.typeLabel}
@@ -1987,11 +2009,11 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                   ))}
                 </select>
               </label>
-            )}
+            ) : null}
 
             {!isEditingReviewAssignment && !selectedReviewStage ? (
               <label className="block text-sm text-slate-500">
-                自定义项目名称
+                临时评审项目名称
                 <input
                   className={fieldClassName}
                   placeholder="请输入要评审的项目名称"
@@ -2006,6 +2028,13 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
               </label>
             ) : null}
 
+            <div className="flex items-center gap-3">
+              <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-slate-950 text-xs font-black text-white">3</span>
+              <div>
+                <p className="text-sm font-black text-slate-950">设置评审时间</p>
+                <p className="mt-0.5 text-xs text-slate-400">专家只在这个时间段内进入评审并提交分数。</p>
+              </div>
+            </div>
             <div className="grid gap-4 md:grid-cols-2">
               <label className="block text-sm text-slate-500">
                 评审轮次
@@ -2051,8 +2080,8 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                 <div className="rounded-3xl border border-blue-100 bg-blue-50/40 p-5">
                   <div className="flex items-center justify-between gap-3">
                     <div>
-                      <p className="text-xs font-bold text-blue-600">步骤 2 · 确认本轮路演项目</p>
-                      <p className="mt-1 text-base font-bold text-slate-950">选择项目组，或批量加入自定义项目</p>
+                      <p className="text-xs font-bold text-blue-600">步骤 1 · 导入本轮项目</p>
+                      <p className="mt-1 text-base font-bold text-slate-950">选择项目组，或批量加入路演项目</p>
                       <p className="mt-1 text-xs text-slate-500">
                         最终名单会用于抽签、大屏展示、专家评分和顺序表导出，保存前请核对项目名称。
                       </p>
@@ -2220,7 +2249,13 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
             ) : null}
 
             <div className="rounded-2xl border border-slate-200 bg-white p-4">
-              <p className="text-sm font-semibold text-slate-700">批量选择专家</p>
+              <div className="flex items-center gap-3">
+                <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-blue-600 text-xs font-black text-white">2</span>
+                <div>
+                  <p className="text-sm font-black text-slate-800">选择专家</p>
+                  <p className="mt-0.5 text-xs text-slate-400">本轮选择的专家会收到各自评分任务，后续可生成免登录评分链接。</p>
+                </div>
+              </div>
               <div className="mt-3 grid gap-2 sm:grid-cols-2">
                 {expertMembers.map((member) => (
                   <label

@@ -3893,7 +3893,7 @@ export default function ExpertReviewTab() {
           <p className="mt-1 text-sm text-slate-500">
             {activeGroup
               ? `${activeGroup.roundLabel} · ${isRoadshowAssignment(activeGroup.items[0]) ? "项目路演" : "网络评审"} · 评审管理与投屏控制`
-              : "评审管理与投屏控制"}
+              : "导入项目、分配专家、收集评分；大屏和抽签按需要开启"}
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -3917,7 +3917,7 @@ export default function ExpertReviewTab() {
             <ActionButton onClick={openReviewAssignmentModal} variant="primary">
               <span className="inline-flex items-center gap-2">
                 <Plus className="h-4 w-4" />
-                分配专家评审
+                新建大赛评审
               </span>
             </ActionButton>
           ) : null}
@@ -3928,9 +3928,9 @@ export default function ExpertReviewTab() {
         <section className="rounded-2xl border border-blue-100 bg-white p-5 shadow-sm">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
             <div>
-              <p className="text-sm font-semibold text-blue-600">项目管理阶段</p>
-              <h3 className="mt-1 text-lg font-bold text-slate-950">可分配评审阶段</h3>
-              <p className="mt-2 text-sm text-slate-500">项目管理创建网络评审或项目路演后，可在这里分配专家。</p>
+              <p className="text-sm font-semibold text-blue-600">可选项目管理来源</p>
+              <h3 className="mt-1 text-lg font-bold text-slate-950">复用已建评审阶段</h3>
+              <p className="mt-2 text-sm text-slate-500">需要复用历史阶段、已审批材料或已建项目组时从这里进入；日常办赛可直接点“新建大赛评审”。</p>
             </div>
             <span className="rounded-full bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700">
               {projectStages.length} 个阶段
@@ -3994,7 +3994,7 @@ export default function ExpertReviewTab() {
 
       {groupedAssignments.length === 0 ? (
         <section className="rounded-3xl border border-slate-200 bg-white p-8">
-          <EmptyState description="从项目管理选择已生效材料并分配专家后，专家评分数据会显示在这里。" icon={FileCheck} title="暂无评审任务" />
+          <EmptyState description="先新建大赛评审，导入本轮项目并选择专家后，这里会实时显示每位专家的原始分数。" icon={FileCheck} title="暂无评审任务" />
         </section>
       ) : activeGroupIsRoadshow && activeGroup ? (
         <main className="space-y-5">
