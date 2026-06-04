@@ -382,6 +382,23 @@ describe("expert review v2 constraints", () => {
     assert.doesNotMatch(tabSource, /生成投屏链接后展示后台监看数据/);
   });
 
+  it("surfaces a guided competition review command center for administrators", () => {
+    const tabSource = readSource("src/components/tabs/expert-review-tab-content.tsx");
+
+    assert.match(tabSource, /renderCompetitionReviewCommandCenter/);
+    assert.match(tabSource, /评审总控台/);
+    assert.match(tabSource, /下一步建议/);
+    assert.match(tabSource, /准备评审/);
+    assert.match(tabSource, /团队抽签/);
+    assert.match(tabSource, /专家评分/);
+    assert.match(tabSource, /汇总归档/);
+    assert.match(tabSource, /一个入口发微信群/);
+    assert.match(tabSource, /每位专家一个临时评分链接/);
+    assert.match(tabSource, /不打开大屏也能收分/);
+    assert.match(tabSource, /导出评分明细与顺序表/);
+    assert.match(tabSource, /review-command-center/);
+  });
+
   it("uses an independent expert review window instead of the project material upload window", () => {
     const contextSource = readSource("src/components/workspace-context.tsx");
     const shellSource = readSource("src/components/workspace-shell.tsx");

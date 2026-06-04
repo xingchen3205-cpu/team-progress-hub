@@ -427,7 +427,8 @@ describe("roadshow review screen session", () => {
     assert.doesNotMatch(adminTabSource, /投屏同步中/);
     assert.doesNotMatch(adminTabSource, /phase-control-bar/);
     assert.doesNotMatch(adminTabSource, /现场检查/);
-    assert.doesNotMatch(adminTabSource, /下一步建议/);
+    assert.match(adminTabSource, /评审总控台/);
+    assert.match(adminTabSource, /下一步建议/);
     assert.match(adminTabSource, /流程控制/);
     assert.doesNotMatch(adminTabSource, /本轮进度/);
     assert.match(adminTabSource, /projectProgressItems/);

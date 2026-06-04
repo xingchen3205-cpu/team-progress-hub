@@ -3756,6 +3756,180 @@ export default function ExpertReviewTab() {
   const activeStageHasLockedScore = activeStageGroups.some((group) =>
     group.items.some((assignment) => Boolean(assignment.score?.lockedAt)),
   );
+  const renderCompetitionReviewCommandCenter = () => {
+    const commandProjectCount = activeStageGroups.length || groupedAssignments.length;
+    const commandTotalScoreSlots = reviewAssignments.length;
+    const commandSubmittedScoreSlots = reviewAssignments.filter((assignment) => Boolean(assignment.score)).length;
+    const commandActiveStep =
+      groupedAssignments.length === 0
+        ? "prepare"
+        : activeGroupIsRoadshow && !activeScreenSession
+          ? "draw"
+          : pendingReviewCount > 0
+            ? "score"
+            : "archive";
+    const activeGuestLinkCount = activeGroup ? guestExpertLinks[activeGroup.key]?.length ?? 0 : 0;
+    const commandPrimaryAction =
+      groupedAssignments.length === 0
+        ? {
+            label: "新建大赛评审",
+            description: "先导入本轮项目，选择专家并设置评审时间。",
+            disabled: !canCreateReviewPackage,
+            onClick: () => openReviewAssignmentModal(),
+          }
+        : commandActiveStep === "draw" && activeGroup
+          ? {
+              label: "配置抽签与大屏",
+              description: "生成一个团队抽签入口；需要大屏时再打开监控。",
+              disabled: !canManageReviewMaterials,
+              onClick: () => setReviewConfigModalGroupKey(activeGroup.key),
+            }
+          : commandActiveStep === "score" && activeGroup && activeGuestLinkCount === 0
+            ? {
+                label: "生成专家临时链接",
+                description: "每位专家一个临时评分链接，微信发出即可开始收分。",
+                disabled: !activeGroup.projectReviewStageId || guestExpertLinkActionKey === activeGroup.key,
+                onClick: () => void generateGuestExpertLinks(activeGroup),
+              }
+            : commandActiveStep === "score"
+              ? {
+                  label: "查看原始分矩阵",
+                  description: "不打开大屏也能收分，后台实时看每位专家原始提交分。",
+                  disabled: false,
+                  onClick: () => document.getElementById("expert-score-matrix")?.scrollIntoView({ behavior: "smooth", block: "start" }),
+                }
+              : {
+                  label: "导出评分明细",
+                  description: "导出评分明细与顺序表，便于归档复核。",
+                  disabled: reviewAssignments.length === 0,
+                  onClick: downloadReviewScoreDetails,
+                };
+    const workflowCards = [
+      {
+        key: "prepare",
+        title: "准备评审",
+        icon: BookOpen,
+        metric: commandProjectCount > 0 ? `${commandProjectCount} 个项目` : "待创建",
+        description: "导入项目、临时专家、评审时间",
+      },
+      {
+        key: "draw",
+        title: "团队抽签",
+        icon: Shuffle,
+        metric: activeScreenSession?.teamDrawUrl ? "入口已生成" : activeScreenSession ? "大屏已生成" : "按需开启",
+        description: "一个入口发微信群，团队自选项目后注册抽签",
+      },
+      {
+        key: "score",
+        title: "专家评分",
+        icon: Users,
+        metric: `${commandSubmittedScoreSlots}/${commandTotalScoreSlots || 0} 已提交`,
+        description: "每位专家一个临时评分链接，不打开大屏也能收分",
+      },
+      {
+        key: "archive",
+        title: "汇总归档",
+        icon: Download,
+        metric: activeGroupFinalScoreText === "--" ? "待汇总" : activeGroupFinalScoreText,
+        description: "导出评分明细与顺序表",
+      },
+    ];
+
+    return (
+      <section className="review-command-center overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
+        <div className="grid gap-4 bg-[linear-gradient(135deg,#0f2b55,#174c8e_58%,#8b1e32)] px-5 py-5 text-white lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center">
+          <div className="min-w-0">
+            <p className="text-xs font-black tracking-[0.18em] text-white/65">COMPETITION REVIEW</p>
+            <h3 className="mt-2 text-2xl font-black tracking-normal">评审总控台</h3>
+            <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-white/74">
+              按准备、抽签、评分、归档四步推进；常用入口放在首屏，现场控制和详细矩阵保留下方。
+            </p>
+          </div>
+          <div className="rounded-2xl border border-white/15 bg-white/10 px-4 py-3 backdrop-blur">
+            <p className="text-xs font-black text-white/60">下一步建议</p>
+            <p className="mt-1 text-base font-black">{commandPrimaryAction.label}</p>
+            <p className="mt-1 max-w-[260px] text-xs font-semibold leading-5 text-white/68">{commandPrimaryAction.description}</p>
+          </div>
+        </div>
+
+        <div className="grid gap-3 border-b border-slate-100 bg-slate-50/70 p-4 xl:grid-cols-4">
+          {workflowCards.map((card, index) => {
+            const Icon = card.icon;
+            const active = card.key === commandActiveStep;
+            return (
+              <article
+                className={`rounded-2xl border bg-white p-4 transition ${
+                  active
+                    ? "border-blue-200 shadow-[0_14px_34px_rgba(30,94,255,0.12)]"
+                    : "border-slate-200"
+                }`}
+                key={card.key}
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <span
+                    className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl ${
+                      active ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-500"
+                    }`}
+                  >
+                    <Icon className="h-5 w-5" />
+                  </span>
+                  <span
+                    className={`rounded-full px-2.5 py-1 font-mono text-[11px] font-black ${
+                      active ? "bg-blue-50 text-blue-700" : "bg-slate-100 text-slate-500"
+                    }`}
+                  >
+                    {String(index + 1).padStart(2, "0")}
+                  </span>
+                </div>
+                <h4 className="mt-4 text-base font-black text-slate-950">{card.title}</h4>
+                <p className={`mt-2 font-mono text-xl font-black ${active ? "text-blue-700" : "text-slate-700"}`}>
+                  {card.metric}
+                </p>
+                <p className="mt-2 min-h-10 text-xs font-semibold leading-5 text-slate-500">{card.description}</p>
+              </article>
+            );
+          })}
+        </div>
+
+        <div className="flex flex-col gap-3 px-4 py-4 md:flex-row md:items-center">
+          <div className="grid flex-1 gap-2 text-xs font-bold text-slate-500 sm:grid-cols-3">
+            <span className="rounded-xl bg-slate-50 px-3 py-2">本轮项目：{commandProjectCount || 0}</span>
+            <span className="rounded-xl bg-slate-50 px-3 py-2">专家席位：{activeExpertSeatCount || 0}</span>
+            <span className="rounded-xl bg-slate-50 px-3 py-2">待提交：{pendingReviewCount}</span>
+          </div>
+          <div className="flex flex-wrap gap-2 md:justify-end">
+            {canCreateReviewPackage ? (
+              <button
+                className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
+                onClick={() => openReviewAssignmentModal()}
+                type="button"
+              >
+                <Plus className="h-4 w-4" />
+                新建评审
+              </button>
+            ) : null}
+            <button
+              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-3 text-xs font-black text-slate-700 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
+              onClick={downloadReviewScoreDetails}
+              type="button"
+            >
+              <Download className="h-4 w-4" />
+              导出评分
+            </button>
+            <button
+              className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-blue-600 px-4 text-xs font-black text-white shadow-[0_12px_24px_rgba(37,99,235,0.22)] transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300 disabled:shadow-none"
+              disabled={commandPrimaryAction.disabled}
+              onClick={commandPrimaryAction.onClick}
+              type="button"
+            >
+              {commandPrimaryAction.label}
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      </section>
+    );
+  };
   const renderRawScoreMatrix = () => {
     const matrixGroups = activeGroup ? getStageGroupsForReviewGroup(activeGroup) : groupedAssignments;
     const expertColumns = Array.from(
@@ -3772,7 +3946,7 @@ export default function ExpertReviewTab() {
     const totalCount = matrixGroups.reduce((count, group) => count + group.items.length, 0);
 
     return (
-      <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+      <section id="expert-score-matrix" className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div>
             <p className="text-xs font-black tracking-wide text-blue-600">后台收分监控</p>
@@ -4025,6 +4199,8 @@ export default function ExpertReviewTab() {
           ) : null}
         </div>
       </section>
+
+      {canManageReviewMaterials ? renderCompetitionReviewCommandCenter() : null}
 
       {canCreateReviewPackage && reconfigurableProjectStages.length > 0 ? (
         <section className="rounded-2xl border border-blue-100 bg-white p-5 shadow-sm">
