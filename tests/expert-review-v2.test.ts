@@ -293,10 +293,10 @@ describe("expert review v2 constraints", () => {
     const contextSource = readSource("src/components/workspace-context.tsx");
     const routeSource = readSource("src/app/api/expert-reviews/assignments/route.ts");
 
-    assert.match(shellSource, /临时评审项目名称/);
+    assert.match(shellSource, /单个补录项目（可选）/);
     assert.match(shellSource, /不绑定项目管理/);
-    assert.match(contextSource, /请填写自定义项目名称/);
-    assert.match(contextSource, /targetName:\s*reviewAssignmentDraft\.targetName\.trim\(\)/);
+    assert.match(contextSource, /请至少导入一个本轮项目或填写自定义项目名称/);
+    assert.match(contextSource, /reviewAssignmentDraft\.targetName\.trim\(\) \|\|[\s\S]*customTargetNames\[0\]/);
     assert.match(routeSource, /const customExpertUserIds/);
     assert.match(routeSource, /targetName,\s*roundLabel,\s*overview/);
     assert.match(routeSource, /expertReviewAssignment\.createMany/);
@@ -349,6 +349,37 @@ describe("expert review v2 constraints", () => {
     assert.match(tabSource, /可选项目管理来源/);
     assert.doesNotMatch(tabSource, /项目管理创建网络评审或项目路演后，可在这里分配专家/);
     assert.doesNotMatch(tabSource, /从项目管理选择已生效材料并分配专家后/);
+  });
+
+  it("lets administrators create a lightweight competition review from imported project names", () => {
+    const shellSource = readSource("src/components/workspace-shell.tsx");
+    const contextSource = readSource("src/components/workspace-context.tsx");
+    const routeSource = readSource("src/app/api/expert-reviews/assignments/route.ts");
+
+    assert.match(shellSource, /不需要先建项目管理阶段/);
+    assert.match(shellSource, /直接导入本轮路演项目/);
+    assert.match(shellSource, /临时录入专家账号/);
+    assert.match(shellSource, /确认后进入后台收分/);
+    assert.match(contextSource, /isDirectCompetitionReview/);
+    assert.match(contextSource, /customTargetNames\.length === 0/);
+    assert.match(contextSource, /isCustomReviewTarget && !reviewAssignmentDraft\.targetName\.trim\(\) && customTargetNames\.length === 0/);
+    assert.match(routeSource, /isDirectCompetitionReview/);
+    assert.match(routeSource, /projectReviewStage\.create/);
+    assert.match(routeSource, /type:\s*"roadshow"/);
+    assert.match(routeSource, /isOpen:\s*false/);
+    assert.match(routeSource, /直接导入本轮项目生成/);
+  });
+
+  it("shows a raw expert score matrix without requiring the roadshow screen", () => {
+    const tabSource = readSource("src/components/tabs/expert-review-tab-content.tsx");
+
+    assert.match(tabSource, /renderRawScoreMatrix/);
+    assert.match(tabSource, /专家原始分矩阵/);
+    assert.match(tabSource, /不打开大屏也会实时刷新/);
+    assert.match(tabSource, /score-matrix-table/);
+    assert.match(tabSource, /groupedAssignments/);
+    assert.match(tabSource, /getAverageScore\(group\)/);
+    assert.doesNotMatch(tabSource, /生成投屏链接后展示后台监看数据/);
   });
 
   it("uses an independent expert review window instead of the project material upload window", () => {

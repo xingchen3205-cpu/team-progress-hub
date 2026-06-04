@@ -2560,7 +2560,7 @@ export default function ExpertReviewTab() {
           </table>
         </div>
         {projectOrder.length === 0 ? (
-          <p className="px-4 py-8 text-center text-xs font-bold text-slate-400">生成投屏链接后展示后台监看数据</p>
+          <p className="px-4 py-8 text-center text-xs font-bold text-slate-400">暂无路演顺序；可先查看上方专家原始分矩阵</p>
         ) : null}
       </div>
     );
@@ -3756,6 +3756,108 @@ export default function ExpertReviewTab() {
   const activeStageHasLockedScore = activeStageGroups.some((group) =>
     group.items.some((assignment) => Boolean(assignment.score?.lockedAt)),
   );
+  const renderRawScoreMatrix = () => {
+    const matrixGroups = activeGroup ? getStageGroupsForReviewGroup(activeGroup) : groupedAssignments;
+    const expertColumns = Array.from(
+      new Map(
+        matrixGroups.flatMap((group) =>
+          group.items.map((assignment) => [assignment.expert.id, assignment.expert.name] as const),
+        ),
+      ).entries(),
+    ).map(([id, name]) => ({ id, name }));
+    const submittedCount = matrixGroups.reduce(
+      (count, group) => count + group.items.filter((assignment) => Boolean(assignment.score)).length,
+      0,
+    );
+    const totalCount = matrixGroups.reduce((count, group) => count + group.items.length, 0);
+
+    return (
+      <section className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <p className="text-xs font-black tracking-wide text-blue-600">后台收分监控</p>
+            <h3 className="mt-1 text-lg font-black text-slate-950">专家原始分矩阵</h3>
+            <p className="mt-2 text-sm leading-6 text-slate-500">
+              不打开大屏也会实时刷新；这里保留每位专家的原始提交分，最终平均分只作后台参考。
+            </p>
+          </div>
+          <div className="grid grid-cols-3 gap-2 text-center">
+            <div className="rounded-2xl bg-blue-50 px-4 py-3">
+              <p className="font-mono text-2xl font-black text-blue-700">{matrixGroups.length}</p>
+              <p className="mt-1 text-[11px] font-bold text-slate-400">项目</p>
+            </div>
+            <div className="rounded-2xl bg-slate-50 px-4 py-3">
+              <p className="font-mono text-2xl font-black text-slate-800">{expertColumns.length}</p>
+              <p className="mt-1 text-[11px] font-bold text-slate-400">专家</p>
+            </div>
+            <div className="rounded-2xl bg-emerald-50 px-4 py-3">
+              <p className="font-mono text-2xl font-black text-emerald-700">{submittedCount}/{totalCount}</p>
+              <p className="mt-1 text-[11px] font-bold text-slate-400">提交</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-4 overflow-x-auto rounded-2xl border border-slate-200">
+          <table className="score-matrix-table min-w-full border-collapse text-sm">
+            <thead className="bg-slate-50 text-xs text-slate-500">
+              <tr>
+                <th className="sticky left-0 z-10 min-w-[190px] border-b border-slate-200 bg-slate-50 px-4 py-3 text-left font-black">
+                  项目
+                </th>
+                {expertColumns.map((expert) => (
+                  <th className="min-w-[96px] border-b border-slate-200 px-3 py-3 text-center font-black" key={expert.id}>
+                    {expert.name}
+                  </th>
+                ))}
+                <th className="sticky right-0 z-10 min-w-[92px] border-b border-slate-200 bg-slate-50 px-4 py-3 text-center font-black">
+                  平均分
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {matrixGroups.map((group, index) => {
+                const averageScore = getAverageScore(group);
+                return (
+                  <tr className="bg-white transition hover:bg-slate-50" key={group.key}>
+                    <td className="sticky left-0 z-10 border-b border-slate-100 bg-white px-4 py-3">
+                      <div className="flex min-w-0 items-center gap-3">
+                        <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-blue-50 font-mono text-xs font-black text-blue-700">
+                          {index + 1}
+                        </span>
+                        <div className="min-w-0">
+                          <p className="truncate font-black text-slate-950">{group.targetName}</p>
+                          <p className="mt-1 truncate text-[11px] font-semibold text-slate-400">{group.roundLabel}</p>
+                        </div>
+                      </div>
+                    </td>
+                    {expertColumns.map((expert) => {
+                      const assignment = group.items.find((item) => item.expert.id === expert.id);
+                      const scoreText = assignment ? getLiveAssignmentScoreText(assignment) : "--";
+                      const submitted = Boolean(assignment?.score);
+                      return (
+                        <td className="border-b border-slate-100 px-3 py-3 text-center" key={`${group.key}:${expert.id}`}>
+                          <span
+                            className={`inline-flex min-w-16 justify-center rounded-xl px-3 py-1.5 font-mono text-sm font-black ${
+                              submitted ? "bg-emerald-50 text-emerald-700" : "bg-slate-50 text-slate-400"
+                            }`}
+                          >
+                            {scoreText === "--" ? "待提交" : scoreText}
+                          </span>
+                        </td>
+                      );
+                    })}
+                    <td className="sticky right-0 z-10 border-b border-slate-100 bg-slate-50 px-4 py-3 text-center font-mono text-base font-black text-slate-900">
+                      {averageScore == null ? "--" : averageScore.toFixed(2)}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </section>
+    );
+  };
   const deleteReviewStageAssignments = (group: ReviewGroup) =>
     deleteReviewAssignment(group.items[0].id, group.roundLabel || group.targetName, {
       permanent: activeStageHasLockedScore,
@@ -3998,6 +4100,7 @@ export default function ExpertReviewTab() {
         </section>
       ) : activeGroupIsRoadshow && activeGroup ? (
         <main className="space-y-5">
+          {renderRawScoreMatrix()}
           {renderRoadshowGroupCards()}
           {activeRoadshowConsoleFinished ? (
             <section className="rounded-2xl border border-emerald-100 bg-emerald-50 p-6 shadow-sm">
@@ -4027,6 +4130,7 @@ export default function ExpertReviewTab() {
       ) : (
         <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
           <main className="space-y-5">
+            {renderRawScoreMatrix()}
             {activeGroup ? (
               <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                 <div className="flex flex-col gap-4 md:flex-row md:items-center">

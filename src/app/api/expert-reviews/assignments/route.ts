@@ -197,6 +197,101 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: "评审截止时间必须晚于评审开始时间" }, { status: 400 });
   }
 
+  const isDirectCompetitionReview = !stageId && customTargetNames.length > 0;
+
+  if (isDirectCompetitionReview) {
+    const directExpertUserIds = expertUserIds.length > 0 ? expertUserIds : expertUserId ? [expertUserId] : [];
+    if (directExpertUserIds.length === 0) {
+      return NextResponse.json({ message: "请选择评审专家" }, { status: 400 });
+    }
+
+    const expertCount = await prisma.user.count({
+      where: { id: { in: directExpertUserIds }, role: "expert" },
+    });
+
+    if (expertCount !== directExpertUserIds.length) {
+      return NextResponse.json({ message: "请选择有效的评审专家账号" }, { status: 400 });
+    }
+
+    const scoreRuleError = validateReviewScoreRule({
+      expertCount: directExpertUserIds.length,
+      dropHighestCount,
+      dropLowestCount,
+    });
+    if (scoreRuleError) {
+      return NextResponse.json({ message: scoreRuleError }, { status: 400 });
+    }
+
+    if (!startAt || !deadline) {
+      return NextResponse.json({ message: "请设置专家评审开始时间和截止时间" }, { status: 400 });
+    }
+
+    const effectiveRoundLabel = roundLabel || "创新创业大赛路演评审";
+    const effectiveOverview = overview || "直接导入本轮项目生成，专家按项目顺序逐项评分。";
+
+    const assignments = await prisma.$transaction(async (tx) => {
+      const projectReviewStage = await tx.projectReviewStage.create({
+        data: {
+          name: effectiveRoundLabel,
+          type: "roadshow",
+          description: effectiveOverview,
+          isOpen: false,
+          startAt,
+          deadline,
+          createdById: user.id,
+          teamGroupId: hasGlobalAdminPrivileges(user.role) ? null : user.teamGroupId,
+        },
+        select: { id: true },
+      });
+
+      const packageIds: string[] = [];
+      for (const name of customTargetNames) {
+        const reviewPackage = await tx.expertReviewPackage.create({
+          data: {
+            targetName: name,
+            roundLabel: effectiveRoundLabel,
+            overview: effectiveOverview,
+            status: "configured",
+            startAt,
+            deadline,
+            dropHighestCount,
+            dropLowestCount,
+            createdById: user.id,
+            teamGroupId: null,
+            projectReviewStageId: projectReviewStage.id,
+          },
+          select: { id: true },
+        });
+        packageIds.push(reviewPackage.id);
+
+        await tx.expertReviewAssignment.createMany({
+          data: directExpertUserIds.map((id) => ({
+            packageId: reviewPackage.id,
+            expertUserId: id,
+          })),
+        });
+      }
+
+      return tx.expertReviewAssignment.findMany({
+        where: { packageId: { in: packageIds } },
+        include: assignmentInclude,
+        orderBy: [{ createdAt: "desc" }],
+      });
+    });
+
+    const serializedAssignments = assignments.map((assignment) =>
+      redactExpertReviewAssignmentForRole(serializeExpertReviewAssignment(assignment), user.role),
+    );
+
+    return NextResponse.json(
+      {
+        assignment: serializedAssignments[0] ?? null,
+        assignments: serializedAssignments,
+      },
+      { status: 201 },
+    );
+  }
+
   if (stageId || materialSubmissionIds.length > 0 || teamGroupIds.length > 0 || customTargetNames.length > 0) {
     if (!stageId || expertUserIds.length === 0) {
       return NextResponse.json({ message: "请选择项目管理轮次和评审专家" }, { status: 400 });

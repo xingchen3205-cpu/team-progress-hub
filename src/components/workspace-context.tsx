@@ -1851,8 +1851,8 @@ export const defaultExpertReviewAssignmentDraft = (
     overview: "",
     startAt: reviewWindow.startAt,
     deadline: reviewWindow.deadline,
-    dropHighestCount: "1",
-    dropLowestCount: "1",
+    dropHighestCount: "0",
+    dropLowestCount: "0",
   };
 };
 
@@ -6760,9 +6760,10 @@ function useWorkspaceController({
     const selectedStage = projectStages.find((stage) => stage.id === reviewAssignmentDraft.stageId) ?? null;
     const isCustomReviewTarget = !reviewAssignmentDraft.stageId;
     const customTargetNames = parseCustomReviewTargetNames(reviewAssignmentDraft.customTargetNames);
+    const isDirectCompetitionReview = isCustomReviewTarget && customTargetNames.length > 0;
 
-    if (isCustomReviewTarget && !reviewAssignmentDraft.targetName.trim()) {
-      setLoadError("请填写自定义项目名称");
+    if (isCustomReviewTarget && !reviewAssignmentDraft.targetName.trim() && customTargetNames.length === 0) {
+      setLoadError("请至少导入一个本轮项目或填写自定义项目名称");
       return;
     }
 
@@ -6811,7 +6812,10 @@ function useWorkspaceController({
         method: "POST",
         body: JSON.stringify({
           stageId: reviewAssignmentDraft.stageId || undefined,
-          targetName: reviewAssignmentDraft.targetName.trim(),
+          targetName:
+            reviewAssignmentDraft.targetName.trim() ||
+            customTargetNames[0] ||
+            reviewAssignmentDraft.roundLabel.trim(),
           materialSubmissionIds: isCustomReviewTarget ? [] : reviewAssignmentDraft.materialSubmissionIds,
           teamGroupIds: isCustomReviewTarget ? [] : reviewAssignmentDraft.teamGroupIds,
           customTargetNames,
@@ -6834,7 +6838,11 @@ function useWorkspaceController({
       setReviewAssignmentDraft(defaultExpertReviewAssignmentDraft(expertMembers[0]?.id ?? ""));
       showSuccessToast(
         "评审任务已生成",
-        isCustomReviewTarget ? "已按自定义项目名称分配给专家。" : "已按项目管理轮次分配给专家。",
+        isDirectCompetitionReview
+          ? "已直接导入本轮项目并分配给专家。"
+          : isCustomReviewTarget
+            ? "已按自定义项目名称分配给专家。"
+            : "已按项目管理轮次分配给专家。",
       );
       refreshWorkspace(["reviewAssignments", "projectStages"]);
     } catch (error) {

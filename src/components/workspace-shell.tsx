@@ -294,6 +294,8 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
   const canSwitchWorkspacePlatform =
     hasTeacherTrainingAccess && currentRole !== "training_teacher";
   const customRoadshowProjectNames = parseCustomReviewTargetNames(reviewAssignmentDraft.customTargetNames);
+  const shouldShowRoadshowProjectImporter =
+    !isEditingReviewAssignment && (!selectedReviewStage || selectedReviewStage.type === "roadshow");
   const remainingReviewScoreCount = Math.max(
     0,
     selectedReviewExpertCount - Math.max(0, dropHighestCount) - Math.max(0, dropLowestCount),
@@ -1968,11 +1970,11 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                     <p className="text-xs font-black tracking-wide text-blue-600">大赛评审向导</p>
                     <h3 className="mt-1 text-xl font-black text-slate-950">按比赛当天的顺序创建本轮评审</h3>
                     <p className="mt-2 max-w-2xl text-sm leading-6 text-slate-500">
-                      先导入本轮项目，再选择专家，最后设置评审时间；抽签、大屏、最终计分后续按需要开启。
+                      不需要先建项目管理阶段。直接导入本轮路演项目、选择专家并设置评审时间；抽签、大屏、最终计分后续按需要开启。
                     </p>
                   </div>
                   <div className="grid min-w-[280px] gap-2 sm:grid-cols-3 lg:min-w-[360px]">
-                    {["导入本轮项目", "选择专家", "设置评审时间"].map((label, index) => (
+                    {["导入本轮项目", "临时专家/专家库", "评审时间与链接"].map((label, index) => (
                       <div className="rounded-2xl border border-blue-100 bg-white px-3 py-2 text-center shadow-sm" key={label}>
                         <p className="font-mono text-sm font-black text-blue-600">{index + 1}</p>
                         <p className="mt-1 text-xs font-black text-slate-700">{label}</p>
@@ -1986,7 +1988,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
             {!isEditingReviewAssignment ? (
               <label className="block text-sm text-slate-500">
                 项目管理来源（可选）
-                <span className="ml-2 text-xs text-slate-400">需要复用已建阶段时再选择；普通路演评审优先导入本轮项目</span>
+                <span className="ml-2 text-xs text-slate-400">需要复用已建阶段时再选择；普通路演评审优先直接导入本轮路演项目</span>
                 <select
                   className={fieldClassName}
                   value={reviewAssignmentDraft.stageId}
@@ -2011,19 +2013,19 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
               </label>
             ) : null}
 
-            {!isEditingReviewAssignment && !selectedReviewStage ? (
+            {!isEditingReviewAssignment && !selectedReviewStage && customRoadshowProjectNames.length === 0 ? (
               <label className="block text-sm text-slate-500">
-                临时评审项目名称
+                单个补录项目（可选）
                 <input
                   className={fieldClassName}
-                  placeholder="请输入要评审的项目名称"
+                  placeholder="只评审一个项目时可直接填写；多个项目请在下方批量导入"
                   value={reviewAssignmentDraft.targetName}
                   onChange={(event) =>
                     setReviewAssignmentDraft((current) => ({ ...current, targetName: event.target.value }))
                   }
                 />
                 <span className="mt-1 block text-xs leading-5 text-slate-400">
-                  不绑定项目管理，适合临时测试、补录项目或尚未建项目组的现场评审。
+                  不绑定项目管理，适合临时测试、补录项目或尚未建项目组的现场评审；导入多个项目后将自动创建本轮轻量路演评审。
                 </span>
               </label>
             ) : null}
@@ -2076,51 +2078,61 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
             </p>
 
             {!isEditingReviewAssignment ? (
-              selectedReviewStage?.type === "roadshow" ? (
+              shouldShowRoadshowProjectImporter ? (
                 <div className="rounded-3xl border border-blue-100 bg-blue-50/40 p-5">
                   <div className="flex items-center justify-between gap-3">
                     <div>
                       <p className="text-xs font-bold text-blue-600">步骤 1 · 导入本轮项目</p>
-                      <p className="mt-1 text-base font-bold text-slate-950">选择项目组，或批量加入路演项目</p>
+                      <p className="mt-1 text-base font-bold text-slate-950">
+                        {selectedReviewStage ? "选择项目组，或批量加入路演项目" : "直接导入本轮路演项目"}
+                      </p>
                       <p className="mt-1 text-xs text-slate-500">
-                        最终名单会用于抽签、大屏展示、专家评分和顺序表导出，保存前请核对项目名称。
+                        {selectedReviewStage
+                          ? "最终名单会用于抽签、大屏展示、专家评分和顺序表导出，保存前请核对项目名称。"
+                          : "不需要先建项目管理阶段；保存后系统会自动生成本轮路演评审，后台直接进入收分监控。"}
                       </p>
                     </div>
                     <span className="text-xs text-slate-400">
                       项目组 {reviewAssignmentDraft.teamGroupIds.length} 个 · 自定义 {customRoadshowProjectNames.length} 个
                     </span>
                   </div>
-                  <div className="mt-4 grid max-h-52 gap-2 overflow-y-auto pr-1 sm:grid-cols-2 lg:grid-cols-3">
-                    {selectedReviewStageTeamGroups.length > 0 ? (
-                      selectedReviewStageTeamGroups.map((group) => (
-                        <label
-                          className="flex items-center gap-3 rounded-xl border border-white bg-white px-3 py-2 text-sm"
-                          key={group.id}
-                        >
-                          <input
-                            checked={reviewAssignmentDraft.teamGroupIds.includes(group.id)}
-                            className="h-4 w-4 rounded border-slate-300 text-blue-600"
-                            onChange={(event) =>
-                              setReviewAssignmentDraft((current) => ({
-                                ...current,
-                                teamGroupIds: event.target.checked
-                                  ? [...new Set([...current.teamGroupIds, group.id])]
-                                  : current.teamGroupIds.filter((id) => id !== group.id),
-                              }))
-                            }
-                            type="checkbox"
-                          />
-                          <span className="min-w-0 flex-1 truncate font-semibold text-slate-800">
-                            {group.name}
-                          </span>
-                        </label>
-                      ))
-                    ) : (
-                      <p className="rounded-xl border border-dashed border-slate-200 bg-white px-3 py-4 text-sm text-slate-400">
-                        当前轮次暂无可选项目组，请先检查项目管理轮次开放范围。
-                      </p>
-                    )}
-                  </div>
+                  {selectedReviewStage ? (
+                    <div className="mt-4 grid max-h-52 gap-2 overflow-y-auto pr-1 sm:grid-cols-2 lg:grid-cols-3">
+                      {selectedReviewStageTeamGroups.length > 0 ? (
+                        selectedReviewStageTeamGroups.map((group) => (
+                          <label
+                            className="flex items-center gap-3 rounded-xl border border-white bg-white px-3 py-2 text-sm"
+                            key={group.id}
+                          >
+                            <input
+                              checked={reviewAssignmentDraft.teamGroupIds.includes(group.id)}
+                              className="h-4 w-4 rounded border-slate-300 text-blue-600"
+                              onChange={(event) =>
+                                setReviewAssignmentDraft((current) => ({
+                                  ...current,
+                                  teamGroupIds: event.target.checked
+                                    ? [...new Set([...current.teamGroupIds, group.id])]
+                                    : current.teamGroupIds.filter((id) => id !== group.id),
+                                }))
+                              }
+                              type="checkbox"
+                            />
+                            <span className="min-w-0 flex-1 truncate font-semibold text-slate-800">
+                              {group.name}
+                            </span>
+                          </label>
+                        ))
+                      ) : (
+                        <p className="rounded-xl border border-dashed border-slate-200 bg-white px-3 py-4 text-sm text-slate-400">
+                          当前轮次暂无可选项目组，请先检查项目管理轮次开放范围。
+                        </p>
+                      )}
+                    </div>
+                  ) : (
+                    <p className="mt-4 rounded-2xl border border-blue-100 bg-white px-4 py-3 text-sm font-semibold leading-6 text-blue-700">
+                      直接导入本轮路演项目后，系统会自动建立一个关闭学生上传的轻量评审阶段，专家链接会一次显示全部项目。
+                    </p>
+                  )}
                   <div className="mt-5 rounded-2xl border border-white bg-white p-4">
                     <div className="flex flex-wrap items-start justify-between gap-3">
                       <div>
@@ -2249,12 +2261,21 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
             ) : null}
 
             <div className="rounded-2xl border border-slate-200 bg-white p-4">
-              <div className="flex items-center gap-3">
-                <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-blue-600 text-xs font-black text-white">2</span>
-                <div>
-                  <p className="text-sm font-black text-slate-800">选择专家</p>
-                  <p className="mt-0.5 text-xs text-slate-400">本轮选择的专家会收到各自评分任务，后续可生成免登录评分链接。</p>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div className="flex items-center gap-3">
+                  <span className="inline-flex h-7 w-7 items-center justify-center rounded-full bg-blue-600 text-xs font-black text-white">2</span>
+                  <div>
+                    <p className="text-sm font-black text-slate-800">选择专家</p>
+                    <p className="mt-0.5 text-xs text-slate-400">本轮选择的专家会收到各自评分任务，后续可生成免登录评分链接。</p>
+                  </div>
                 </div>
+                <button
+                  className="inline-flex items-center justify-center rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-black text-blue-700 transition hover:bg-blue-100"
+                  onClick={() => setBatchExpertModalOpen(true)}
+                  type="button"
+                >
+                  临时录入专家账号
+                </button>
               </div>
               <div className="mt-3 grid gap-2 sm:grid-cols-2">
                 {expertMembers.map((member) => (
@@ -2280,13 +2301,18 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                   </label>
                 ))}
               </div>
+              {expertMembers.length === 0 ? (
+                <p className="mt-3 rounded-xl border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-sm text-slate-400">
+                  暂无专家账号，可先点“临时录入专家账号”批量创建。
+                </p>
+              ) : null}
             </div>
 
             <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-4">
               <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <p className="text-sm font-semibold text-slate-800">最终得分计算规则</p>
-                  <p className="mt-1 text-xs text-slate-500">规则保存在评审包内，后续投屏、后台和导出统一读取。</p>
+                  <p className="text-sm font-semibold text-slate-800">可选统计规则</p>
+                  <p className="mt-1 text-xs text-slate-500">后台优先展示每位专家原始分；该规则仅用于最终平均分估算、大屏揭晓和导出。</p>
                 </div>
                 <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-blue-700">
                   当前有效专家 {selectedReviewExpertCount} 位
@@ -2364,7 +2390,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                 onClick={saveReviewAssignment}
                 variant="primary"
               >
-                {isEditingReviewAssignment ? "保存修改" : "保存评审任务"}
+                {isEditingReviewAssignment ? "保存修改" : "确认后进入后台收分"}
               </ActionButton>
             </ModalActions>
           </div>
