@@ -3756,6 +3756,91 @@ export default function ExpertReviewTab() {
   const activeStageHasLockedScore = activeStageGroups.some((group) =>
     group.items.some((assignment) => Boolean(assignment.score?.lockedAt)),
   );
+  const renderAdvancedProjectStageReuse = () => {
+    if (!canCreateReviewPackage || reconfigurableProjectStages.length === 0) {
+      return null;
+    }
+
+    return (
+      <details className="review-advanced-reuse-panel group rounded-2xl border border-slate-200 bg-white shadow-sm">
+        <summary className="flex cursor-pointer list-none flex-col gap-3 px-5 py-4 transition hover:bg-slate-50 md:flex-row md:items-center md:justify-between">
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-black tracking-wide text-slate-500">
+                ADVANCED
+              </span>
+              <p className="text-sm font-black text-slate-950">高级复用入口</p>
+            </div>
+            <p className="mt-2 text-xs font-semibold leading-5 text-slate-500">
+              日常办赛不用打开；只有需要复用项目管理阶段、已审批材料或历史项目组时使用。
+            </p>
+          </div>
+          <div className="flex shrink-0 items-center gap-3 text-xs font-black text-slate-500">
+            <span className="rounded-full bg-blue-50 px-3 py-1.5 text-blue-700">{projectStages.length} 个阶段</span>
+            <span className="inline-flex items-center gap-1 text-blue-700">
+              展开
+              <ChevronRight className="h-4 w-4 transition group-open:rotate-90" />
+            </span>
+          </div>
+        </summary>
+        <div className="border-t border-slate-100 bg-slate-50/60 px-5 py-5">
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+            {reconfigurableProjectStages.map((stage) => {
+              const configuredAssignments = assignmentsByStageId.get(stage.id) ?? [];
+              const reviewConfigStatus =
+                configuredAssignments.length > 0
+                  ? "configured"
+                  : stage.reviewConfig?.status ?? "unconfigured";
+              const reviewConfigStatusLabel =
+                reviewConfigStatus === "configured"
+                  ? "已配置"
+                  : reviewConfigStatus === "archived"
+                    ? "已归档"
+                    : "未配置";
+              const firstConfiguredGroup = configuredAssignments[0]?.packageId ?? null;
+              return (
+                <button
+                  className="rounded-2xl border border-slate-200 bg-white p-4 text-left transition hover:border-blue-200 hover:bg-blue-50"
+                  key={stage.id}
+                  onClick={() => {
+                    if (firstConfiguredGroup) {
+                      setActiveGroupKey(firstConfiguredGroup);
+                      return;
+                    }
+                    openReviewAssignmentModal(undefined, stage.id);
+                  }}
+                  type="button"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="truncate text-base font-black text-slate-950">{stage.name}</p>
+                      <p className="mt-2 text-sm font-semibold text-slate-500">{stage.type === "roadshow" ? "项目路演" : "网络评审"}</p>
+                    </div>
+                    <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-bold ${
+                      stage.type === "roadshow" ? "bg-emerald-50 text-emerald-700" : "bg-blue-50 text-blue-700"
+                    }`}>
+                      {stage.type === "roadshow" ? "路演" : "网评"}
+                    </span>
+                  </div>
+                  <p className="mt-3 line-clamp-2 text-xs leading-5 text-slate-400">
+                    上传窗口：{stage.startAt ? formatDateTime(stage.startAt) : "未设置"} - {stage.deadline ? formatDateTime(stage.deadline) : "未设置"}
+                  </p>
+                  <div className="mt-3 flex items-center justify-between gap-3">
+                    <span className="rounded-full bg-slate-50 px-2.5 py-1 text-xs font-bold text-slate-500 ring-1 ring-slate-200">
+                      {reviewConfigStatusLabel}
+                    </span>
+                    <span className="text-sm font-black text-blue-600">
+                      {reviewConfigStatus === "configured" ? "查看配置 →" : "复用并配置 →"}
+                    </span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      </details>
+    );
+  };
   const renderCompetitionReviewCommandCenter = () => {
     const commandProjectCount = activeStageGroups.length || groupedAssignments.length;
     const commandTotalScoreSlots = reviewAssignments.length;
@@ -4202,73 +4287,7 @@ export default function ExpertReviewTab() {
 
       {canManageReviewMaterials ? renderCompetitionReviewCommandCenter() : null}
 
-      {canCreateReviewPackage && reconfigurableProjectStages.length > 0 ? (
-        <section className="rounded-2xl border border-blue-100 bg-white p-5 shadow-sm">
-          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-            <div>
-              <p className="text-sm font-semibold text-blue-600">可选项目管理来源</p>
-              <h3 className="mt-1 text-lg font-bold text-slate-950">复用已建评审阶段</h3>
-              <p className="mt-2 text-sm text-slate-500">需要复用历史阶段、已审批材料或已建项目组时从这里进入；日常办赛可直接点“新建大赛评审”。</p>
-            </div>
-            <span className="rounded-full bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700">
-              {projectStages.length} 个阶段
-            </span>
-          </div>
-          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-            {reconfigurableProjectStages.map((stage) => {
-              const configuredAssignments = assignmentsByStageId.get(stage.id) ?? [];
-              const reviewConfigStatus =
-                configuredAssignments.length > 0
-                  ? "configured"
-                  : stage.reviewConfig?.status ?? "unconfigured";
-              const reviewConfigStatusLabel =
-                reviewConfigStatus === "configured"
-                  ? "已配置"
-                  : reviewConfigStatus === "archived"
-                    ? "已归档"
-                    : "未配置";
-              const firstConfiguredGroup = configuredAssignments[0]?.packageId ?? null;
-              return (
-                <button
-                  className="rounded-2xl border border-slate-200 bg-slate-50 p-4 text-left transition hover:border-blue-200 hover:bg-blue-50"
-                  key={stage.id}
-                  onClick={() => {
-                    if (firstConfiguredGroup) {
-                      setActiveGroupKey(firstConfiguredGroup);
-                      return;
-                    }
-                    openReviewAssignmentModal(undefined, stage.id);
-                  }}
-                  type="button"
-                >
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <p className="truncate text-base font-bold text-slate-950">{stage.name}</p>
-                      <p className="mt-2 text-sm text-slate-500">{stage.type === "roadshow" ? "项目路演" : "网络评审"}</p>
-                    </div>
-                    <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-semibold ${
-                      stage.type === "roadshow" ? "bg-emerald-50 text-emerald-700" : "bg-blue-50 text-blue-700"
-                    }`}>
-                      {stage.type === "roadshow" ? "路演" : "网评"}
-                    </span>
-                  </div>
-                  <p className="mt-3 line-clamp-2 text-xs leading-5 text-slate-400">
-                    上传窗口：{stage.startAt ? formatDateTime(stage.startAt) : "未设置"} - {stage.deadline ? formatDateTime(stage.deadline) : "未设置"}
-                  </p>
-                  <div className="mt-3 flex items-center justify-between gap-3">
-                    <span className="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-slate-500 ring-1 ring-slate-200">
-                      {reviewConfigStatusLabel}
-                    </span>
-                    <span className="text-sm font-semibold text-blue-600">
-                      {reviewConfigStatus === "configured" ? "查看已配置评审 →" : "分配专家并设置评审时间 →"}
-                    </span>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </section>
-      ) : null}
+      {renderAdvancedProjectStageReuse()}
 
       {groupedAssignments.length === 0 ? (
         <section className="rounded-3xl border border-slate-200 bg-white p-8">

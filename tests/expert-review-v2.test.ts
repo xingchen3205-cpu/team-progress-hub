@@ -281,8 +281,9 @@ describe("expert review v2 constraints", () => {
     assert.match(shellSource, /项目管理来源（可选）/);
     assert.match(shellSource, /选择已生效项目材料/);
     assert.match(shellSource, /选择专家/);
-    assert.match(tabSource, /复用已建评审阶段/);
-    assert.match(tabSource, /分配专家并设置评审时间/);
+    assert.match(tabSource, /高级复用入口/);
+    assert.match(tabSource, /复用并配置/);
+    assert.match(tabSource, /日常办赛不用打开/);
     assert.doesNotMatch(shellSource, /评审对象 \/ 项目名称/);
     assert.doesNotMatch(shellSource, /和主文档中心完全分离/);
     assert.match(tabSource, /项目管理已生效材料/);
@@ -346,7 +347,10 @@ describe("expert review v2 constraints", () => {
 
     assert.match(tabSource, /新建大赛评审/);
     assert.match(tabSource, /导入项目、分配专家、收集评分/);
-    assert.match(tabSource, /可选项目管理来源/);
+    assert.match(tabSource, /高级复用入口/);
+    assert.match(tabSource, /renderAdvancedProjectStageReuse/);
+    assert.match(tabSource, /日常办赛不用打开/);
+    assert.doesNotMatch(tabSource, /可选项目管理来源/);
     assert.doesNotMatch(tabSource, /项目管理创建网络评审或项目路演后，可在这里分配专家/);
     assert.doesNotMatch(tabSource, /从项目管理选择已生效材料并分配专家后/);
   });
