@@ -1846,6 +1846,8 @@ export default function ExpertReviewTab() {
     const registeredProjectCount = projectOrder.filter((project) => project.registered || project.selfDrawnAt).length;
     const drawnProjectCount = projectOrder.filter((project) => Boolean(project.selfDrawnAt)).length;
     const teamDrawBlockingStart = drawMode === "team" && projectOrder.length > 0 && drawnProjectCount < projectOrder.length;
+    const orderDrawBlockingStart =
+      (drawMode === "team" || drawMode === "self") && projectOrder.length > 0 && drawnProjectCount < projectOrder.length;
     const currentPhase = liveData?.screenPhase ?? "draw";
     const screenDisplay = normalizeReviewScreenDisplaySettings(
       screenDisplayDrafts[group.key] ?? liveData?.screenDisplay ?? screenSession?.screenDisplay,
@@ -1945,8 +1947,10 @@ export default function ExpertReviewTab() {
       hasStaleProjectionOrder ? "投屏项目数与当前本轮项目不一致，已停止使用旧大屏链接，请关闭旧链接后重新生成。" : null,
       !screenSession ? "尚未生成投屏链接，现场大屏无法打开。" : null,
       scoreRuleIsInvalid ? "当前去高去低规则导致有效评分不足 2 个，不能计算最终得分。" : null,
-      teamDrawBlockingStart
-        ? `团队线上抽签尚未完成：已注册 ${registeredProjectCount}/${projectOrder.length}，已抽签 ${drawnProjectCount}/${projectOrder.length}。`
+      orderDrawBlockingStart
+        ? drawMode === "team"
+          ? `团队线上抽签尚未完成：已注册 ${registeredProjectCount}/${projectOrder.length}，已抽签 ${drawnProjectCount}/${projectOrder.length}。`
+          : `大屏自助抽签尚未完成：已抽签 ${drawnProjectCount}/${projectOrder.length}。`
         : null,
       currentPhase === "scoring" && currentPendingSeatNos.length > 0
         ? `仍有专家 ${currentPendingSeatNos.join("、")} 未提交评分。`
@@ -2150,11 +2154,17 @@ export default function ExpertReviewTab() {
           }
         : guideStepKey === "config"
           ? {
-              label: teamDrawBlockingStart ? "等待团队完成抽签" : "正式开始当前项目路演",
-              description: teamDrawBlockingStart
-                ? `团队线上抽签需全部完成后才能开始路演。当前已注册 ${registeredProjectCount}/${projectOrder.length}，已抽签 ${drawnProjectCount}/${projectOrder.length}。`
+              label: orderDrawBlockingStart
+                ? drawMode === "team"
+                  ? "等待团队完成抽签"
+                  : "等待自助抽签完成"
+                : "正式开始当前项目路演",
+              description: orderDrawBlockingStart
+                ? drawMode === "team"
+                  ? `团队线上抽签需全部完成后才能开始路演。当前已注册 ${registeredProjectCount}/${projectOrder.length}，已抽签 ${drawnProjectCount}/${projectOrder.length}。`
+                  : `大屏自助抽签需全部完成后才能开始路演。当前已抽签 ${drawnProjectCount}/${projectOrder.length}。`
                 : "抽签/排序已完成并可导出留档；评审尚未开始，等现场准备好后再进入当前项目路演展示。",
-              disabled: teamDrawBlockingStart || !canStartPresentation || reviewScreenActionKey?.startsWith(`${group.key}:`),
+              disabled: orderDrawBlockingStart || !canStartPresentation || reviewScreenActionKey?.startsWith(`${group.key}:`),
               onClick: workflowSteps[0].onClick,
             }
           : currentPhase === "presentation"
@@ -2975,6 +2985,15 @@ export default function ExpertReviewTab() {
       </div>
     );
 
+    const expertLinksReady = Boolean(screenSession) && !orderDrawBlockingStart;
+    const expertLinksLockedReason = !screenSession
+      ? "完成团队抽签和顺序确认后再生成专家临时评分链接。"
+      : orderDrawBlockingStart
+        ? drawMode === "team"
+          ? `完成团队抽签和顺序确认后再生成专家临时评分链接。当前已注册 ${registeredProjectCount}/${projectOrder.length}，已抽签 ${drawnProjectCount}/${projectOrder.length}。`
+          : `完成大屏自助抽签和顺序确认后再生成专家临时评分链接。当前已抽签 ${drawnProjectCount}/${projectOrder.length}。`
+        : null;
+
     const renderReviewSidebar = () => (
       <aside className="side sticky top-[238px] self-start space-y-4">
         <article className="pkg-info rounded-xl border border-[var(--line)] bg-white p-4">
@@ -3008,23 +3027,45 @@ export default function ExpertReviewTab() {
           </div>
         </article>
 
-        <article className="rounded-xl border border-[var(--line)] bg-white p-4">
+        <article className="review-expert-links-panel rounded-xl border border-[var(--line)] bg-white p-4">
           <div className="flex items-center justify-between gap-3">
             <div>
-              <h3 className="text-sm font-extrabold text-slate-950">专家免登录评分链接</h3>
-              <p className="mt-1 text-[11px] text-slate-400">每位专家一个链接，按路演顺序显示全部分配项目。</p>
+              <h3 className="text-sm font-extrabold text-slate-950">专家评分入口</h3>
+              <p className="mt-1 text-[11px] text-slate-400">顺序确认后开放；每位专家一个链接，按路演顺序显示全部项目。</p>
             </div>
             <button
               className="inline-flex shrink-0 items-center justify-center gap-1 rounded-lg border border-blue-100 bg-blue-50 px-2.5 py-1.5 text-[11px] font-bold text-blue-700 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
-              disabled={!group.projectReviewStageId || guestExpertLinkActionKey === group.key}
+              disabled={!expertLinksReady || !group.projectReviewStageId || guestExpertLinkActionKey === group.key}
               onClick={() => void generateGuestExpertLinks(group)}
               type="button"
             >
               <RefreshCw className={`h-3.5 w-3.5 ${guestExpertLinkActionKey === group.key ? "animate-spin" : ""}`} />
-              {guestExpertLinks[group.key]?.length ? "重新生成" : "生成链接"}
+              {!expertLinksReady ? "待开放" : guestExpertLinks[group.key]?.length ? "重新生成" : "生成链接"}
             </button>
           </div>
-          {guestExpertLinks[group.key]?.length ? (
+          {!expertLinksReady ? (
+            <div className="mt-3 rounded-xl border border-amber-100 bg-amber-50 px-3 py-3">
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-[11px] font-black text-amber-800">专家评分入口待开放</p>
+                <span className="rounded-full bg-white px-2 py-1 text-[10px] font-black text-amber-700 ring-1 ring-amber-100">
+                  顺序未完成
+                </span>
+              </div>
+              <p className="mt-2 text-[11px] font-semibold leading-5 text-amber-700/80">{expertLinksLockedReason}</p>
+              {drawMode === "team" && projectOrder.length > 0 ? (
+                <div className="mt-3 grid grid-cols-2 gap-2 text-center">
+                  <div className="rounded-lg bg-white px-2 py-2">
+                    <p className="font-mono text-base font-black text-amber-800">{registeredProjectCount}/{projectOrder.length}</p>
+                    <p className="mt-0.5 text-[10px] font-bold text-amber-600/70">已注册</p>
+                  </div>
+                  <div className="rounded-lg bg-white px-2 py-2">
+                    <p className="font-mono text-base font-black text-amber-800">{drawnProjectCount}/{projectOrder.length}</p>
+                    <p className="mt-0.5 text-[10px] font-bold text-amber-600/70">已抽签</p>
+                  </div>
+                </div>
+              ) : null}
+            </div>
+          ) : guestExpertLinks[group.key]?.length ? (
             <div className="mt-3 max-h-56 space-y-2 overflow-y-auto pr-1">
               {guestExpertLinks[group.key].map((link) => {
                 const copyKey = `${group.key}:${link.expertUserId}`;
@@ -3902,13 +3943,20 @@ export default function ExpertReviewTab() {
     const activeGuestLinks = activeGroup ? guestExpertLinks[activeGroup.key] ?? [] : [];
     const activeGuestLinkCount = activeGuestLinks.length;
     const activeGuestLinkUsedCount = activeGuestLinks.filter((link) => Boolean(link.lastUsedAt)).length;
+    const commandDrawMode = activeGroup ? getScreenDrawMode(activeGroup.key) : "random";
+    const commandOrderTotal = commandProjectOrder.length || commandProjectCount || 0;
+    const commandOrderDrawBlockingStart =
+      activeGroupIsRoadshow &&
+      (commandDrawMode === "team" || commandDrawMode === "self") &&
+      commandProjectOrder.length > 0 &&
+      drawnProjectCount < commandProjectOrder.length;
     const teamDrawReady = !activeGroupIsRoadshow || !activeScreenSession?.teamDrawUrl || (
       commandProjectOrder.length > 0 && drawnProjectCount >= commandProjectOrder.length
     );
     const commandActiveStep =
       groupedAssignments.length === 0
         ? "prepare"
-        : activeGroupIsRoadshow && (!activeScreenSession || !teamDrawReady)
+        : activeGroupIsRoadshow && (!activeScreenSession || !teamDrawReady || commandOrderDrawBlockingStart)
           ? "draw"
           : pendingReviewCount > 0
             ? "score"
@@ -3926,6 +3974,8 @@ export default function ExpertReviewTab() {
               label: activeScreenSession?.teamDrawUrl ? "复制团队抽签入口" : "配置抽签与大屏",
               description: activeScreenSession?.teamDrawUrl
                 ? `团队抽签进行中：已注册 ${registeredProjectCount}/${commandProjectOrder.length}，已抽签 ${drawnProjectCount}/${commandProjectOrder.length}。`
+                : commandDrawMode === "self" && activeScreenSession
+                  ? `大屏自助抽签进行中：已抽签 ${drawnProjectCount}/${commandProjectOrder.length}。`
                 : "生成一个团队抽签入口；需要大屏时再打开监控。",
               disabled: !canManageReviewMaterials,
               onClick: () => {
@@ -3968,13 +4018,15 @@ export default function ExpertReviewTab() {
         key: "draw",
         title: "团队抽签",
         icon: Shuffle,
-        metric: activeScreenSession?.teamDrawUrl
+        metric: activeScreenSession?.teamDrawUrl || (commandDrawMode === "self" && activeScreenSession)
           ? `${drawnProjectCount}/${commandProjectOrder.length || commandProjectCount || 0} 已抽`
           : activeScreenSession
             ? "大屏已生成"
             : "待生成入口",
         description: activeScreenSession?.teamDrawUrl
           ? `注册 ${registeredProjectCount}/${commandProjectOrder.length || commandProjectCount || 0} · 一个入口发微信群`
+          : commandDrawMode === "self" && activeScreenSession
+            ? "等待大屏自助抽签完成后进入专家评分"
           : "一个入口发微信群，团队自选项目后注册抽签",
       },
       {
@@ -4020,6 +4072,89 @@ export default function ExpertReviewTab() {
       { label: "专家席位", value: activeExpertSeatCount || 0 },
       { label: "已提交", value: `${commandSubmittedScoreSlots}/${commandTotalScoreSlots || 0}` },
       { label: "待提交", value: pendingReviewCount },
+    ];
+    const expertLinkReadinessLabel =
+      groupedAssignments.length === 0
+        ? "创建评审后开放"
+        : activeGroupIsRoadshow && !activeScreenSession
+          ? "完成抽签配置后开放"
+          : activeGroupIsRoadshow && commandOrderDrawBlockingStart
+            ? "顺序完成后开放"
+            : activeGuestLinkCount > 0
+              ? `已访问 ${activeGuestLinkUsedCount}/${activeGuestLinkCount}`
+              : "可生成，专家无需登录";
+    const liveProgressCards = [
+      {
+        key: "team",
+        title: "团队注册",
+        value: activeGroupIsRoadshow ? `${registeredProjectCount}/${commandOrderTotal}` : `${commandProjectCount}`,
+        caption: activeGroupIsRoadshow
+          ? `抽签 ${drawnProjectCount}/${commandOrderTotal} · ${activeScreenSession?.teamDrawUrl ? "一个入口发微信群" : "等待生成入口"}`
+          : "网络评审无需团队抽签",
+        accent: "bg-blue-50 text-blue-700 ring-blue-100",
+      },
+      {
+        key: "links",
+        title: "专家链接",
+        value: `${activeGuestLinkCount}/${activeExpertSeatCount || 0}`,
+        caption: expertLinkReadinessLabel,
+        accent: "bg-violet-50 text-violet-700 ring-violet-100",
+      },
+      {
+        key: "scores",
+        title: "后台收分",
+        value: `${commandSubmittedScoreSlots}/${commandTotalScoreSlots || 0}`,
+        caption: pendingReviewCount > 0 ? `待提交 ${pendingReviewCount} · 实时刷新` : "已收齐，可导出复核",
+        accent: "bg-emerald-50 text-emerald-700 ring-emerald-100",
+      },
+    ];
+    const alwaysOnActions = [
+      {
+        key: "draw",
+        label: activeScreenSession?.teamDrawUrl ? "复制团队抽签" : "配置抽签",
+        icon: Shuffle,
+        disabled: !activeGroup || !canManageReviewMaterials,
+        onClick: () => {
+          if (!activeGroup) return;
+          if (activeScreenSession?.teamDrawUrl) {
+            void copyTeamDrawUrl(activeGroup.key, activeScreenSession.teamDrawUrl);
+            return;
+          }
+          setReviewConfigModalGroupKey(activeGroup.key);
+        },
+      },
+      {
+        key: "screen",
+        label: "打开大屏",
+        icon: Monitor,
+        disabled: !activeScreenSession,
+        onClick: () => {
+          if (activeScreenSession) {
+            window.open(activeScreenSession.screenUrl, "_blank", "noopener,noreferrer");
+          }
+        },
+      },
+      {
+        key: "expert-links",
+        label: "查看专家入口",
+        icon: Users,
+        disabled: !activeGroup,
+        onClick: () => document.querySelector(".review-expert-links-panel")?.scrollIntoView({ behavior: "smooth", block: "start" }),
+      },
+      {
+        key: "score-matrix",
+        label: "一键查看原始分",
+        icon: CheckCircle2,
+        disabled: reviewAssignments.length === 0,
+        onClick: () => document.getElementById("expert-score-matrix")?.scrollIntoView({ behavior: "smooth", block: "start" }),
+      },
+      {
+        key: "export",
+        label: "导出评分",
+        icon: Download,
+        disabled: reviewAssignments.length === 0,
+        onClick: downloadReviewScoreDetails,
+      },
     ];
 
     return (
@@ -4075,6 +4210,51 @@ export default function ExpertReviewTab() {
               {commandPrimaryAction.label}
               <ChevronRight className="h-4 w-4" />
             </button>
+          </div>
+        </div>
+
+        <div className="review-live-progress-board border-b border-slate-100 bg-white px-4 py-4">
+          <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-stretch">
+            <div className="grid gap-3 md:grid-cols-3">
+              {liveProgressCards.map((card) => (
+                <article className="rounded-2xl border border-slate-200 bg-slate-50/60 p-4" key={card.key}>
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-xs font-black text-slate-500">{card.title}</p>
+                    <span className={`rounded-full px-2.5 py-1 text-[10px] font-black ring-1 ${card.accent}`}>
+                      实时
+                    </span>
+                  </div>
+                  <p className="mt-3 font-mono text-2xl font-black text-slate-950">{card.value}</p>
+                  <p className="mt-1 min-h-8 text-[11px] font-semibold leading-4 text-slate-500">{card.caption}</p>
+                </article>
+              ))}
+            </div>
+            <div className="review-always-on-actions rounded-2xl border border-slate-200 bg-white p-4 lg:w-[270px]">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-xs font-black text-slate-950">现场常用入口</p>
+                  <p className="mt-1 text-[11px] font-semibold text-slate-400">每个环节都保留，方便应急处理。</p>
+                </div>
+                <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-black text-slate-500">常驻</span>
+              </div>
+              <div className="mt-3 grid grid-cols-2 gap-2">
+                {alwaysOnActions.map((action) => {
+                  const Icon = action.icon;
+                  return (
+                    <button
+                      className="inline-flex min-h-10 items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white px-2 text-[11px] font-black text-slate-700 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-300"
+                      disabled={action.disabled}
+                      key={action.key}
+                      onClick={action.onClick}
+                      type="button"
+                    >
+                      <Icon className="h-3.5 w-3.5" />
+                      {action.label}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
           </div>
         </div>
 
@@ -4305,7 +4485,7 @@ export default function ExpertReviewTab() {
         <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
           <div>
             <h3 className="text-base font-extrabold text-slate-950">本轮项目</h3>
-            <p className="mt-1 text-xs text-slate-500">项目卡片只展示顺序、提交和分数；现场推进请使用下方控制台。</p>
+            <p className="mt-1 text-xs text-slate-500">项目卡片只展示顺序、提交和分数；现场推进请使用上方流程控制台。</p>
           </div>
           <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-bold text-slate-500">
             共 {roadshowGroupCards.length} 项

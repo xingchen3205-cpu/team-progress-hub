@@ -439,6 +439,19 @@ describe("expert review v2 constraints", () => {
     assert.doesNotMatch(tabSource, /const currentRoundTitle = activeGroup\?\.roundLabel \?\?/);
   });
 
+  it("gates expert guest scoring links until order preparation is complete", () => {
+    const tabSource = readSource("src/components/tabs/expert-review-tab-content.tsx");
+
+    assert.match(tabSource, /orderDrawBlockingStart/);
+    assert.match(tabSource, /drawMode === "self"/);
+    assert.match(tabSource, /expertLinksReady/);
+    assert.match(tabSource, /expertLinksLockedReason/);
+    assert.match(tabSource, /专家评分入口待开放/);
+    assert.match(tabSource, /完成团队抽签和顺序确认后再生成专家临时评分链接/);
+    assert.match(tabSource, /disabled=\{!expertLinksReady \|\| !group\.projectReviewStageId/);
+    assert.match(tabSource, /review-expert-links-panel/);
+  });
+
   it("puts live roadshow controls before score monitoring and advanced reuse", () => {
     const tabSource = readSource("src/components/tabs/expert-review-tab-content.tsx");
     const firstConsoleCall = tabSource.indexOf("renderReviewScreenConsole(activeGroup)");
@@ -450,6 +463,27 @@ describe("expert review v2 constraints", () => {
     assert.notEqual(advancedReuseCall, -1, "missing advanced reuse panel call");
     assert.ok(firstConsoleCall < firstMatrixCall, "live controls should appear before score monitoring");
     assert.ok(firstConsoleCall < advancedReuseCall, "advanced reuse should not interrupt the current round workflow");
+  });
+
+  it("keeps roadshow project card guidance consistent with its position", () => {
+    const tabSource = readSource("src/components/tabs/expert-review-tab-content.tsx");
+
+    assert.match(tabSource, /现场推进请使用上方流程控制台/);
+    assert.doesNotMatch(tabSource, /现场推进请使用下方控制台/);
+  });
+
+  it("keeps live progress and emergency actions visible in the command center", () => {
+    const tabSource = readSource("src/components/tabs/expert-review-tab-content.tsx");
+
+    assert.match(tabSource, /review-live-progress-board/);
+    assert.match(tabSource, /团队注册/);
+    assert.match(tabSource, /专家链接/);
+    assert.match(tabSource, /后台收分/);
+    assert.match(tabSource, /review-always-on-actions/);
+    assert.match(tabSource, /现场常用入口/);
+    assert.match(tabSource, /查看专家入口/);
+    assert.match(tabSource, /一键查看原始分/);
+    assert.match(tabSource, /顺序完成后开放/);
   });
 
   it("keeps the review page intro informational and leaves commands in the command center", () => {
