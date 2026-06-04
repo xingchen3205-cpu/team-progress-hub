@@ -2311,7 +2311,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
             <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-4">
               <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
                 <div>
-                  <p className="text-sm font-semibold text-slate-800">可选统计规则</p>
+                  <p className="text-sm font-semibold text-slate-800">最终得分计算规则（可选）</p>
                   <p className="mt-1 text-xs text-slate-500">后台优先展示每位专家原始分；该规则仅用于最终平均分估算、大屏揭晓和导出。</p>
                 </div>
                 <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-blue-700">

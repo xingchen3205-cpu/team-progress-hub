@@ -140,6 +140,20 @@ export async function POST(
       if (projectOrder.selfDrawnAt) {
         throw new Error("该项目已完成抽签，不能重复注册");
       }
+
+      const existingTeamDrawToken = await tx.reviewDisplayTeamDrawToken.findUnique({
+        where: {
+          sessionId_packageId: {
+            sessionId,
+            packageId,
+          },
+        },
+        select: { id: true },
+      });
+      if (existingTeamDrawToken) {
+        throw new Error("该项目已完成注册，请使用已注册账号进入抽签");
+      }
+
       let teamGroup = projectOrder.reviewPackage.teamGroup;
       if (!teamGroup) {
         const targetName = projectOrder.reviewPackage.targetName.trim();

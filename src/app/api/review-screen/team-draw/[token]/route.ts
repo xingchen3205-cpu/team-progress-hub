@@ -37,6 +37,11 @@ export async function GET(
               targetName: true,
               roundLabel: true,
               teamGroupId: true,
+              teamDrawTokens: {
+                where: { sessionId },
+                take: 1,
+                select: { id: true },
+              },
               teamGroup: {
                 select: {
                   members: {
@@ -81,7 +86,9 @@ export async function GET(
         packageId: order.packageId,
         targetName: order.reviewPackage.targetName,
         roundLabel: order.reviewPackage.roundLabel ?? "项目路演评审",
-        registered: Boolean(order.reviewPackage.teamGroup?.members.length),
+        registered: Boolean(
+          order.reviewPackage.teamDrawTokens.length || order.reviewPackage.teamGroup?.members.length,
+        ),
         drawn: Boolean(order.selfDrawnAt),
       })),
     });

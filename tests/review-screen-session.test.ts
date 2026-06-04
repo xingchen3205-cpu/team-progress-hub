@@ -814,7 +814,9 @@ describe("roadshow review screen session", () => {
     assert.match(teamDrawInfoRouteSource, /if \(!user\?\.teamGroupId\)/);
     assert.match(teamDrawInfoRouteSource, /mode:\s*"claim"/);
     assert.match(teamDrawInfoRouteSource, /projects:\s*session\.projectOrders\.map/);
-    assert.match(teamDrawInfoRouteSource, /registered:\s*Boolean/);
+    assert.match(teamDrawInfoRouteSource, /teamDrawTokens:\s*\{/);
+    assert.match(teamDrawInfoRouteSource, /where:\s*\{\s*sessionId\s*\}/);
+    assert.match(teamDrawInfoRouteSource, /registered:\s*Boolean\(\s*order\.reviewPackage\.teamDrawTokens\.length/);
     assert.match(teamDrawInfoRouteSource, /user\.teamGroupId/);
     assert.doesNotMatch(teamDrawInfoRouteSource, /请先登录团队账号/);
     assert.doesNotMatch(teamDrawInfoRouteSource, /当前账号未绑定参赛团队/);
@@ -827,6 +829,7 @@ describe("roadshow review screen session", () => {
     assert.match(teamDrawRegisterRouteSource, /studentId\?:\s*string/);
     assert.match(teamDrawRegisterRouteSource, /role:\s*"leader"/);
     assert.match(teamDrawRegisterRouteSource, /reviewDisplayTeamDrawToken\.create/);
+    assert.match(teamDrawRegisterRouteSource, /reviewDisplayTeamDrawToken\.findUnique[\s\S]*sessionId_packageId/);
     assert.match(teamDrawRegisterRouteSource, /tx\.teamGroup\.create/);
     assert.match(teamDrawRegisterRouteSource, /tx\.expertReviewPackage\.update/);
     assert.doesNotMatch(teamDrawRegisterRouteSource, /该项目未绑定参赛团队，不能自助注册/);
@@ -834,12 +837,17 @@ describe("roadshow review screen session", () => {
     assert.match(teamDrawRegisterRouteSource, /该项目已注册团队账号/);
     assert.match(teamDrawRegisterRouteSource, /手机号或邮箱已存在/);
     assert.match(teamDrawPageSource, /团队线上抽签/);
+    assert.match(teamDrawPageSource, /team-draw-steps/);
+    assert.match(teamDrawPageSource, /选择项目/);
+    assert.match(teamDrawPageSource, /负责人注册/);
+    assert.match(teamDrawPageSource, /线上抽签/);
     assert.match(teamDrawPageSource, /selectedPackageId/);
     assert.match(teamDrawPageSource, /confirmStep/);
     assert.match(teamDrawPageSource, /再次确认/);
     assert.match(teamDrawPageSource, /registrationDraft/);
     assert.match(teamDrawPageSource, /selectedProject\.registered \|\| selectedProject\.drawn/);
     assert.match(teamDrawPageSource, /team-draw-option:disabled/);
+    assert.match(teamDrawPageSource, /该项目已注册负责人账号，不能再次选择/);
     assert.match(teamDrawPageSource, /手机号将作为登录账号/);
     assert.match(teamDrawPageSource, /专业班级/);
     assert.match(teamDrawPageSource, /学号/);

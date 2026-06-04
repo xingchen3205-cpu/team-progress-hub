@@ -69,6 +69,12 @@ const initialRegistrationDraft: RegistrationDraft = {
   confirmPassword: "",
 };
 
+const teamDrawSteps = [
+  { key: "project", label: "选择项目" },
+  { key: "register", label: "负责人注册" },
+  { key: "draw", label: "线上抽签" },
+] as const;
+
 const formatDateTime = (value?: string | null) => {
   if (!value) return "";
   const date = new Date(value);
@@ -287,6 +293,8 @@ export default function TeamDrawPage() {
 
   const orderNumber = drawState?.orderIndex == null ? null : drawState.orderIndex + 1;
   const canDraw = Boolean(drawState?.canDraw && !submitting);
+  const activeStepKey = drawState ? "draw" : registrationOpen ? "register" : "project";
+  const activeStepIndex = teamDrawSteps.findIndex((step) => step.key === activeStepKey);
 
   return (
     <main className="team-draw-page min-h-screen px-4 py-5 text-slate-950">
@@ -300,13 +308,15 @@ export default function TeamDrawPage() {
         }
         .team-draw-shell {
           min-height: calc(100vh - 40px);
+          width: 100%;
           display: flex;
           align-items: center;
           justify-content: center;
           animation: teamDrawEnter .42s ease both;
         }
         .team-draw-panel {
-          width: min(100%, 620px);
+          width: 100%;
+          max-width: 620px;
           overflow: hidden;
           border: 1px solid #d6e1ef;
           border-radius: 28px;
@@ -348,6 +358,62 @@ export default function TeamDrawPage() {
         }
         .team-draw-body {
           padding: 24px;
+        }
+        .team-draw-steps {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 8px;
+          border: 1px solid #dbe5f0;
+          border-radius: 18px;
+          background: #f8fbff;
+          padding: 8px;
+        }
+        .team-draw-step {
+          display: inline-flex;
+          min-height: 38px;
+          min-width: 0;
+          align-items: center;
+          justify-content: center;
+          gap: 5px;
+          border-radius: 12px;
+          color: #64748b;
+          font-size: 12px;
+          font-weight: 900;
+          transition: background .18s ease, color .18s ease, box-shadow .18s ease;
+        }
+        .team-draw-step-index {
+          display: inline-flex;
+          height: 18px;
+          width: 18px;
+          align-items: center;
+          justify-content: center;
+          border-radius: 999px;
+          background: #e2e8f0;
+          color: #475569;
+          font-size: 11px;
+          font-variant-numeric: tabular-nums;
+        }
+        .team-draw-step-label {
+          min-width: 0;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        .team-draw-step-done {
+          color: #0f766e;
+        }
+        .team-draw-step-done .team-draw-step-index {
+          background: #ccfbf1;
+          color: #0f766e;
+        }
+        .team-draw-step-active {
+          background: linear-gradient(135deg, #1d4ed8, #153e75);
+          color: #fff;
+          box-shadow: 0 10px 24px rgba(29, 78, 216, .18);
+        }
+        .team-draw-step-active .team-draw-step-index {
+          background: rgba(255,255,255,.2);
+          color: #fff;
         }
         .team-draw-project {
           border: 1px solid #dbe5f0;
@@ -493,11 +559,29 @@ export default function TeamDrawPage() {
             </span>
             <h1 className="team-draw-title">团队线上抽签</h1>
             <p className="mt-2 text-sm font-semibold leading-6 text-white/78">
-              请选择本团队项目并完成负责人注册，一个项目只允许首次注册一次。
+              一个入口覆盖本轮全部项目，请选择本团队项目并完成负责人注册，一个项目只允许首次注册一次。
             </p>
           </div>
 
           <div className="team-draw-body space-y-4">
+            <div className="team-draw-steps" aria-label="抽签流程">
+              {teamDrawSteps.map((step, index) => {
+                const done = index < activeStepIndex;
+                const active = index === activeStepIndex;
+                return (
+                  <div
+                    aria-current={active ? "step" : undefined}
+                    className={`team-draw-step ${done ? "team-draw-step-done" : ""} ${
+                      active ? "team-draw-step-active" : ""
+                    }`}
+                    key={step.key}
+                  >
+                    <span className="team-draw-step-index">{index + 1}</span>
+                    <span className="team-draw-step-label">{step.label}</span>
+                  </div>
+                );
+              })}
+            </div>
             {loading ? (
               <div className="flex items-center justify-center gap-2 py-12 text-sm font-bold text-slate-500">
                 <Clock3 className="h-4 w-4 animate-spin" />
@@ -655,12 +739,18 @@ export default function TeamDrawPage() {
                   {claimState.projects.map((project) => {
                     const active = project.packageId === selectedPackageId;
                     const locked = project.registered || project.drawn;
+                    const lockedReason = project.drawn
+                      ? "该项目已完成抽签，不能再次选择。"
+                      : project.registered
+                        ? "该项目已注册负责人账号，不能再次选择。"
+                        : "";
                     return (
                       <button
                         className={`team-draw-option ${active ? "team-draw-option-active" : ""}`}
                         disabled={locked}
                         key={project.packageId}
                         onClick={() => setSelectedPackageId(project.packageId)}
+                        title={lockedReason || undefined}
                         type="button"
                       >
                         <div className="flex items-start justify-between gap-3">
@@ -674,6 +764,9 @@ export default function TeamDrawPage() {
                             {project.drawn ? "已抽签" : project.registered ? "已注册" : "可注册"}
                           </span>
                         </div>
+                        {lockedReason ? (
+                          <p className="mt-2 text-xs font-bold leading-5 text-slate-400">{lockedReason}</p>
+                        ) : null}
                       </button>
                     );
                   })}
