@@ -105,20 +105,32 @@ export async function GET(
     },
   });
 
-  const projectOrders = await prisma.reviewDisplayProjectOrder.findMany({
+  const latestReviewDisplaySession = await prisma.reviewDisplaySession.findFirst({
     where: {
       reviewPackage: {
         projectReviewStageId: guestToken.projectReviewStageId,
       },
+      status: { not: "closed" },
+      tokenExpiresAt: { gt: now },
     },
-    orderBy: [{ orderIndex: "asc" }, { createdAt: "asc" }],
+    orderBy: { createdAt: "desc" },
     select: {
-      packageId: true,
-      orderIndex: true,
+      projectOrders: {
+        where: {
+          reviewPackage: {
+            projectReviewStageId: guestToken.projectReviewStageId,
+          },
+        },
+        orderBy: [{ orderIndex: "asc" }, { createdAt: "asc" }],
+        select: {
+          packageId: true,
+          orderIndex: true,
+        },
+      },
     },
   });
   const orderIndexByPackageId = new Map<string, number>();
-  for (const order of projectOrders) {
+  for (const order of latestReviewDisplaySession?.projectOrders ?? []) {
     if (!orderIndexByPackageId.has(order.packageId)) {
       orderIndexByPackageId.set(order.packageId, order.orderIndex);
     }

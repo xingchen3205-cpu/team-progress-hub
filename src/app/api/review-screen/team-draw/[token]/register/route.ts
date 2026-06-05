@@ -29,6 +29,8 @@ export async function POST(
         className?: string;
         studentId?: string;
         password?: string;
+        confirmProjectSelection?: boolean;
+        confirmRegistrationFinal?: boolean;
       }
     | null;
 
@@ -44,6 +46,9 @@ export async function POST(
 
   if (!packageId) {
     return NextResponse.json({ message: "请先选择项目" }, { status: 400 });
+  }
+  if (body?.confirmProjectSelection !== true || body?.confirmRegistrationFinal !== true) {
+    return NextResponse.json({ message: "请完成项目归属两次确认后再注册" }, { status: 400 });
   }
   if (!name) {
     return NextResponse.json({ message: "请填写项目负责人姓名" }, { status: 400 });
@@ -297,8 +302,12 @@ export async function POST(
     return response;
   } catch (error) {
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
+      const target = Array.isArray(error.meta?.target) ? error.meta.target.join(" ") : String(error.meta?.target ?? "");
+      const message = /username|email|phone/i.test(target)
+        ? "手机号或邮箱已存在，请更换后再试"
+        : "该项目已完成注册，请使用已注册账号进入抽签";
       return NextResponse.json(
-        { message: "该项目已完成注册，请使用已注册账号进入抽签" },
+        { message },
         { status: 409 },
       );
     }

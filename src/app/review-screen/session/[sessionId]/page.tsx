@@ -918,19 +918,19 @@ export default function ReviewScreenSessionPage() {
       : selfDrawStagePhase === "done"
         ? "抽签完成"
         : selectedSelfDrawProject
-          ? "抽路演序号"
-          : "抽下一位上台";
+          ? "抽取路演顺序"
+          : "抽取下一路演项目";
   const selfDrawStageTitle =
     selfDrawStagePhase === "done"
       ? "全部项目抽签完成"
       : selectedSelfDrawProject
-        ? `${selectedSelfDrawProject.targetName} 上台`
+        ? `${selectedSelfDrawProject.targetName} 已确认路演`
         : "点击按钮开始抽签";
   const selfDrawStageSubTitle =
     selfDrawStagePhase === "done"
       ? "路演顺序已确认，可导出顺序表留档"
       : selectedSelfDrawProject
-        ? "点击「抽路演序号」由该项目抽取顺序"
+        ? "点击「抽取路演顺序」由该项目抽取顺序"
         : "等待抽取";
 
   const stopSelfDrawAutoScroll = useCallback(() => {
@@ -1149,11 +1149,11 @@ export default function ReviewScreenSessionPage() {
         }
       | null;
     if (!response.ok) {
-      throw new Error(data?.message ?? "抽取上台项目失败，请重试");
+      throw new Error(data?.message ?? "抽取路演项目失败，请重试");
     }
     const candidatePackageId = data?.candidate?.packageId ?? data?.session?.currentPackageId ?? null;
     if (!candidatePackageId) {
-      throw new Error("抽取上台项目失败，请重试");
+      throw new Error("抽取路演项目失败，请重试");
     }
     return {
       candidatePackageId,
@@ -1216,7 +1216,7 @@ export default function ReviewScreenSessionPage() {
           pendingSelfDrawProjects.find((project) => project.packageId === candidate.candidatePackageId) ??
           projectOrder.find((project) => project.packageId === candidate.candidatePackageId);
         if (!winnerProject) {
-          throw new Error("抽取上台项目失败，请重试");
+          throw new Error("抽取路演项目失败，请重试");
         }
         const winnerPool = pendingSelfDrawProjects.map((project) => project.targetName);
         const winnerIndex = projectOrder.findIndex((project) => project.packageId === winnerProject.packageId);
@@ -2812,7 +2812,7 @@ export default function ReviewScreenSessionPage() {
                       <h3 className="mt-1 text-xl font-black text-[#0f2040]">团队抽签实时监控</h3>
                     </div>
                     <span className="rounded-full bg-blue-50 px-3 py-1.5 text-xs font-black text-blue-700">
-                      已抽 {selfDrawAssignedCount} / {projectOrder.length}
+                      已确认 {selfDrawAssignedCount} / {projectOrder.length}
                     </span>
                   </div>
                   <div className="grid max-h-full auto-rows-min grid-cols-[repeat(auto-fit,minmax(260px,1fr))] gap-3 overflow-y-auto p-5">
@@ -2888,7 +2888,7 @@ export default function ReviewScreenSessionPage() {
                           >
                             <span className="self-draw-project-name">{item.targetName}</span>
                             <span className="self-draw-project-badge">
-                              {assigned ? `第 ${item.orderIndex + 1} 位` : onstage ? "上台中" : "待抽"}
+                              {assigned ? `第 ${item.orderIndex + 1} 位` : onstage ? "已确认路演" : "待抽"}
                             </span>
                           </div>
                         );
@@ -2907,7 +2907,7 @@ export default function ReviewScreenSessionPage() {
                             : "active"
                         }`}
                       >
-                        ① 抽上台项目
+                        ① 抽取路演项目
                       </span>
                       <span
                         className={`self-draw-step-tab ${
@@ -2950,7 +2950,7 @@ export default function ReviewScreenSessionPage() {
                       <div className={`self-draw-flash ${selfDrawFlashKey ? "fire" : ""}`} key={selfDrawFlashKey} />
                     </div>
                     <p className="self-draw-reel-label">
-                      {selfDrawReelMode === "name" ? "— 上台项目 —" : "— 路演顺序号 —"}
+                      {selfDrawReelMode === "name" ? "— 路演项目 —" : "— 路演顺序号 —"}
                     </p>
 
                     <div className="self-draw-controls">
@@ -3248,12 +3248,12 @@ export default function ReviewScreenSessionPage() {
                 {drawTheaterStep === "ready"
                   ? "准备"
                   : drawTheaterStep === "name"
-                    ? "抽项目"
+                    ? "确认项目"
                     : drawTheaterStep === "number"
-                      ? "抽顺序"
+                      ? "确认顺序"
                       : drawTheaterStep === "finale"
                         ? "完成"
-                        : "落位"}
+                      : "确认完成"}
               </p>
 
               <div className={`draw-theater-namebox ${drawTheaterSettledProject ? "revealed" : ""}`}>
@@ -3318,7 +3318,7 @@ export default function ReviewScreenSessionPage() {
             </div>
 
             <div className="draw-theater-recent">
-              <p className="draw-theater-recent-title">已抽</p>
+              <p className="draw-theater-recent-title">已确认</p>
               <div className="draw-theater-recent-list">
                 {drawTheaterRecentRows.length ? (
                   drawTheaterRecentRows.map((item, index) => (

@@ -411,7 +411,7 @@ describe("roadshow review screen session", () => {
     assert.match(adminTabSource, /expert-row/);
     assert.match(adminTabSource, /--stage-dark/);
     assert.match(adminTabSource, /--brand/);
-    assert.match(adminTabSource, /LIVE 直播中/);
+    assert.match(adminTabSource, /现场进行中/);
     assert.match(adminTabSource, /当前项目/);
     assert.match(adminTabSource, /倒计时/);
     assert.match(adminTabSource, /下一项目/);
@@ -654,9 +654,9 @@ describe("roadshow review screen session", () => {
     assert.match(screenPageSource, /handleSelfDrawMainAction/);
     assert.match(screenPageSource, /项目池/);
     assert.match(screenPageSource, /路演顺序/);
-    assert.match(screenPageSource, /抽下一位上台/);
-    assert.match(screenPageSource, /抽路演序号/);
-    assert.match(screenPageSource, /上台中/);
+    assert.match(screenPageSource, /抽取下一路演项目/);
+    assert.match(screenPageSource, /抽取路演顺序/);
+    assert.match(screenPageSource, /已确认路演/);
     assert.match(screenPageSource, /待定/);
     assert.match(screenPageSource, /自助抽签/);
     assert.match(screenPageSource, /drawTheaterRows/);
@@ -721,8 +721,8 @@ describe("roadshow review screen session", () => {
     assert.match(screenPageSource, /await sleep\(40\)/);
     assert.match(screenPageSource, /finalProjectOrder/);
     assert.match(screenPageSource, /sort\(\(left, right\) => left\.orderIndex - right\.orderIndex\)/);
-    assert.match(screenPageSource, /抽下一位上台/);
-    assert.match(screenPageSource, /抽路演序号/);
+    assert.match(screenPageSource, /抽取下一路演项目/);
+    assert.match(screenPageSource, /抽取路演顺序/);
     assert.match(screenPageSource, /抽签确认/);
     assert.match(screenPageSource, /getSelfDrawNameStyle/);
     assert.match(screenPageSource, /self-draw-project-name/);
@@ -775,6 +775,7 @@ describe("roadshow review screen session", () => {
     const teamDrawRouteSource = readSource("src/app/api/review-screen/sessions/[sessionId]/team-draw/route.ts");
     const teamDrawInfoRouteSource = readSource("src/app/api/review-screen/team-draw/[token]/route.ts");
     const teamDrawRegisterRouteSource = readSource("src/app/api/review-screen/team-draw/[token]/register/route.ts");
+    const phaseRouteSource = readSource("src/app/api/review-screen/sessions/[sessionId]/phase/route.ts");
     const teamDrawPageSource = readSource("src/app/review-screen/team-draw/[token]/page.tsx");
     const adminTabSource = readSource("src/components/tabs/expert-review-tab-content.tsx");
     const screenPageSource = readSource("src/app/review-screen/session/[sessionId]/page.tsx");
@@ -832,6 +833,9 @@ describe("roadshow review screen session", () => {
     assert.match(teamDrawRegisterRouteSource, /college\?:\s*string/);
     assert.match(teamDrawRegisterRouteSource, /className\?:\s*string/);
     assert.match(teamDrawRegisterRouteSource, /studentId\?:\s*string/);
+    assert.match(teamDrawRegisterRouteSource, /confirmProjectSelection\?:\s*boolean/);
+    assert.match(teamDrawRegisterRouteSource, /confirmRegistrationFinal\?:\s*boolean/);
+    assert.match(teamDrawRegisterRouteSource, /请完成项目归属两次确认后再注册/);
     assert.match(teamDrawRegisterRouteSource, /role:\s*"leader"/);
     assert.match(teamDrawRegisterRouteSource, /reviewDisplayTeamDrawToken\.create/);
     assert.match(teamDrawRegisterRouteSource, /reviewDisplayTeamDrawToken\.findUnique[\s\S]*sessionId_packageId/);
@@ -856,6 +860,8 @@ describe("roadshow review screen session", () => {
     assert.match(teamDrawPageSource, /手机号将作为登录账号/);
     assert.match(teamDrawPageSource, /专业班级/);
     assert.match(teamDrawPageSource, /学号/);
+    assert.match(teamDrawPageSource, /confirmProjectSelection:\s*true/);
+    assert.match(teamDrawPageSource, /confirmRegistrationFinal:\s*true/);
     assert.match(teamDrawPageSource, /register\?token=/);
     assert.match(teamDrawPageSource, /handleDraw/);
     assert.doesNotMatch(teamDrawPageSource, /redirectToLogin/);
@@ -871,6 +877,9 @@ describe("roadshow review screen session", () => {
     assert.match(adminTabSource, /等待团队完成抽签/);
     assert.doesNotMatch(adminTabSource, /复制团队链接/);
     assert.doesNotMatch(adminTabSource, /导出团队链接/);
+    assert.match(phaseRouteSource, /teamDrawEnabled/);
+    assert.match(phaseRouteSource, /selfDrawnAt/);
+    assert.match(phaseRouteSource, /团队线上抽签未全部完成，不能开始路演/);
   });
 
   it("lets administrators regenerate a screen link for testing even after the old review deadline", () => {

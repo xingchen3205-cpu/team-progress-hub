@@ -49,6 +49,31 @@ type PendingGuestSubmission = {
   commentTotal: string;
 };
 
+const scoreDraftPattern = /^(100(?:\.0{1,2})?|\d{1,2}(?:\.\d{1,2})?)$/;
+
+const parseScoreDraft = (draft?: string) => {
+  const normalizedDraft = draft?.trim() ?? "";
+  if (!scoreDraftPattern.test(normalizedDraft)) {
+    return null;
+  }
+
+  const score = Number(normalizedDraft);
+  if (!Number.isFinite(score)) {
+    return null;
+  }
+
+  const scoreCents = Math.round(score * 100);
+  if (scoreCents < 0 || scoreCents > 10000) {
+    return null;
+  }
+
+  return {
+    score,
+    scoreCents,
+    displayScore: (scoreCents / 100).toFixed(2),
+  };
+};
+
 const formatDateTime = (value?: string | null) => {
   if (!value) return "";
   const date = new Date(value);
@@ -126,9 +151,8 @@ export default function GuestExpertReviewPage() {
     [projects, selectedAssignmentId],
   );
   const selectedScoreDraft = selectedProject ? scoreDrafts[selectedProject.assignmentId] ?? "" : "";
-  const selectedScoreValue = Number(selectedScoreDraft);
-  const selectedScorePreview =
-    selectedScoreDraft.trim() && Number.isFinite(selectedScoreValue) ? selectedScoreValue.toFixed(2) : "--";
+  const selectedScore = parseScoreDraft(selectedScoreDraft);
+  const selectedScorePreview = selectedScore ? selectedScore.displayScore : "--";
   const allSubmitted = Boolean(state && state.totalCount > 0 && state.pendingCount === 0);
   const selectedCanSubmit = Boolean(
     selectedProject &&
@@ -152,19 +176,18 @@ export default function GuestExpertReviewPage() {
       setMessage(getReviewWindowHint(selectedProject));
       return;
     }
-    const score = Number(scoreDrafts[selectedProject.assignmentId]);
-    if (!Number.isFinite(score) || score < 0 || score > 100 || !Number.isInteger(score * 100)) {
+    const parsedScore = parseScoreDraft(scoreDrafts[selectedProject.assignmentId]);
+    if (!parsedScore) {
       setMessage("请输入 0.00-100.00 的分数，最多两位小数");
       return;
     }
-    const displayScore = score.toFixed(2);
     setMessage("");
     setPendingSubmission({
       assignmentId: selectedProject.assignmentId,
       targetName: selectedProject.targetName,
       orderNumber: selectedProject.orderNumber,
-      score,
-      displayScore,
+      score: parsedScore.score,
+      displayScore: parsedScore.displayScore,
       commentTotal: commentDrafts[selectedProject.assignmentId] ?? "",
     });
   };

@@ -355,7 +355,7 @@ function ConfirmModal({
       >
         <p className="text-sm font-semibold text-blue-600">确认提交</p>
         <h3 className="mt-2 text-xl font-bold text-slate-950">
-          {pendingSubmission.kind === "roadshow" ? "确认提交路演评分？" : "确认提交网评分数？"}
+          {pendingSubmission.kind === "roadshow" ? "确认提交路演评分？" : "确认提交网络评审评分？"}
         </h3>
         <div className="mt-5 rounded-2xl border border-slate-200 bg-slate-50 p-4">
           <p className="text-sm font-semibold text-slate-900">{pendingSubmission.assignment.targetName}</p>
@@ -424,7 +424,7 @@ function ReviewScreenRevealConfirmModal({
             {pendingReveal.showFinalScoreOnScreen ? "确认揭晓本项目得分？" : "确认锁定本项目得分？"}
           </h3>
           <p className="mt-2 text-sm leading-6 text-slate-500">
-            成绩锁定后会写入系统记录；{pendingReveal.showFinalScoreOnScreen ? "大屏将立即播放最终得分动画。" : "本次不会在大屏展示具体分数。"}
+            成绩锁定后会写入系统记录；{pendingReveal.showFinalScoreOnScreen ? "大屏将按投屏设置展示最终得分。" : "本次不会在大屏展示具体分数。"}
           </p>
         </div>
         <div className="px-5 py-5 sm:px-6">
@@ -433,7 +433,7 @@ function ReviewScreenRevealConfirmModal({
             <p className="mt-1 truncate text-xs font-semibold text-slate-500">{pendingReveal.roundLabel}</p>
             <div className="mt-4 flex items-end justify-between gap-4">
               <div>
-                <p className="text-xs font-bold text-slate-400">管理端预计得分</p>
+                <p className="text-xs font-bold text-slate-400">管理端计算得分</p>
                 <p className="mt-1 font-mono text-4xl font-black text-blue-700 tabular-nums">
                   {pendingReveal.finalScoreText}
                 </p>
@@ -1242,7 +1242,7 @@ export default function ExpertReviewTab() {
 
   const createReviewScreenSession = async (group: ReviewGroup) => {
     if (!group.items.some((assignment) => isRoadshowAssignment(assignment))) {
-      setLoadError("只有项目路演评审可以生成现场大屏链接");
+      setLoadError("只有项目路演评审可以生成抽签与投屏链接");
       return;
     }
 
@@ -1286,7 +1286,7 @@ export default function ExpertReviewTab() {
       const nextSessionState: ReviewScreenSessionState = {
           sessionId: payload.session.id,
           screenUrl: payload.screenUrl,
-        message: "本轮路演大屏链接已生成；当前只锁定配置和顺序，评审尚未开始，可先导出顺序表。",
+        message: "本轮抽签与顺序链接已生成；当前只锁定配置和顺序。不开启现场大屏时，可导出顺序表后生成专家评分链接。",
           startedAt: payload.session.startedAt ?? null,
           phaseStartedAt: payload.session.phaseStartedAt ?? null,
           screenDisplay: normalizeReviewScreenDisplaySettings(payload.session.screenDisplay),
@@ -1324,7 +1324,7 @@ export default function ExpertReviewTab() {
         });
       }
     } catch (error) {
-      setLoadError(error instanceof Error ? error.message : "现场大屏链接生成失败");
+      setLoadError(error instanceof Error ? error.message : "抽签与投屏链接生成失败");
     } finally {
       setReviewScreenActionKey(null);
     }
@@ -1385,7 +1385,7 @@ export default function ExpertReviewTab() {
   const exportReviewScreenOrder = (group: ReviewGroup) => {
     const screenSession = reviewScreenSessions[group.key];
     if (!screenSession) {
-      setLoadError("请先生成现场大屏链接，再导出路演顺序表");
+      setLoadError("请先生成抽签与顺序链接，再导出路演顺序表");
       return;
     }
 
@@ -1875,7 +1875,7 @@ export default function ExpertReviewTab() {
       score > 100 ||
       !Number.isInteger(score * 100)
     ) {
-      setLoadError("网评分数需为 0.00-100.00，最多保留两位小数");
+      setLoadError("网络评审分数需为 0.00-100.00，最多保留两位小数");
       return;
     }
 
@@ -2357,7 +2357,7 @@ export default function ExpertReviewTab() {
         : null,
       screenSession
         ? {
-            label: "打开大屏",
+            label: "打开现场大屏",
             disabled: false,
             onClick: () => window.open(screenSession.screenUrl, "_blank", "noopener,noreferrer"),
           }
@@ -2382,7 +2382,7 @@ export default function ExpertReviewTab() {
         <div className="border-b border-blue-100 bg-[linear-gradient(90deg,#f8fbff,#ffffff)] px-5 py-4">
           <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
             <div className="min-w-0">
-              <p className="text-xs font-extrabold text-blue-600">流程控制 · 当前阶段操作</p>
+              <p className="text-xs font-extrabold text-blue-600">现场大屏控制 · 当前阶段操作</p>
               <h3 className="mt-1 truncate text-xl font-extrabold text-slate-950">
                 {guideSteps[activeGuideStepIndex]?.title ?? "现场推进"}
               </h3>
@@ -2455,7 +2455,7 @@ export default function ExpertReviewTab() {
             ) : null}
             {screenSession && guideStepKey === "config" ? (
               <div className="mt-4 rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-bold leading-6 text-emerald-800">
-                当前处于“顺序已确认、评审未开始”状态。可以先导出 Excel 顺序表，正式现场开始时再点击“正式开始当前项目路演”。
+                当前处于“顺序已确认、评审未开始”状态。不需要现场出分时，无需启动路演、答辩或评分阶段；可直接生成专家评分链接，评分全部提交后再办理成绩归档与排名。需要现场大屏时，再点击“正式开始当前项目路演”。
               </div>
             ) : null}
           </div>
@@ -2489,7 +2489,7 @@ export default function ExpertReviewTab() {
         <div className="grid gap-4 px-5 py-4 xl:grid-cols-[auto_minmax(0,1fr)_auto_auto_auto] xl:items-center">
           <div className={`inline-flex w-fit items-center gap-2 rounded-lg border border-orange-400/30 bg-orange-500/15 px-3 py-1.5 text-[11px] font-extrabold uppercase tracking-[0.16em] text-orange-300 ${reviewLifecycleStage === "running" ? "" : "opacity-50"}`}>
             <span className="h-2 w-2 animate-pulse rounded-full bg-[var(--accent)] shadow-[0_0_10px_var(--accent)]" />
-            LIVE 直播中
+            现场进行中
           </div>
           <div className="min-w-0">
             <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-white/45">
@@ -2532,7 +2532,7 @@ export default function ExpertReviewTab() {
         <div className="min-w-0">
           <div className="mb-2 flex justify-between text-[11px] text-slate-400">
             <span>开场 {screenSession?.startedAt ? formatDateTime(screenSession.startedAt) : "未开始"}</span>
-            <span>预计结束 ~{estimatedRemainingHours.toFixed(1)} h 后</span>
+            <span>预计剩余 {estimatedRemainingHours.toFixed(1)} 小时</span>
           </div>
           <div className="relative h-2 overflow-hidden rounded-full bg-slate-100">
             <div className="h-full rounded-full bg-[linear-gradient(90deg,var(--ok),var(--brand))]" style={{ width: `${progressPercent}%` }} />
@@ -2551,7 +2551,7 @@ export default function ExpertReviewTab() {
         </div>
         <div>
           <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-slate-400">剩余</p>
-          <p className="mt-1 font-mono text-sm font-extrabold text-slate-700">~{estimatedRemainingHours.toFixed(1)} h</p>
+          <p className="mt-1 font-mono text-sm font-extrabold text-slate-700">{estimatedRemainingHours.toFixed(1)} 小时</p>
         </div>
       </div>
     );
@@ -2754,13 +2754,13 @@ export default function ExpertReviewTab() {
       {
         key: "self",
         title: "大屏自助抽签",
-        description: "大屏先随机抽上台项目，再由该项目抽取路演顺序。",
+        description: "大屏先随机抽取路演项目，再由该项目抽取路演顺序。",
         meta: "两步抽签",
       },
       {
         key: "team",
         title: "团队线上抽签",
-        description: "管理员保持大屏监控，团队通过抽签入口只抽取本项目顺序。",
+        description: "管理员可使用监控链接查看进度，团队通过抽签入口只抽取本项目顺序。",
         meta: "团队入口",
       },
     ];
@@ -2769,10 +2769,10 @@ export default function ExpertReviewTab() {
       drawMode === "manual"
         ? "手动排序模式：保存序号后生成大屏链接，大屏不再执行抽签。"
         : drawMode === "team"
-          ? "团队线上抽签模式：管理端生成大屏监控链接和团队抽签入口，团队只抽取本项目顺序。"
+          ? "团队线上抽签模式：管理端生成监控链接和团队抽签入口，团队只抽取本项目顺序。"
           : drawMode === "self"
             ? "自助抽签模式：管理端只生成链接和导出结果，所有抽签动作都在大屏完成。"
-            : "随机抽签模式：管理端生成链接后，现场打开大屏点击“开始随机抽签”。";
+            : "随机抽签模式：管理端生成链接后，需要现场大屏时打开并点击“开始随机抽签”。";
     const renderConfigCard = () => {
       if (!canEditConfigFields) {
         return (
@@ -3005,7 +3005,7 @@ export default function ExpertReviewTab() {
           <div className="mt-4 rounded-xl border border-slate-200 bg-slate-50 p-4">
             <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div>
-                <p className="text-sm font-extrabold text-slate-950">4 确认顺序并生成大屏链接</p>
+                <p className="text-sm font-extrabold text-slate-950">4 确认顺序并生成抽签与投屏链接</p>
                 <p className="mt-1 text-xs text-slate-400">
                   {drawModeHelpText} 随机抽签和自助抽签都在大屏窗口完成；团队线上抽签由团队链接完成，管理端同步结果和导出顺序表。
                 </p>
@@ -3109,11 +3109,11 @@ export default function ExpertReviewTab() {
           </div>
 
           <div className="mt-4 flex flex-col gap-2 rounded-xl border border-slate-200 bg-slate-50 p-3 md:flex-row md:items-center">
-            <span className="shrink-0 text-xs font-bold text-slate-500">投屏链接</span>
+            <span className="shrink-0 text-xs font-bold text-slate-500">抽签与投屏链接</span>
             <input
               className="min-w-0 flex-1 rounded-lg border border-slate-200 bg-white px-3 py-2 font-mono text-xs text-slate-500 outline-none"
               readOnly
-              value="确认配置后生成投屏链接"
+              value="确认配置后生成链接"
             />
             <button
               className="inline-flex shrink-0 items-center justify-center gap-1 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-bold text-blue-700 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
@@ -3121,7 +3121,7 @@ export default function ExpertReviewTab() {
               onClick={() => void createReviewScreenSession(group)}
               type="button"
             >
-              确认配置并生成大屏链接
+              确认配置并生成链接
             </button>
           </div>
         </div>
@@ -3187,14 +3187,12 @@ export default function ExpertReviewTab() {
       </div>
     );
 
-    const expertLinksReady = Boolean(screenSession) && !orderDrawBlockingStart;
-    const expertLinksLockedReason = !screenSession
-      ? "完成团队抽签和顺序确认后再生成专家专属评分链接。"
-      : orderDrawBlockingStart
-        ? drawMode === "team"
-          ? `完成团队抽签和顺序确认后再生成专家专属评分链接。当前已注册 ${registeredProjectCount}/${projectOrder.length}，已抽签 ${drawnProjectCount}/${projectOrder.length}。`
-          : `完成大屏自助抽签和顺序确认后再生成专家专属评分链接。当前已抽签 ${drawnProjectCount}/${projectOrder.length}。`
-        : null;
+    const expertLinksReady = !orderDrawBlockingStart;
+    const expertLinksLockedReason = orderDrawBlockingStart
+      ? drawMode === "team"
+        ? `完成团队抽签和顺序确认后再生成专家专属评分链接。当前已注册 ${registeredProjectCount}/${projectOrder.length}，已抽签 ${drawnProjectCount}/${projectOrder.length}。`
+        : `完成大屏自助抽签和顺序确认后再生成专家专属评分链接。当前已抽签 ${drawnProjectCount}/${projectOrder.length}。`
+      : null;
 
     const renderReviewSidebar = () => (
       <aside className="side sticky top-[238px] self-start space-y-4">
@@ -3233,7 +3231,9 @@ export default function ExpertReviewTab() {
           <div className="flex items-center justify-between gap-3">
             <div>
               <h3 className="text-sm font-extrabold text-slate-950">专家评分入口</h3>
-              <p className="mt-1 text-[11px] text-slate-400">顺序确认后开放；每位专家一个链接，按路演顺序显示全部项目。</p>
+              <p className="mt-1 text-[11px] text-slate-400">
+                顺序确认后开放；每位专家一个链接。不启动现场大屏阶段，专家可按路演顺序提交全部项目评分。
+              </p>
             </div>
             <button
               className="inline-flex shrink-0 items-center justify-center gap-1 rounded-lg border border-blue-100 bg-blue-50 px-2.5 py-1.5 text-[11px] font-bold text-blue-700 transition hover:bg-blue-100 disabled:cursor-not-allowed disabled:opacity-50"
@@ -3588,7 +3588,7 @@ export default function ExpertReviewTab() {
                     </div>
                     <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                       <p className="text-xs leading-5 text-slate-500">
-                        进入评分阶段后，本页会自动切换到打分界面，提交前系统会再次弹窗确认。
+                        进入评分阶段后，本页会自动切换到评分界面，提交前系统将进行二次确认。
                       </p>
                       <button
                         className="inline-flex w-full touch-manipulation items-center justify-center rounded-xl bg-blue-600 px-4 py-2.5 text-sm font-bold text-white transition active:scale-[0.98] hover:bg-blue-700 sm:w-auto"
@@ -3824,7 +3824,7 @@ export default function ExpertReviewTab() {
               <Clock3 className="h-8 w-8" />
             </div>
             <h3 className="mt-6 text-2xl font-bold text-slate-950">等待评审开始</h3>
-            <p className="mt-3 text-sm leading-6 text-slate-500">管理员开始路演节奏并指派项目后，这里会自动出现评分入口。</p>
+            <p className="mt-3 text-sm leading-6 text-slate-500">管理员启动现场评分并指派项目后，系统将自动显示评分入口。</p>
             {activeRoadshowAssignment ? (
               <div className="live-roadshow-status-card mt-6 rounded-3xl border border-blue-100 bg-white p-5 text-left shadow-[0_14px_40px_rgba(37,99,235,0.08)]">
                 <div className="flex items-center justify-between gap-3">
@@ -3841,7 +3841,7 @@ export default function ExpertReviewTab() {
                   </span>
                 </div>
                 <p className="mt-3 text-xs leading-5 text-slate-500">
-                  进入评分阶段后，本页会自动切换到打分界面；如现场已推进但页面未变化，请手动刷新现场状态。
+                  进入评分阶段后，本页会自动切换到评分界面；如现场已推进但页面未变化，请手动刷新现场状态。
                 </p>
               </div>
             ) : null}
@@ -3932,7 +3932,7 @@ export default function ExpertReviewTab() {
                   />
                 </label>
                 <p className="mt-4 text-sm text-slate-500">
-                  若输入整数，如 85，系统会按 85.00 分提交；提交前请确认是否需要保留两位小数，系统会再次弹窗确认。
+                  若输入整数，如 85，系统会按 85.00 分提交；提交前请确认是否需要保留两位小数，系统将进行二次确认。
                 </p>
                 <div className="expert-score-submit-bar sticky bottom-0 -mx-4 mt-6 border-t border-indigo-100 bg-white/95 px-4 py-3 backdrop-blur sm:static sm:m-0 sm:border-0 sm:bg-transparent sm:p-0 sm:backdrop-blur-0">
                   <button
@@ -4113,7 +4113,7 @@ export default function ExpertReviewTab() {
                     <span className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-bold ${
                       stage.type === "roadshow" ? "bg-emerald-50 text-emerald-700" : "bg-blue-50 text-blue-700"
                     }`}>
-                      {stage.type === "roadshow" ? "路演" : "网评"}
+                      {stage.type === "roadshow" ? "路演" : "网络评审"}
                     </span>
                   </div>
                   <p className="mt-3 line-clamp-2 text-xs leading-5 text-slate-400">
@@ -4156,10 +4156,11 @@ export default function ExpertReviewTab() {
     const teamDrawReady = !activeGroupIsRoadshow || !activeScreenSession?.teamDrawUrl || (
       commandProjectOrder.length > 0 && drawnProjectCount >= commandProjectOrder.length
     );
+    const commandOrderPreparationDone = !activeGroupIsRoadshow || !commandOrderDrawBlockingStart;
     const commandActiveStep =
       groupedAssignments.length === 0
         ? "prepare"
-        : activeGroupIsRoadshow && (!activeScreenSession || !teamDrawReady || commandOrderDrawBlockingStart)
+        : !commandOrderPreparationDone
           ? "draw"
           : pendingReviewCount > 0
             ? "score"
@@ -4174,12 +4175,12 @@ export default function ExpertReviewTab() {
           }
         : commandActiveStep === "draw" && activeGroup
           ? {
-              label: activeScreenSession?.teamDrawUrl ? "复制团队抽签入口" : "配置抽签与大屏",
+              label: activeScreenSession?.teamDrawUrl ? "复制团队抽签入口" : "配置抽签与顺序",
               description: activeScreenSession?.teamDrawUrl
                 ? `团队抽签进行中：已注册 ${registeredProjectCount}/${commandProjectOrder.length}，已抽签 ${drawnProjectCount}/${commandProjectOrder.length}。`
                 : commandDrawMode === "self" && activeScreenSession
                   ? `大屏自助抽签进行中：已抽签 ${drawnProjectCount}/${commandProjectOrder.length}。`
-                : "生成一个团队抽签入口；需要大屏时再打开监控。",
+                : "生成团队抽签入口并形成路演顺序；需要现场大屏时再打开监控。",
               disabled: !canManageReviewMaterials,
               onClick: () => {
                 if (activeScreenSession?.teamDrawUrl) {
@@ -4192,14 +4193,14 @@ export default function ExpertReviewTab() {
           : commandActiveStep === "score" && activeGroup && activeGuestLinkCount === 0
             ? {
                 label: "生成专家评分链接",
-                description: "每位专家一个专属评分链接，复制后发送给对应专家。",
+                description: "每位专家一个专属评分链接；不启动现场大屏阶段，专家可按路演顺序提交全部项目评分。",
                 disabled: !activeGroup.projectReviewStageId || guestExpertLinkActionKey === activeGroup.key,
                 onClick: () => void generateGuestExpertLinks(activeGroup),
               }
             : commandActiveStep === "score"
               ? {
                   label: "查看原始分矩阵",
-                  description: "大屏未开启时仍可接收评分提交，管理端实时查看每位专家原始分。",
+                  description: "不启动现场大屏阶段时，管理端仍可实时查看每位专家原始分。",
                   disabled: false,
                   onClick: () => document.getElementById("expert-score-matrix")?.scrollIntoView({ behavior: "smooth", block: "start" }),
                 }
@@ -4250,8 +4251,7 @@ export default function ExpertReviewTab() {
             ? "等待大屏自助抽签完成后进入专家评分"
           : "统一入口发送给参赛团队，团队选择本项目后注册抽签",
         state: getGateState(
-          hasReviewConfiguration &&
-            (!activeGroupIsRoadshow || Boolean(activeScreenSession && teamDrawReady && !commandOrderDrawBlockingStart)),
+          hasReviewConfiguration && commandOrderPreparationDone && teamDrawReady,
           "draw",
         ),
       },
@@ -4263,7 +4263,7 @@ export default function ExpertReviewTab() {
         requirement: "顺序确认后，每位专家一个专属评分链接。",
         description: activeGuestLinkCount
           ? `链接 ${activeGuestLinkCount}/${activeExpertSeatCount || activeGuestLinkCount} · 已访问 ${activeGuestLinkUsedCount}`
-          : "每位专家一个专属评分链接，大屏未开启时仍可接收评分提交",
+          : "每位专家一个专属评分链接；不启动现场大屏阶段时仍可提交评分",
         state: getGateState(hasReviewConfiguration && activeGuestLinkCount > 0, "score"),
       },
       {

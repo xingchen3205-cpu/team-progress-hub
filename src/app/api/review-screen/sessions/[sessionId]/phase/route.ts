@@ -63,11 +63,13 @@ export async function POST(
       qaSeconds: true,
       scoringSeconds: true,
       scoringEnabled: true,
+      teamDrawEnabled: true,
       projectOrders: {
         orderBy: { orderIndex: "asc" },
         select: {
           packageId: true,
           scoreLockedAt: true,
+          selfDrawnAt: true,
         },
       },
     },
@@ -110,6 +112,10 @@ export async function POST(
   };
   if (phase !== "finished" && !allowedNextPhases[session.screenPhase]?.includes(phase)) {
     return NextResponse.json({ message: "请按路演、答辩、评分的顺序切换阶段" }, { status: 409 });
+  }
+
+  if (phase === "presentation" && session.teamDrawEnabled && session.projectOrders.some((project) => !project.selfDrawnAt)) {
+    return NextResponse.json({ message: "团队线上抽签未全部完成，不能开始路演" }, { status: 409 });
   }
 
   if (phase === "scoring" && !session.scoringEnabled) {

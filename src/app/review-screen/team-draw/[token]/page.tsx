@@ -237,6 +237,8 @@ export default function TeamDrawPage() {
             className: registrationDraft.className.trim(),
             studentId: registrationDraft.studentId.trim(),
             password: registrationDraft.password.trim(),
+            confirmProjectSelection: true,
+            confirmRegistrationFinal: true,
           }),
         },
       );
@@ -559,7 +561,7 @@ export default function TeamDrawPage() {
             </span>
             <h1 className="team-draw-title">团队线上抽签</h1>
             <p className="mt-2 text-sm font-semibold leading-6 text-white/78">
-              一个入口覆盖本轮全部项目，请选择本团队项目并完成负责人注册，一个项目只允许首次注册一次。
+              本入口适用于本轮全部项目。请选择本团队项目并完成负责人注册；每个项目仅允许首次注册一次。
             </p>
           </div>
 
@@ -601,14 +603,14 @@ export default function TeamDrawPage() {
                   {orderNumber ? (
                     <>
                       <CheckCircle2 className="mb-3 h-7 w-7 text-emerald-600" />
-                      <p className="text-sm font-black text-slate-500">你的路演顺序</p>
+                      <p className="text-sm font-black text-slate-500">本团队路演顺序</p>
                       <div className="team-draw-number">{orderNumber}</div>
                       <p className="text-xs font-bold text-slate-500">已同步到管理员后台</p>
                     </>
                   ) : (
                     <>
                       <Shuffle className="mb-4 h-9 w-9 text-blue-700" />
-                      <p className="text-base font-black text-slate-800">等待你抽取路演顺序</p>
+                      <p className="text-base font-black text-slate-800">等待抽取路演顺序</p>
                       <p className="mt-2 px-8 text-center text-xs font-semibold leading-5 text-slate-500">
                         点击后从系统随机队列中确认本团队路演顺序。
                       </p>
@@ -732,7 +734,7 @@ export default function TeamDrawPage() {
                   <p className="text-xs font-black text-blue-600">{claimState.roundLabel}</p>
                   <h2 className="mt-2 text-lg font-black leading-snug text-slate-950">选择本团队项目</h2>
                   <p className="mt-2 text-xs font-semibold leading-5 text-slate-500">
-                    请只选择自己所属项目。选错项目会影响抽签顺序、专家评分和后续统计。
+                    请只选择本团队所属项目。项目选择错误将影响抽签顺序、专家评分和后续统计。
                   </p>
                 </div>
                 <div className="max-h-[44vh] space-y-2 overflow-y-auto pr-1">
@@ -812,8 +814,8 @@ export default function TeamDrawPage() {
                 </h2>
                 <p className="mt-2 text-sm font-semibold leading-6 text-slate-600">
                   {confirmStep === "first"
-                    ? `请确认你属于“${selectedProject.targetName}”。确认后将进入本项目负责人注册。`
-                    : "本项目首次注册成功后不能重复注册；选错项目会影响抽签和后续评审安排。"}
+                    ? `请确认“${selectedProject.targetName}”为本团队所属项目。确认后进入负责人注册。`
+                    : "本项目首次注册成功后不能重复注册；项目选择错误将影响抽签和后续评审安排。"}
                 </p>
               </div>
             </div>
@@ -826,7 +828,7 @@ export default function TeamDrawPage() {
                 返回
               </button>
               <button className="team-draw-button min-h-11" onClick={continueConfirmation} type="button">
-                {confirmStep === "first" ? "我确认属于该项目" : "再次确认并注册"}
+                {confirmStep === "first" ? "确认项目归属" : "再次确认并注册"}
               </button>
             </div>
           </section>

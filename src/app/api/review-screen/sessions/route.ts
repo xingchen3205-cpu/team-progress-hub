@@ -170,7 +170,7 @@ export async function POST(request: NextRequest) {
     (reviewPackage.materials.length === 0 ? "roadshow" : "online_review");
 
   if (projectReviewStageType !== "roadshow") {
-    return NextResponse.json({ message: "只有项目路演评审可以生成现场大屏链接" }, { status: 400 });
+    return NextResponse.json({ message: "只有项目路演评审可以生成抽签与投屏链接" }, { status: 400 });
   }
 
   const stageReviewPackages = reviewPackage.projectReviewStageId

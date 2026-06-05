@@ -413,13 +413,15 @@ describe("expert review v2 constraints", () => {
     assert.match(tabSource, /未达条件不推进/);
     assert.match(tabSource, /统一入口发送给参赛团队/);
     assert.match(tabSource, /每位专家一个专属评分链接/);
-    assert.match(tabSource, /大屏未开启时仍可接收评分提交/);
+    assert.match(tabSource, /不启动现场大屏阶段时仍可提交评分/);
     assert.match(tabSource, /归档复核/);
     assert.match(tabSource, /review-command-center/);
     assert.match(tabSource, /review-process-gate-list/);
     assert.match(tabSource, /review-step-gate/);
     assert.match(tabSource, /现场出分计分规则/);
     assert.match(tabSource, /需要大屏实时出分或现场揭晓时，必须在开启大屏前确认计分规则/);
+    assert.match(tabSource, /不需要现场出分时，无需启动路演、答辩或评分阶段/);
+    assert.match(tabSource, /评分全部提交后再办理成绩归档与排名/);
     assert.match(tabSource, /注册/);
     assert.match(tabSource, /抽签/);
     assert.match(tabSource, /activeGuestLinkUsedCount/);
@@ -483,6 +485,8 @@ describe("expert review v2 constraints", () => {
     assert.match(tabSource, /expertLinksLockedReason/);
     assert.match(tabSource, /专家评分入口待开放/);
     assert.match(tabSource, /完成团队抽签和顺序确认后再生成专家专属评分链接/);
+    assert.match(tabSource, /不启动现场大屏阶段/);
+    assert.match(tabSource, /专家可按路演顺序提交全部项目评分/);
     assert.match(tabSource, /disabled=\{!expertLinksReady \|\| !group\.projectReviewStageId/);
     assert.match(tabSource, /review-expert-links-panel/);
   });
@@ -625,8 +629,8 @@ describe("expert review v2 constraints", () => {
     assert.match(tabSource, /roadshow-phase-pill/);
     assert.match(tabSource, /roadshow-score-input-shell/);
     assert.match(tabSource, /实时同步中/);
-    assert.match(tabSource, /进入评分阶段后，本页会自动切换到打分界面/);
-    assert.match(tabSource, /系统会再次弹窗确认/);
+    assert.match(tabSource, /进入评分阶段后，本页会自动切换到评分界面/);
+    assert.match(tabSource, /系统将进行二次确认/);
   });
 
   it("keeps expert mobile assignments in sync without requiring manual refresh", () => {
