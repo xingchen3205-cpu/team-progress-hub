@@ -491,17 +491,23 @@ describe("expert review v2 constraints", () => {
     assert.match(tabSource, /review-expert-links-panel/);
   });
 
-  it("puts live roadshow controls before score monitoring and advanced reuse", () => {
+  it("prioritizes offline score monitoring before optional live roadshow controls", () => {
     const tabSource = readSource("src/components/tabs/expert-review-tab-content.tsx");
     const firstConsoleCall = tabSource.indexOf("renderReviewScreenConsole(activeGroup)");
     const firstMatrixCall = tabSource.indexOf("{renderRawScoreMatrix()}");
+    const firstArchiveCall = tabSource.indexOf("{renderFinalRankingArchive()}");
     const advancedReuseCall = tabSource.indexOf("{renderAdvancedProjectStageReuse()}");
 
     assert.notEqual(firstConsoleCall, -1, "missing live review console call");
     assert.notEqual(firstMatrixCall, -1, "missing raw score matrix call");
+    assert.notEqual(firstArchiveCall, -1, "missing final ranking archive call");
     assert.notEqual(advancedReuseCall, -1, "missing advanced reuse panel call");
-    assert.ok(firstConsoleCall < firstMatrixCall, "live controls should appear before score monitoring");
-    assert.ok(firstConsoleCall < advancedReuseCall, "advanced reuse should not interrupt the current round workflow");
+    assert.ok(firstMatrixCall < firstArchiveCall, "raw score monitoring should appear before final archive");
+    assert.ok(firstArchiveCall < firstConsoleCall, "optional live controls should not interrupt offline scoring");
+    assert.ok(firstConsoleCall < advancedReuseCall, "advanced reuse should remain after current round workflow");
+    assert.match(tabSource, /review-live-screen-drawer/);
+    assert.match(tabSource, /现场大屏实时流程/);
+    assert.match(tabSource, /需要现场实时路演或实时出分时再展开使用/);
   });
 
   it("keeps roadshow project card guidance consistent with its position", () => {

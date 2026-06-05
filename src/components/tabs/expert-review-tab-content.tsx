@@ -5024,32 +5024,52 @@ export default function ExpertReviewTab() {
         </section>
       ) : activeGroupIsRoadshow && activeGroup ? (
         <main className="space-y-5">
-          {activeRoadshowConsoleFinished ? (
-            <section className="rounded-2xl border border-emerald-100 bg-emerald-50 p-6 shadow-sm">
-              <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
-                <div>
-                  <p className="text-sm font-bold text-emerald-700">本轮已结束，已收起现场控制台</p>
-                  <h3 className="mt-1 text-xl font-extrabold text-slate-950">{activeGroup.targetName}</h3>
-                  <p className="mt-2 text-sm leading-6 text-slate-600">
-                    该项目已完成，不再展开阶段按钮和现场倒计时。需要继续操作时，请从上方项目卡片切换到未结束项目，或删除本阶段配置后重新配置。
-                  </p>
-                </div>
-                {canManageReviewMaterials ? (
-                  <button
-                    className="inline-flex shrink-0 items-center justify-center rounded-xl border border-rose-100 bg-white px-4 py-3 text-sm font-extrabold text-rose-600 transition hover:bg-rose-50"
-                    onClick={() => deleteReviewStageAssignments(activeGroup)}
-                    type="button"
-                  >
-                    删除本阶段全部评审配置
-                  </button>
-                ) : null}
-              </div>
-            </section>
-          ) : (
-            renderReviewScreenConsole(activeGroup)
-          )}
           {renderRawScoreMatrix()}
           {renderFinalRankingArchive()}
+          <details
+            className="review-live-screen-drawer group rounded-3xl border border-slate-200 bg-white shadow-sm"
+            open={Boolean(activeGroupLiveData && activeGroupLiveData.screenPhase !== "draw" && !activeRoadshowConsoleFinished)}
+          >
+            <summary className="flex cursor-pointer list-none flex-col gap-3 px-5 py-4 transition hover:bg-slate-50 md:flex-row md:items-center md:justify-between">
+              <div className="min-w-0">
+                <p className="text-xs font-black tracking-[0.16em] text-blue-600">现场大屏实时流程</p>
+                <h3 className="mt-1 text-lg font-black text-slate-950">路演、答辩与实时出分控制</h3>
+                <p className="mt-2 text-sm font-semibold leading-6 text-slate-500">
+                  需要现场实时路演或实时出分时再展开使用；不打开大屏时，按上方专家评分链接、原始分矩阵和成绩归档流程办理。
+                </p>
+              </div>
+              <span className="inline-flex w-fit shrink-0 items-center gap-1 rounded-full bg-blue-50 px-3 py-1.5 text-xs font-black text-blue-700">
+                展开现场控制
+                <ChevronRight className="h-4 w-4 transition group-open:rotate-90" />
+              </span>
+            </summary>
+            <div className="border-t border-slate-100 bg-slate-50/60 p-4">
+              {activeRoadshowConsoleFinished ? (
+                <section className="rounded-2xl border border-emerald-100 bg-emerald-50 p-6 shadow-sm">
+                  <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
+                    <div>
+                      <p className="text-sm font-bold text-emerald-700">本轮已结束，已收起现场控制台</p>
+                      <h3 className="mt-1 text-xl font-extrabold text-slate-950">{activeGroup.targetName}</h3>
+                      <p className="mt-2 text-sm leading-6 text-slate-600">
+                        该项目已完成，不再展开阶段按钮和现场倒计时。需要继续操作时，请从上方项目卡片切换到未结束项目，或删除本阶段配置后重新配置。
+                      </p>
+                    </div>
+                    {canManageReviewMaterials ? (
+                      <button
+                        className="inline-flex shrink-0 items-center justify-center rounded-xl border border-rose-100 bg-white px-4 py-3 text-sm font-extrabold text-rose-600 transition hover:bg-rose-50"
+                        onClick={() => deleteReviewStageAssignments(activeGroup)}
+                        type="button"
+                      >
+                        删除本阶段全部评审配置
+                      </button>
+                    ) : null}
+                  </div>
+                </section>
+              ) : (
+                renderReviewScreenConsole(activeGroup)
+              )}
+            </div>
+          </details>
           {renderRoadshowGroupCards()}
         </main>
       ) : (
