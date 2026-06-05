@@ -91,12 +91,13 @@ describe("guest expert review links", () => {
     assert.doesNotMatch(page, /workspace/);
   });
 
-  it("keeps guest mobile scoring fast and advances to the next pending project", () => {
+  it("keeps guest mobile scoring rigorous and advances to the next pending project", () => {
     const page = readSource("src/app/expert-review/guest/[token]/page.tsx");
 
-    assert.match(page, /quickScoreOptions/);
-    assert.match(page, /guest-review-quick-scores/);
-    assert.match(page, /常用分值/);
+    assert.doesNotMatch(page, /quickScoreOptions/);
+    assert.doesNotMatch(page, /guest-review-quick-scores/);
+    assert.doesNotMatch(page, /常用分值/);
+    assert.match(page, /请手动输入 0\.00-100\.00 分/);
     assert.match(page, /guest-review-score-dock/);
     assert.match(page, /nextPendingProject/);
     assert.match(page, /preferredAssignmentId:\s*"next-pending"/);

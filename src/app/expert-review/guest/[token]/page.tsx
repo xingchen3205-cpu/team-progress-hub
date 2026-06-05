@@ -61,8 +61,6 @@ const formatDateTime = (value?: string | null) => {
   });
 };
 
-const quickScoreOptions = ["85.00", "88.00", "90.00", "92.00", "95.00", "98.00"];
-
 export default function GuestExpertReviewPage() {
   const params = useParams<{ token: string }>();
   const token = params.token ?? "";
@@ -314,31 +312,6 @@ export default function GuestExpertReviewPage() {
         .guest-review-score-input:focus {
           border-color: #2563eb;
           box-shadow: 0 0 0 4px rgba(37, 99, 235, .12);
-        }
-        .guest-review-quick-scores {
-          display: grid;
-          grid-template-columns: repeat(3, minmax(0, 1fr));
-          gap: 8px;
-        }
-        .guest-review-quick-score {
-          min-height: 42px;
-          border: 1px solid #d8e1ee;
-          border-radius: 13px;
-          background: #f8fafc;
-          color: #334155;
-          font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
-          font-size: 14px;
-          font-weight: 900;
-          transition: border-color .18s ease, background .18s ease, color .18s ease, transform .14s ease;
-        }
-        .guest-review-quick-score:active {
-          transform: scale(.98);
-        }
-        .guest-review-quick-score-active {
-          border-color: #1d4ed8;
-          background: #eff6ff;
-          color: #1d4ed8;
-          box-shadow: inset 0 0 0 1px rgba(29, 78, 216, .1);
         }
         .guest-review-textarea {
           min-height: 96px;
@@ -599,33 +572,14 @@ export default function GuestExpertReviewPage() {
                             }))
                           }
                           placeholder="0.00"
+                          step="0.01"
                           type="number"
                           value={selectedScoreDraft}
                         />
+                        <span className="mt-2 block text-xs font-bold leading-5 text-slate-500">
+                          请手动输入 0.00-100.00 分，最多保留两位小数。提交前系统会再次确认。
+                        </span>
                       </label>
-                      <div>
-                        <div className="flex items-center justify-between gap-3">
-                          <span className="text-sm font-black text-slate-800">常用分值</span>
-                          <span className="text-xs font-bold text-slate-400">点选后仍可手动微调</span>
-                        </div>
-                        <div className="guest-review-quick-scores mt-2">
-                          {quickScoreOptions.map((option) => (
-                            <button
-                              className={`guest-review-quick-score ${selectedScoreDraft === option ? "guest-review-quick-score-active" : ""}`}
-                              key={option}
-                              onClick={() =>
-                                setScoreDrafts((current) => ({
-                                  ...current,
-                                  [selectedProject.assignmentId]: option,
-                                }))
-                              }
-                              type="button"
-                            >
-                              {option}
-                            </button>
-                          ))}
-                        </div>
-                      </div>
                       <label className="block">
                         <span className="text-sm font-black text-slate-800">评语</span>
                         <textarea
