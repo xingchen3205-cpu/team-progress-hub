@@ -91,6 +91,19 @@ describe("guest expert review links", () => {
     assert.doesNotMatch(page, /workspace/);
   });
 
+  it("keeps guest mobile scoring fast and advances to the next pending project", () => {
+    const page = readSource("src/app/expert-review/guest/[token]/page.tsx");
+
+    assert.match(page, /quickScoreOptions/);
+    assert.match(page, /guest-review-quick-scores/);
+    assert.match(page, /常用分值/);
+    assert.match(page, /guest-review-score-dock/);
+    assert.match(page, /nextPendingProject/);
+    assert.match(page, /preferredAssignmentId:\s*"next-pending"/);
+    assert.match(page, /selectedCurrentProject\?\.status === "submitted"/);
+    assert.match(page, /await load\(\{ preferredAssignmentId: "next-pending" \}\)/);
+  });
+
   it("exposes admin controls for expert no-login links without creating per-project links", () => {
     const tab = readSource("src/components/tabs/expert-review-tab-content.tsx");
 

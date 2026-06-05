@@ -61,6 +61,8 @@ const formatDateTime = (value?: string | null) => {
   });
 };
 
+const quickScoreOptions = ["85.00", "88.00", "90.00", "92.00", "95.00", "98.00"];
+
 export default function GuestExpertReviewPage() {
   const params = useParams<{ token: string }>();
   const token = params.token ?? "";
@@ -73,7 +75,7 @@ export default function GuestExpertReviewPage() {
   const [pendingSubmission, setPendingSubmission] = useState<PendingGuestSubmission | null>(null);
   const [message, setMessage] = useState("");
 
-  const load = async () => {
+  const load = async (options?: { preferredAssignmentId?: string | "next-pending" }) => {
     if (!token) {
       setMessage("专家评分链接无效");
       setLoading(false);
@@ -90,7 +92,23 @@ export default function GuestExpertReviewPage() {
       }
       const payload = data as GuestReviewState;
       setState(payload);
-      setSelectedAssignmentId((current) => current ?? payload.projects.find((project) => project.status !== "submitted")?.assignmentId ?? payload.projects[0]?.assignmentId ?? null);
+      const nextPendingProject = payload.projects.find((project) => project.status !== "submitted");
+      setSelectedAssignmentId((current) => {
+        const selectedCurrentProject = payload.projects.find((project) => project.assignmentId === current);
+        if (options?.preferredAssignmentId === "next-pending") {
+          return nextPendingProject?.assignmentId ?? selectedCurrentProject?.assignmentId ?? payload.projects[0]?.assignmentId ?? null;
+        }
+        if (options?.preferredAssignmentId) {
+          return payload.projects.find((project) => project.assignmentId === options.preferredAssignmentId)?.assignmentId ??
+            nextPendingProject?.assignmentId ??
+            payload.projects[0]?.assignmentId ??
+            null;
+        }
+        if (!current || selectedCurrentProject?.status === "submitted") {
+          return nextPendingProject?.assignmentId ?? selectedCurrentProject?.assignmentId ?? payload.projects[0]?.assignmentId ?? null;
+        }
+        return current;
+      });
       setMessage("");
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "专家评分链接无效");
@@ -109,6 +127,10 @@ export default function GuestExpertReviewPage() {
     () => projects.find((project) => project.assignmentId === selectedAssignmentId) ?? projects[0] ?? null,
     [projects, selectedAssignmentId],
   );
+  const selectedScoreDraft = selectedProject ? scoreDrafts[selectedProject.assignmentId] ?? "" : "";
+  const selectedScoreValue = Number(selectedScoreDraft);
+  const selectedScorePreview =
+    selectedScoreDraft.trim() && Number.isFinite(selectedScoreValue) ? selectedScoreValue.toFixed(2) : "--";
   const allSubmitted = Boolean(state && state.totalCount > 0 && state.pendingCount === 0);
   const selectedCanSubmit = Boolean(
     selectedProject &&
@@ -169,7 +191,7 @@ export default function GuestExpertReviewPage() {
         throw new Error(data?.message ?? "评分提交失败，请刷新后重试");
       }
       setPendingSubmission(null);
-      await load();
+      await load({ preferredAssignmentId: "next-pending" });
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "评分提交失败，请刷新后重试");
     } finally {
@@ -293,6 +315,31 @@ export default function GuestExpertReviewPage() {
           border-color: #2563eb;
           box-shadow: 0 0 0 4px rgba(37, 99, 235, .12);
         }
+        .guest-review-quick-scores {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 8px;
+        }
+        .guest-review-quick-score {
+          min-height: 42px;
+          border: 1px solid #d8e1ee;
+          border-radius: 13px;
+          background: #f8fafc;
+          color: #334155;
+          font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+          font-size: 14px;
+          font-weight: 900;
+          transition: border-color .18s ease, background .18s ease, color .18s ease, transform .14s ease;
+        }
+        .guest-review-quick-score:active {
+          transform: scale(.98);
+        }
+        .guest-review-quick-score-active {
+          border-color: #1d4ed8;
+          background: #eff6ff;
+          color: #1d4ed8;
+          box-shadow: inset 0 0 0 1px rgba(29, 78, 216, .1);
+        }
         .guest-review-textarea {
           min-height: 96px;
           width: 100%;
@@ -327,6 +374,24 @@ export default function GuestExpertReviewPage() {
         }
         .guest-review-submit:disabled {
           opacity: .45;
+        }
+        .guest-review-score-dock {
+          display: grid;
+          grid-template-columns: minmax(0, 108px) minmax(0, 1fr);
+          gap: 10px;
+          align-items: center;
+          border: 1px solid #dbeafe;
+          border-radius: 18px;
+          background: linear-gradient(135deg, #eff6ff, #ffffff);
+          padding: 10px;
+          box-shadow: 0 14px 30px rgba(37, 99, 235, .1);
+        }
+        .guest-review-score-preview {
+          border-radius: 14px;
+          background: white;
+          padding: 9px 10px;
+          text-align: center;
+          box-shadow: inset 0 0 0 1px #e2e8f0;
         }
         .guest-review-confirm-overlay {
           position: fixed;
@@ -535,9 +600,32 @@ export default function GuestExpertReviewPage() {
                           }
                           placeholder="0.00"
                           type="number"
-                          value={scoreDrafts[selectedProject.assignmentId] ?? ""}
+                          value={selectedScoreDraft}
                         />
                       </label>
+                      <div>
+                        <div className="flex items-center justify-between gap-3">
+                          <span className="text-sm font-black text-slate-800">常用分值</span>
+                          <span className="text-xs font-bold text-slate-400">点选后仍可手动微调</span>
+                        </div>
+                        <div className="guest-review-quick-scores mt-2">
+                          {quickScoreOptions.map((option) => (
+                            <button
+                              className={`guest-review-quick-score ${selectedScoreDraft === option ? "guest-review-quick-score-active" : ""}`}
+                              key={option}
+                              onClick={() =>
+                                setScoreDrafts((current) => ({
+                                  ...current,
+                                  [selectedProject.assignmentId]: option,
+                                }))
+                              }
+                              type="button"
+                            >
+                              {option}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
                       <label className="block">
                         <span className="text-sm font-black text-slate-800">评语</span>
                         <textarea
@@ -552,23 +640,29 @@ export default function GuestExpertReviewPage() {
                           value={commentDrafts[selectedProject.assignmentId] ?? ""}
                         />
                       </label>
-                      <button
-                        className="guest-review-submit"
-                        disabled={submittingId === selectedProject.assignmentId || !selectedCanSubmit}
-                        onClick={openSubmitConfirmation}
-                        type="button"
-                      >
-                        {submittingId === selectedProject.assignmentId ? (
-                          <Clock3 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <Send className="h-4 w-4" />
-                        )}
-                        {selectedProject.reviewWindowState === "not_started"
-                          ? "未到评分时间"
-                          : selectedProject.reviewWindowState === "ended"
-                            ? "已截止"
-                            : "提交评分"}
-                      </button>
+                      <div className="guest-review-score-dock">
+                        <div className="guest-review-score-preview">
+                          <p className="text-[10px] font-black text-slate-400">本项分数</p>
+                          <p className="mt-1 font-mono text-xl font-black text-slate-950">{selectedScorePreview}</p>
+                        </div>
+                        <button
+                          className="guest-review-submit"
+                          disabled={submittingId === selectedProject.assignmentId || !selectedCanSubmit}
+                          onClick={openSubmitConfirmation}
+                          type="button"
+                        >
+                          {submittingId === selectedProject.assignmentId ? (
+                            <Clock3 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <Send className="h-4 w-4" />
+                          )}
+                          {selectedProject.reviewWindowState === "not_started"
+                            ? "未到评分时间"
+                            : selectedProject.reviewWindowState === "ended"
+                              ? "已截止"
+                              : "提交评分"}
+                        </button>
+                      </div>
                     </div>
                   )}
                 </section>
