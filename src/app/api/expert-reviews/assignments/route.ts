@@ -182,8 +182,8 @@ export async function POST(request: NextRequest) {
   const overview = body?.overview?.trim() || null;
   const startAt = body?.startAt ? new Date(body.startAt) : null;
   const deadline = body?.deadline ? new Date(body.deadline) : null;
-  const dropHighestCount = normalizeReviewScoreRuleCount(body?.dropHighestCount, 1);
-  const dropLowestCount = normalizeReviewScoreRuleCount(body?.dropLowestCount, 1);
+  const dropHighestCount = normalizeReviewScoreRuleCount(body?.dropHighestCount, 0);
+  const dropLowestCount = normalizeReviewScoreRuleCount(body?.dropLowestCount, 0);
 
   if (startAt && Number.isNaN(startAt.getTime())) {
     return NextResponse.json({ message: "评审开始时间格式无效" }, { status: 400 });

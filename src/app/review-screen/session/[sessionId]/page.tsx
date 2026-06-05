@@ -2809,7 +2809,7 @@ export default function ReviewScreenSessionPage() {
                   <div className="flex items-center justify-between border-b border-slate-200 px-5 py-4">
                     <div>
                       <p className="text-xs font-black tracking-[2px] text-[#c22832]">团队线上抽签</p>
-                      <h3 className="mt-1 text-xl font-black text-[#0f2040]">微信链接实时监控</h3>
+                      <h3 className="mt-1 text-xl font-black text-[#0f2040]">团队抽签实时监控</h3>
                     </div>
                     <span className="rounded-full bg-blue-50 px-3 py-1.5 text-xs font-black text-blue-700">
                       已抽 {selfDrawAssignedCount} / {projectOrder.length}
@@ -2856,9 +2856,9 @@ export default function ReviewScreenSessionPage() {
                 <aside className="contest-card flex flex-col justify-between p-5">
                   <div>
                     <p className="text-xs font-black tracking-[2px] text-blue-600">监控状态</p>
-                    <h3 className="mt-2 text-2xl font-black text-[#0f2040]">等待各团队微信抽签</h3>
+                    <h3 className="mt-2 text-2xl font-black text-[#0f2040]">等待各团队完成抽签</h3>
                     <p className="mt-3 text-sm font-bold leading-6 text-slate-500">
-                      管理员保持本屏打开即可；团队通过专属链接抽取自己的顺序，结果会自动刷新到这里。
+                      管理员保持本屏运行；团队通过抽签入口抽取本项目顺序，结果将自动同步至本屏。
                     </p>
                   </div>
                   <div className="mt-6 rounded-2xl bg-blue-50 px-5 py-4">

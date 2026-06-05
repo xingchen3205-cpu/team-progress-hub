@@ -439,7 +439,7 @@ export default function GuestExpertReviewPage() {
               <p className="mt-1 text-xs font-bold text-white/72">创新创业管理平台</p>
             </div>
           </div>
-          <p className="guest-review-eyebrow mt-5">专家临时评审入口</p>
+          <p className="guest-review-eyebrow mt-5">专家评分入口</p>
           <h1 className="mt-3 text-2xl font-black leading-tight">{state?.stageName ?? "项目评审"}</h1>
           <p className="mt-2 text-sm font-semibold text-white/75">
             {state ? `${state.expertName}，请按路演顺序完成本轮评审` : "正在加载评审任务"}

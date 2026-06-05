@@ -151,7 +151,7 @@ describe("expert review v2 constraints", () => {
     assert.match(tabSource, /项目网络评审/);
     assert.match(tabSource, /项目路演评审/);
     assert.match(tabSource, /确认提交/);
-    assert.match(tabSource, /评审流程中台/);
+    assert.match(tabSource, /大赛评审管理/);
     assert.match(tabSource, /导出评分明细/);
     assert.match(tabSource, /downloadReviewScoreDetails/);
     assert.match(tabSource, /提交评分/);
@@ -281,9 +281,9 @@ describe("expert review v2 constraints", () => {
     assert.match(shellSource, /项目管理来源（可选）/);
     assert.match(shellSource, /选择已生效项目材料/);
     assert.match(shellSource, /选择专家/);
-    assert.match(tabSource, /高级复用入口/);
+    assert.match(tabSource, /历史轮次复用/);
     assert.match(tabSource, /复用并配置/);
-    assert.match(tabSource, /日常办赛不用打开/);
+    assert.match(tabSource, /仅在复用既有项目阶段/);
     assert.doesNotMatch(shellSource, /评审对象 \/ 项目名称/);
     assert.doesNotMatch(shellSource, /和主文档中心完全分离/);
     assert.match(tabSource, /项目管理已生效材料/);
@@ -346,10 +346,10 @@ describe("expert review v2 constraints", () => {
     const tabSource = readSource("src/components/tabs/expert-review-tab-content.tsx");
 
     assert.match(tabSource, /新建大赛评审/);
-    assert.match(tabSource, /导入项目、分配专家、收集评分/);
-    assert.match(tabSource, /高级复用入口/);
+    assert.match(tabSource, /导入项目、分配专家、记录评分/);
+    assert.match(tabSource, /历史轮次复用/);
     assert.match(tabSource, /renderAdvancedProjectStageReuse/);
-    assert.match(tabSource, /日常办赛不用打开/);
+    assert.match(tabSource, /仅在复用既有项目阶段/);
     assert.doesNotMatch(tabSource, /可选项目管理来源/);
     assert.doesNotMatch(tabSource, /项目管理创建网络评审或项目路演后，可在这里分配专家/);
     assert.doesNotMatch(tabSource, /从项目管理选择已生效材料并分配专家后/);
@@ -362,8 +362,11 @@ describe("expert review v2 constraints", () => {
 
     assert.match(shellSource, /不需要先建项目管理阶段/);
     assert.match(shellSource, /直接导入本轮路演项目/);
-    assert.match(shellSource, /临时录入专家账号/);
-    assert.match(shellSource, /确认后进入后台收分/);
+    assert.match(shellSource, /录入本轮专家账号/);
+    assert.match(shellSource, /确认后进入评分管理/);
+    assert.doesNotMatch(shellSource, /后台收分/);
+    assert.doesNotMatch(shellSource, /最终得分计算规则（可选）/);
+    assert.doesNotMatch(shellSource, /reviewScoreRuleInvalid/);
     assert.match(contextSource, /isDirectCompetitionReview/);
     assert.match(contextSource, /customTargetNames\.length === 0/);
     assert.match(contextSource, /isCustomReviewTarget && !reviewAssignmentDraft\.targetName\.trim\(\) && customTargetNames\.length === 0/);
@@ -372,6 +375,8 @@ describe("expert review v2 constraints", () => {
     assert.match(routeSource, /type:\s*"roadshow"/);
     assert.match(routeSource, /isOpen:\s*false/);
     assert.match(routeSource, /直接导入本轮项目生成/);
+    assert.match(routeSource, /normalizeReviewScoreRuleCount\(body\?\.dropHighestCount,\s*0\)/);
+    assert.match(routeSource, /normalizeReviewScoreRuleCount\(body\?\.dropLowestCount,\s*0\)/);
   });
 
   it("shows a raw expert score matrix without requiring the roadshow screen", () => {
@@ -379,10 +384,17 @@ describe("expert review v2 constraints", () => {
 
     assert.match(tabSource, /renderRawScoreMatrix/);
     assert.match(tabSource, /专家原始分矩阵/);
-    assert.match(tabSource, /不打开大屏也会实时刷新/);
+    assert.match(tabSource, /大屏未开启时仍会刷新/);
+    assert.match(tabSource, /成绩归档与排名/);
+    assert.match(tabSource, /专家评分全部提交后，再按本项规则计算最终成绩/);
+    assert.match(tabSource, /直接平均/);
+    assert.match(tabSource, /保存计分规则/);
+    assert.match(tabSource, /导出总排名/);
     assert.match(tabSource, /score-matrix-table/);
     assert.match(tabSource, /groupedAssignments/);
-    assert.match(tabSource, /getAverageScore\(group\)/);
+    assert.match(tabSource, /calculateFinalScoreForGroup/);
+    assert.doesNotMatch(tabSource, /getAverageScore\(/);
+    assert.doesNotMatch(tabSource, /<th[^>]*>\s*平均分\s*<\/th>/);
     assert.doesNotMatch(tabSource, /生成投屏链接后展示后台监看数据/);
   });
 
@@ -391,20 +403,43 @@ describe("expert review v2 constraints", () => {
 
     assert.match(tabSource, /renderCompetitionReviewCommandCenter/);
     assert.match(tabSource, /当前轮次工作台/);
+    assert.match(tabSource, /流程核验/);
+    assert.match(tabSource, /推进条件/);
     assert.match(tabSource, /下一步主操作/);
-    assert.match(tabSource, /准备评审/);
-    assert.match(tabSource, /团队抽签/);
-    assert.match(tabSource, /专家评分/);
-    assert.match(tabSource, /汇总归档/);
-    assert.match(tabSource, /一个入口发微信群/);
-    assert.match(tabSource, /每位专家一个临时评分链接/);
-    assert.match(tabSource, /不打开大屏也能收分/);
-    assert.match(tabSource, /完成后归档复核/);
+    assert.match(tabSource, /项目建档/);
+    assert.match(tabSource, /顺序确认/);
+    assert.match(tabSource, /链接发放/);
+    assert.match(tabSource, /评分完成/);
+    assert.match(tabSource, /未达条件不推进/);
+    assert.match(tabSource, /统一入口发送给参赛团队/);
+    assert.match(tabSource, /每位专家一个专属评分链接/);
+    assert.match(tabSource, /大屏未开启时仍可接收评分提交/);
+    assert.match(tabSource, /归档复核/);
     assert.match(tabSource, /review-command-center/);
+    assert.match(tabSource, /review-process-gate-list/);
     assert.match(tabSource, /review-step-gate/);
+    assert.match(tabSource, /现场出分计分规则/);
+    assert.match(tabSource, /需要大屏实时出分或现场揭晓时，必须在开启大屏前确认计分规则/);
     assert.match(tabSource, /注册/);
     assert.match(tabSource, /抽签/);
     assert.match(tabSource, /activeGuestLinkUsedCount/);
+    assert.doesNotMatch(tabSource, /微信群/);
+    assert.doesNotMatch(tabSource, /微信发出即可/);
+    assert.doesNotMatch(tabSource, /开始收分/);
+    assert.doesNotMatch(tabSource, /不打开大屏也能收分/);
+    assert.doesNotMatch(tabSource, /后台收分/);
+    assert.doesNotMatch(tabSource, /一键/);
+    assert.doesNotMatch(tabSource, /现场常用入口/);
+    assert.doesNotMatch(tabSource, /高级复用入口/);
+    assert.doesNotMatch(tabSource, /日常办赛不用打开/);
+    assert.doesNotMatch(tabSource, /中台/);
+    assert.doesNotMatch(tabSource, /总控台/);
+    assert.doesNotMatch(tabSource, /COMPETITION REVIEW/);
+    assert.doesNotMatch(tabSource, /ADVANCED/);
+    assert.doesNotMatch(tabSource, /低频操作/);
+    assert.doesNotMatch(tabSource, /即可/);
+    assert.doesNotMatch(tabSource, /专家临时链接/);
+    assert.doesNotMatch(tabSource, /临时评分链接/);
   });
 
   it("keeps secondary management out of the current round command surface", () => {
@@ -425,7 +460,7 @@ describe("expert review v2 constraints", () => {
     assert.doesNotMatch(primaryCommandArea, /常用入口放在首屏/);
 
     const secondaryDrawer = tabSource.slice(drawerStart, drawerStart + 3600);
-    assert.match(secondaryDrawer, /更多管理/);
+    assert.match(secondaryDrawer, /辅助管理/);
     assert.match(secondaryDrawer, /新建评审/);
     assert.match(secondaryDrawer, /重置历史/);
     assert.match(secondaryDrawer, /导出评分/);
@@ -447,7 +482,7 @@ describe("expert review v2 constraints", () => {
     assert.match(tabSource, /expertLinksReady/);
     assert.match(tabSource, /expertLinksLockedReason/);
     assert.match(tabSource, /专家评分入口待开放/);
-    assert.match(tabSource, /完成团队抽签和顺序确认后再生成专家临时评分链接/);
+    assert.match(tabSource, /完成团队抽签和顺序确认后再生成专家专属评分链接/);
     assert.match(tabSource, /disabled=\{!expertLinksReady \|\| !group\.projectReviewStageId/);
     assert.match(tabSource, /review-expert-links-panel/);
   });
@@ -478,11 +513,13 @@ describe("expert review v2 constraints", () => {
     assert.match(tabSource, /review-live-progress-board/);
     assert.match(tabSource, /团队注册/);
     assert.match(tabSource, /专家链接/);
-    assert.match(tabSource, /后台收分/);
-    assert.match(tabSource, /review-always-on-actions/);
-    assert.match(tabSource, /现场常用入口/);
-    assert.match(tabSource, /查看专家入口/);
-    assert.match(tabSource, /一键查看原始分/);
+    assert.match(tabSource, /评分提交/);
+    assert.match(tabSource, /review-emergency-actions/);
+    assert.match(tabSource, /应急处理入口/);
+    assert.match(tabSource, /查看专家评分入口/);
+    assert.match(tabSource, /查看原始分矩阵/);
+    assert.doesNotMatch(tabSource, /现场常用入口/);
+    assert.doesNotMatch(tabSource, /一键查看原始分/);
     assert.match(tabSource, /顺序完成后开放/);
   });
 
@@ -491,8 +528,8 @@ describe("expert review v2 constraints", () => {
     const introMatch = tabSource.match(/<section className="review-page-intro[\s\S]*?<\/section>/);
 
     assert.ok(introMatch, "missing review page intro section");
-    assert.match(introMatch[0], /评审流程中台/);
-    assert.match(introMatch[0], /操作入口已集中到下方总控台/);
+    assert.match(introMatch[0], /大赛评审管理/);
+    assert.match(introMatch[0], /操作入口已集中到下方工作台/);
     assert.doesNotMatch(introMatch[0], /onClick=/);
     assert.doesNotMatch(introMatch[0], /ActionButton/);
     assert.doesNotMatch(introMatch[0], /新建大赛评审/);
@@ -504,6 +541,12 @@ describe("expert review v2 constraints", () => {
     assert.match(commandCenterMatch[0], /新建评审/);
     assert.match(commandCenterMatch[0], /导出评分/);
     assert.match(commandCenterMatch[0], /重置历史/);
+  });
+
+  it("keeps the administrator review shell constrained on mobile flex layouts", () => {
+    const tabSource = readSource("src/components/tabs/expert-review-tab-content.tsx");
+
+    assert.match(tabSource, /review-admin-control-shell mx-auto w-full max-w-\[1200px\] min-w-0/);
   });
 
   it("uses an independent expert review window instead of the project material upload window", () => {

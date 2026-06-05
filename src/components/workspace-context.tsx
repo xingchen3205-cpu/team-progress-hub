@@ -5292,7 +5292,7 @@ function useWorkspaceController({
         method: "DELETE",
         body: JSON.stringify({ id: cohortId, confirmCascade: true }),
       });
-      showSuccessToast("省培班次已移入回收站", "课程、签到、任务、汇报和附件暂不删除，可在回收站恢复。");
+      showSuccessToast("省培班次已删除", "该班次及关联课程、签到、请假、任务汇报已从系统中删除。");
       refreshWorkspace("teacherTraining");
       return true;
     } catch (error) {
@@ -5445,7 +5445,7 @@ function useWorkspaceController({
         method: "DELETE",
         body: JSON.stringify({ id: courseSessionId }),
       });
-      showSuccessToast("课程已移入回收站", "参训教师课程表已经更新，必要时可从回收站恢复。");
+      showSuccessToast("课程已删除", "参训教师课程表已经同步更新。");
       refreshWorkspace("teacherTraining");
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "课程删除失败");
@@ -5503,7 +5503,7 @@ function useWorkspaceController({
         method: "DELETE",
         body: JSON.stringify({ id: checkInTaskId }),
       });
-      showSuccessToast("签到任务已移入回收站", "参训教师签到列表已经更新，签到记录暂不删除。");
+      showSuccessToast("签到任务已删除", "参训教师签到列表和相关签到记录已经同步更新。");
       refreshWorkspace("teacherTraining");
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "签到任务删除失败");
@@ -5863,7 +5863,7 @@ function useWorkspaceController({
         method: "DELETE",
         body: JSON.stringify({ id: taskId }),
       });
-      showSuccessToast("省培任务已移入回收站", "任务汇报和附件暂不删除，可在回收站恢复。");
+      showSuccessToast("省培任务已删除", "该任务、已提交汇报和相关附件已经从系统中删除。");
       refreshWorkspace("teacherTraining");
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "省培任务删除失败");
@@ -6663,8 +6663,8 @@ function useWorkspaceController({
         deadline: firstAssignment.deadline
           ? formatBeijingDateTimeInput(firstAssignment.deadline)
           : getDefaultReviewAssignmentDeadline(),
-        dropHighestCount: String(firstAssignment.dropHighestCount ?? 1),
-        dropLowestCount: String(firstAssignment.dropLowestCount ?? 1),
+        dropHighestCount: String(firstAssignment.dropHighestCount ?? 0),
+        dropLowestCount: String(firstAssignment.dropLowestCount ?? 0),
       });
       setReviewAssignmentModalOpen(true);
       return;
@@ -6684,21 +6684,6 @@ function useWorkspaceController({
   };
 
   const saveReviewAssignment = async () => {
-    const normalizeScoreRuleCount = (value: string) => {
-      const numericValue = Number(value);
-      return Number.isFinite(numericValue) ? Math.min(5, Math.max(0, Math.trunc(numericValue))) : 0;
-    };
-    const dropHighestCount = normalizeScoreRuleCount(reviewAssignmentDraft.dropHighestCount);
-    const dropLowestCount = normalizeScoreRuleCount(reviewAssignmentDraft.dropLowestCount);
-    const remainingReviewScoreCount =
-      reviewAssignmentDraft.expertUserIds.length - dropHighestCount - dropLowestCount;
-    if (remainingReviewScoreCount < 2) {
-      setLoadError(
-        `当前有效专家 ${reviewAssignmentDraft.expertUserIds.length} 位，去掉后剩余 ${Math.max(0, remainingReviewScoreCount)} 个有效评分；至少保留 2 个有效评分`,
-      );
-      return;
-    }
-
     if (reviewAssignmentEditAssignmentId) {
       if (reviewAssignmentDraft.expertUserIds.length === 0) {
         setLoadError("请至少保留一位评审专家");
@@ -6739,8 +6724,6 @@ function useWorkspaceController({
             deadline: reviewAssignmentDraft.deadline
               ? new Date(reviewAssignmentDraft.deadline).toISOString()
               : null,
-            dropHighestCount,
-            dropLowestCount,
           }),
         });
 
@@ -6828,8 +6811,6 @@ function useWorkspaceController({
           deadline: reviewAssignmentDraft.deadline
             ? new Date(reviewAssignmentDraft.deadline).toISOString()
             : undefined,
-          dropHighestCount,
-          dropLowestCount,
         }),
       });
 

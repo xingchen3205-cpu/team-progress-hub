@@ -271,9 +271,6 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
 
   const selectedReviewStage = projectStages.find((stage) => stage.id === reviewAssignmentDraft.stageId) ?? null;
   const isEditingReviewAssignment = Boolean(reviewAssignmentEditAssignmentId);
-  const selectedReviewExpertCount = reviewAssignmentDraft.expertUserIds.length;
-  const dropHighestCount = Number(reviewAssignmentDraft.dropHighestCount || 0);
-  const dropLowestCount = Number(reviewAssignmentDraft.dropLowestCount || 0);
   const customRoadshowProjectFileInputRef = useRef<HTMLInputElement>(null);
   const customRoadshowProjectImageInputRef = useRef<HTMLInputElement>(null);
   const reportAttachmentInputRef = useRef<HTMLInputElement>(null);
@@ -296,11 +293,6 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
   const customRoadshowProjectNames = parseCustomReviewTargetNames(reviewAssignmentDraft.customTargetNames);
   const shouldShowRoadshowProjectImporter =
     !isEditingReviewAssignment && (!selectedReviewStage || selectedReviewStage.type === "roadshow");
-  const remainingReviewScoreCount = Math.max(
-    0,
-    selectedReviewExpertCount - Math.max(0, dropHighestCount) - Math.max(0, dropLowestCount),
-  );
-  const reviewScoreRuleInvalid = remainingReviewScoreCount < 2;
   const closeReviewAssignmentModal = () => {
     setReviewAssignmentModalOpen(false);
     setReviewAssignmentEditAssignmentId(null);
@@ -736,7 +728,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                   : previewAsset.mimeType?.startsWith("video/")
                   ? "视频材料支持在当前页面直接播放。"
                   : isPdfAsset(previewAsset)
-                    ? "PDF 使用站内渲染模式，避免浏览器原生预览层在后台页面残留。"
+                    ? "PDF 使用站内渲染模式，避免浏览器原生预览层在管理页面残留。"
                     : isImageAsset(previewAsset)
                       ? "图片按原始清晰度显示，可在窗口内滚动查看细节。"
                       : isWordAsset(previewAsset)
@@ -1974,7 +1966,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                     </p>
                   </div>
                   <div className="grid min-w-[280px] gap-2 sm:grid-cols-3 lg:min-w-[360px]">
-                    {["导入本轮项目", "临时专家/专家库", "评审时间与链接"].map((label, index) => (
+                    {["导入本轮项目", "设置评审专家", "评审时间与链接"].map((label, index) => (
                       <div className="rounded-2xl border border-blue-100 bg-white px-3 py-2 text-center shadow-sm" key={label}>
                         <p className="font-mono text-sm font-black text-blue-600">{index + 1}</p>
                         <p className="mt-1 text-xs font-black text-slate-700">{label}</p>
@@ -2003,7 +1995,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                     }));
                   }}
                 >
-                  <option value="">直接创建临时评审（不绑定项目管理）</option>
+                  <option value="">创建独立评审（不绑定项目管理）</option>
                   {projectStages.map((stage) => (
                     <option key={stage.id} value={stage.id}>
                       {stage.name} · {stage.typeLabel}
@@ -2025,7 +2017,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                   }
                 />
                 <span className="mt-1 block text-xs leading-5 text-slate-400">
-                  不绑定项目管理，适合临时测试、补录项目或尚未建项目组的现场评审；导入多个项目后将自动创建本轮轻量路演评审。
+                  不绑定项目管理，适用于补录项目或未建立项目组的现场评审；导入多个项目后将创建本轮路演评审。
                 </span>
               </label>
             ) : null}
@@ -2089,7 +2081,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                       <p className="mt-1 text-xs text-slate-500">
                         {selectedReviewStage
                           ? "最终名单会用于抽签、大屏展示、专家评分和顺序表导出，保存前请核对项目名称。"
-                          : "不需要先建项目管理阶段；保存后系统会自动生成本轮路演评审，后台直接进入收分监控。"}
+                          : "不需要先建项目管理阶段；保存后系统将创建本轮路演评审，并进入评分管理。"}
                       </p>
                     </div>
                     <span className="text-xs text-slate-400">
@@ -2130,7 +2122,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                     </div>
                   ) : (
                     <p className="mt-4 rounded-2xl border border-blue-100 bg-white px-4 py-3 text-sm font-semibold leading-6 text-blue-700">
-                      直接导入本轮路演项目后，系统会自动建立一个关闭学生上传的轻量评审阶段，专家链接会一次显示全部项目。
+                      直接导入本轮路演项目后，系统会建立一个关闭学生上传的独立评审阶段，专家链接将按路演顺序显示全部项目。
                     </p>
                   )}
                   <div className="mt-5 rounded-2xl border border-white bg-white p-4">
@@ -2187,7 +2179,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                       </div>
                       <div className="rounded-2xl border border-slate-100 bg-slate-50 px-3 py-2">
                         <p className="font-bold text-slate-700">方式 C · 手动输入</p>
-                        <p className="mt-1 leading-5">一行一个项目，适合临时补录和少量项目。</p>
+                        <p className="mt-1 leading-5">一行一个项目，适用于补充录入和少量项目。</p>
                       </div>
                     </div>
                   <label className="mt-4 block text-sm text-slate-500">
@@ -2274,7 +2266,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                   onClick={() => setBatchExpertModalOpen(true)}
                   type="button"
                 >
-                  临时录入专家账号
+                  录入本轮专家账号
                 </button>
               </div>
               <div className="mt-3 grid gap-2 sm:grid-cols-2">
@@ -2303,67 +2295,9 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
               </div>
               {expertMembers.length === 0 ? (
                 <p className="mt-3 rounded-xl border border-dashed border-slate-200 bg-slate-50 px-3 py-4 text-sm text-slate-400">
-                  暂无专家账号，可先点“临时录入专家账号”批量创建。
+                  暂无专家账号，可先录入本轮专家账号。
                 </p>
               ) : null}
-            </div>
-
-            <div className="rounded-2xl border border-blue-100 bg-blue-50/60 p-4">
-              <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                  <p className="text-sm font-semibold text-slate-800">最终得分计算规则（可选）</p>
-                  <p className="mt-1 text-xs text-slate-500">后台优先展示每位专家原始分；该规则仅用于最终平均分估算、大屏揭晓和导出。</p>
-                </div>
-                <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-blue-700">
-                  当前有效专家 {selectedReviewExpertCount} 位
-                </span>
-              </div>
-              <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                <label className="block text-sm text-slate-500">
-                  去最高分
-                  <input
-                    className={fieldClassName}
-                    inputMode="numeric"
-                    max={5}
-                    min={0}
-                    type="number"
-                    value={reviewAssignmentDraft.dropHighestCount}
-                    onChange={(event) =>
-                      setReviewAssignmentDraft((current) => ({
-                        ...current,
-                        dropHighestCount: event.target.value.replace(/[^\d]/g, "").slice(0, 1),
-                      }))
-                    }
-                  />
-                </label>
-                <label className="block text-sm text-slate-500">
-                  去最低分
-                  <input
-                    className={fieldClassName}
-                    inputMode="numeric"
-                    max={5}
-                    min={0}
-                    type="number"
-                    value={reviewAssignmentDraft.dropLowestCount}
-                    onChange={(event) =>
-                      setReviewAssignmentDraft((current) => ({
-                        ...current,
-                        dropLowestCount: event.target.value.replace(/[^\d]/g, "").slice(0, 1),
-                      }))
-                    }
-                  />
-                </label>
-              </div>
-              <p
-                className={`mt-3 rounded-xl border px-3 py-2 text-xs font-semibold ${
-                  reviewScoreRuleInvalid
-                    ? "border-rose-200 bg-rose-50 text-rose-700"
-                    : "border-emerald-100 bg-emerald-50 text-emerald-700"
-                }`}
-              >
-                当前有效专家 {selectedReviewExpertCount} 位，去掉后剩余 {remainingReviewScoreCount} 个有效评分
-                {reviewScoreRuleInvalid ? "；剩余有效评分不得少于 2 个" : ""}
-              </p>
             </div>
 
             <label className="block text-sm text-slate-500">
@@ -2384,13 +2318,13 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                 取消
               </ActionButton>
               <ActionButton
-                disabled={reviewScoreRuleInvalid}
+                disabled={isSaving}
                 loading={isSaving}
                 loadingLabel="保存中..."
                 onClick={saveReviewAssignment}
                 variant="primary"
               >
-                {isEditingReviewAssignment ? "保存修改" : "确认后进入后台收分"}
+                {isEditingReviewAssignment ? "保存修改" : "确认后进入评分管理"}
               </ActionButton>
             </ModalActions>
           </div>
@@ -3001,7 +2935,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                 : previewAsset.mimeType?.startsWith("video/")
                 ? "视频材料支持在当前页面直接播放。"
                 : isPdfAsset(previewAsset)
-                  ? "PDF 使用站内渲染模式，避免浏览器原生预览层在后台页面残留。"
+                  ? "PDF 使用站内渲染模式，避免浏览器原生预览层在管理页面残留。"
                   : isImageAsset(previewAsset)
                     ? "图片按原始清晰度显示，可在窗口内滚动查看细节。"
                     : isWordAsset(previewAsset)

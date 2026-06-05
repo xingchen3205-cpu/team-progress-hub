@@ -195,8 +195,8 @@ describe("roadshow review screen session", () => {
     assert.match(schemaSource, /groupIndex\s+Int\s+@default\(0\)/);
     assert.match(schemaSource, /groupSlotIndex\s+Int\s+@default\(0\)/);
     assert.match(schemaSource, /tokenHash\s+String\s+@unique/);
-    assert.match(schemaSource, /model ExpertReviewPackage[\s\S]*dropHighestCount\s+Int\s+@default\(1\)/);
-    assert.match(schemaSource, /model ExpertReviewPackage[\s\S]*dropLowestCount\s+Int\s+@default\(1\)/);
+    assert.match(schemaSource, /model ExpertReviewPackage[\s\S]*dropHighestCount\s+Int\s+@default\(0\)/);
+    assert.match(schemaSource, /model ExpertReviewPackage[\s\S]*dropLowestCount\s+Int\s+@default\(0\)/);
     assert.match(schemaSource, /model ReviewDisplayProjectOrder[\s\S]*finalScoreCents\s+Int\?/);
     assert.match(schemaSource, /model ReviewDisplayProjectOrder[\s\S]*finalScoreText\s+String\?/);
     assert.match(schemaSource, /model ReviewDisplayProjectOrder[\s\S]*scoreLockedAt\s+DateTime\?/);
@@ -313,6 +313,7 @@ describe("roadshow review screen session", () => {
     const assignmentItemRouteSource = readSource("src/app/api/expert-reviews/assignments/[id]/route.ts");
     const contextSource = readSource("src/components/workspace-context.tsx");
     const shellSource = readSource("src/components/workspace-shell.tsx");
+    const adminTabSource = readSource("src/components/tabs/expert-review-tab-content.tsx");
 
     assert.match(assignmentRouteSource, /dropHighestCount/);
     assert.match(assignmentRouteSource, /dropLowestCount/);
@@ -320,10 +321,10 @@ describe("roadshow review screen session", () => {
     assert.match(assignmentItemRouteSource, /validateReviewScoreRule/);
     assert.match(contextSource, /dropHighestCount/);
     assert.match(contextSource, /dropLowestCount/);
-    assert.match(shellSource, /最终得分计算规则/);
-    assert.match(shellSource, /当前有效专家/);
-    assert.match(shellSource, /去掉后剩余/);
-    assert.match(shellSource, /reviewScoreRuleInvalid/);
+    assert.doesNotMatch(shellSource, /最终得分计算规则/);
+    assert.doesNotMatch(shellSource, /reviewScoreRuleInvalid/);
+    assert.match(adminTabSource, /现场出分计分规则/);
+    assert.match(adminTabSource, /成绩归档与排名/);
     assert.match(sessionRouteSource, /dropHighestCount:\s*reviewPackage\.dropHighestCount/);
     assert.match(sessionRouteSource, /dropLowestCount:\s*reviewPackage\.dropLowestCount/);
     assert.match(revealRouteSource, /dropHighestCount:\s*currentReviewPackage\.dropHighestCount/);
@@ -418,8 +419,8 @@ describe("roadshow review screen session", () => {
     assert.match(adminTabSource, /全场进度/);
     assert.match(adminTabSource, /本轮项目进度/);
     assert.match(adminTabSource, /评分监看矩阵 · 项目 × 专家 · 实时状态/);
-    assert.match(adminTabSource, /⚠ 后台实名/);
-    assert.match(adminTabSource, /此区域仅后台可见/);
+    assert.match(adminTabSource, /管理端实名/);
+    assert.match(adminTabSource, /此区域仅管理端可见/);
     assert.match(adminTabSource, /规则: 去/);
     assert.match(adminTabSource, /正常结束本轮评审/);
     assert.match(adminTabSource, /删除配置/);
@@ -441,7 +442,7 @@ describe("roadshow review screen session", () => {
     assert.match(adminTabSource, /isScreenSessionFinished/);
     assert.match(adminTabSource, /本轮评审已结束/);
     assert.match(adminTabSource, /已关闭现场控制/);
-    assert.match(adminTabSource, /后台显示专家实名，大屏继续保持匿名/);
+    assert.match(adminTabSource, /管理端显示专家实名，大屏继续保持匿名/);
     assert.match(adminTabSource, /路演顺序/);
     assert.match(adminTabSource, /上移/);
     assert.match(adminTabSource, /下移/);
@@ -452,7 +453,8 @@ describe("roadshow review screen session", () => {
     assert.match(adminTabSource, /路演时长/);
     assert.match(adminTabSource, /答辩时长/);
     assert.match(adminTabSource, /评分时长/);
-    assert.match(adminTabSource, /评分规则（来自评审包）/);
+    assert.match(adminTabSource, /现场出分计分规则/);
+    assert.match(adminTabSource, /需要大屏实时出分或现场揭晓时，必须在开启大屏前确认计分规则/);
     assert.match(adminTabSource, /去最高分/);
     assert.match(adminTabSource, /去最低分/);
     assert.doesNotMatch(adminTabSource, /updateScreenTimingDraft\(group\.key,\s*"dropHighestCount"/);
@@ -622,8 +624,8 @@ describe("roadshow review screen session", () => {
     assert.match(publicRouteSource, /selfDrawEnabled/);
     assert.match(adminTabSource, /viewer=admin/);
     assert.match(adminTabSource, /投屏显示设置/);
-    assert.match(adminTabSource, /管理员监看/);
-    assert.match(adminTabSource, /后台显示专家实名/);
+    assert.match(adminTabSource, /管理端监看/);
+    assert.match(adminTabSource, /管理端显示专家实名/);
     assert.match(adminTabSource, /seatExpertName/);
     assert.match(adminTabSource, /手动序号/);
     assert.match(adminTabSource, /导出顺序表/);
@@ -861,7 +863,7 @@ describe("roadshow review screen session", () => {
     assert.match(adminTabSource, /团队线上抽签/);
     assert.match(adminTabSource, /teamDrawUrl/);
     assert.match(adminTabSource, /复制抽签入口/);
-    assert.match(adminTabSource, /团队进入后选择自己的项目，确认后注册并抽签/);
+    assert.match(adminTabSource, /团队进入后选择本项目，确认后注册并抽签/);
     assert.match(adminTabSource, /团队抽签状态/);
     assert.match(adminTabSource, /registeredProjectCount/);
     assert.match(adminTabSource, /drawnProjectCount/);

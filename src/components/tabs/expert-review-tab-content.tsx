@@ -273,27 +273,6 @@ const groupReviewAssignments = (assignments: ExpertReviewAssignmentItem[]) =>
     ];
   }, []);
 
-const getAverageScore = (group: ReviewGroup) => {
-  const scores = group.items
-    .map((assignment) => getScoreValue(assignment))
-    .filter((score): score is number => typeof score === "number");
-
-  if (scores.length === 0 || scores.length !== group.items.length) {
-    return null;
-  }
-
-  const dropHighestCount = group.items[0]?.dropHighestCount ?? 1;
-  const dropLowestCount = group.items[0]?.dropLowestCount ?? 1;
-  const canApplyDropRule = scores.length - dropHighestCount - dropLowestCount >= 2;
-  const sortedScores = [...scores].sort((a, b) => a - b);
-  const effectiveScores = canApplyDropRule
-    ? sortedScores.slice(dropLowestCount, sortedScores.length - dropHighestCount)
-    : sortedScores;
-  const total = effectiveScores.reduce((sum, score) => sum + score, 0);
-
-  return total / effectiveScores.length;
-};
-
 const materialEntries = (assignment: ExpertReviewAssignmentItem) =>
   ([
     ["plan", "项目计划书", assignment.materials.plan],
@@ -445,7 +424,7 @@ function ReviewScreenRevealConfirmModal({
             {pendingReveal.showFinalScoreOnScreen ? "确认揭晓本项目得分？" : "确认锁定本项目得分？"}
           </h3>
           <p className="mt-2 text-sm leading-6 text-slate-500">
-            成绩锁定后会写入后台记录；{pendingReveal.showFinalScoreOnScreen ? "大屏将立即播放最终得分动画。" : "本次不会在大屏展示具体分数。"}
+            成绩锁定后会写入系统记录；{pendingReveal.showFinalScoreOnScreen ? "大屏将立即播放最终得分动画。" : "本次不会在大屏展示具体分数。"}
           </p>
         </div>
         <div className="px-5 py-5 sm:px-6">
@@ -454,7 +433,7 @@ function ReviewScreenRevealConfirmModal({
             <p className="mt-1 truncate text-xs font-semibold text-slate-500">{pendingReveal.roundLabel}</p>
             <div className="mt-4 flex items-end justify-between gap-4">
               <div>
-                <p className="text-xs font-bold text-slate-400">后台预计得分</p>
+                <p className="text-xs font-bold text-slate-400">管理端预计得分</p>
                 <p className="mt-1 font-mono text-4xl font-black text-blue-700 tabular-nums">
                   {pendingReveal.finalScoreText}
                 </p>
@@ -576,6 +555,10 @@ export default function ExpertReviewTab() {
   const [screenTimingDrafts, setScreenTimingDrafts] = useState<
     Record<string, ReturnType<typeof getDefaultScreenTimingDraft>>
   >({});
+  const [scoreRuleDrafts, setScoreRuleDrafts] = useState<
+    Record<string, { dropHighestCount: string; dropLowestCount: string }>
+  >({});
+  const [scoreRuleSavingKey, setScoreRuleSavingKey] = useState<string | null>(null);
   const [screenDisplayDrafts, setScreenDisplayDrafts] = useState<Record<string, ReviewScreenDisplaySettings>>({});
   const [screenDrawModeDrafts, setScreenDrawModeDrafts] = useState<Record<string, ScreenDrawMode>>({});
   const [manualOrderDrafts, setManualOrderDrafts] = useState<Record<string, Record<string, string>>>({});
@@ -893,9 +876,6 @@ export default function ExpertReviewTab() {
     activeGroup && activeGroupRawLiveData && isProjectOrderAlignedWithGroup(activeGroup, activeGroupRawLiveData.projectOrder)
       ? activeGroupRawLiveData
       : undefined;
-  const activeCurrentProjectGroup =
-    groupedAssignments.find((group) => group.key === activeGroupLiveData?.currentPackageId) ??
-    activeGroup;
   const activeGroupLiveProject = activeGroup && activeGroupLiveData
     ? activeGroupLiveData.projectResults.find(
         (project) => project.reviewPackage.id === (activeGroupLiveData.currentPackageId ?? activeGroup.key),
@@ -906,9 +886,7 @@ export default function ExpertReviewTab() {
       ? activeGroupLiveProject?.finalScore.ready
         ? activeGroupLiveProject.finalScore.finalScoreText ?? "--"
         : "--"
-      : activeGroup
-        ? getAverageScore(activeGroup)?.toFixed(2) ?? "--"
-        : "--";
+      : "--";
   const getLiveAssignmentScoreText = (assignment: ExpertReviewAssignmentItem) => {
     const liveProject = screenLiveData[assignment.packageId]?.projectResults.find(
       (project) => project.reviewPackage.id === assignment.packageId,
@@ -972,6 +950,162 @@ export default function ExpertReviewTab() {
     const anchor = document.createElement("a");
     anchor.href = url;
     anchor.download = `expert-review-score-details-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    URL.revokeObjectURL(url);
+  };
+
+  const normalizeScoreRuleDraftValue = (value: string | number | undefined, fallback = 0) => {
+    const numericValue = Number(value ?? fallback);
+    return Number.isFinite(numericValue) ? Math.min(5, Math.max(0, Math.trunc(numericValue))) : fallback;
+  };
+
+  const getScoreRuleDraftForGroup = (group: ReviewGroup) => {
+    const existingDraft = scoreRuleDrafts[group.key];
+    return {
+      dropHighestCount: existingDraft?.dropHighestCount ?? String(group.items[0]?.dropHighestCount ?? 0),
+      dropLowestCount: existingDraft?.dropLowestCount ?? String(group.items[0]?.dropLowestCount ?? 0),
+    };
+  };
+
+  const updateScoreRuleDraft = (
+    group: ReviewGroup,
+    field: "dropHighestCount" | "dropLowestCount",
+    value: string,
+  ) => {
+    setScoreRuleDrafts((current) => ({
+      ...current,
+      [group.key]: {
+        ...getScoreRuleDraftForGroup(group),
+        [field]: value.replace(/[^\d]/g, "").slice(0, 1),
+      },
+    }));
+  };
+
+  const applyScoreRulePreset = (group: ReviewGroup, dropHighestCount: number, dropLowestCount: number) => {
+    setScoreRuleDrafts((current) => ({
+      ...current,
+      [group.key]: {
+        dropHighestCount: String(dropHighestCount),
+        dropLowestCount: String(dropLowestCount),
+      },
+    }));
+  };
+
+  const calculateFinalScoreForGroup = (
+    group: ReviewGroup,
+    dropHighestCount: number,
+    dropLowestCount: number,
+  ) => {
+    const scores = group.items
+      .map((assignment) => getScoreValue(assignment))
+      .filter((score): score is number => typeof score === "number");
+    if (scores.length !== group.items.length || scores.length === 0) {
+      return null;
+    }
+    const remainingCount = scores.length - dropHighestCount - dropLowestCount;
+    if (remainingCount < 2) {
+      return null;
+    }
+    const sortedScores = [...scores].sort((left, right) => left - right);
+    const effectiveScores = sortedScores.slice(dropLowestCount, sortedScores.length - dropHighestCount);
+    const totalScore = effectiveScores.reduce((sum, score) => sum + score, 0);
+    return totalScore / effectiveScores.length;
+  };
+
+  const buildFinalRankingRows = (
+    groups: ReviewGroup[],
+    dropHighestCount: number,
+    dropLowestCount: number,
+  ) =>
+    groups
+      .map((group) => ({
+        group,
+        score: calculateFinalScoreForGroup(group, dropHighestCount, dropLowestCount),
+      }))
+      .sort((left, right) => (right.score ?? -1) - (left.score ?? -1));
+
+  const saveScoreRuleForGroups = async (
+    referenceGroup: ReviewGroup,
+    groups: ReviewGroup[],
+    dropHighestCount: number,
+    dropLowestCount: number,
+  ) => {
+    const expertCount = referenceGroup.items.length;
+    if (expertCount - dropHighestCount - dropLowestCount < 2) {
+      setLoadError("计分规则无效：去掉最高分和最低分后，至少保留 2 个有效评分。");
+      return;
+    }
+
+    setScoreRuleSavingKey(referenceGroup.key);
+    try {
+      await Promise.all(
+        groups.map((group) =>
+          requestJson(`/api/expert-reviews/assignments/${group.items[0].id}`, {
+            method: "PATCH",
+            body: JSON.stringify({
+              expertUserIds: group.items.map((assignment) => assignment.expert.id),
+              roundLabel: group.roundLabel,
+              overview: group.overview,
+              startAt: group.startAt,
+              deadline: group.deadline,
+              dropHighestCount,
+              dropLowestCount,
+            }),
+          }),
+        ),
+      );
+      setScoreRuleDrafts((current) => {
+        const next = { ...current };
+        for (const group of groups) {
+          next[group.key] = {
+            dropHighestCount: String(dropHighestCount),
+            dropLowestCount: String(dropLowestCount),
+          };
+        }
+        return next;
+      });
+      refreshWorkspace(["reviewAssignments", "projectStages"]);
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "计分规则保存失败");
+    } finally {
+      setScoreRuleSavingKey(null);
+    }
+  };
+
+  const downloadFinalRanking = (
+    groups: ReviewGroup[],
+    dropHighestCount: number,
+    dropLowestCount: number,
+  ) => {
+    const rankingRows = buildFinalRankingRows(groups, dropHighestCount, dropLowestCount);
+    if (rankingRows.some((row) => row.score == null)) {
+      setLoadError("还有项目未完成评分或计分规则无效，暂不能导出总排名。");
+      return;
+    }
+    const escapeCsvCell = (value: string | number | null | undefined) => {
+      const text = String(value ?? "");
+      return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+    };
+    const ruleText =
+      dropHighestCount === 0 && dropLowestCount === 0
+        ? "直接平均"
+        : `去最高 ${dropHighestCount} 个，去最低 ${dropLowestCount} 个后平均`;
+    const header = ["排名", "项目名称", "评审轮次", "最终成绩", "计分规则"];
+    const rows = rankingRows.map((row, index) => [
+      String(index + 1),
+      row.group.targetName,
+      row.group.roundLabel,
+      row.score == null ? "" : row.score.toFixed(2),
+      ruleText,
+    ]);
+    const csv = [header, ...rows].map((row) => row.map(escapeCsvCell).join(",")).join("\n");
+    const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    anchor.href = url;
+    anchor.download = `expert-review-final-ranking-${new Date().toISOString().slice(0, 10)}.csv`;
     document.body.appendChild(anchor);
     anchor.click();
     anchor.remove();
@@ -1531,7 +1665,7 @@ export default function ExpertReviewTab() {
 
     if (
       options?.skipConfirm !== true &&
-      !window.confirm("确认关闭当前大屏链接？关闭后现场大屏会进入结束状态，后台可重新配置并生成新的大屏链接。")
+      !window.confirm("确认关闭当前大屏链接？关闭后现场大屏会进入结束状态，管理端可重新配置并生成新的大屏链接。")
     ) {
       return;
     }
@@ -1610,7 +1744,7 @@ export default function ExpertReviewTab() {
               ...value,
               message: screenDisplay.showFinalScoreOnScreen
                 ? "最终得分已确认并锁定，大屏将按设置展示。"
-                : "最终得分已确认并锁定，仅后台归档，大屏不显示分数。",
+                : "最终得分已确认并锁定，仅管理端归档，大屏不显示分数。",
             };
           }
         }
@@ -1865,14 +1999,22 @@ export default function ExpertReviewTab() {
       (project) => project.reviewPackage.id === currentProject?.packageId,
     );
     const currentProjectSeats = currentLiveProject?.seats ?? [];
-    const packageDropHighestCount = group.items[0]?.dropHighestCount ?? 1;
-    const packageDropLowestCount = group.items[0]?.dropLowestCount ?? 1;
+    const packageDropHighestCount = group.items[0]?.dropHighestCount ?? 0;
+    const packageDropLowestCount = group.items[0]?.dropLowestCount ?? 0;
+    const scoreRuleDraft = getScoreRuleDraftForGroup(group);
+    const draftDropHighestCount = normalizeScoreRuleDraftValue(scoreRuleDraft.dropHighestCount, packageDropHighestCount);
+    const draftDropLowestCount = normalizeScoreRuleDraftValue(scoreRuleDraft.dropLowestCount, packageDropLowestCount);
     const effectiveExpertCount = consoleSeats.length || group.items.length;
     const remainingScoreCount = Math.max(
       0,
       effectiveExpertCount - packageDropHighestCount - packageDropLowestCount,
     );
+    const draftRemainingScoreCount = Math.max(
+      0,
+      effectiveExpertCount - draftDropHighestCount - draftDropLowestCount,
+    );
     const scoreRuleIsInvalid = remainingScoreCount < 2 && effectiveExpertCount >= 2;
+    const scoreRuleDraftIsInvalid = draftRemainingScoreCount < 2 && effectiveExpertCount >= 2;
     const currentProjectHasAllSubmitted =
       currentProjectSeats.length > 0 &&
       currentProjectSeats.every((seat) => seat.status === "submitted" || isExcludedSeatStatus(seat.status)) &&
@@ -2187,7 +2329,7 @@ export default function ExpertReviewTab() {
                 ? {
                     label: canRevealScore ? "确认并计算最终得分" : "等待专家提交评分",
                     description: canRevealScore
-                      ? "所有有效专家已提交，点击后锁定后台分数并按投屏设置揭分。"
+                      ? "所有有效专家已提交，点击后锁定管理端分数并按投屏设置揭分。"
                       : calculationBlockReason,
                     disabled: !canRevealScore || reviewScreenActionKey?.startsWith(`${group.key}:`),
                     onClick: workflowSteps[3].onClick,
@@ -2195,7 +2337,7 @@ export default function ExpertReviewTab() {
                 : guideStepKey === "reveal"
                   ? {
                       label: hasNextProject ? "完成本项，进入下一项目" : "结束本轮评审",
-                      description: hasNextProject ? "当前项目已出分，切到下一项目等待开始。" : "本轮最后一个项目已完成，关闭现场流程并进入归档。",
+                      description: hasNextProject ? "当前项目成绩已锁定，切到下一项目等待开始。" : "本轮最后一个项目已完成，关闭现场流程并进入归档。",
                       disabled: !workflowSteps[4].enabled || reviewScreenActionKey?.startsWith(`${group.key}:`),
                       onClick: workflowSteps[4].onClick,
                     }
@@ -2462,15 +2604,15 @@ export default function ExpertReviewTab() {
           <div>
             <p className="text-sm font-extrabold text-slate-950">评分监看矩阵 · 项目 × 专家 · 实时状态</p>
             <p className="mt-1 text-xs text-slate-400">
-              后台显示专家实名，大屏继续保持匿名；大屏隐藏分数时，后台仍可查看每组、每个项目和每位实名专家的实时分数。
+              管理端显示专家实名，大屏继续保持匿名；大屏隐藏分数时，管理端仍可查看每组、每个项目和每位实名专家的实时分数。
             </p>
           </div>
           <span className="rounded-full bg-orange-50 px-3 py-1 text-[11px] font-extrabold text-orange-700 ring-1 ring-orange-100">
-            ⚠ 后台实名
+            管理端实名
           </span>
         </div>
         <div className="border-b border-orange-100 bg-orange-50 px-4 py-2 text-[11px] font-bold text-orange-700">
-          ⚠ 此区域仅后台可见，包含专家真实姓名与具体分数。大屏显示按“投屏设置”控制。
+          此区域仅管理端可见，包含专家真实姓名与具体分数。大屏显示按“投屏设置”控制。
         </div>
         <div className="flex flex-col gap-3 border-b border-slate-100 bg-slate-50 px-4 py-3 xl:flex-row xl:items-center xl:justify-between">
           <div className="flex flex-wrap gap-2 text-[11px] font-bold">
@@ -2600,8 +2742,8 @@ export default function ExpertReviewTab() {
       {
         key: "manual",
         title: "手动排序",
-        description: "管理员在后台按序号确认顺序，大屏打开后直接等待路演开始。",
-        meta: "后台确认",
+        description: "管理员在管理端按序号确认顺序，大屏打开后直接等待路演开始。",
+        meta: "管理端确认",
       },
       {
         key: "random",
@@ -2618,8 +2760,8 @@ export default function ExpertReviewTab() {
       {
         key: "team",
         title: "团队线上抽签",
-        description: "管理员保持大屏监控，团队通过微信专属链接只抽自己的顺序。",
-        meta: "微信链接",
+        description: "管理员保持大屏监控，团队通过抽签入口只抽取本项目顺序。",
+        meta: "团队入口",
       },
     ];
     const selectedDrawMode = drawModeOptions.find((option) => option.key === drawMode) ?? drawModeOptions[1];
@@ -2627,17 +2769,17 @@ export default function ExpertReviewTab() {
       drawMode === "manual"
         ? "手动排序模式：保存序号后生成大屏链接，大屏不再执行抽签。"
         : drawMode === "team"
-          ? "团队线上抽签模式：后台生成大屏监控链接和团队专属链接，团队在微信里只抽自己的顺序。"
-        : drawMode === "self"
-          ? "自助抽签模式：后台只生成链接和导出结果，所有抽签动作都在大屏完成。"
-          : "随机抽签模式：后台生成链接后，现场打开大屏点击“开始随机抽签”。";
+          ? "团队线上抽签模式：管理端生成大屏监控链接和团队抽签入口，团队只抽取本项目顺序。"
+          : drawMode === "self"
+            ? "自助抽签模式：管理端只生成链接和导出结果，所有抽签动作都在大屏完成。"
+            : "随机抽签模式：管理端生成链接后，现场打开大屏点击“开始随机抽签”。";
     const renderConfigCard = () => {
       if (!canEditConfigFields) {
         return (
           <div className="review-config-card rounded-xl border border-[var(--line)] bg-white p-4">
             <div className="config-collapsed flex flex-col gap-3 rounded-xl border border-slate-200 bg-slate-50 px-4 py-3 md:flex-row md:items-center md:justify-between">
               <div className="min-w-0">
-                <p className="text-sm font-extrabold text-slate-950">🔒 评审配置已锁定 · 投屏设置已锁定</p>
+                <p className="text-sm font-extrabold text-slate-950">评审配置已锁定 · 投屏设置已锁定</p>
                 <p className="mt-1 truncate text-xs text-slate-500">
                   路演 {timingDraft.presentationMinutes}min · 答辩 {timingDraft.qaMinutes}min · 评分 {timingDraft.scoringSeconds}s ·
                   {screenDisplay.scoringEnabled ? " 含评分环节" : " 仅路演答辩"}
@@ -2670,7 +2812,7 @@ export default function ExpertReviewTab() {
             <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
               <div>
                 <p className="text-sm font-extrabold text-indigo-950">1 选择路演顺序方式</p>
-                <p className="mt-1 text-xs text-indigo-700/70">抽签只是确定顺序，不会自动开始路演；评审开始仍由后台控制台逐步推进。</p>
+                <p className="mt-1 text-xs text-indigo-700/70">抽签只是确定顺序，不会自动开始路演；评审开始仍由管理端控制台逐步推进。</p>
               </div>
               <span className="rounded-full bg-white px-3 py-1 text-[11px] font-bold text-indigo-700 ring-1 ring-indigo-100">
                 当前：{selectedDrawMode.title}
@@ -2709,7 +2851,7 @@ export default function ExpertReviewTab() {
 
           <div className="mt-4 flex items-center gap-3">
             <span className="inline-flex h-6 w-6 items-center justify-center rounded-full bg-slate-900 text-[11px] font-black text-white">2</span>
-            <p className="text-sm font-extrabold text-slate-950">设置环节时间与评分规则</p>
+            <p className="text-sm font-extrabold text-slate-950">设置环节时间</p>
           </div>
 
           <div className="mt-4 grid gap-3 md:grid-cols-3">
@@ -2735,42 +2877,102 @@ export default function ExpertReviewTab() {
             ))}
           </div>
 
-          <div className="mt-3 grid gap-3 md:grid-cols-2">
-            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-xs font-bold text-slate-600">去最高分</span>
-                <span className="rounded-lg bg-white px-3 py-1 font-mono text-sm font-extrabold text-blue-700 ring-1 ring-blue-100">
-                  {packageDropHighestCount}
-                </span>
+          <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50/70 p-4">
+            <div className="flex flex-col gap-2 md:flex-row md:items-start md:justify-between">
+              <div>
+                <p className="text-sm font-extrabold text-blue-950">现场出分计分规则</p>
+                <p className="mt-1 text-xs font-semibold leading-5 text-blue-700/70">
+                  需要大屏实时出分或现场揭晓时，必须在开启大屏前确认计分规则；不现场出分时，可在评分结束后再做成绩归档与排名。
+                </p>
               </div>
+              <span className="rounded-full bg-white px-3 py-1 text-[11px] font-bold text-blue-700 ring-1 ring-blue-100">
+                当前专家 {effectiveExpertCount} 位
+              </span>
             </div>
-            <div className="rounded-xl border border-slate-200 bg-slate-50 px-4 py-3">
-              <div className="flex items-center justify-between gap-3">
-                <span className="text-xs font-bold text-slate-600">去最低分</span>
-                <span className="rounded-lg bg-white px-3 py-1 font-mono text-sm font-extrabold text-blue-700 ring-1 ring-blue-100">
-                  {packageDropLowestCount}
-                </span>
-              </div>
+            <div className="mt-3 flex flex-wrap gap-2">
+              <button
+                className={`rounded-xl border px-3 py-2 text-xs font-black transition ${
+                  draftDropHighestCount === 0 && draftDropLowestCount === 0
+                    ? "border-blue-200 bg-white text-blue-700 shadow-sm"
+                    : "border-blue-100 bg-blue-50 text-blue-700"
+                }`}
+                onClick={() => applyScoreRulePreset(group, 0, 0)}
+                type="button"
+              >
+                直接平均
+              </button>
+              <button
+                className={`rounded-xl border px-3 py-2 text-xs font-black transition ${
+                  draftDropHighestCount === 1 && draftDropLowestCount === 1
+                    ? "border-blue-200 bg-white text-blue-700 shadow-sm"
+                    : "border-blue-100 bg-blue-50 text-blue-700"
+                }`}
+                onClick={() => applyScoreRulePreset(group, 1, 1)}
+                type="button"
+              >
+                去最高、最低后平均
+              </button>
+            </div>
+            <div className="mt-3 grid gap-3 md:grid-cols-2">
+              <label className="rounded-xl border border-blue-100 bg-white px-4 py-3">
+                <span className="text-xs font-bold text-slate-600">去最高分数量</span>
+                <input
+                  className="mt-2 h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-center font-mono text-base font-bold text-slate-950 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                  inputMode="numeric"
+                  max={5}
+                  min={0}
+                  onChange={(event) => updateScoreRuleDraft(group, "dropHighestCount", event.target.value)}
+                  type="number"
+                  value={scoreRuleDraft.dropHighestCount}
+                />
+              </label>
+              <label className="rounded-xl border border-blue-100 bg-white px-4 py-3">
+                <span className="text-xs font-bold text-slate-600">去最低分数量</span>
+                <input
+                  className="mt-2 h-9 w-full rounded-lg border border-slate-200 bg-white px-2 text-center font-mono text-base font-bold text-slate-950 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                  inputMode="numeric"
+                  max={5}
+                  min={0}
+                  onChange={(event) => updateScoreRuleDraft(group, "dropLowestCount", event.target.value)}
+                  type="number"
+                  value={scoreRuleDraft.dropLowestCount}
+                />
+              </label>
+            </div>
+            <div className="mt-3 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <p
+                className={`rounded-xl border px-3 py-2 text-xs font-semibold ${
+                  scoreRuleDraftIsInvalid
+                    ? "border-rose-100 bg-rose-50 text-rose-600"
+                    : "border-emerald-100 bg-emerald-50 text-emerald-700"
+                }`}
+              >
+                当前专家 {effectiveExpertCount} 位，去掉后保留 {draftRemainingScoreCount} 个有效评分
+                {scoreRuleDraftIsInvalid ? "；至少保留 2 个有效评分。" : "。"}
+              </p>
+              <button
+                className="inline-flex min-h-10 items-center justify-center rounded-xl bg-blue-600 px-4 text-xs font-black text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+                disabled={scoreRuleDraftIsInvalid || scoreRuleSavingKey === group.key}
+                onClick={() =>
+                  void saveScoreRuleForGroups(
+                    group,
+                    getStageGroupsForReviewGroup(group),
+                    draftDropHighestCount,
+                    draftDropLowestCount,
+                  )
+                }
+                type="button"
+              >
+                {scoreRuleSavingKey === group.key ? "保存中..." : "保存计分规则"}
+              </button>
             </div>
           </div>
-
-          <p
-            className={`mt-3 rounded-xl border px-3 py-2 text-xs font-semibold ${
-              scoreRuleIsInvalid
-                ? "border-rose-100 bg-rose-50 text-rose-600"
-                : "border-amber-100 bg-amber-50 text-amber-700"
-            }`}
-          >
-            {scoreRuleIsInvalid
-              ? `当前有效专家 ${effectiveExpertCount} 位，去掉后剩余 ${remainingScoreCount} 个有效评分。有效评分不足 2 个，请到评审包里减少去分数量。`
-              : `评分规则（来自评审包）：当前有效专家 ${effectiveExpertCount} 位，去掉后剩余 ${remainingScoreCount} 个有效评分。`}
-          </p>
 
           <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50/60 p-4">
             <div className="flex flex-col gap-1 md:flex-row md:items-center md:justify-between">
               <div>
                 <p className="text-sm font-extrabold text-blue-950">3 投屏显示设置</p>
-                <p className="mt-1 text-xs text-blue-700/70">后台管理员监看始终实名显示分数；这里仅控制现场大屏给观众看的内容。</p>
+                <p className="mt-1 text-xs text-blue-700/70">管理端监看始终实名显示分数；这里仅控制现场大屏给观众看的内容。</p>
               </div>
               <span className="rounded-full bg-white px-3 py-1 text-[11px] font-bold text-blue-700 ring-1 ring-blue-100">
                 {screenDisplay.scoringEnabled ? "含评分环节" : "仅路演答辩"}
@@ -2805,7 +3007,7 @@ export default function ExpertReviewTab() {
               <div>
                 <p className="text-sm font-extrabold text-slate-950">4 确认顺序并生成大屏链接</p>
                 <p className="mt-1 text-xs text-slate-400">
-                  {drawModeHelpText} 随机抽签和自助抽签都在大屏窗口完成；团队线上抽签由团队链接完成，后台同步结果和导出顺序表。
+                  {drawModeHelpText} 随机抽签和自助抽签都在大屏窗口完成；团队线上抽签由团队链接完成，管理端同步结果和导出顺序表。
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
@@ -2954,7 +3156,7 @@ export default function ExpertReviewTab() {
             onClick={() => {
               if (
                 window.confirm(
-                  "确认结束本轮所有评审？投屏将进入本轮结束状态，未完成项目和未提交专家不会再进入本轮投屏；后台会保留已有成绩与过程记录。",
+                  "确认结束本轮所有评审？投屏将进入本轮结束状态，未完成项目和未提交专家不会再进入本轮投屏；系统会保留已有成绩与过程记录。",
                 )
               ) {
                 void changeReviewScreenPhase(group, "finished", { force: true });
@@ -2987,11 +3189,11 @@ export default function ExpertReviewTab() {
 
     const expertLinksReady = Boolean(screenSession) && !orderDrawBlockingStart;
     const expertLinksLockedReason = !screenSession
-      ? "完成团队抽签和顺序确认后再生成专家临时评分链接。"
+      ? "完成团队抽签和顺序确认后再生成专家专属评分链接。"
       : orderDrawBlockingStart
         ? drawMode === "team"
-          ? `完成团队抽签和顺序确认后再生成专家临时评分链接。当前已注册 ${registeredProjectCount}/${projectOrder.length}，已抽签 ${drawnProjectCount}/${projectOrder.length}。`
-          : `完成大屏自助抽签和顺序确认后再生成专家临时评分链接。当前已抽签 ${drawnProjectCount}/${projectOrder.length}。`
+          ? `完成团队抽签和顺序确认后再生成专家专属评分链接。当前已注册 ${registeredProjectCount}/${projectOrder.length}，已抽签 ${drawnProjectCount}/${projectOrder.length}。`
+          : `完成大屏自助抽签和顺序确认后再生成专家专属评分链接。当前已抽签 ${drawnProjectCount}/${projectOrder.length}。`
         : null;
 
     const renderReviewSidebar = () => (
@@ -3093,7 +3295,7 @@ export default function ExpertReviewTab() {
             </div>
           ) : (
             <p className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-[11px] font-semibold text-slate-400">
-              生成后可逐个复制发给专家微信；专家无需登录即可进入自己的评分界面。
+              生成后可逐个复制并发送给专家；专家无需登录，可进入本人评分界面。
             </p>
           )}
         </article>
@@ -3103,7 +3305,7 @@ export default function ExpertReviewTab() {
             <h3 className="text-sm font-extrabold text-slate-950">专家席位</h3>
             <span className="rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-bold text-blue-700">固定席位 {monitorSeats.length}</span>
           </div>
-          <p className="mt-2 text-[11px] text-slate-400">后台实名查看；异常排除仅用于专家离场、设备故障等情况。</p>
+          <p className="mt-2 text-[11px] text-slate-400">管理端实名查看；异常排除仅用于专家离场、设备故障等情况。</p>
           <div className="mt-4 space-y-2">
             {monitorSeats.map((seat) => {
               const assignment = group.items[seat.seatNo - 1];
@@ -3210,7 +3412,7 @@ export default function ExpertReviewTab() {
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <p className="text-xs font-extrabold text-slate-900">团队抽签入口</p>
-                  <p className="mt-1 text-[11px] text-slate-400">复制这一个入口发到微信群；团队进入后选择自己的项目，确认后注册并抽签。</p>
+                  <p className="mt-1 text-[11px] text-slate-400">复制统一入口并发送给参赛团队；团队进入后选择本项目，确认后注册并抽签。</p>
                 </div>
                 <button
                   className="inline-flex shrink-0 items-center justify-center gap-1 rounded-lg border border-blue-100 bg-blue-50 px-2.5 py-1.5 text-[11px] font-bold text-blue-700 transition hover:bg-blue-100"
@@ -3807,8 +4009,6 @@ export default function ExpertReviewTab() {
   const activeExpertSeatCount = activeSidebarSeats.length || activeGroup?.items.length || 0;
   const activeSubmittedSeatCount = activeSidebarSeats.filter((seat) => seat.status === "submitted").length;
   const activePendingSeatCount = activeSidebarSeats.filter((seat) => seat.status === "pending").length;
-  const activeDropHighestCount = activeCurrentProjectGroup?.items[0]?.dropHighestCount ?? 1;
-  const activeDropLowestCount = activeCurrentProjectGroup?.items[0]?.dropLowestCount ?? 1;
   const activeProjectListSource = activeGroupLiveData?.projectOrder?.length
     ? activeGroupLiveData.projectOrder
     : activeStageGroups.map<ReviewScreenProjectOrderItem>((group, index) => ({
@@ -3828,8 +4028,10 @@ export default function ExpertReviewTab() {
     const liveResult = activeGroupLiveData?.projectResults.find(
       (result) => result.reviewPackage.id === project.packageId,
     );
-    const averageScore = group ? getAverageScore(group) : null;
-    const scoreText = liveResult?.finalScore.finalScoreText ?? (averageScore == null ? null : averageScore.toFixed(2));
+    const scoreText = liveResult?.finalScore.finalScoreText ?? null;
+    const projectScoresSubmitted = group
+      ? group.items.length > 0 && group.items.every((assignment) => Boolean(assignment.score))
+      : false;
     const isCurrent = activeGroupLiveData?.currentPackageId
       ? project.packageId === activeGroupLiveData.currentPackageId
       : project.packageId === activeGroup?.key;
@@ -3839,7 +4041,7 @@ export default function ExpertReviewTab() {
       index,
       isCurrent,
       scoreText,
-      isCompleted: Boolean(liveResult?.finalScore.ready || project.revealedAt || scoreText),
+      isCompleted: Boolean(liveResult?.finalScore.ready || project.revealedAt || projectScoresSubmitted),
       pendingCount: group?.items.filter((assignment) => assignment.statusKey === "pending").length ?? 0,
       expertCount: group?.items.length ?? 0,
     };
@@ -3859,12 +4061,12 @@ export default function ExpertReviewTab() {
           <div className="min-w-0">
             <div className="flex flex-wrap items-center gap-2">
               <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-black tracking-wide text-slate-500">
-                ADVANCED
+                复用
               </span>
-              <p className="text-sm font-black text-slate-950">高级复用入口</p>
+              <p className="text-sm font-black text-slate-950">历史轮次复用</p>
             </div>
             <p className="mt-2 text-xs font-semibold leading-5 text-slate-500">
-              日常办赛不用打开；只有需要复用项目管理阶段、已审批材料或历史项目组时使用。
+              仅在复用既有项目阶段、已审批材料或历史项目组时使用。
             </p>
           </div>
           <div className="flex shrink-0 items-center gap-3 text-xs font-black text-slate-500">
@@ -3935,6 +4137,7 @@ export default function ExpertReviewTab() {
   };
   const renderCompetitionReviewCommandCenter = () => {
     const commandProjectCount = activeStageGroups.length || groupedAssignments.length;
+    const hasReviewConfiguration = groupedAssignments.length > 0;
     const commandTotalScoreSlots = reviewAssignments.length;
     const commandSubmittedScoreSlots = reviewAssignments.filter((assignment) => Boolean(assignment.score)).length;
     const commandProjectOrder = activeGroupLiveData?.projectOrder?.length ? activeGroupLiveData.projectOrder : activeProjectListSource;
@@ -3988,15 +4191,15 @@ export default function ExpertReviewTab() {
             }
           : commandActiveStep === "score" && activeGroup && activeGuestLinkCount === 0
             ? {
-                label: "生成专家临时链接",
-                description: "每位专家一个临时评分链接，微信发出即可开始收分。",
+                label: "生成专家评分链接",
+                description: "每位专家一个专属评分链接，复制后发送给对应专家。",
                 disabled: !activeGroup.projectReviewStageId || guestExpertLinkActionKey === activeGroup.key,
                 onClick: () => void generateGuestExpertLinks(activeGroup),
               }
             : commandActiveStep === "score"
               ? {
                   label: "查看原始分矩阵",
-                  description: "不打开大屏也能收分，后台实时看每位专家原始提交分。",
+                  description: "大屏未开启时仍可接收评分提交，管理端实时查看每位专家原始分。",
                   disabled: false,
                   onClick: () => document.getElementById("expert-score-matrix")?.scrollIntoView({ behavior: "smooth", block: "start" }),
                 }
@@ -4006,44 +4209,77 @@ export default function ExpertReviewTab() {
                   disabled: reviewAssignments.length === 0,
                   onClick: downloadReviewScoreDetails,
                 };
-    const workflowCards = [
+    const getGateState = (complete: boolean, key: "prepare" | "draw" | "score" | "archive") => {
+      if (complete) return "complete";
+      if (commandActiveStep === key) return "current";
+      return "waiting";
+    };
+    const getGateStatusLabel = (state: string) =>
+      state === "complete" ? "已完成" : state === "current" ? "办理中" : "待办理";
+    const getGateStatusClass = (state: string) =>
+      state === "complete"
+        ? "bg-emerald-50 text-emerald-700 ring-emerald-100"
+        : state === "current"
+          ? "bg-blue-50 text-blue-700 ring-blue-100"
+          : "bg-slate-100 text-slate-500 ring-slate-200";
+    const commandGateChecks = [
       {
         key: "prepare",
-        title: "准备评审",
+        title: "项目建档",
         icon: BookOpen,
-        metric: commandProjectCount > 0 ? `${commandProjectCount} 个项目` : "待创建",
-        description: `专家 ${activeExpertSeatCount || 0} 位 · ${activeGroup ? "已进入本轮" : "等待导入"}`,
+        metric: commandProjectCount > 0 ? `${commandProjectCount} 个项目` : "待建档",
+        requirement: "已导入本轮项目，并完成专家席位分配。",
+        description: `专家 ${activeExpertSeatCount || 0} 位 · ${activeGroup ? "本轮已建立" : "等待导入"}`,
+        state: getGateState(commandProjectCount > 0 && activeExpertSeatCount > 0, "prepare"),
       },
       {
         key: "draw",
-        title: "团队抽签",
+        title: "顺序确认",
         icon: Shuffle,
         metric: activeScreenSession?.teamDrawUrl || (commandDrawMode === "self" && activeScreenSession)
           ? `${drawnProjectCount}/${commandProjectOrder.length || commandProjectCount || 0} 已抽`
           : activeScreenSession
             ? "大屏已生成"
             : "待生成入口",
+        requirement: activeGroupIsRoadshow
+          ? "团队完成注册抽签，系统形成路演顺序。"
+          : "网络评审无需抽签，项目顺序按导入结果办理。",
         description: activeScreenSession?.teamDrawUrl
-          ? `注册 ${registeredProjectCount}/${commandProjectOrder.length || commandProjectCount || 0} · 一个入口发微信群`
+          ? `注册 ${registeredProjectCount}/${commandProjectOrder.length || commandProjectCount || 0} · 统一入口发送给参赛团队`
           : commandDrawMode === "self" && activeScreenSession
             ? "等待大屏自助抽签完成后进入专家评分"
-          : "一个入口发微信群，团队自选项目后注册抽签",
+          : "统一入口发送给参赛团队，团队选择本项目后注册抽签",
+        state: getGateState(
+          hasReviewConfiguration &&
+            (!activeGroupIsRoadshow || Boolean(activeScreenSession && teamDrawReady && !commandOrderDrawBlockingStart)),
+          "draw",
+        ),
       },
       {
         key: "score",
-        title: "专家评分",
+        title: "链接发放",
         icon: Users,
-        metric: `${commandSubmittedScoreSlots}/${commandTotalScoreSlots || 0} 已提交`,
+        metric: `${activeGuestLinkCount}/${activeExpertSeatCount || 0} 已生成`,
+        requirement: "顺序确认后，每位专家一个专属评分链接。",
         description: activeGuestLinkCount
           ? `链接 ${activeGuestLinkCount}/${activeExpertSeatCount || activeGuestLinkCount} · 已访问 ${activeGuestLinkUsedCount}`
-          : "每位专家一个临时评分链接，不打开大屏也能收分",
+          : "每位专家一个专属评分链接，大屏未开启时仍可接收评分提交",
+        state: getGateState(hasReviewConfiguration && activeGuestLinkCount > 0, "score"),
       },
       {
         key: "archive",
-        title: "汇总归档",
+        title: "评分完成",
         icon: Download,
-        metric: activeGroupFinalScoreText === "--" ? "待汇总" : activeGroupFinalScoreText,
-        description: "完成后归档复核",
+        metric: `${commandSubmittedScoreSlots}/${commandTotalScoreSlots || 0} 已提交`,
+        requirement: "专家全部提交后，管理端导出原始分明细并归档复核。",
+        description:
+          commandTotalScoreSlots > 0 && commandSubmittedScoreSlots >= commandTotalScoreSlots
+            ? "原始分已收齐，进入归档复核"
+            : "待收齐专家评分",
+        state: getGateState(
+          hasReviewConfiguration && commandTotalScoreSlots > 0 && commandSubmittedScoreSlots >= commandTotalScoreSlots,
+          "archive",
+        ),
       },
     ];
     const commandStatusLabel =
@@ -4089,7 +4325,7 @@ export default function ExpertReviewTab() {
         title: "团队注册",
         value: activeGroupIsRoadshow ? `${registeredProjectCount}/${commandOrderTotal}` : `${commandProjectCount}`,
         caption: activeGroupIsRoadshow
-          ? `抽签 ${drawnProjectCount}/${commandOrderTotal} · ${activeScreenSession?.teamDrawUrl ? "一个入口发微信群" : "等待生成入口"}`
+          ? `抽签 ${drawnProjectCount}/${commandOrderTotal} · ${activeScreenSession?.teamDrawUrl ? "统一入口已生成" : "等待生成入口"}`
           : "网络评审无需团队抽签",
         accent: "bg-blue-50 text-blue-700 ring-blue-100",
       },
@@ -4102,16 +4338,16 @@ export default function ExpertReviewTab() {
       },
       {
         key: "scores",
-        title: "后台收分",
+        title: "评分提交",
         value: `${commandSubmittedScoreSlots}/${commandTotalScoreSlots || 0}`,
         caption: pendingReviewCount > 0 ? `待提交 ${pendingReviewCount} · 实时刷新` : "已收齐，可导出复核",
         accent: "bg-emerald-50 text-emerald-700 ring-emerald-100",
       },
     ];
-    const alwaysOnActions = [
+    const emergencyActions = [
       {
         key: "draw",
-        label: activeScreenSession?.teamDrawUrl ? "复制团队抽签" : "配置抽签",
+        label: activeScreenSession?.teamDrawUrl ? "复制团队抽签入口" : "配置抽签入口",
         icon: Shuffle,
         disabled: !activeGroup || !canManageReviewMaterials,
         onClick: () => {
@@ -4125,7 +4361,7 @@ export default function ExpertReviewTab() {
       },
       {
         key: "screen",
-        label: "打开大屏",
+        label: "打开监控大屏",
         icon: Monitor,
         disabled: !activeScreenSession,
         onClick: () => {
@@ -4136,21 +4372,21 @@ export default function ExpertReviewTab() {
       },
       {
         key: "expert-links",
-        label: "查看专家入口",
+        label: "查看专家评分入口",
         icon: Users,
         disabled: !activeGroup,
         onClick: () => document.querySelector(".review-expert-links-panel")?.scrollIntoView({ behavior: "smooth", block: "start" }),
       },
       {
         key: "score-matrix",
-        label: "一键查看原始分",
+        label: "查看原始分矩阵",
         icon: CheckCircle2,
         disabled: reviewAssignments.length === 0,
         onClick: () => document.getElementById("expert-score-matrix")?.scrollIntoView({ behavior: "smooth", block: "start" }),
       },
       {
         key: "export",
-        label: "导出评分",
+        label: "导出评分明细",
         icon: Download,
         disabled: reviewAssignments.length === 0,
         onClick: downloadReviewScoreDetails,
@@ -4161,10 +4397,10 @@ export default function ExpertReviewTab() {
       <section className="review-command-center overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-sm">
         <div className="review-current-round-panel grid gap-5 bg-[linear-gradient(135deg,#0f2b55,#174c8e_58%,#8b1e32)] px-5 py-5 text-white xl:grid-cols-[minmax(0,1fr)_320px] xl:items-stretch">
           <div className="min-w-0">
-            <p className="text-xs font-black tracking-[0.18em] text-white/65">COMPETITION REVIEW</p>
+            <p className="text-xs font-black tracking-[0.18em] text-white/65">大赛评审管理</p>
             <h3 className="mt-2 text-2xl font-black tracking-normal">当前轮次工作台</h3>
             <p className="mt-2 max-w-3xl text-sm font-semibold leading-6 text-white/74">
-              当前环节只展示本轮需要处理的事项；后台维护、历史复核和导出统一收进更多管理。
+              按项目建档、顺序确认、链接发放、评分完成四步办理；流程推进以系统状态为准，未达条件不推进。
             </p>
             <div className="mt-5 rounded-2xl border border-white/15 bg-white/10 p-4 backdrop-blur">
               <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
@@ -4193,6 +4429,12 @@ export default function ExpertReviewTab() {
               <p className="mt-2 text-xl font-black">{commandPrimaryAction.label}</p>
             </div>
             <p className="mt-2 max-w-[260px] text-xs font-semibold leading-5 text-slate-500">{commandPrimaryAction.description}</p>
+            <div className="mt-3 rounded-xl border border-blue-100 bg-blue-50 px-3 py-2">
+              <p className="text-[11px] font-black text-blue-700">推进条件</p>
+              <p className="mt-1 text-[11px] font-semibold leading-5 text-blue-700/75">
+                流程推进以系统状态为准，未达条件不推进；异常情况使用下方应急处理入口。
+              </p>
+            </div>
             <div className="mt-4 grid gap-2 text-[11px] font-black text-slate-600">
               <span className="rounded-lg bg-blue-50 px-3 py-2 text-blue-700">
                 团队抽签：注册 {registeredProjectCount}/{commandProjectOrder.length || commandProjectCount || 0} · 抽签 {drawnProjectCount}/{commandProjectOrder.length || commandProjectCount || 0}
@@ -4229,16 +4471,16 @@ export default function ExpertReviewTab() {
                 </article>
               ))}
             </div>
-            <div className="review-always-on-actions rounded-2xl border border-slate-200 bg-white p-4 lg:w-[270px]">
+            <div className="review-emergency-actions rounded-2xl border border-slate-200 bg-white p-4 lg:w-[270px]">
               <div className="flex items-center justify-between gap-3">
                 <div>
-                  <p className="text-xs font-black text-slate-950">现场常用入口</p>
-                  <p className="mt-1 text-[11px] font-semibold text-slate-400">每个环节都保留，方便应急处理。</p>
+                  <p className="text-xs font-black text-slate-950">应急处理入口</p>
+                  <p className="mt-1 text-[11px] font-semibold text-slate-400">用于现场异常、补发链接和复核，不影响主流程推进。</p>
                 </div>
-                <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-black text-slate-500">常驻</span>
+                <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[10px] font-black text-slate-500">应急</span>
               </div>
               <div className="mt-3 grid grid-cols-2 gap-2">
-                {alwaysOnActions.map((action) => {
+                {emergencyActions.map((action) => {
                   const Icon = action.icon;
                   return (
                     <button
@@ -4258,10 +4500,10 @@ export default function ExpertReviewTab() {
           </div>
         </div>
 
-        <div className="review-workflow-strip grid gap-2 border-b border-slate-100 bg-slate-50/70 p-3 xl:grid-cols-4">
-          {workflowCards.map((card, index) => {
+        <div className="review-process-gate-list grid gap-2 border-b border-slate-100 bg-slate-50/70 p-3 xl:grid-cols-4">
+          {commandGateChecks.map((card, index) => {
             const Icon = card.icon;
-            const active = card.key === commandActiveStep;
+            const active = card.state === "current";
             return (
               <article
                 className={`review-step-gate rounded-2xl border bg-white p-3 transition ${
@@ -4279,19 +4521,17 @@ export default function ExpertReviewTab() {
                   >
                     <Icon className="h-4 w-4" />
                   </span>
-                  <span
-                    className={`rounded-full px-2.5 py-1 font-mono text-[11px] font-black ${
-                      active ? "bg-blue-50 text-blue-700" : "bg-slate-100 text-slate-500"
-                    }`}
-                  >
-                    {String(index + 1).padStart(2, "0")}
+                  <span className={`rounded-full px-2.5 py-1 text-[11px] font-black ring-1 ${getGateStatusClass(card.state)}`}>
+                    {getGateStatusLabel(card.state)}
                   </span>
                 </div>
                 <h4 className="mt-3 text-sm font-black text-slate-950">{card.title}</h4>
                 <p className={`mt-2 font-mono text-base font-black ${active ? "text-blue-700" : "text-slate-700"}`}>
                   {card.metric}
                 </p>
-                <p className="mt-1 min-h-8 text-[11px] font-semibold leading-4 text-slate-500">{card.description}</p>
+                <p className="mt-1 text-[11px] font-black leading-4 text-slate-500">流程核验 {String(index + 1).padStart(2, "0")}</p>
+                <p className="mt-1 min-h-8 text-[11px] font-semibold leading-4 text-slate-500">{card.requirement}</p>
+                <p className="mt-2 rounded-lg bg-slate-50 px-2.5 py-2 text-[11px] font-semibold leading-4 text-slate-500">{card.description}</p>
               </article>
             );
           })}
@@ -4299,7 +4539,7 @@ export default function ExpertReviewTab() {
 
         <details className="review-management-drawer group border-t border-slate-100 bg-white">
           <summary className="flex cursor-pointer list-none items-center justify-between gap-3 px-4 py-3 text-sm font-black text-slate-700 transition hover:bg-slate-50">
-            <span>更多管理</span>
+            <span>辅助管理</span>
             <span className="inline-flex items-center gap-1 text-xs text-blue-600">
               展开
               <ChevronRight className="h-4 w-4 transition group-open:rotate-90" />
@@ -4307,7 +4547,7 @@ export default function ExpertReviewTab() {
           </summary>
           <div className="flex flex-col gap-3 border-t border-slate-100 bg-slate-50/60 px-4 py-4 md:flex-row md:items-center md:justify-between">
             <p className="max-w-2xl text-xs font-semibold leading-5 text-slate-500">
-              这里放低频操作：补建评审、查看重置记录、导出明细。正常评审时不用展开。
+              用于补建评审、查看重置记录和导出评分明细；常规流程请按上方工作台办理。
             </p>
             <div className="flex flex-wrap gap-2 md:justify-end">
               {canCreateReviewPackage ? (
@@ -4363,10 +4603,10 @@ export default function ExpertReviewTab() {
       <section id="expert-score-matrix" className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <p className="text-xs font-black tracking-wide text-blue-600">后台收分监控</p>
+            <p className="text-xs font-black tracking-wide text-blue-600">评分提交监控</p>
             <h3 className="mt-1 text-lg font-black text-slate-950">专家原始分矩阵</h3>
             <p className="mt-2 text-sm leading-6 text-slate-500">
-              不打开大屏也会实时刷新；这里保留每位专家的原始提交分，最终平均分只作后台参考。
+              大屏未开启时仍会刷新；这里只展示每位专家的原始提交分，成绩归档与排名在评分全部提交后办理。
             </p>
           </div>
           <div className="grid grid-cols-3 gap-2 text-center">
@@ -4397,14 +4637,10 @@ export default function ExpertReviewTab() {
                     {expert.name}
                   </th>
                 ))}
-                <th className="sticky right-0 z-10 min-w-[92px] border-b border-slate-200 bg-slate-50 px-4 py-3 text-center font-black">
-                  平均分
-                </th>
               </tr>
             </thead>
             <tbody>
               {matrixGroups.map((group, index) => {
-                const averageScore = getAverageScore(group);
                 return (
                   <tr className="bg-white transition hover:bg-slate-50" key={group.key}>
                     <td className="sticky left-0 z-10 border-b border-slate-100 bg-white px-4 py-3">
@@ -4434,14 +4670,190 @@ export default function ExpertReviewTab() {
                         </td>
                       );
                     })}
-                    <td className="sticky right-0 z-10 border-b border-slate-100 bg-slate-50 px-4 py-3 text-center font-mono text-base font-black text-slate-900">
-                      {averageScore == null ? "--" : averageScore.toFixed(2)}
-                    </td>
                   </tr>
                 );
               })}
             </tbody>
           </table>
+        </div>
+      </section>
+    );
+  };
+
+  const renderFinalRankingArchive = () => {
+    const archiveGroups = activeGroup ? getStageGroupsForReviewGroup(activeGroup) : groupedAssignments;
+    const referenceGroup = activeGroup ?? archiveGroups[0] ?? null;
+    if (!referenceGroup || archiveGroups.length === 0) {
+      return null;
+    }
+
+    const scoreRuleDraft = getScoreRuleDraftForGroup(referenceGroup);
+    const dropHighestCount = normalizeScoreRuleDraftValue(
+      scoreRuleDraft.dropHighestCount,
+      referenceGroup.items[0]?.dropHighestCount ?? 0,
+    );
+    const dropLowestCount = normalizeScoreRuleDraftValue(
+      scoreRuleDraft.dropLowestCount,
+      referenceGroup.items[0]?.dropLowestCount ?? 0,
+    );
+    const expertCount = referenceGroup.items.length;
+    const remainingScoreCount = Math.max(0, expertCount - dropHighestCount - dropLowestCount);
+    const scoreRuleInvalid = expertCount >= 2 && remainingScoreCount < 2;
+    const totalScoreSlots = archiveGroups.reduce((count, group) => count + group.items.length, 0);
+    const submittedScoreSlots = archiveGroups.reduce(
+      (count, group) => count + group.items.filter((assignment) => Boolean(assignment.score)).length,
+      0,
+    );
+    const allScoresSubmitted = totalScoreSlots > 0 && submittedScoreSlots === totalScoreSlots;
+    const rankingRows = buildFinalRankingRows(archiveGroups, dropHighestCount, dropLowestCount);
+    const canArchiveRanking = allScoresSubmitted && !scoreRuleInvalid && rankingRows.every((row) => row.score != null);
+
+    return (
+      <section id="review-final-ranking-archive" className="rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+          <div>
+            <p className="text-xs font-black tracking-wide text-blue-600">成绩归档与排名</p>
+            <h3 className="mt-1 text-lg font-black text-slate-950">评分结束后统一计算</h3>
+            <p className="mt-2 text-sm leading-6 text-slate-500">
+              专家评分全部提交后，再按本项规则计算最终成绩并生成总排名；原始分矩阵始终保留，便于复核。
+            </p>
+          </div>
+          <div className="grid grid-cols-3 gap-2 text-center">
+            <div className="rounded-2xl bg-blue-50 px-4 py-3">
+              <p className="font-mono text-2xl font-black text-blue-700">{archiveGroups.length}</p>
+              <p className="mt-1 text-[11px] font-bold text-slate-400">项目</p>
+            </div>
+            <div className="rounded-2xl bg-emerald-50 px-4 py-3">
+              <p className="font-mono text-2xl font-black text-emerald-700">{submittedScoreSlots}/{totalScoreSlots}</p>
+              <p className="mt-1 text-[11px] font-bold text-slate-400">评分</p>
+            </div>
+            <div className={`rounded-2xl px-4 py-3 ${allScoresSubmitted ? "bg-emerald-50" : "bg-amber-50"}`}>
+              <p className={`text-sm font-black ${allScoresSubmitted ? "text-emerald-700" : "text-amber-700"}`}>
+                {allScoresSubmitted ? "可计算" : "待收齐"}
+              </p>
+              <p className="mt-1 text-[11px] font-bold text-slate-400">状态</p>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50/70 p-4">
+          <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <p className="text-sm font-black text-slate-950">计分规则</p>
+              <p className="mt-1 text-xs font-semibold leading-5 text-slate-500">
+                未收齐评分前不生成总排名；收齐后可选择直接平均，或去掉指定数量最高分、最低分后平均。
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                className={`rounded-xl border px-3 py-2 text-xs font-black transition ${
+                  dropHighestCount === 0 && dropLowestCount === 0
+                    ? "border-blue-200 bg-white text-blue-700 shadow-sm"
+                    : "border-slate-200 bg-white text-slate-600"
+                }`}
+                onClick={() => applyScoreRulePreset(referenceGroup, 0, 0)}
+                type="button"
+              >
+                直接平均
+              </button>
+              <button
+                className={`rounded-xl border px-3 py-2 text-xs font-black transition ${
+                  dropHighestCount === 1 && dropLowestCount === 1
+                    ? "border-blue-200 bg-white text-blue-700 shadow-sm"
+                    : "border-slate-200 bg-white text-slate-600"
+                }`}
+                onClick={() => applyScoreRulePreset(referenceGroup, 1, 1)}
+                type="button"
+              >
+                去最高、最低后平均
+              </button>
+            </div>
+          </div>
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            <label className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+              <span className="text-xs font-bold text-slate-600">去最高分数量</span>
+              <input
+                className="mt-2 h-10 w-full rounded-lg border border-slate-200 bg-white px-2 text-center font-mono text-base font-bold text-slate-950 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                disabled={!allScoresSubmitted}
+                inputMode="numeric"
+                max={5}
+                min={0}
+                onChange={(event) => updateScoreRuleDraft(referenceGroup, "dropHighestCount", event.target.value)}
+                type="number"
+                value={scoreRuleDraft.dropHighestCount}
+              />
+            </label>
+            <label className="rounded-xl border border-slate-200 bg-white px-4 py-3">
+              <span className="text-xs font-bold text-slate-600">去最低分数量</span>
+              <input
+                className="mt-2 h-10 w-full rounded-lg border border-slate-200 bg-white px-2 text-center font-mono text-base font-bold text-slate-950 outline-none transition focus:border-blue-400 focus:ring-2 focus:ring-blue-100"
+                disabled={!allScoresSubmitted}
+                inputMode="numeric"
+                max={5}
+                min={0}
+                onChange={(event) => updateScoreRuleDraft(referenceGroup, "dropLowestCount", event.target.value)}
+                type="number"
+                value={scoreRuleDraft.dropLowestCount}
+              />
+            </label>
+          </div>
+          <div className="mt-3 flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+            <p
+              className={`rounded-xl border px-3 py-2 text-xs font-semibold ${
+                !allScoresSubmitted
+                  ? "border-amber-100 bg-amber-50 text-amber-700"
+                  : scoreRuleInvalid
+                    ? "border-rose-100 bg-rose-50 text-rose-600"
+                    : "border-emerald-100 bg-emerald-50 text-emerald-700"
+              }`}
+            >
+              {!allScoresSubmitted
+                ? `专家评分全部提交后开放成绩计算与排名，当前已提交 ${submittedScoreSlots}/${totalScoreSlots}。`
+                : scoreRuleInvalid
+                  ? `当前专家 ${expertCount} 位，去掉后保留 ${remainingScoreCount} 个有效评分；至少保留 2 个。`
+                  : `当前专家 ${expertCount} 位，去掉后保留 ${remainingScoreCount} 个有效评分。`}
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <button
+                className="inline-flex min-h-10 items-center justify-center rounded-xl border border-slate-200 bg-white px-4 text-xs font-black text-slate-700 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-slate-300"
+                disabled={!allScoresSubmitted || scoreRuleInvalid || scoreRuleSavingKey === referenceGroup.key}
+                onClick={() =>
+                  void saveScoreRuleForGroups(referenceGroup, archiveGroups, dropHighestCount, dropLowestCount)
+                }
+                type="button"
+              >
+                {scoreRuleSavingKey === referenceGroup.key ? "保存中..." : "保存计分规则"}
+              </button>
+              <button
+                className="inline-flex min-h-10 items-center justify-center rounded-xl bg-blue-600 px-4 text-xs font-black text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300"
+                disabled={!canArchiveRanking}
+                onClick={() => downloadFinalRanking(archiveGroups, dropHighestCount, dropLowestCount)}
+                type="button"
+              >
+                导出总排名
+              </button>
+            </div>
+          </div>
+        </div>
+
+        <div className="mt-4 overflow-hidden rounded-2xl border border-slate-200">
+          <div className="grid grid-cols-[70px_minmax(0,1fr)_110px] bg-slate-50 px-4 py-3 text-xs font-black text-slate-500">
+            <span>排名</span>
+            <span>项目</span>
+            <span className="text-right">最终成绩</span>
+          </div>
+          {rankingRows.map((row, index) => (
+            <div
+              className="grid grid-cols-[70px_minmax(0,1fr)_110px] items-center border-t border-slate-100 bg-white px-4 py-3 text-sm"
+              key={row.group.key}
+            >
+              <span className="font-mono font-black text-blue-700">{allScoresSubmitted ? index + 1 : "--"}</span>
+              <span className="min-w-0 truncate font-black text-slate-950">{row.group.targetName}</span>
+              <span className="text-right font-mono font-black text-slate-900">
+                {canArchiveRanking && row.score != null ? row.score.toFixed(2) : "--"}
+              </span>
+            </div>
+          ))}
         </div>
       </section>
     );
@@ -4460,8 +4872,7 @@ export default function ExpertReviewTab() {
             rawLiveData && isProjectOrderAlignedWithGroup(group, rawLiveData.projectOrder) ? rawLiveData : undefined;
           const phase = liveData?.screenPhase ?? "draw";
           const liveResult = liveData?.projectResults.find((project) => project.reviewPackage.id === group.key);
-          const averageScore = getAverageScore(group);
-          const scoreText = liveResult?.finalScore.finalScoreText ?? (averageScore == null ? "--" : averageScore.toFixed(2));
+          const scoreText = liveResult?.finalScore.finalScoreText ?? "--";
           const submittedCount = group.items.filter((assignment) => assignment.statusKey !== "pending" || assignment.score).length;
           const isFinished = phase === "finished";
           const isCurrent = activeGroup?.key === group.key;
@@ -4536,12 +4947,12 @@ export default function ExpertReviewTab() {
     ) : null;
 
   return (
-    <div className="review-admin-control-shell mx-auto max-w-[1200px] space-y-5">
+    <div className="review-admin-control-shell mx-auto w-full max-w-[1200px] min-w-0 space-y-5">
       {resetHistoryOpen ? (
         <Workspace.Modal title="重置历史" onClose={() => setResetHistoryOpen(false)}>
           <div className="space-y-4">
             <p className="text-sm leading-6 text-slate-500">
-              每次评审包重置前的专家评分快照都会保留在这里，用于后台审计和复核。
+              每次评审包重置前的专家评分快照都会保留在这里，用于管理端审计和复核。
             </p>
             <div className="max-h-[420px] overflow-auto rounded-2xl border border-slate-200">
               {resetHistoryLoading ? (
@@ -4580,12 +4991,12 @@ export default function ExpertReviewTab() {
       <section className="review-page-intro rounded-2xl border border-slate-200 bg-white/85 px-5 py-4 shadow-sm backdrop-blur">
         <div className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div className="min-w-0">
-            <p className="text-xs font-black tracking-[0.18em] text-blue-600">REVIEW WORKFLOW</p>
-            <h2 className="mt-1 text-[22px] font-black text-slate-950">评审流程中台</h2>
+            <p className="text-xs font-black tracking-[0.18em] text-blue-600">评审管理</p>
+            <h2 className="mt-1 text-[22px] font-black text-slate-950">大赛评审管理</h2>
             <p className="mt-1 max-w-3xl text-sm font-semibold leading-6 text-slate-500">
               {activeGroup
-                ? `${activeGroup.roundLabel} · ${isRoadshowAssignment(activeGroup.items[0]) ? "项目路演" : "网络评审"} · 操作入口已集中到下方总控台`
-                : "导入项目、分配专家、收集评分；操作入口已集中到下方总控台，大屏和抽签按需要开启。"}
+                ? `${activeGroup.roundLabel} · ${isRoadshowAssignment(activeGroup.items[0]) ? "项目路演" : "网络评审"} · 操作入口已集中到下方工作台`
+                : "导入项目、分配专家、记录评分；操作入口已集中到下方工作台，大屏和抽签按活动安排启用。"}
             </p>
           </div>
           <div className="grid shrink-0 grid-cols-3 gap-2 text-center">
@@ -4638,12 +5049,14 @@ export default function ExpertReviewTab() {
             renderReviewScreenConsole(activeGroup)
           )}
           {renderRawScoreMatrix()}
+          {renderFinalRankingArchive()}
           {renderRoadshowGroupCards()}
         </main>
       ) : (
         <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_340px]">
           <main className="space-y-5">
             {renderRawScoreMatrix()}
+            {renderFinalRankingArchive()}
             {activeGroup ? (
               <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
                 <div className="flex flex-col gap-4 md:flex-row md:items-center">
@@ -4691,12 +5104,12 @@ export default function ExpertReviewTab() {
             </article>
 
             <article className="rounded-2xl border border-slate-200 bg-white p-5 text-center shadow-sm">
-              <p className="text-xs font-bold text-slate-400">后台锁定成绩</p>
-              <p className={`mt-3 font-mono text-5xl font-extrabold ${activeGroupFinalScoreText === "--" ? "text-slate-300" : "text-rose-600"}`}>
-                {activeGroupFinalScoreText}
+              <p className="text-xs font-bold text-slate-400">评分提交状态</p>
+              <p className="mt-3 font-mono text-5xl font-extrabold text-blue-700">
+                {activeSubmittedSeatCount || finishedReviewCount}/{activeExpertSeatCount || reviewAssignments.length}
               </p>
               <p className="mt-2 text-[11px] font-medium text-slate-400">
-                去 {activeDropHighestCount} 最高 · 去 {activeDropLowestCount} 最低 · 取平均
+                最终成绩和总排名在评分收齐后统一归档计算
               </p>
             </article>
 
@@ -4779,7 +5192,7 @@ export default function ExpertReviewTab() {
             <article className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm">
               <h3 className="text-sm font-extrabold text-slate-950">项目列表</h3>
               <p className="mt-2 text-[11px] leading-5 text-slate-400">
-                项目列表仅用于后台核对顺序与成绩；现场推进统一使用控制台的“下一项目”和阶段按钮。
+                项目列表仅用于管理端核对顺序与成绩；现场推进统一使用控制台的“下一项目”和阶段按钮。
               </p>
               <div className="mt-4 space-y-2">
                 {activeProjectList.map((project) => (
@@ -4806,11 +5219,11 @@ export default function ExpertReviewTab() {
                     <div className="min-w-0 flex-1">
                       <p className="truncate text-sm font-bold text-slate-950">{project.targetName}</p>
                       <p className="mt-1 text-[11px] text-slate-400">
-                        {project.isCompleted ? "已出分" : `待评分 ${project.pendingCount} / 专家 ${project.expertCount}`}
+                        {project.isCompleted ? "评分已提交" : `待评分 ${project.pendingCount} / 专家 ${project.expertCount}`}
                       </p>
                     </div>
-                    <span className={`font-mono text-sm font-bold ${project.scoreText ? "text-emerald-700" : "text-slate-400"}`}>
-                      {project.scoreText ?? "--"}
+                    <span className={`text-xs font-bold ${project.isCompleted ? "text-emerald-700" : "text-slate-400"}`}>
+                      {project.scoreText ?? (project.isCompleted ? "已提交" : "--")}
                     </span>
                   </div>
                 ))}

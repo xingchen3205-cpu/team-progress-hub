@@ -593,8 +593,8 @@ model ExpertReviewPackage {
   status               ExpertReviewPackageStatus   @default(configured)
   startAt              DateTime?
   deadline             DateTime?
-  dropHighestCount     Int                         @default(1)
-  dropLowestCount      Int                         @default(1)
+  dropHighestCount     Int                         @default(0)
+  dropLowestCount      Int                         @default(0)
   createdById          String
   teamGroupId          String?
   projectReviewStageId String?
@@ -727,8 +727,8 @@ model ReviewDisplaySession {
   startsAt               DateTime?
   tokenExpiresAt         DateTime
   countdownSeconds       Int                         @default(60)
-  dropHighestCount       Int                         @default(1)
-  dropLowestCount        Int                         @default(1)
+  dropHighestCount       Int                         @default(0)
+  dropLowestCount        Int                         @default(0)
   status                 ReviewDisplaySessionStatus  @default(waiting)
   startedAt              DateTime?
   endedAt                DateTime?
