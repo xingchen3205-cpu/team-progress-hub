@@ -148,3 +148,21 @@ test("workspace navigation is slimmed by role and keeps province training behind
   assert.match(shellSource, /省培管理/);
   assert.match(shellSource, /canSwitchWorkspacePlatform/);
 });
+
+test("workspace platform switch requires confirmation before changing systems", () => {
+  const shellSource = readSource("src/components/workspace-shell.tsx");
+
+  assert.match(shellSource, /platformSwitchDialog/);
+  assert.match(shellSource, /openPlatformSwitchDialog/);
+  assert.match(shellSource, /confirmPlatformSwitch/);
+  assert.match(shellSource, /切换至省培管理平台/);
+  assert.match(shellSource, /返回创新创业管理平台/);
+  assert.match(shellSource, /将进入省级培训班次、参训教师、签到、请假和任务汇报管理工作区/);
+  assert.match(shellSource, /创新创业项目管理、团队管理和大赛评审工作区/);
+  assert.doesNotMatch(shellSource, /请确认当前账号具备相应权限/);
+  assert.match(shellSource, /确认切换/);
+  assert.match(shellSource, /继续切换/);
+  assert.match(shellSource, /onClick=\{\(\) => openPlatformSwitchDialog\("teacherTraining"\)\}/);
+  assert.match(shellSource, /onClick=\{\(\) => openPlatformSwitchDialog\("workspace"\)\}/);
+  assert.doesNotMatch(shellSource, /href="\/workspace\?tab=teacherTraining"[\s\S]*?>\s*省培管理\s*<\/Link>/);
+});

@@ -3150,7 +3150,7 @@ a:hover {
   gap: 2px;
 }
 
-.topbar-platform-switch a {
+.topbar-platform-switch button {
   display: inline-flex;
   min-width: max-content;
   align-items: center;
@@ -3158,6 +3158,10 @@ a:hover {
   line-height: 1;
   white-space: nowrap;
   writing-mode: horizontal-tb;
+}
+
+.topbar-platform-switch button:disabled {
+  cursor: default;
 }
 
 .topbar-divider {
@@ -3361,7 +3365,7 @@ a:hover {
     justify-content: stretch;
   }
 
-  .topbar-platform-switch a {
+  .topbar-platform-switch button {
     min-width: 0;
     flex: 1 1 0;
     justify-content: center;

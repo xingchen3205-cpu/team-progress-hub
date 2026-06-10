@@ -60,7 +60,8 @@ test("workspace exposes teacher training as a switched admin platform", () => {
   assert.match(shellSource, /省培管理/);
   assert.match(shellSource, /topbar-platform-switch/);
   assert.match(shellSource, /hasTeacherTrainingAccess && currentRole !== "training_teacher"/);
-  assert.match(shellSource, /href="\/workspace\?tab=teacherTraining"/);
+  assert.match(shellSource, /openPlatformSwitchDialog\("teacherTraining"\)/);
+  assert.match(shellSource, /router\.push\(targetHref\)/);
   assert.match(dashboardSource, /loadTeacherTrainingTab/);
   assert.match(dashboardSource, /safeActiveTab === "teacherTraining"/);
   assert.match(workspacePageSource, /"teacherTraining"/);

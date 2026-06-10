@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import dynamic from "next/dynamic";
 import { useEffect, useRef, useState, type ChangeEvent, type ClipboardEvent, type ReactNode } from "react";
 import type { TeamRoleLabel, DocumentDraft } from "@/components/workspace-context";
@@ -11,6 +12,8 @@ import { parseCustomReviewTargetNames } from "@/lib/custom-review-targets";
 const PdfPreview = dynamic(() => import("@/components/pdf-preview").then((mod) => mod.PdfPreview), {
   ssr: false,
 });
+
+type PlatformSwitchTarget = "workspace" | "teacherTraining";
 
 function WorkspaceUnitFooter() {
   return (
@@ -23,6 +26,7 @@ function WorkspaceUnitFooter() {
 }
 
 export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
+  const router = useRouter();
   const {
     currentUser,
     teacherTrainingCohorts,
@@ -279,6 +283,11 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
   const [customRoadshowOcrError, setCustomRoadshowOcrError] = useState<string | null>(null);
   const [customRoadshowOcrLoading, setCustomRoadshowOcrLoading] = useState(false);
   const [reportAttachmentUploading, setReportAttachmentUploading] = useState(false);
+  const [platformSwitchDialog, setPlatformSwitchDialog] = useState<{
+    message: string;
+    target: PlatformSwitchTarget;
+    title: string;
+  } | null>(null);
   const uploadedReportAttachment = Workspace.decodeReportAttachmentFile(reportDraft.attachment);
   const sidebarRoleLabel =
     currentUser && isTeacherTrainingPlatform
@@ -290,6 +299,34 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
       : roleLabels[currentRole];
   const canSwitchWorkspacePlatform =
     hasTeacherTrainingAccess && currentRole !== "training_teacher";
+  const openPlatformSwitchDialog = (target: PlatformSwitchTarget) => {
+    if ((target === "teacherTraining" && isTeacherTrainingPlatform) || (target === "workspace" && !isTeacherTrainingPlatform)) {
+      return;
+    }
+
+    setPlatformSwitchDialog(
+      target === "teacherTraining"
+        ? {
+            message: "将进入省级培训班次、参训教师、签到、请假和任务汇报管理工作区。",
+            target,
+            title: "切换至省培管理平台",
+          }
+        : {
+            message: "将返回创新创业项目管理、团队管理和大赛评审工作区。",
+            target,
+            title: "返回创新创业管理平台",
+          },
+    );
+  };
+  const confirmPlatformSwitch = () => {
+    if (!platformSwitchDialog) {
+      return;
+    }
+
+    const targetHref = platformSwitchDialog.target === "teacherTraining" ? "/workspace?tab=teacherTraining" : "/workspace";
+    setPlatformSwitchDialog(null);
+    router.push(targetHref);
+  };
   const customRoadshowProjectNames = parseCustomReviewTargetNames(reviewAssignmentDraft.customTargetNames);
   const shouldShowRoadshowProjectImporter =
     !isEditingReviewAssignment && (!selectedReviewStage || selectedReviewStage.type === "roadshow");
@@ -945,30 +982,34 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                     aria-label="平台切换"
                     className="topbar-platform-switch inline-flex rounded-xl border border-slate-200/80 bg-white/75 p-1 shadow-[0_10px_24px_rgba(15,23,42,0.08)] backdrop-blur"
                   >
-                    <Link
+                    <button
                       aria-label="切换到创新创业管理平台"
-                      className={`rounded-lg px-3 py-1.5 text-sm font-semibold no-underline transition ${
+                      className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition ${
                         isTeacherTrainingPlatform
                           ? "text-slate-500 hover:text-slate-900"
                           : "bg-[#1a6fd4] text-white shadow-[0_8px_18px_rgba(26,111,212,0.22)]"
                       }`}
-                      href="/workspace"
+                      disabled={!isTeacherTrainingPlatform}
+                      onClick={() => openPlatformSwitchDialog("workspace")}
                       title="切换到创新创业管理平台"
+                      type="button"
                     >
                       创新创业管理
-                    </Link>
-                    <Link
+                    </button>
+                    <button
                       aria-label="切换到省培管理平台"
-                      className={`rounded-lg px-3 py-1.5 text-sm font-semibold no-underline transition ${
+                      className={`rounded-lg px-3 py-1.5 text-sm font-semibold transition ${
                         isTeacherTrainingPlatform
                           ? "bg-[#1a6fd4] text-white shadow-[0_8px_18px_rgba(26,111,212,0.22)]"
                           : "text-slate-500 hover:text-slate-900"
                       }`}
-                      href="/workspace?tab=teacherTraining"
+                      disabled={isTeacherTrainingPlatform}
+                      onClick={() => openPlatformSwitchDialog("teacherTraining")}
                       title="切换到省培管理平台"
+                      type="button"
                     >
                       省培管理
-                    </Link>
+                    </button>
                   </div>
                 ) : null}
 
@@ -3476,6 +3517,16 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
         onConfirm={() => void handleConfirmDialog()}
         open={Boolean(confirmDialog?.open)}
         title={confirmDialog?.title ?? "确认操作"}
+      />
+
+      <ConfirmDialog
+        confirmLabel="确认切换"
+        confirmVariant="primary"
+        message={platformSwitchDialog?.message ?? ""}
+        onCancel={() => setPlatformSwitchDialog(null)}
+        onConfirm={confirmPlatformSwitch}
+        open={Boolean(platformSwitchDialog)}
+        title={platformSwitchDialog?.title ?? "继续切换"}
       />
     </>
   );

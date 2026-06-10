@@ -77,7 +77,8 @@ test("workspace and login expose user and support organization footer", () => {
     assert.match(source, /用户单位：南京铁道职业技术学院/);
     assert.match(source, /支持单位：南京君如玉科技有限公司/);
   }
-  assert.match(shellSource, /<footer className="pointer-events-none fixed hidden sm:block/);
+  assert.match(shellSource, /<footer className="pointer-events-none mt-8 hidden/);
+  assert.doesNotMatch(shellSource.match(/function WorkspaceUnitFooter\(\) \{[\s\S]*?<\/footer>/)?.[0] ?? "", /\bfixed\b/);
 });
 
 test("overview-tab supports admin-wide report group summary", () => {
@@ -221,10 +222,10 @@ test("mobile platform switch keeps admin platform labels horizontal", () => {
   const cssSource = readFileSync(path.join(process.cwd(), "src/app/globals.css"), "utf8");
 
   assert.match(cssSource, /\.topbar-platform-switch\s*\{[\s\S]*?flex-shrink:\s*0/);
-  assert.match(cssSource, /\.topbar-platform-switch a\s*\{[\s\S]*?white-space:\s*nowrap/);
-  assert.match(cssSource, /\.topbar-platform-switch a\s*\{[\s\S]*?writing-mode:\s*horizontal-tb/);
+  assert.match(cssSource, /\.topbar-platform-switch button\s*\{[\s\S]*?white-space:\s*nowrap/);
+  assert.match(cssSource, /\.topbar-platform-switch button\s*\{[\s\S]*?writing-mode:\s*horizontal-tb/);
   assert.match(cssSource, /@media \(max-width: 640px\) \{[\s\S]*?\.topbar-platform-switch\s*\{[\s\S]*?flex-basis:\s*100%/);
-  assert.match(cssSource, /@media \(max-width: 640px\) \{[\s\S]*?\.topbar-platform-switch a\s*\{[\s\S]*?justify-content:\s*center/);
+  assert.match(cssSource, /@media \(max-width: 640px\) \{[\s\S]*?\.topbar-platform-switch button\s*\{[\s\S]*?justify-content:\s*center/);
 });
 
 test("topbar help icon opens a real help and feedback panel", () => {
@@ -246,8 +247,8 @@ test("workspace global clickable controls expose explicit action hints", () => {
     "utf8",
   );
 
-  assert.match(source, /aria-label="切换到大赛管理平台"/);
-  assert.match(source, /title="切换到大赛管理平台"/);
+  assert.match(source, /aria-label="切换到创新创业管理平台"/);
+  assert.match(source, /title="切换到创新创业管理平台"/);
   assert.match(source, /aria-label="切换到省培管理平台"/);
   assert.match(source, /title="切换到省培管理平台"/);
   assert.match(source, /aria-label=\{`打开个人菜单：\$\{currentUser\.profile\.name\}`\}/);
