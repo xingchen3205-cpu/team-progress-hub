@@ -880,6 +880,77 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
           </aside>
           ) : null}
 
+          {isTeacherTrainingPlatform ? (
+            <aside className="teacher-training-side-nav xl:sticky xl:top-4 xl:h-[calc(100svh-2rem)] xl:w-[270px] xl:flex-none xl:self-start">
+              <div className="depth-sidebar depth-sidebar-enhanced sidebar-government-pattern flex h-full flex-col rounded-xl px-4 py-6 text-white">
+                <div className="sidebar-header pb-5">
+                  <div className="sidebar-logo flex items-center gap-3">
+                    <div className="sidebar-logo-wrapper flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/15 bg-white/10">
+                      <Image alt="南铁校徽" className="h-7 w-7 object-contain" height={77} src="/official-logo.png" width={430} />
+                    </div>
+                    <div className="min-w-0">
+                      <h1 className="school-name text-[15px] font-bold leading-tight tracking-[0.01em]">省培管理平台</h1>
+                      <p className="school-sub mt-1">南京铁道职业技术学院</p>
+                    </div>
+                  </div>
+                  <div className="mt-4 rounded-xl border border-white/10 bg-white/8 px-3 py-2">
+                    <p className="text-[11px] font-semibold text-blue-100/85">当前身份</p>
+                    <p className="mt-1 truncate text-sm font-bold text-white">{sidebarRoleLabel}</p>
+                  </div>
+                </div>
+
+                <nav aria-label="省培左侧模块" className="sidebar-nav mt-5 flex-1 space-y-1 overflow-y-auto pr-1">
+                  {teacherTrainingSidebarSections.map((item) => {
+                    const Icon = item.icon;
+                    const isActive = item.key === activeTeacherTrainingSection;
+
+                    return (
+                      <button
+                        key={item.key}
+                        aria-label={`${item.label}：${item.description}`}
+                        aria-current={isActive ? "page" : undefined}
+                        className={`sidebar-nav-item w-full text-left ${isActive ? "sidebar-nav-item-active" : ""}`}
+                        data-section-key={item.key}
+                        onClick={() => openTeacherTrainingSection(item.key)}
+                        title={item.description}
+                        type="button"
+                      >
+                        <Icon className="h-[18px] w-[18px]" strokeWidth={2.1} />
+                        <span>{item.label}</span>
+                      </button>
+                    );
+                  })}
+                </nav>
+
+                <div className="sidebar-user-area mt-5">
+                  <div className="flex items-center gap-3">
+                    <UserAvatar
+                      avatar={currentUser.profile.avatar}
+                      avatarUrl={currentUser.profile.avatarUrl}
+                      className="flex h-10 w-10 items-center justify-center rounded-full bg-blue-500 text-sm font-semibold text-white"
+                      name={currentUser.profile.name}
+                      textClassName="text-sm font-semibold text-white"
+                    />
+                    <div className="min-w-0">
+                      <p className="sidebar-user-name truncate">{currentUser.profile.name}</p>
+                      <p className="sidebar-user-role mt-0.5">{sidebarRoleLabel}</p>
+                    </div>
+                  </div>
+                  <button
+                    className="mt-4 inline-flex items-center gap-2 text-sm text-white/50 transition hover:text-white"
+                    aria-label="退出登录"
+                    onClick={() => void handleLogout()}
+                    title="退出登录"
+                    type="button"
+                  >
+                    <LogOut className="h-4 w-4" />
+                    <span>退出</span>
+                  </button>
+                </div>
+              </div>
+            </aside>
+          ) : null}
+
           {mobileSidebarOpen && !isTeacherTrainingPlatform ? (
             <aside className="depth-sidebar depth-sidebar-enhanced sidebar-government-pattern fixed inset-y-0 left-0 z-50 w-[min(82vw,260px)] translate-x-0 overflow-hidden px-4 py-6 text-white opacity-100 shadow-xl transition-all duration-200 xl:hidden">
               <div className="sidebar flex h-full flex-col">
@@ -1114,40 +1185,6 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                 </div>
               </div>
             </header>
-
-            {isTeacherTrainingPlatform ? (
-              <nav
-                aria-label="省培顶部模块"
-                className="teacher-training-top-nav mx-auto mt-3 max-w-[1200px] overflow-x-auto rounded-2xl border border-blue-100/80 bg-white/82 p-2 shadow-sm shadow-blue-100/40 backdrop-blur"
-              >
-                <div className="flex min-w-max items-center gap-2">
-                  {teacherTrainingSidebarSections.map((item) => {
-                    const Icon = item.icon;
-                    const isActive = item.key === activeTeacherTrainingSection;
-
-                    return (
-                      <button
-                        key={item.key}
-                        aria-label={`${item.label}：${item.description}`}
-                        aria-current={isActive ? "page" : undefined}
-                        className={`inline-flex h-10 items-center gap-2 rounded-xl border px-3 text-sm font-semibold transition ${
-                          isActive
-                            ? "border-blue-200 bg-blue-600 text-white shadow-[0_10px_22px_rgba(37,99,235,0.22)]"
-                            : "border-slate-200 bg-white text-slate-600 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
-                        }`}
-                        data-section-key={item.key}
-                        onClick={() => openTeacherTrainingSection(item.key)}
-                        title={item.description}
-                        type="button"
-                      >
-                        <Icon className="h-4 w-4 shrink-0" strokeWidth={2.1} />
-                        <span>{item.label}</span>
-                      </button>
-                    );
-                  })}
-                </div>
-              </nav>
-            ) : null}
 
             <div className="mx-auto mt-4 flex max-w-[1200px] flex-col gap-4">
               {tabContent}

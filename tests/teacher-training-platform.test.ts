@@ -569,11 +569,14 @@ test("teacher training tab uses staff-side manual check-in controls", () => {
   assert.match(contextSource, /teacherTrainingSectionTabs/);
   assert.match(contextSource, /activeTeacherTrainingSection/);
   assert.match(shellSource, /teacherTrainingSidebarSections/);
-  assert.match(shellSource, /teacher-training-top-nav/);
-  assert.match(shellSource, /aria-label="省培顶部模块"/);
+  assert.match(shellSource, /teacher-training-side-nav/);
+  assert.match(shellSource, /aria-label="省培左侧模块"/);
+  assert.match(shellSource, /省培管理平台/);
+  assert.match(shellSource, /sidebarRoleLabel/);
   assert.match(shellSource, /data-section-key/);
   assert.match(shellSource, /!isTeacherTrainingPlatform/);
-  assert.doesNotMatch(shellSource, /aria-label="省培左侧模块"/);
+  assert.doesNotMatch(shellSource, /aria-label="省培顶部模块"/);
+  assert.doesNotMatch(shellSource, /teacher-training-top-nav/);
   assert.doesNotMatch(tabSource, /省培模块导航/);
   assert.doesNotMatch(tabSource, /分区处理，不再堆叠/);
   for (const label of ["工作台", "班次管理", "参训教师", "课程安排", "报到签到", "任务汇报", "请假审批", "导出归档"]) {
