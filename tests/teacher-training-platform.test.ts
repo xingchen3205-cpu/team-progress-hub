@@ -376,7 +376,9 @@ test("teacher training shows province-specific account titles instead of competi
   assert.match(shellSource, /activeCohortId:\s*activeTeacherTrainingCohortId/);
   assert.match(contextSource, /activeTeacherTrainingCohortId/);
   assert.match(tabSource, /setActiveTeacherTrainingCohortId/);
-  assert.match(contextSource, /hasTeacherTrainingSystemAdminRole/);
+  assert.match(contextSource, /hasTeacherTrainingAccess = Boolean\(currentUser\?\.hasTeacherTrainingAccess\)/);
+  assert.match(contextSource, /hasTeacherTrainingManagerAccess =\s*Boolean\(currentUser\?\.hasTeacherTrainingManagerAccess\)/);
+  assert.doesNotMatch(contextSource, /hasTeacherTrainingSystemAdminRole/);
   assert.doesNotMatch(contextSource, /const hasTeacherTrainingAccess = hasGlobalAdminRole \|\|/);
   assert.doesNotMatch(contextSource, /const hasTeacherTrainingManagerAccess = hasGlobalAdminRole \|\|/);
   assert.doesNotMatch(schoolAdminPermissionsSource, /"teacherTraining"/);

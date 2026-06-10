@@ -763,8 +763,8 @@ export const trainingTimerPresets: TrainingTimerPreset[] = [
 export const allTabs: TabItem[] = [
   {
     key: "overview",
-    label: "首页概览",
-    description: "查看倒计时、今日任务摘要、最新公告和关键统计数据。",
+    label: "工作台",
+    description: "查看待办、进度摘要、最新公告和关键统计数据。",
     icon: Home,
   },
   {
@@ -775,7 +775,7 @@ export const allTabs: TabItem[] = [
   },
   {
     key: "board",
-    label: "任务中心",
+    label: "任务",
     description: "按工单闭环管理提报、分配、处理、验收和归档。",
     icon: KanbanSquare,
   },
@@ -799,7 +799,7 @@ export const allTabs: TabItem[] = [
   },
   {
     key: "reports",
-    label: "日程汇报",
+    label: "周报/日报",
     description: "按成员与日期查看工作汇报，支持历史记录切换。",
     icon: CalendarDays,
   },
@@ -817,25 +817,25 @@ export const allTabs: TabItem[] = [
   },
   {
     key: "review",
-    label: "专家评审",
+    label: "大赛评审",
     description: "按职教赛道创业组量表查看评审任务、打分和专家汇总。",
     icon: FileCheck,
   },
   {
     key: "documents",
-    label: "资料归档",
+    label: "材料",
     description: "按项目组归档计划书、PPT、答辩材料和证明附件。",
     icon: FolderOpen,
   },
   {
     key: "team",
-    label: "团队管理",
+    label: "团队",
     description: "查看成员分工、账号信息和角色配置。",
     icon: Users,
   },
   {
     key: "systemLogs",
-    label: "系统日志",
+    label: "系统设置",
     description: "查看全站登录、访问与关键操作审计记录。",
     icon: FileText,
   },
@@ -1187,24 +1187,65 @@ export const fieldErrorClassName =
   "mt-1.5 w-full rounded-lg border border-[#1a6fd4]/35 bg-white/82 px-3 py-2.5 text-sm text-slate-900 outline-none transition focus:border-[#1a6fd4]/55 focus:ring-2 focus:ring-[#1a6fd4]/18";
 export const textareaClassName = `${fieldClassName} min-h-28`;
 
+const adminWorkspaceVisibleTabs = [
+  "overview",
+  "board",
+  "reports",
+  "documents",
+  "training",
+  "review",
+  "team",
+  "systemLogs",
+  "profile",
+] as TabKey[];
+
+const projectCoreVisibleTabs = [
+  "overview",
+  "reports",
+  "board",
+  "documents",
+  "training",
+  "profile",
+] as TabKey[];
+
+const projectManagerVisibleTabs = [
+  "overview",
+  "reports",
+  "board",
+  "documents",
+  "training",
+  "team",
+  "profile",
+] as TabKey[];
+
+const adminPrimarySidebarTabKeys = new Set<TabKey>([
+  "overview",
+  "board",
+  "review",
+  "team",
+  "systemLogs",
+]);
+
+const projectCoreSidebarTabKeys = new Set<TabKey>([
+  "overview",
+  "reports",
+  "board",
+  "documents",
+  "training",
+]);
+
+const projectManagerSidebarTabKeys = new Set<TabKey>([
+  "overview",
+  "reports",
+  "board",
+  "documents",
+  "training",
+  "team",
+]);
+
 export const rolePermissions = {
   admin: {
-    visibleTabs: [
-      "overview",
-      "timeline",
-      "board",
-      "questionBank",
-      "teacherTraining",
-      "reports",
-      "experts",
-      "review",
-      "documents",
-      "project",
-      "team",
-      "systemLogs",
-      "assistant",
-      "profile",
-    ] as TabKey[],
+    visibleTabs: adminWorkspaceVisibleTabs,
     canPublishAnnouncement: true,
     canSendDirective: true,
     canCreateTask: true,
@@ -1225,19 +1266,7 @@ export const rolePermissions = {
     canResetPassword: true,
   },
   school_admin: {
-    visibleTabs: [
-      "overview",
-      "timeline",
-      "board",
-      "reports",
-      "experts",
-      "review",
-      "documents",
-      "project",
-      "team",
-      "assistant",
-      "profile",
-    ] as TabKey[],
+    visibleTabs: adminWorkspaceVisibleTabs,
     canPublishAnnouncement: true,
     canSendDirective: true,
     canCreateTask: true,
@@ -1279,7 +1308,7 @@ export const rolePermissions = {
     canResetPassword: false,
   },
   teacher: {
-    visibleTabs: ["overview", "timeline", "board", "training", "reports", "experts", "documents", "project", "team", "assistant", "profile"] as TabKey[],
+    visibleTabs: projectManagerVisibleTabs,
     canPublishAnnouncement: false,
     canSendDirective: true,
     canCreateTask: true,
@@ -1300,7 +1329,7 @@ export const rolePermissions = {
     canResetPassword: false,
   },
   leader: {
-    visibleTabs: ["overview", "timeline", "board", "training", "reports", "experts", "documents", "project", "team", "assistant", "profile"] as TabKey[],
+    visibleTabs: projectManagerVisibleTabs,
     canPublishAnnouncement: false,
     canSendDirective: false,
     canCreateTask: true,
@@ -1321,7 +1350,7 @@ export const rolePermissions = {
     canResetPassword: false,
   },
   member: {
-    visibleTabs: ["overview", "timeline", "board", "training", "reports", "experts", "documents", "project", "team", "assistant", "profile"] as TabKey[],
+    visibleTabs: projectCoreVisibleTabs,
     canPublishAnnouncement: false,
     canSendDirective: false,
     canCreateTask: true,
@@ -2499,10 +2528,9 @@ function useWorkspaceController({
   const isSystemAdmin = currentRole === "admin";
   const isSchoolAdmin = currentRole === "school_admin";
   const hasGlobalAdminRole = isSystemAdmin || isSchoolAdmin;
-  const hasTeacherTrainingSystemAdminRole = isSystemAdmin;
-  const hasTeacherTrainingAccess = hasTeacherTrainingSystemAdminRole || Boolean(currentUser?.hasTeacherTrainingAccess);
+  const hasTeacherTrainingAccess = Boolean(currentUser?.hasTeacherTrainingAccess);
   const hasTeacherTrainingManagerAccess =
-    hasTeacherTrainingSystemAdminRole || Boolean(currentUser?.hasTeacherTrainingManagerAccess);
+    Boolean(currentUser?.hasTeacherTrainingManagerAccess);
   const canManageTeacherTraining = hasTeacherTrainingManagerAccess;
   const currentMemberId = currentUser?.id ?? "";
   const basePermissions = rolePermissions[currentRole];
@@ -2537,11 +2565,15 @@ function useWorkspaceController({
       return false;
     }
 
-    if (!hasGlobalAdminRole) {
-      return true;
+    if (hasGlobalAdminRole) {
+      return !isTeacherTrainingPlatform && adminPrimarySidebarTabKeys.has(item.key);
     }
 
-    return !isTeacherTrainingPlatform;
+    if (currentRole === "teacher" || currentRole === "leader") {
+      return projectManagerSidebarTabKeys.has(item.key);
+    }
+
+    return projectCoreSidebarTabKeys.has(item.key);
   });
   const visibleTeacherTrainingSectionTabs = teacherTrainingSectionTabs.filter((section) => {
     if (section.globalOnly && !hasGlobalAdminRole) return false;

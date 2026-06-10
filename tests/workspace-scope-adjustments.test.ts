@@ -109,5 +109,42 @@ test("administrator navigation removes training and task center copy uses global
   assert.match(tasksTabSource, /未分组任务/);
   assert.match(shellSource, /getSidebarTabLabel/);
   assert.match(shellSource, /item\.key === "board"[\s\S]*currentRole === "admin"/);
-  assert.match(shellSource, /全校任务台账/);
+  assert.match(shellSource, /项目日常/);
+});
+
+test("workspace navigation is slimmed by role and keeps province training behind explicit platform access", () => {
+  const contextSource = readSource("src/components/workspace-context.tsx");
+  const shellSource = readSource("src/components/workspace-shell.tsx");
+
+  const adminPermissionBlock = contextSource.match(/admin:\s*\{[\s\S]*?\n  school_admin:/)?.[0] ?? "";
+  const schoolAdminPermissionBlock = contextSource.match(/school_admin:\s*\{[\s\S]*?\n  training_teacher:/)?.[0] ?? "";
+  const memberPermissionBlock = contextSource.match(/member:\s*\{[\s\S]*?\n  expert:/)?.[0] ?? "";
+  const teacherPermissionBlock = contextSource.match(/teacher:\s*\{[\s\S]*?\n  leader:/)?.[0] ?? "";
+  const leaderPermissionBlock = contextSource.match(/leader:\s*\{[\s\S]*?\n  member:/)?.[0] ?? "";
+
+  assert.match(contextSource, /const adminWorkspaceVisibleTabs/);
+  assert.match(contextSource, /const projectCoreVisibleTabs/);
+  assert.match(contextSource, /const projectManagerVisibleTabs/);
+  assert.match(adminPermissionBlock, /visibleTabs:\s*adminWorkspaceVisibleTabs/);
+  assert.match(schoolAdminPermissionBlock, /visibleTabs:\s*adminWorkspaceVisibleTabs/);
+  assert.doesNotMatch(adminPermissionBlock, /"teacherTraining"/);
+  assert.doesNotMatch(schoolAdminPermissionBlock, /"teacherTraining"/);
+  assert.doesNotMatch(contextSource, /hasTeacherTrainingSystemAdminRole/);
+
+  assert.match(memberPermissionBlock, /visibleTabs:\s*projectCoreVisibleTabs/);
+  assert.match(teacherPermissionBlock, /visibleTabs:\s*projectManagerVisibleTabs/);
+  assert.match(leaderPermissionBlock, /visibleTabs:\s*projectManagerVisibleTabs/);
+  assert.doesNotMatch(memberPermissionBlock, /"timeline"/);
+  assert.doesNotMatch(memberPermissionBlock, /"experts"/);
+  assert.doesNotMatch(memberPermissionBlock, /"project"/);
+  assert.doesNotMatch(memberPermissionBlock, /"assistant"/);
+
+  assert.match(contextSource, /adminPrimarySidebarTabKeys/);
+  assert.match(contextSource, /projectCoreSidebarTabKeys/);
+  assert.match(contextSource, /projectManagerSidebarTabKeys/);
+  assert.match(contextSource, /hasTeacherTrainingAccess = Boolean\(currentUser\?\.hasTeacherTrainingAccess\)/);
+  assert.match(shellSource, /topbar-platform-switch/);
+  assert.match(shellSource, /创新创业管理/);
+  assert.match(shellSource, /省培管理/);
+  assert.match(shellSource, /canSwitchWorkspacePlatform/);
 });

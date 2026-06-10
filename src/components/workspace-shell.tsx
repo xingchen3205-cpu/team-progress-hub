@@ -449,7 +449,15 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
 
   const getSidebarTabLabel = (item: { key: string; label: string }) => {
     if (item.key === "board" && (currentRole === "admin" || currentRole === "school_admin")) {
-      return "全校任务台账";
+      return "项目日常";
+    }
+
+    if (item.key === "team" && (currentRole === "admin" || currentRole === "school_admin")) {
+      return "账号管理";
+    }
+
+    if (item.key === "systemLogs" && (currentRole === "admin" || currentRole === "school_admin")) {
+      return "系统设置";
     }
 
     return item.label;
@@ -938,16 +946,16 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                     className="topbar-platform-switch inline-flex rounded-xl border border-slate-200/80 bg-white/75 p-1 shadow-[0_10px_24px_rgba(15,23,42,0.08)] backdrop-blur"
                   >
                     <Link
-                      aria-label="切换到大赛管理平台"
+                      aria-label="切换到创新创业管理平台"
                       className={`rounded-lg px-3 py-1.5 text-sm font-semibold no-underline transition ${
                         isTeacherTrainingPlatform
                           ? "text-slate-500 hover:text-slate-900"
                           : "bg-[#1a6fd4] text-white shadow-[0_8px_18px_rgba(26,111,212,0.22)]"
                       }`}
                       href="/workspace"
-                      title="切换到大赛管理平台"
+                      title="切换到创新创业管理平台"
                     >
-                      大赛管理
+                      创新创业管理
                     </Link>
                     <Link
                       aria-label="切换到省培管理平台"
