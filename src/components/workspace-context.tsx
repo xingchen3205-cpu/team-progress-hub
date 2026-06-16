@@ -921,6 +921,27 @@ export const teacherTrainingSectionTabs: TeacherTrainingSectionItem[] = [
   },
 ];
 
+export const teacherTrainingManagerSectionKeys = new Set<TeacherTrainingSectionKey>([
+  "overview",
+  "cohorts",
+  "participants",
+  "courses",
+  "checkins",
+  "attendance",
+  "tasks",
+  "leave",
+  "exports",
+]);
+
+export const teacherTrainingParticipantSectionKeys = new Set<TeacherTrainingSectionKey>([
+  "overview",
+  "courses",
+  "checkins",
+  "tasks",
+  "leave",
+  "profile",
+]);
+
 export const boardStatusMeta: Record<
   BoardStatus,
   {
@@ -2575,18 +2596,18 @@ function useWorkspaceController({
 
     return projectCoreSidebarTabKeys.has(item.key);
   });
-  const visibleTeacherTrainingSectionTabs = teacherTrainingSectionTabs.filter((section) => {
-    if (section.globalOnly && !hasGlobalAdminRole) return false;
-    if (section.managerOnly && !canManageTeacherTraining) return false;
-    if (section.teacherOnly && canManageTeacherTraining) return false;
-    return true;
+  const teacherTrainingSidebarSections = teacherTrainingSectionTabs.filter((section) => {
+    if (canManageTeacherTraining) {
+      return teacherTrainingManagerSectionKeys.has(section.key) && (!section.globalOnly || hasGlobalAdminRole);
+    }
+
+    return teacherTrainingParticipantSectionKeys.has(section.key);
   });
-  const effectiveTeacherTrainingSection = visibleTeacherTrainingSectionTabs.some(
+  const effectiveTeacherTrainingSection = teacherTrainingSidebarSections.some(
     (section) => section.key === activeTeacherTrainingSection,
   )
     ? activeTeacherTrainingSection
     : "overview";
-  const teacherTrainingSidebarSections = visibleTeacherTrainingSectionTabs;
   const activeTabItem = allTabs.find((item) => item.key === safeActiveTab) ?? allTabs[0];
   const nearestUpcomingIndex = events.length > 0 ? getNearestUpcomingIndex(events) : 0;
   const nearestEvent = events[nearestUpcomingIndex];
@@ -7520,6 +7541,13 @@ function useWorkspaceController({
     }
   };
 
+  const openTeacherTrainingPermissionSetup = (member: TeamMember) => {
+    setActiveTeacherTrainingSection(
+      (member.teacherTrainingManagedCohortCount ?? 0) > 0 ? "cohorts" : "participants",
+    );
+    router.push("/workspace?tab=teacherTraining");
+  };
+
   const applyUpdatedCurrentUser = (user: CurrentUser) => {
     setCurrentUser(user);
     setMembers((current) =>
@@ -8398,6 +8426,7 @@ function useWorkspaceController({
     openExpertProfileAccount,
     openProfilePage,
     openOverviewTarget,
+    openTeacherTrainingPermissionSetup,
     applyUpdatedCurrentUser,
     saveProfile,
     uploadProfileAvatar,

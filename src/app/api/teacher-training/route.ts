@@ -10,6 +10,8 @@ import {
   isTeacherTrainingSystemAdmin,
 } from "@/lib/teacher-training-access";
 import { serializeTeacherTrainingCohort, type TeacherTrainingCohortItem } from "@/lib/teacher-training";
+import { decodeTeacherTrainingSubmissionAttachmentFile } from "@/lib/teacher-training-submission-attachments";
+import { deleteStoredFile } from "@/lib/uploads";
 
 const buildTeacherTrainingInclude = (options: { participantAccountUserId?: string } = {}) => {
   const participantWhere = options.participantAccountUserId
@@ -34,6 +36,7 @@ const buildTeacherTrainingInclude = (options: { participantAccountUserId?: strin
           id: true,
           name: true,
           username: true,
+          role: true,
         },
       },
       attendances: {
@@ -644,14 +647,29 @@ export async function DELETE(request: NextRequest) {
     );
   }
 
-  await prisma.teacherTrainingCohort.update({
-    where: { id },
-    data: {
-      deletedAt: new Date(),
-      deletedById: user.id,
-      deletedByName: user.name,
+  const submissionAttachments = await prisma.teacherTrainingSubmission.findMany({
+    where: {
+      task: {
+        cohortId: id,
+      },
+      attachment: {
+        not: null,
+      },
+    },
+    select: {
+      attachment: true,
     },
   });
+  const attachmentObjectKeys = [
+    ...new Set(
+      submissionAttachments
+        .map((submission) => decodeTeacherTrainingSubmissionAttachmentFile(submission.attachment)?.filePath)
+        .filter((filePath): filePath is string => Boolean(filePath)),
+    ),
+  ];
+
+  await prisma.teacherTrainingCohort.delete({ where: { id } });
+  await Promise.allSettled(attachmentObjectKeys.map((objectKey) => deleteStoredFile(objectKey)));
 
   return NextResponse.json({ ok: true });
 }

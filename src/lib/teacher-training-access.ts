@@ -15,7 +15,8 @@ export type TeacherTrainingAccessFlags = {
   teacherTrainingManagedCohortCount: number;
 };
 
-export const isTeacherTrainingSystemAdmin = (user: TeacherTrainingAccessUser) => user.role === "admin";
+export const isTeacherTrainingSystemAdmin = (user: TeacherTrainingAccessUser) =>
+  user.role === "admin" || user.role === "school_admin";
 
 export const getTeacherTrainingAccessFlags = async (
   user: TeacherTrainingAccessUser,

@@ -3,6 +3,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hasTeacherTrainingCohortManageAccess } from "@/lib/teacher-training-access";
+import { decodeTeacherTrainingSubmissionAttachmentFile } from "@/lib/teacher-training-submission-attachments";
+import { deleteStoredFile } from "@/lib/uploads";
 
 type TeacherTrainingTaskInput = {
   id?: string;
@@ -115,14 +117,20 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ message: "无权限删除该省培班次任务" }, { status: 403 });
   }
 
-  await prisma.teacherTrainingTask.update({
-    where: { id },
-    data: {
-      deletedAt: new Date(),
-      deletedById: user.id,
-      deletedByName: user.name,
-    },
+  const submissions = await prisma.teacherTrainingSubmission.findMany({
+    where: { taskId: id },
+    select: { attachment: true },
   });
+  const attachmentObjectKeys = [
+    ...new Set(
+      submissions
+        .map((submission) => decodeTeacherTrainingSubmissionAttachmentFile(submission.attachment)?.filePath)
+        .filter((filePath): filePath is string => Boolean(filePath)),
+    ),
+  ];
+
+  await prisma.teacherTrainingTask.delete({ where: { id } });
+  await Promise.allSettled(attachmentObjectKeys.map((objectKey) => deleteStoredFile(objectKey)));
 
   return NextResponse.json({ ok: true });
 }

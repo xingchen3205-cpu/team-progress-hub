@@ -16,6 +16,7 @@ import {
 import { prisma } from "@/lib/prisma";
 import { serializeUser } from "@/lib/api-serializers";
 import { generateTemporaryPassword } from "@/lib/passwords";
+import { isTeacherTrainingSystemAdmin } from "@/lib/teacher-training-access";
 
 type TeamMemberRole = "admin" | "school_admin" | "teacher" | "leader" | "member" | "expert" | "training_teacher";
 type TeamViewerRole = TeamMemberRole;
@@ -103,13 +104,20 @@ const buildTeamMemberPayload = (
   },
   tasks: Array<{ assigneeId: string | null; status: "todo" | "doing" | "review" | "archived" | "done" }>,
   latestReportByUser: Map<string, { summary: string; nextPlan: string }>,
-  options: { showAccount: boolean },
+  options: {
+    showAccount: boolean;
+    teacherTrainingParticipantCount: number;
+    teacherTrainingManagedCohortCount: number;
+  },
 ) => {
   const userTasks = tasks.filter((task) => task.assigneeId === member.id);
   const doneCount = userTasks.filter((task) => task.status === "done" || task.status === "archived").length;
   const progress = userTasks.length ? `${Math.round((doneCount / userTasks.length) * 100)}%` : "0%";
   const latestReport = latestReportByUser.get(member.id);
   const approverRoles = getRegistrationApproverRoles(member.role);
+  const hasTeacherTrainingGlobalAccess = isTeacherTrainingSystemAdmin(member);
+  const hasTeacherTrainingManagerAccess =
+    hasTeacherTrainingGlobalAccess || options.teacherTrainingManagedCohortCount > 0;
 
   return {
     ...serializeUser(member),
@@ -124,6 +132,14 @@ const buildTeamMemberPayload = (
     completed: latestReport?.summary || "待补充",
     blockers: "暂无",
     pendingApproverLabel: approverRoles ? approverRoles.map((item) => roleLabels[item]).join(" / ") : null,
+    hasTeacherTrainingAccess:
+      hasTeacherTrainingGlobalAccess ||
+      member.role === "training_teacher" ||
+      options.teacherTrainingParticipantCount > 0 ||
+      hasTeacherTrainingManagerAccess,
+    hasTeacherTrainingManagerAccess,
+    teacherTrainingParticipantCount: options.teacherTrainingParticipantCount,
+    teacherTrainingManagedCohortCount: options.teacherTrainingManagedCohortCount,
   };
 };
 
@@ -170,6 +186,41 @@ export async function GET(request: NextRequest) {
   });
   const visibleMemberIds = members.map((member) => member.id);
 
+  const [teacherTrainingParticipantCounts, teacherTrainingManagedCohortCounts] = await Promise.all([
+    prisma.teacherTrainingParticipant.groupBy({
+      by: ["accountUserId"],
+      where: {
+        accountUserId: { in: visibleMemberIds },
+        cohort: {
+          deletedAt: null,
+        },
+      },
+      _count: {
+        _all: true,
+      },
+    }),
+    prisma.teacherTrainingCohortManager.groupBy({
+      by: ["userId"],
+      where: {
+        userId: { in: visibleMemberIds },
+        cohort: {
+          deletedAt: null,
+        },
+      },
+      _count: {
+        _all: true,
+      },
+    }),
+  ]);
+  const teacherTrainingParticipantCountByUserId = new Map(
+    teacherTrainingParticipantCounts
+      .filter((item) => item.accountUserId)
+      .map((item) => [item.accountUserId as string, item._count._all]),
+  );
+  const teacherTrainingManagedCohortCountByUserId = new Map(
+    teacherTrainingManagedCohortCounts.map((item) => [item.userId, item._count._all]),
+  );
+
   const tasks = await prisma.task.findMany({
     where: { assigneeId: { in: visibleMemberIds } },
     select: { assigneeId: true, status: true },
@@ -204,6 +255,8 @@ export async function GET(request: NextRequest) {
     .map((member) =>
       buildTeamMemberPayload(member, tasks, latestReportByUser, {
         showAccount: canViewAccountIdentifier(user.role),
+        teacherTrainingParticipantCount: teacherTrainingParticipantCountByUserId.get(member.id) ?? 0,
+        teacherTrainingManagedCohortCount: teacherTrainingManagedCohortCountByUserId.get(member.id) ?? 0,
       }),
     );
 
@@ -215,6 +268,8 @@ export async function GET(request: NextRequest) {
     .map((member) =>
       buildTeamMemberPayload(member, tasks, latestReportByUser, {
         showAccount: canViewAccountIdentifier(user.role),
+        teacherTrainingParticipantCount: teacherTrainingParticipantCountByUserId.get(member.id) ?? 0,
+        teacherTrainingManagedCohortCount: teacherTrainingManagedCohortCountByUserId.get(member.id) ?? 0,
       }),
     );
 

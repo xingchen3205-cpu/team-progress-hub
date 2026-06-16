@@ -168,14 +168,7 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ message: "无权限删除该省培班次课程安排" }, { status: 403 });
   }
 
-  await prisma.teacherTrainingCourseSession.update({
-    where: { id },
-    data: {
-      deletedAt: new Date(),
-      deletedById: user.id,
-      deletedByName: user.name,
-    },
-  });
+  await prisma.teacherTrainingCourseSession.delete({ where: { id } });
 
   return NextResponse.json({ ok: true });
 }

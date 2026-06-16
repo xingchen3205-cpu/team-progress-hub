@@ -193,11 +193,11 @@ test("teacher training managed records can be edited or deleted with clear confi
   assert.match(contextSource, /deleteTeacherTrainingCourseSession/);
   assert.match(contextSource, /deleteTeacherTrainingCheckInTask/);
   assert.match(contextSource, /deleteTeacherTrainingTask/);
-  assert.match(tabSource, /确认将省培班次/);
-  assert.match(tabSource, /确认将课程/);
-  assert.match(tabSource, /确认将签到任务/);
-  assert.match(tabSource, /确认将省培任务/);
-  assert.match(tabSource, /移入回收站/);
+  assert.match(tabSource, /确认删除省培班次/);
+  assert.match(tabSource, /确认删除课程/);
+  assert.match(tabSource, /确认删除签到任务/);
+  assert.match(tabSource, /确认删除省培任务/);
+  assert.match(tabSource, /请再次确认永久删除/);
   assert.match(tabSource, /Pencil/);
   assert.match(tabSource, /Trash2/);
   assert.match(tabSource, /正在修改班次/);
@@ -234,6 +234,14 @@ test("teacher training search, import, profile title/email, leave approvers, and
   assert.match(tabSource, /courseImportText/);
   assert.match(tabSource, /participantImportPreview/);
   assert.match(tabSource, /courseImportPreview/);
+  assert.match(tabSource, /participantImportFieldSummary/);
+  assert.match(tabSource, /courseImportFieldSummary/);
+  assert.match(tabSource, /字段识别结果/);
+  assert.match(tabSource, /姓名列/);
+  assert.match(tabSource, /单位列/);
+  assert.match(tabSource, /手机号列/);
+  assert.match(tabSource, /课程名称列/);
+  assert.match(tabSource, /课程日期列/);
   assert.match(tabSource, /导入预览：将新增 \{participantImportPreview\.readyCount\} 位参训教师/);
   assert.match(tabSource, /导入预览：将新增 \{courseImportPreview\.readyCount\} 条课程/);
   assert.match(tabSource, /请先处理导入预览中的问题/);
@@ -389,18 +397,28 @@ test("teacher training managers can edit and delete provincial teacher accounts 
   const participantAccountRoute = read("src/app/api/teacher-training/participants/[participantId]/account/route.ts");
   const contextSource = read("src/components/workspace-context.tsx");
   const tabSource = read("src/components/tabs/teacher-training-tab.tsx");
+  const mainRouteSource = read("src/app/api/teacher-training/route.ts");
+  const teacherTrainingSource = read("src/lib/teacher-training.ts");
 
   assert.match(participantAccountRoute, /export async function PATCH/);
   assert.match(participantAccountRoute, /export async function DELETE/);
-  assert.match(participantAccountRoute, /只能删除省培教师账号/);
+  assert.match(participantAccountRoute, /原平台账号只解除绑定/);
   assert.match(participantAccountRoute, /teacherTrainingParticipant\.updateMany/);
   assert.match(participantAccountRoute, /user\.delete/);
+  assert.match(mainRouteSource, /role:\s*true/);
+  assert.match(teacherTrainingSource, /accountRole/);
 
   assert.match(contextSource, /updateTeacherTrainingParticipantAccount/);
   assert.match(contextSource, /deleteTeacherTrainingParticipantAccount/);
+  assert.match(tabSource, /participantAccountStatusSummary/);
+  assert.match(tabSource, /未绑定账号/);
+  assert.match(tabSource, /省培专用账号/);
+  assert.match(tabSource, /原平台账号/);
+  assert.match(tabSource, /只解绑账号，不删除档案/);
+  assert.match(tabSource, /筛选未绑定账号/);
   assert.match(tabSource, /重置账号密码/);
-  assert.match(tabSource, /删除省培账号/);
-  assert.match(tabSource, /确认删除省培账号/);
+  assert.match(tabSource, /解绑省培账号/);
+  assert.match(tabSource, /确认解绑省培账号/);
 });
 
 test("teacher training participant import accepts uploaded Excel and maps headers", () => {
@@ -586,7 +604,7 @@ test("teacher training tab uses staff-side manual check-in controls", () => {
   assert.match(shellSource, /openTeacherTrainingSection/);
   assert.match(tabSource, /teacher-training-content/);
   assert.doesNotMatch(tabSource, /快速进入/);
-  assert.match(tabSource, /省培运行总览/);
+  assert.match(tabSource, /班次指挥台/);
   assert.match(tabSource, /报到房号材料登记/);
   assert.match(tabSource, /课程安排/);
   assert.match(tabSource, /createTeacherTrainingCourseSession/);
@@ -606,9 +624,10 @@ test("teacher training tab uses staff-side manual check-in controls", () => {
   assert.match(tabSource, /canConfigureTeacherTrainingLeaveFlow/);
   assert.match(tabSource, /currentUser\?\.role === "admin"/);
   assert.match(tabSource, /canManage \? "请假审批" : "临时请假"/);
-  assert.match(tabSource, /canConfigureTeacherTrainingLeaveFlow \? \(/);
+  assert.match(tabSource, /canConfigureTeacherTrainingLeaveFlow && activeLeavePanel === "rules"/);
   assert.match(tabSource, /canManage \? \(/);
-  assert.match(tabSource, /请假申请汇总/);
+  assert.match(tabSource, /待审批申请/);
+  assert.match(tabSource, /全部请假申请/);
   assert.doesNotMatch(tabSource, /canManageGlobal \? "请假流程设置" : "临时请假"/);
   assert.match(tabSource, /临时请假/);
   assert.match(tabSource, /提交请假/);
@@ -624,6 +643,29 @@ test("teacher training tab uses staff-side manual check-in controls", () => {
   assert.match(tabSource, /待报到/);
   assert.match(tabSource, /导出报到信息/);
   assert.doesNotMatch(tabSource, /二维码|扫码/);
+});
+
+test("teacher training navigation and leave approval center are role scoped", () => {
+  const contextSource = read("src/components/workspace-context.tsx");
+  const tabSource = read("src/components/tabs/teacher-training-tab.tsx");
+
+  assert.match(contextSource, /teacherTrainingManagerSectionKeys/);
+  assert.match(contextSource, /teacherTrainingParticipantSectionKeys/);
+  assert.match(contextSource, /teacherTrainingSidebarSections = teacherTrainingSectionTabs\.filter/);
+  assert.match(contextSource, /teacherTrainingManagerSectionKeys\.has\(section\.key\)/);
+  assert.match(contextSource, /teacherTrainingParticipantSectionKeys\.has\(section\.key\)/);
+  assert.doesNotMatch(contextSource, /if \(section\.teacherOnly && canManageTeacherTraining\) return false;/);
+
+  assert.match(tabSource, /type TeacherTrainingLeavePanelKey = "pending" \| "all" \| "rules"/);
+  assert.match(tabSource, /const \[activeLeavePanel, setActiveLeavePanel\]/);
+  assert.match(tabSource, /teacherTrainingLeavePanelItems/);
+  assert.match(tabSource, /待审批/);
+  assert.match(tabSource, /全部申请/);
+  assert.match(tabSource, /审批规则/);
+  assert.match(tabSource, /canConfigureTeacherTrainingLeaveFlow && activeLeavePanel === "rules"/);
+  assert.match(tabSource, /activeLeavePanel !== "rules"/);
+  assert.match(tabSource, /managerVisibleLeaveRequests\.filter\(\(request\) => request\.status === "pending"\)/);
+  assert.doesNotMatch(tabSource, /只在系统管理员账号下开放，避免班次工作人员误改全局审批规则。/);
 });
 
 test("teacher training tab supports location-based course check-in tasks", () => {
@@ -773,7 +815,7 @@ test("teacher training teacher-facing forms keep visible field labels on mobile"
   assert.match(tabSource, /teacherProfileCompletedCount/);
   assert.match(tabSource, /teacherProfileStatusText/);
   assert.match(tabSource, /aria-label="省培今日待办"/);
-  assert.match(tabSource, />下一步</);
+  assert.match(tabSource, />我的待办</);
   assert.match(tabSource, /aria-label="省培下一节课"/);
   assert.match(tabSource, /aria-label="省培请假进度"/);
   assert.match(tabSource, /aria-label="请假审批步骤条"/);
@@ -924,60 +966,38 @@ test("teacher training cohort management shows every configured cohort with dire
   assert.match(mainRouteSource, /无权限删除该省培班次/);
 });
 
-test("teacher training uses a recycle bin for managed deletes before permanent cleanup", () => {
-  const schema = read("prisma/schema.prisma");
+test("teacher training deletes managed records directly after two explicit confirmations", () => {
   const mainRouteSource = read("src/app/api/teacher-training/route.ts");
   const courseRouteSource = read("src/app/api/teacher-training/course-sessions/route.ts");
   const checkInRouteSource = read("src/app/api/teacher-training/check-ins/route.ts");
   const taskRouteSource = read("src/app/api/teacher-training/tasks/route.ts");
-  const recycleRouteSource = read("src/app/api/teacher-training/recycle-bin/route.ts");
   const tabSource = read("src/components/tabs/teacher-training-tab.tsx");
   const contextSource = read("src/components/workspace-context.tsx");
-  const accessSource = read("src/lib/teacher-training-access.ts");
-  const migrationScript = read("scripts/apply-teacher-training-soft-delete-columns.ts");
-
-  for (const model of [
-    "TeacherTrainingCohort",
-    "TeacherTrainingCourseSession",
-    "TeacherTrainingCheckInTask",
-    "TeacherTrainingTask",
-  ]) {
-    assert.match(schema, new RegExp(`model ${model}[\\s\\S]*deletedAt\\s+DateTime\\?`));
-    assert.match(schema, new RegExp(`model ${model}[\\s\\S]*deletedById\\s+String\\?`));
-    assert.match(schema, new RegExp(`model ${model}[\\s\\S]*deletedByName\\s+String\\?`));
-  }
 
   for (const source of [mainRouteSource, courseRouteSource, checkInRouteSource, taskRouteSource]) {
-    assert.match(source, /deletedAt:\s*new Date\(\)/);
-    assert.doesNotMatch(source, /\.delete\(\{ where: \{ id \} \}\)/);
+    assert.match(source, /\.delete\(\{ where: \{ id \} \}\)/);
+    assert.doesNotMatch(source, /deletedAt:\s*new Date\(\)/);
   }
 
-  assert.match(mainRouteSource, /deletedAt:\s*null/);
-  assert.match(mainRouteSource, /courseSessions:\s*\{\s*where:\s*\{\s*deletedAt:\s*null/);
-  assert.match(mainRouteSource, /checkInTasks:\s*\{\s*where:\s*\{\s*deletedAt:\s*null/);
-  assert.match(mainRouteSource, /tasks:\s*\{\s*where:\s*\{\s*deletedAt:\s*null/);
-  assert.match(recycleRouteSource, /export async function GET/);
-  assert.match(recycleRouteSource, /export async function PATCH/);
-  assert.match(recycleRouteSource, /export async function DELETE/);
-  assert.match(recycleRouteSource, /restoreRecycleItem/);
-  assert.match(recycleRouteSource, /permanentlyDeleteRecycleItem/);
-  assert.match(recycleRouteSource, /confirmPermanent/);
-  assert.match(recycleRouteSource, /deleteStoredFile/);
-  assert.match(accessSource, /includeDeleted/);
-  assert.match(tabSource, /省培回收站/);
-  assert.match(tabSource, /refreshTeacherTrainingRecycleBin/);
-  assert.match(tabSource, /restoreTeacherTrainingRecycleItem/);
-  assert.match(tabSource, /permanentlyDeleteTeacherTrainingRecycleItem/);
-  assert.match(contextSource, /省培班次已移入回收站/);
-  assert.match(contextSource, /任务汇报和附件暂不删除/);
-  assert.match(migrationScript, /ALTER TABLE/);
-  assert.match(migrationScript, /CREATE INDEX IF NOT EXISTS/);
+  assert.match(mainRouteSource, /deleteStoredFile/);
+  assert.match(taskRouteSource, /deleteStoredFile/);
+  assert.match(mainRouteSource, /@\/lib\/teacher-training-submission-attachments/);
+  assert.match(taskRouteSource, /@\/lib\/teacher-training-submission-attachments/);
+  assert.match(tabSource, /请再次确认永久删除/);
+  assert.match(tabSource, /删除后无法恢复/);
+  assert.doesNotMatch(tabSource, /省培回收站/);
+  assert.doesNotMatch(tabSource, /refreshTeacherTrainingRecycleBin/);
+  assert.doesNotMatch(tabSource, /restoreTeacherTrainingRecycleItem/);
+  assert.doesNotMatch(tabSource, /permanentlyDeleteTeacherTrainingRecycleItem/);
+  assert.doesNotMatch(contextSource, /已移入回收站/);
+  assert.doesNotMatch(contextSource, /可在回收站恢复/);
 });
 
 test("teacher training leave approval panel keeps desktop review cards readable", () => {
   const tabSource = read("src/components/tabs/teacher-training-tab.tsx");
 
-  assert.match(tabSource, /xl:grid-cols-\[minmax\(0,1fr\)_minmax\(430px,0\.78fr\)\]/);
+  assert.match(tabSource, /displayedManagerLeaveRequests/);
+  assert.match(tabSource, /activeLeavePanel === "pending"/);
   assert.match(tabSource, /rounded-2xl border border-slate-200\/70 bg-white px-4 py-4 shadow-sm/);
   assert.match(tabSource, /xl:grid-cols-\[minmax\(0,1fr\)_auto\]/);
   assert.match(tabSource, /flex shrink-0 flex-wrap justify-end gap-2/);
@@ -1116,7 +1136,7 @@ test("teacher training task reports support one Word or PDF attachment with uplo
   assert.match(tabSource, /isRemovingSavedSubmissionAttachment/);
   assert.match(tabSource, /保存后将替换原附件，原附件会从系统文件库删除/);
   assert.match(tabSource, /确认保存并替换原附件/);
-  assert.match(tabSource, /已选择新附件，保存后会替换并删除原附件/);
+  assert.match(tabSource, /替换附件会删除上一份附件/);
   assert.match(tabSource, /现在只会标记移除，点击保存汇报后，原附件会从系统文件库删除/);
   assert.match(tabSource, /确认保存并删除原附件/);
   assert.match(tabSource, /已标记移除原附件，保存后会从系统文件库删除/);
@@ -1135,7 +1155,7 @@ test("teacher training task reports support one Word or PDF attachment with uplo
 
 test("teacher training destructive and import paths include reviewer-requested safeguards", () => {
   const mainRouteSource = read("src/app/api/teacher-training/route.ts");
-  const recycleRouteSource = read("src/app/api/teacher-training/recycle-bin/route.ts");
+  const taskRouteSource = read("src/app/api/teacher-training/tasks/route.ts");
   const participantRouteSource = read("src/app/api/teacher-training/participants/route.ts");
   const signRouteSource = read("src/app/api/teacher-training/check-ins/sign/route.ts");
   const leaveRequestRoute = read("src/app/api/teacher-training/leave-requests/route.ts");
@@ -1149,14 +1169,18 @@ test("teacher training destructive and import paths include reviewer-requested s
 
   assert.match(mainRouteSource, /confirmCascade/);
   assert.match(mainRouteSource, /删除前请确认/);
-  assert.match(mainRouteSource, /deletedAt:\s*new Date\(\)/);
-  assert.match(recycleRouteSource, /deleteStoredFile/);
-  assert.match(recycleRouteSource, /decodeTeacherTrainingSubmissionAttachmentFile/);
+  assert.match(mainRouteSource, /teacherTrainingCohort\.delete/);
+  assert.match(mainRouteSource, /deleteStoredFile/);
+  assert.match(mainRouteSource, /@\/lib\/teacher-training-submission-attachments/);
+  assert.match(taskRouteSource, /teacherTrainingTask\.delete/);
+  assert.match(taskRouteSource, /deleteStoredFile/);
+  assert.match(taskRouteSource, /@\/lib\/teacher-training-submission-attachments/);
   assert.match(contextSource, /confirmCascade:\s*true/);
   assert.match(tabSource, /参训教师 \$\{cohort\.stats\.participantCount\} 人/);
-  assert.match(tabSource, /任务汇报和附件不会立即删除/);
-  assert.match(tabSource, /永久删除后才会清理/);
-  assert.match(read("src/app/api/teacher-training/tasks/route.ts"), /deletedAt:\s*new Date\(\)/);
+  assert.match(tabSource, /请再次确认永久删除/);
+  assert.match(tabSource, /删除后无法恢复/);
+  assert.doesNotMatch(tabSource, /任务汇报和附件不会立即删除/);
+  assert.doesNotMatch(tabSource, /永久删除后才会清理/);
 
   assert.match(participantRouteSource, /duplicatedImportedParticipantKeys/);
   assert.match(participantRouteSource, /名单中存在重复教师/);
@@ -1235,10 +1259,17 @@ test("teacher training overview metric cards jump to filtered detail lists", () 
 
   assert.equal(sectionOpenMatches.length, 1);
   assert.match(tabSource, /const openOverviewMetric =/);
-  assert.match(tabSource, /onClick:\s*\(\) => openOverviewMetric\(\{ attendanceFilter: "registered", section: "attendance" \}\)/);
-  assert.match(tabSource, /onClick:\s*\(\) => openOverviewMetric\(\{ attendanceFilter: "leave", section: "attendance" \}\)/);
-  assert.match(tabSource, /onClick:\s*\(\) => openOverviewMetric\(\{ attendanceFilter: "absent", section: "attendance" \}\)/);
-  assert.match(tabSource, /onClick:\s*\(\) => openOverviewMetric\(\{ section: "tasks", submissionFilter: "submitted" \}\)/);
+  assert.match(tabSource, /teacherTrainingDetailViewTitle/);
+  assert.match(tabSource, /当前查看：/);
+  assert.match(tabSource, /已报到教师/);
+  assert.match(tabSource, /请假教师/);
+  assert.match(tabSource, /课程签到记录/);
+  assert.match(tabSource, /已提交汇报/);
+  assert.match(tabSource, /TeacherTrainingFilterSummary/);
+  assert.match(tabSource, /openOverviewMetric\(\{ attendanceFilter: "registered", detailViewTitle: "已报到教师", section: "attendance" \}\)/);
+  assert.match(tabSource, /openOverviewMetric\(\{ attendanceFilter: "leave", detailViewTitle: "请假教师", section: "attendance" \}\)/);
+  assert.match(tabSource, /openOverviewMetric\(\{ attendanceFilter: "absent", detailViewTitle: "缺勤教师", section: "attendance" \}\)/);
+  assert.match(tabSource, /openOverviewMetric\(\{ detailViewTitle: "已提交汇报", section: "tasks", submissionFilter: "submitted" \}\)/);
   assert.match(tabSource, /metricCards\.map\(\(\{ label, value, Icon, onClick, title \}\) => \(/);
   assert.match(tabSource, /aria-label=\{`查看省培\$\{label\}明细`\}/);
   assert.match(tabSource, /onClick=\{onClick\}/);
@@ -1248,6 +1279,53 @@ test("teacher training overview metric cards jump to filtered detail lists", () 
   assert.match(tabSource, /setSubmissionOverviewFilter\(item\.key\)/);
   assert.match(tabSource, /getParticipantAttendanceRecord\(participant, "leave"\)/);
   assert.match(tabSource, /getParticipantAttendanceRecord\(participant, "absent"\)/);
+});
+
+test("teacher training overview works as a role-specific command desk", () => {
+  const tabSource = read("src/components/tabs/teacher-training-tab.tsx");
+
+  assert.match(tabSource, /managerCommandTodoCards/);
+  assert.match(tabSource, /managerCommandQuickLinks/);
+  assert.match(tabSource, /班次指挥台/);
+  assert.match(tabSource, /当前班次/);
+  assert.match(tabSource, /核心待办/);
+  assert.match(tabSource, /快捷入口/);
+  assert.match(tabSource, /待审批请假/);
+  assert.match(tabSource, /待报到教师/);
+  assert.match(tabSource, /未完成签到/);
+  assert.match(tabSource, /未提交任务/);
+  assert.match(tabSource, /openTeacherTrainingSection\("exports"\)/);
+
+  assert.match(tabSource, /teacherCommandTodoCards/);
+  assert.match(tabSource, /我的待办/);
+  assert.match(tabSource, /今日课程/);
+  assert.match(tabSource, /定位签到/);
+  assert.match(tabSource, /任务汇报/);
+  assert.match(tabSource, /临时请假/);
+  assert.match(tabSource, /个人信息/);
+  assert.match(tabSource, /教师端常用操作/);
+  assert.doesNotMatch(tabSource, /快去|赶紧|马上弄|搞一下/);
+});
+
+test("teacher training list filters and cohort health check use clear operational copy", () => {
+  const tabSource = read("src/components/tabs/teacher-training-tab.tsx");
+
+  assert.match(tabSource, /teacherTrainingFilterSummaries/);
+  assert.match(tabSource, /当前筛选/);
+  assert.match(tabSource, /搜索条件/);
+  assert.match(tabSource, /清除筛选/);
+  assert.match(tabSource, /参训教师、报到、请假、汇报和课程签到列表共用筛选提示/);
+  assert.match(tabSource, /解绑后，该教师将不能再通过此参训档案进入省培系统/);
+  assert.match(tabSource, /重置密码后，请把新账号信息重新发给教师/);
+  assert.match(tabSource, /导入前请核对识别字段和重复项/);
+  assert.match(tabSource, /替换附件会删除上一份附件/);
+  assert.match(tabSource, /cohortHealthCheckItems/);
+  assert.match(tabSource, /班次配置体检/);
+  assert.match(tabSource, /影响使用/);
+  assert.match(tabSource, /建议补齐/);
+  assert.match(tabSource, /教师名单/);
+  assert.match(tabSource, /课程安排/);
+  assert.match(tabSource, /请假审批人/);
 });
 
 test("teacher training arrival reporting is required for first teacher login and exportable by managers", () => {

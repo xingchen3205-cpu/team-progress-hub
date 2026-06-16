@@ -165,3 +165,35 @@ test("system administrator can still see school administrator accounts in team m
   assert.match(contextSource, /"校级管理员"/);
   assert.doesNotMatch(contextSource, /teamAccountVisibleRoleLabels = teamGroupAssignableRoleLabels/);
 });
+
+test("team account management summarizes province training identity without mixing account systems", () => {
+  const contextSource = readFileSync(
+    path.join(process.cwd(), "src/components/workspace-context.tsx"),
+    "utf8",
+  );
+  const teamRouteSource = readFileSync(
+    path.join(process.cwd(), "src/app/api/team/route.ts"),
+    "utf8",
+  );
+
+  assert.match(teamSource, /省培身份/);
+  assert.match(teamSource, /getTeacherTrainingAccountBadges/);
+  assert.match(teamSource, /允许进入省培/);
+  assert.match(teamSource, /省培管理/);
+  assert.match(teamSource, /参训教师/);
+  assert.match(teamSource, /未开通省培/);
+  assert.match(teamSource, /配置省培身份/);
+  assert.match(teamSource, /openTeacherTrainingPermissionSetup/);
+  assert.match(teamSource, /canConfigureTeacherTrainingAccounts/);
+  assert.match(contextSource, /openTeacherTrainingPermissionSetup/);
+  assert.match(contextSource, /setActiveTeacherTrainingSection/);
+  assert.match(contextSource, /"cohorts"/);
+  assert.match(contextSource, /"participants"/);
+  assert.match(contextSource, /router\.push\("\/workspace\?tab=teacherTraining"\)/);
+  assert.match(contextSource, /teacherTrainingParticipantCount\?: number/);
+  assert.match(contextSource, /teacherTrainingManagedCohortCount\?: number/);
+  assert.match(teamRouteSource, /teacherTrainingParticipant\.groupBy/);
+  assert.match(teamRouteSource, /teacherTrainingCohortManager\.groupBy/);
+  assert.match(teamRouteSource, /teacherTrainingParticipantCountByUserId/);
+  assert.match(teamRouteSource, /teacherTrainingManagedCohortCountByUserId/);
+});

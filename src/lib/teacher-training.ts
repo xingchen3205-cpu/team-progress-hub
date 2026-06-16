@@ -291,6 +291,7 @@ export type TeacherTrainingParticipantItem = {
   accountUserId: string | null;
   accountName: string;
   accountUsername: string;
+  accountRole: string;
   extraInfo: string;
   extraInfoLines: string[];
   note: string;
@@ -336,20 +337,6 @@ export type TeacherTrainingPayload = {
   cohorts: TeacherTrainingCohortItem[];
   approverOptions: TeacherTrainingApproverOptionItem[];
   managerOptions: TeacherTrainingApproverOptionItem[];
-};
-
-export type TeacherTrainingRecycleBinItemType = "cohort" | "course" | "checkIn" | "task";
-
-export type TeacherTrainingRecycleBinItem = {
-  id: string;
-  type: TeacherTrainingRecycleBinItemType;
-  typeLabel: string;
-  title: string;
-  cohortId: string;
-  cohortTitle: string;
-  deletedAt: string;
-  deletedByName: string;
-  detail: string;
 };
 
 type TeacherTrainingRoleUser = {
@@ -924,7 +911,7 @@ type TeacherTrainingCohortRecord = {
     accountUserId?: string | null;
     extraInfo?: string | null;
     note?: string | null;
-    accountUser?: { name: string; username?: string | null } | null;
+    accountUser?: { name: string; username?: string | null; role?: string | null } | null;
     attendances?: Array<TeacherTrainingAttendanceRecord>;
     checkInRecords?: Array<TeacherTrainingCheckInRecordRecord>;
     leaveRequests?: Array<TeacherTrainingLeaveRequestRecord>;
@@ -1268,6 +1255,7 @@ export const serializeTeacherTrainingCohort = (
       accountUserId: participant.accountUserId ?? null,
       accountName: participant.accountUser?.name ?? "",
       accountUsername: participant.accountUser?.username ?? "",
+      accountRole: participant.accountUser?.role ?? "",
       extraInfo: participant.extraInfo ?? "",
       extraInfoLines: (participant.extraInfo ?? "")
         .split(/\r?\n/)

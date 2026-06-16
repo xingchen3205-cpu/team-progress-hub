@@ -91,6 +91,7 @@ export default function TeamTab() {
     openExpertProfileModal,
     deleteExpertProfile,
     openExpertProfileAccount,
+    openTeacherTrainingPermissionSetup,
   } = Workspace.useWorkspaceContext();
 
   const {
@@ -112,6 +113,7 @@ export default function TeamTab() {
   } = Workspace;
 
   const isExpertAccountView = teamAccountView === "experts";
+  const canConfigureTeacherTrainingAccounts = permissions.canManageTeam && !isExpertAccountView;
   const [expertProfileSearch, setExpertProfileSearch] = useState("");
   const expertProfileSearchText = (isExpertAccountView ? expertProfileSearch : "").trim().toLowerCase();
   const filteredExpertProfiles = useMemo(() => {
@@ -167,6 +169,31 @@ export default function TeamTab() {
     roleLabel,
     count: studentTeamMembers.filter((member) => member.systemRole === roleLabel).length,
   }));
+  const getTeacherTrainingAccountBadges = (member: Workspace.TeamMember) => {
+    const badges: Array<{ label: string; className: string }> = [];
+    const participantCount = member.teacherTrainingParticipantCount ?? 0;
+    const managedCohortCount = member.teacherTrainingManagedCohortCount ?? 0;
+
+    if (member.hasTeacherTrainingAccess) {
+      badges.push({ label: "允许进入省培", className: "border-blue-100 bg-blue-50 text-blue-700" });
+    }
+
+    if (member.hasTeacherTrainingManagerAccess) {
+      badges.push({ label: "省培管理", className: "border-emerald-100 bg-emerald-50 text-emerald-700" });
+    }
+
+    if (participantCount > 0) {
+      badges.push({ label: `参训教师 ${participantCount}`, className: "border-slate-200 bg-white text-slate-700" });
+    }
+
+    if (managedCohortCount > 0) {
+      badges.push({ label: `管理班次 ${managedCohortCount}`, className: "border-sky-100 bg-sky-50 text-sky-700" });
+    }
+
+    return badges.length > 0
+      ? badges
+      : [{ label: "未开通省培", className: "border-slate-200 bg-slate-50 text-slate-500" }];
+  };
 
   const renderTeam = () => {
     if (!showManagementTeamAccountSection) {
@@ -868,6 +895,9 @@ export default function TeamTab() {
                           </th>
                         ) : null}
                         <th className="px-3 py-3 text-left">成员</th>
+                        {!isExpertAccountView ? (
+                          <th className="w-52 px-3 py-3 text-left">省培身份</th>
+                        ) : null}
                         <th className="w-28 px-3 py-3 text-left">{!isExpertAccountView ? "权限开关" : "账号状态"}</th>
                         {!isExpertAccountView ? (
                           <>
@@ -898,6 +928,7 @@ export default function TeamTab() {
                           isEnabled: permissionItem?.isEnabled ?? false,
                           maxCount: permissionItem?.maxCount == null ? "" : String(permissionItem.maxCount),
                         };
+                        const teacherTrainingAccountBadges = getTeacherTrainingAccountBadges(member);
 
                         return (
                           <tr
@@ -983,6 +1014,29 @@ export default function TeamTab() {
                                 </div>
                               </div>
                             </td>
+                            {!isExpertAccountView ? (
+                              <td className="px-3 py-3 align-top">
+                                <div className="flex flex-wrap gap-1.5">
+                                  {teacherTrainingAccountBadges.map((badge) => (
+                                    <span
+                                      className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-medium ${badge.className}`}
+                                      key={badge.label}
+                                    >
+                                      {badge.label}
+                                    </span>
+                                  ))}
+                                </div>
+                                {canConfigureTeacherTrainingAccounts ? (
+                                  <button
+                                    className="mt-2 inline-flex h-8 items-center rounded-lg border border-slate-200 bg-white px-3 text-xs font-medium text-slate-700 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
+                                    onClick={() => openTeacherTrainingPermissionSetup(member)}
+                                    type="button"
+                                  >
+                                    配置省培身份
+                                  </button>
+                                ) : null}
+                              </td>
+                            ) : null}
                             <td className="px-3 py-3 align-top">
                               {!isExpertAccountView ? (
                                 <button

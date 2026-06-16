@@ -26,6 +26,10 @@ export type TeamMember = {
   className?: string;
   studentId?: string;
   employeeId?: string;
+  hasTeacherTrainingAccess?: boolean;
+  hasTeacherTrainingManagerAccess?: boolean;
+  teacherTrainingParticipantCount?: number;
+  teacherTrainingManagedCohortCount?: number;
   canBeManagedByLeader: boolean;
   todayFocus: string;
   completed: string;

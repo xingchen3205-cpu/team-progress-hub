@@ -328,7 +328,16 @@ export async function DELETE(_request: NextRequest, context: RouteContext) {
     return NextResponse.json({ message: "该参训教师尚未开通省培账号" }, { status: 404 });
   }
   if (participant.accountUser.role !== "training_teacher") {
-    return NextResponse.json({ message: "只能删除省培教师账号，已绑定的原平台账号不能在省培里删除" }, { status: 400 });
+    await prisma.teacherTrainingParticipant.update({
+      where: { id: participant.id },
+      data: { accountUserId: null },
+    });
+
+    return NextResponse.json({
+      success: true,
+      unlinkedOnly: true,
+      message: "原平台账号只解除绑定，不删除账号本体",
+    });
   }
   if (participant.accountUser.id === user.id) {
     return NextResponse.json({ message: "不能删除当前登录账号" }, { status: 400 });
