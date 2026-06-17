@@ -857,6 +857,10 @@ describe("roadshow review screen session", () => {
     assert.match(teamDrawPageSource, /selectedProject\.registered \|\| selectedProject\.drawn/);
     assert.match(teamDrawPageSource, /team-draw-option:disabled/);
     assert.match(teamDrawPageSource, /该项目已注册负责人账号，不能再次选择/);
+    assert.match(teamDrawPageSource, /registrationLocked/);
+    assert.match(teamDrawPageSource, /const registrationLocked = claimState \? !claimState\.canRegister \|\| claimState\.expired : false/);
+    assert.match(teamDrawPageSource, /disabled=\{registrationLocked \|\| locked\}/);
+    assert.match(teamDrawPageSource, /当前抽签入口暂不开放项目注册/);
     assert.match(teamDrawPageSource, /手机号将作为登录账号/);
     assert.match(teamDrawPageSource, /专业班级/);
     assert.match(teamDrawPageSource, /学号/);

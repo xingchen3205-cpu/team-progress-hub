@@ -113,6 +113,7 @@ export default function TeamDrawPage() {
     () => claimState?.projects.find((project) => project.packageId === selectedPackageId) ?? null,
     [claimState?.projects, selectedPackageId],
   );
+  const registrationLocked = claimState ? !claimState.canRegister || claimState.expired : false;
 
   const loadDrawState = useCallback(async () => {
     if (!sessionId || !screenToken) {
@@ -737,6 +738,11 @@ export default function TeamDrawPage() {
                     请只选择本团队所属项目。项目选择错误将影响抽签顺序、专家评分和后续统计。
                   </p>
                 </div>
+                {registrationLocked ? (
+                  <p className="rounded-2xl border border-amber-100 bg-amber-50 px-4 py-3 text-xs font-bold leading-5 text-amber-800">
+                    当前抽签入口暂不开放项目注册，请联系管理员核验抽签时间或入口状态。
+                  </p>
+                ) : null}
                 <div className="max-h-[44vh] space-y-2 overflow-y-auto pr-1">
                   {claimState.projects.map((project) => {
                     const active = project.packageId === selectedPackageId;
@@ -749,7 +755,7 @@ export default function TeamDrawPage() {
                     return (
                       <button
                         className={`team-draw-option ${active ? "team-draw-option-active" : ""}`}
-                        disabled={locked}
+                        disabled={registrationLocked || locked}
                         key={project.packageId}
                         onClick={() => setSelectedPackageId(project.packageId)}
                         title={lockedReason || undefined}
@@ -775,7 +781,7 @@ export default function TeamDrawPage() {
                 </div>
                 <button
                   className="team-draw-button"
-                  disabled={!selectedProject || !claimState.canRegister || selectedProject.registered || selectedProject.drawn}
+                  disabled={!selectedProject || registrationLocked || selectedProject.registered || selectedProject.drawn}
                   onClick={startProjectClaim}
                   type="button"
                 >
