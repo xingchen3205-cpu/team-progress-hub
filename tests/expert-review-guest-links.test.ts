@@ -143,4 +143,14 @@ describe("guest expert review links", () => {
     assert.match(tab, /setInterval\(refreshAdminReviewAssignments,\s*5000\)/);
     assert.doesNotMatch(tab, /!canManageReviewMaterials \|\| Object\.keys\(reviewScreenSessions\)\.length === 0/);
   });
+
+  it("requires roadshow order preparation before guest expert links open", () => {
+    const tab = readSource("src/components/tabs/expert-review-tab-content.tsx");
+
+    assert.match(tab, /roadshowOrderSessionReady/);
+    assert.match(tab, /const roadshowOrderSessionReady = !activeGroupIsRoadshow \|\| Boolean\(activeScreenSession\)/);
+    assert.match(tab, /const commandOrderPreparationDone = roadshowOrderSessionReady && !commandOrderDrawBlockingStart/);
+    assert.match(tab, /const expertLinksReady = !isRoadshowAssignment\(group\.items\[0\]\) \|\| \(Boolean\(screenSession\) && !orderDrawBlockingStart\)/);
+    assert.match(tab, /请先生成团队抽签与顺序入口，确认路演顺序后再生成专家评分链接/);
+  });
 });

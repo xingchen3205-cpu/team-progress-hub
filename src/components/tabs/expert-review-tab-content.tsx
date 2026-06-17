@@ -1351,6 +1351,20 @@ export default function ExpertReviewTab() {
       setLoadError("请先选择项目管理评审轮次，再生成专家免登录评分链接");
       return;
     }
+    if (isRoadshowAssignment(group.items[0])) {
+      const screenSession = reviewScreenSessions[group.key];
+      if (!screenSession) {
+        setLoadError("请先生成团队抽签与顺序入口，确认路演顺序后再生成专家评分链接");
+        return;
+      }
+      const projectOrder = getReviewScreenProjectOrderForGroup(group);
+      const drawMode = getScreenDrawMode(group.key);
+      const drawnProjectCount = projectOrder.filter((project) => Boolean(project.selfDrawnAt)).length;
+      if ((drawMode === "team" || drawMode === "self") && projectOrder.length > 0 && drawnProjectCount < projectOrder.length) {
+        setLoadError(`路演顺序尚未完成，当前已抽签 ${drawnProjectCount}/${projectOrder.length}`);
+        return;
+      }
+    }
 
     setGuestExpertLinkActionKey(group.key);
     try {
@@ -3187,11 +3201,13 @@ export default function ExpertReviewTab() {
       </div>
     );
 
-    const expertLinksReady = !orderDrawBlockingStart;
+    const expertLinksReady = !isRoadshowAssignment(group.items[0]) || (Boolean(screenSession) && !orderDrawBlockingStart);
     const expertLinksLockedReason = orderDrawBlockingStart
       ? drawMode === "team"
         ? `完成团队抽签和顺序确认后再生成专家专属评分链接。当前已注册 ${registeredProjectCount}/${projectOrder.length}，已抽签 ${drawnProjectCount}/${projectOrder.length}。`
         : `完成大屏自助抽签和顺序确认后再生成专家专属评分链接。当前已抽签 ${drawnProjectCount}/${projectOrder.length}。`
+      : !screenSession
+        ? "请先生成团队抽签与顺序入口，确认路演顺序后再生成专家评分链接。"
       : null;
 
     const renderReviewSidebar = () => (
@@ -4153,10 +4169,11 @@ export default function ExpertReviewTab() {
       (commandDrawMode === "team" || commandDrawMode === "self") &&
       commandProjectOrder.length > 0 &&
       drawnProjectCount < commandProjectOrder.length;
-    const teamDrawReady = !activeGroupIsRoadshow || !activeScreenSession?.teamDrawUrl || (
+    const roadshowOrderSessionReady = !activeGroupIsRoadshow || Boolean(activeScreenSession);
+    const teamDrawReady = !activeGroupIsRoadshow || (roadshowOrderSessionReady && (!activeScreenSession?.teamDrawUrl || (
       commandProjectOrder.length > 0 && drawnProjectCount >= commandProjectOrder.length
-    );
-    const commandOrderPreparationDone = !activeGroupIsRoadshow || !commandOrderDrawBlockingStart;
+    )));
+    const commandOrderPreparationDone = roadshowOrderSessionReady && !commandOrderDrawBlockingStart;
     const commandActiveStep =
       groupedAssignments.length === 0
         ? "prepare"

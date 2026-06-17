@@ -61,7 +61,7 @@ assert.match(selfDrawRouteSource, /请先在大屏上抽取上台项目，再抽
 assert.match(screenPageSource, /drawSelfDrawCandidate/);
 assert.match(screenPageSource, /self-draw-grid/);
 assert.match(screenPageSource, /项目池/);
-assert.match(screenPageSource, /抽下一位上台/);
+assert.match(screenPageSource, /抽取下一路演项目/);
 assert.match(screenPageSource, /抽路演序号/);
 assert.doesNotMatch(screenPageSource, /toggleSelfDrawCandidateRolling|toggleSelfDrawSlotRolling/);
 

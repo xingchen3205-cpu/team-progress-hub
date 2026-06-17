@@ -247,8 +247,9 @@ describe("expert review v2 constraints", () => {
       return match[1];
     };
 
-    assert.match(roleBlock("admin"), /visibleTabs:\s*\[[\s\S]*?"review"[\s\S]*?\]/);
-    assert.match(roleBlock("school_admin"), /visibleTabs:\s*\[[\s\S]*?"review"[\s\S]*?\]/);
+    assert.match(workspaceSource, /const adminWorkspaceVisibleTabs = \[[\s\S]*?"review"[\s\S]*?\] as TabKey\[\]/);
+    assert.match(roleBlock("admin"), /visibleTabs:\s*adminWorkspaceVisibleTabs/);
+    assert.match(roleBlock("school_admin"), /visibleTabs:\s*adminWorkspaceVisibleTabs/);
     assert.match(roleBlock("expert"), /visibleTabs:\s*\["review",\s*"profile"\]/);
     assert.doesNotMatch(roleBlock("teacher"), /visibleTabs:\s*\[[^\]]*"review"/);
     assert.doesNotMatch(roleBlock("leader"), /visibleTabs:\s*\[[^\]]*"review"/);
