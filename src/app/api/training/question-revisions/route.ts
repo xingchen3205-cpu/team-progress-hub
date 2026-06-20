@@ -5,6 +5,7 @@ import { getSessionUser } from "@/lib/auth";
 import { createNotifications } from "@/lib/notifications";
 import { assertMainWorkspaceRole } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
+import { canReviewTrainingRevision } from "@/lib/training-ai-workflow";
 
 const serializeRequest = (item: any) => ({
   id: item.id,
@@ -54,7 +55,18 @@ export async function GET(request: NextRequest) {
     take: 100,
     include: includeRequest,
   });
-  return NextResponse.json({ requests: rows.map(serializeRequest) });
+  return NextResponse.json({
+    requests: rows.map((item) => ({
+      ...serializeRequest(item),
+      canReview:
+        item.status === "pending" &&
+        canReviewTrainingRevision(user, {
+          submittedById: item.submittedById,
+          questionCreatedById: item.question.createdById,
+          teamGroupId: item.teamGroupId,
+        }),
+    })),
+  });
 }
 
 export async function POST(request: NextRequest) {

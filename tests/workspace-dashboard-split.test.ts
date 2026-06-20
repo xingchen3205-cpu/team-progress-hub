@@ -281,6 +281,19 @@ test("training AI judge uses a text-first scoring and revision workflow", () => 
   assert.match(resultsSource, /修订说明/);
 });
 
+test("training revision panel separates applicant status from reviewer actions", () => {
+  const trainingTabSource = read("src/components/tabs/training-tab.tsx");
+  const panelSource = read("src/components/training/question-revision-panel.tsx");
+  assert.match(trainingTabSource, /QuestionRevisionPanel/);
+  assert.match(panelSource, /题库要点修订审核/);
+  assert.match(panelSource, /原回答要点/);
+  assert.match(panelSource, /建议回答要点/);
+  assert.match(panelSource, /审核意见/);
+  assert.match(panelSource, /批准修订/);
+  assert.match(panelSource, /驳回申请/);
+  assert.match(panelSource, /item\.canReview/);
+});
+
 test("system administrator has a question bank center and everyone can export visible question banks", () => {
   const contextSource = read("src/components/workspace-context.tsx");
   const dashboardSource = read("src/components/workspace-dashboard.tsx");

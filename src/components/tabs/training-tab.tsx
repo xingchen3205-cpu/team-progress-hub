@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import * as Workspace from "@/components/workspace-context";
 import type { AiPermissionState } from "@/components/assistant/assistant-types";
 import { AiDefenseFeedbackDetails, QuestionRevisionForm } from "@/components/training/ai-defense-results";
+import { QuestionRevisionPanel } from "@/components/training/question-revision-panel";
 
 type TrainingJudgeFeedback = {
   score: number;
@@ -1481,6 +1482,7 @@ export default function TrainingTab() {
             </article>
           </div>
         </section>
+        {trainingPanel === "qa" && !aiJudgeViewOpen ? <QuestionRevisionPanel /> : null}
       </div>
     );
   };
