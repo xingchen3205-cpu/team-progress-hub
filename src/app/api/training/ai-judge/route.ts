@@ -31,7 +31,10 @@ export async function POST(request: NextRequest) {
     if (!sessionId) return NextResponse.json({ message: "训练会话不存在" }, { status: 400 });
     if (!questionId) return NextResponse.json({ message: "请选择要训练的题目" }, { status: 400 });
 
-    const transcript = normalizeTrainingAnswer(body?.transcript);
+    if (!body?.transcript?.trim()) {
+      return NextResponse.json({ message: "请先输入回答内容，或完成语音回答并确认转写内容" }, { status: 400 });
+    }
+    const transcript = normalizeTrainingAnswer(body.transcript);
     const turnNumber = validateTrainingTurnNumber(body?.turnNumber);
     const session = await prisma.aiTrainingSession.findFirst({
       where: { id: sessionId, createdById: user.id, status: "active" },

@@ -157,11 +157,11 @@ test("training center supports web voice AI judge practice", () => {
   assert.match(trainingTabSource, /webkitSpeechRecognition/);
   assert.match(trainingTabSource, /SpeechRecognition/);
   assert.match(trainingTabSource, /MediaRecorder/);
-  assert.match(trainingTabSource, /开始回答/);
-  assert.match(trainingTabSource, /确认转写/);
-  assert.match(trainingTabSource, /提交点评/);
+  assert.match(trainingTabSource, /开始语音录入/);
+  assert.match(trainingTabSource, /确认文字回答/);
+  assert.match(trainingTabSource, /确认回答并开始评分/);
   assert.match(trainingTabSource, /继续追问/);
-  assert.match(trainingTabSource, /仅修正语音识别错误/);
+  assert.match(trainingTabSource, /评分以此处最终确认的文字为准/);
   assert.match(trainingTabSource, /\/api\/training\/voice-transcripts/);
   assert.match(trainingTabSource, /\/api\/training\/ai-judge/);
 
@@ -223,7 +223,7 @@ test("training voice fallback lets users type an answer when speech recognition 
 
   assert.match(trainingTabSource, /enterManualAiJudgeAnswer/);
   assert.match(trainingTabSource, /可直接输入回答后提交点评/);
-  assert.match(trainingTabSource, /语音识别失败时，可以直接在这里输入你的回答/);
+  assert.match(trainingTabSource, /请输入完整回答；使用语音录入后，请检查并修正识别结果/);
   assert.doesNotMatch(trainingTabSource, /没有识别到有效语音内容，请重新回答/);
   assert.match(judgeRouteSource, /请先输入回答内容，或完成语音回答并确认转写内容/);
   assert.doesNotMatch(judgeRouteSource, /请先完成语音回答并确认转写内容/);
@@ -261,6 +261,24 @@ test("training AI judge opens as a dedicated workspace with judging progress", (
   assert.match(trainingTabSource, /AI 正在评估/);
   assert.match(trainingTabSource, /role="progressbar"/);
   assert.match(trainingTabSource, /aiJudgeStage === "judging"/);
+});
+
+test("training AI judge uses a text-first scoring and revision workflow", () => {
+  const trainingTabSource = read("src/components/tabs/training-tab.tsx");
+  const resultsSource = read("src/components/training/ai-defense-results.tsx");
+
+  assert.match(trainingTabSource, /开始语音录入/);
+  assert.match(trainingTabSource, /确认回答并开始评分/);
+  assert.match(trainingTabSource, /修改回答并重新评分/);
+  assert.match(trainingTabSource, /结束本次训练/);
+  assert.match(trainingTabSource, /提交题库要点修订/);
+  assert.match(trainingTabSource, /修订申请审核中/);
+  assert.match(trainingTabSource, /aiJudgeSessionId/);
+  assert.match(trainingTabSource, /aiJudgeAttemptId/);
+  assert.match(trainingTabSource, /turnNumber:\s*aiJudgeTurns\.length \+ 1/);
+  assert.doesNotMatch(trainingTabSource, />\s*提交点评\s*</);
+  assert.match(resultsSource, /建议修订后的回答要点/);
+  assert.match(resultsSource, /修订说明/);
 });
 
 test("system administrator has a question bank center and everyone can export visible question banks", () => {

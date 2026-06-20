@@ -4,9 +4,17 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import * as Workspace from "@/components/workspace-context";
 import type { AiPermissionState } from "@/components/assistant/assistant-types";
+import { AiDefenseFeedbackDetails, QuestionRevisionForm } from "@/components/training/ai-defense-results";
 
 type TrainingJudgeFeedback = {
   score: number;
+  dimensions: {
+    questionResponse: number;
+    keyPointCoverage: number;
+    logicalStructure: number;
+    evidenceQuality: number;
+    expressionAccuracy: number;
+  };
   summary: string;
   hitPoints: string[];
   missingPoints: string[];
@@ -192,6 +200,14 @@ export default function TrainingTab() {
   const [aiJudgeLiveTranscript, setAiJudgeLiveTranscript] = useState("");
   const [aiJudgeFeedback, setAiJudgeFeedback] = useState<TrainingJudgeFeedback | null>(null);
   const [aiJudgeTurns, setAiJudgeTurns] = useState<TrainingJudgeTurn[]>([]);
+  const [aiJudgeSessionId, setAiJudgeSessionId] = useState("");
+  const [aiJudgeAttemptId, setAiJudgeAttemptId] = useState("");
+  const [aiJudgeSummary, setAiJudgeSummary] = useState<{ averageScore: number; strongestDimension: string; weakestDimension: string } | null>(null);
+  const [aiJudgeRevisionOpen, setAiJudgeRevisionOpen] = useState(false);
+  const [aiJudgeRevisionPoints, setAiJudgeRevisionPoints] = useState("");
+  const [aiJudgeRevisionReason, setAiJudgeRevisionReason] = useState("");
+  const [aiJudgeRevisionPending, setAiJudgeRevisionPending] = useState(false);
+  const [aiJudgeRevisionSubmitted, setAiJudgeRevisionSubmitted] = useState(false);
   const [aiJudgeError, setAiJudgeError] = useState("");
   const [aiJudgePermission, setAiJudgePermission] = useState<AiPermissionState | null>(null);
   const [aiJudgePermissionLoading, setAiJudgePermissionLoading] = useState(true);
@@ -603,20 +619,36 @@ export default function TrainingTab() {
     setAiJudgeError("");
 
     try {
+      let sessionId = aiJudgeSessionId;
+      if (!sessionId) {
+        const sessionResponse = await fetch("/api/training/ai-sessions", {
+          method: "POST",
+          credentials: "same-origin",
+        });
+        const sessionPayload = (await sessionResponse.json().catch(() => null)) as
+          | { session?: { id?: string }; message?: string }
+          | null;
+        if (!sessionResponse.ok || !sessionPayload?.session?.id) {
+          throw new Error(sessionPayload?.message || "训练会话创建失败");
+        }
+        sessionId = sessionPayload.session.id;
+        setAiJudgeSessionId(sessionId);
+      }
       const response = await fetch("/api/training/ai-judge", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "same-origin",
         cache: "no-store",
         body: JSON.stringify({
+          sessionId,
           questionId: currentAiJudgeQuestion.id,
           currentPrompt: currentAiJudgePrompt,
           transcript,
-          previousTurns: aiJudgeTurns,
+          turnNumber: aiJudgeTurns.length + 1,
         }),
       });
       const payload = (await response.json().catch(() => null)) as
-        | { feedback?: TrainingJudgeFeedback; message?: string; permission?: AiPermissionState }
+        | { feedback?: TrainingJudgeFeedback; attempt?: { id?: string }; message?: string; permission?: AiPermissionState }
         | null;
       if (!response.ok || !payload?.feedback) {
         throw new Error(payload?.message || "AI 模拟评委暂时不可用");
@@ -626,6 +658,7 @@ export default function TrainingTab() {
         setAiJudgePermission(payload.permission);
       }
       setAiJudgeTranscript(transcript);
+      setAiJudgeAttemptId(payload.attempt?.id ?? "");
       setAiJudgeFeedback(payload.feedback);
       setAiJudgeTurns((current) => [
         ...current,
@@ -643,12 +676,64 @@ export default function TrainingTab() {
   };
 
   const continueAiJudgeFollowUp = () => {
-    if (!aiJudgeFeedback?.followUpQuestion) {
+    if (!aiJudgeFeedback?.followUpQuestion || aiJudgeTurns.length >= 3) {
       return;
     }
 
     setAiJudgePrompt(aiJudgeFeedback.followUpQuestion);
     resetAiJudgeAnswer();
+  };
+
+  const completeAiJudgeSession = async () => {
+    if (!aiJudgeSessionId) return;
+    setAiJudgeError("");
+    try {
+      const response = await fetch(`/api/training/ai-sessions/${aiJudgeSessionId}/complete`, {
+        method: "POST",
+        credentials: "same-origin",
+      });
+      const payload = (await response.json().catch(() => null)) as
+        | { summary?: { averageScore: number; strongestDimension: string; weakestDimension: string }; message?: string }
+        | null;
+      if (!response.ok || !payload?.summary) throw new Error(payload?.message || "训练记录保存失败");
+      setAiJudgeSummary(payload.summary);
+    } catch (error) {
+      setAiJudgeError(error instanceof Error ? error.message : "训练记录保存失败");
+    }
+  };
+
+  const openAiJudgeRevision = () => {
+    setAiJudgeRevisionPoints(currentAiJudgeQuestion?.answerPoints ?? "");
+    setAiJudgeRevisionReason("");
+    setAiJudgeRevisionOpen(true);
+    setAiJudgeRevisionSubmitted(false);
+  };
+
+  const submitAiJudgeRevision = async () => {
+    if (!currentAiJudgeQuestion || !aiJudgeAttemptId) return;
+    setAiJudgeRevisionPending(true);
+    setAiJudgeError("");
+    try {
+      const response = await fetch("/api/training/question-revisions", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "same-origin",
+        body: JSON.stringify({
+          questionId: currentAiJudgeQuestion.id,
+          attemptId: aiJudgeAttemptId,
+          proposedAnswerPoints: aiJudgeRevisionPoints,
+          reason: aiJudgeRevisionReason,
+        }),
+      });
+      const payload = (await response.json().catch(() => null)) as { request?: { id: string }; message?: string } | null;
+      if (!response.ok || !payload?.request) throw new Error(payload?.message || "修订申请提交失败");
+      setAiJudgeRevisionOpen(false);
+      setAiJudgeRevisionSubmitted(true);
+    } catch (error) {
+      setAiJudgeError(error instanceof Error ? error.message : "修订申请提交失败");
+    } finally {
+      setAiJudgeRevisionPending(false);
+    }
   };
 
   const renderTraining = () => {
@@ -1030,17 +1115,17 @@ export default function TrainingTab() {
                   <p className="text-xs font-semibold text-blue-600">录音转写回答</p>
                   <p className="mt-1 text-sm text-slate-600">
                     {aiJudgeStage === "recording"
-                      ? `正在录音 ${formatSeconds(aiJudgeRecordingSeconds)}，回答完请点“结束回答”。`
+                      ? `正在录音 ${formatSeconds(aiJudgeRecordingSeconds)}，回答完请点“结束语音录入”。`
                       : aiJudgeStage === "transcribing"
                         ? "正在提交录音并进行服务端转写，请稍候。"
                         : aiJudgeStage === "judging"
                           ? "AI 正在对照题库要点点评，并准备下一轮追问。"
-                          : "点击开始回答，系统会录音并交由服务端转写为文字。"}
+                          : "可以直接输入文字，也可以使用语音录入后检查并修正识别结果。"}
                   </p>
                 </div>
                 {aiJudgeStage === "recording" ? (
                   <ActionButton onClick={stopAiJudgeRecording} variant="danger">
-                    结束回答
+                    结束语音录入
                   </ActionButton>
                 ) : (
                   <ActionButton
@@ -1053,7 +1138,7 @@ export default function TrainingTab() {
                     onClick={startAiJudgeRecording}
                     variant="primary"
                   >
-                    开始回答
+                    开始语音录入
                   </ActionButton>
                 )}
               </div>
@@ -1101,17 +1186,17 @@ export default function TrainingTab() {
                 </div>
               ) : null}
 
-              {aiJudgeStage === "editing" || aiJudgeStage === "feedback" || aiJudgeTranscript ? (
+              {currentAiJudgeQuestion ? (
                 <div className="mt-4 rounded-2xl border border-slate-200 bg-slate-50 p-4">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="text-sm font-semibold text-slate-900">确认转写</p>
-                    <span className="text-xs text-slate-400">仅修正语音识别错误；识别不可用时，也可以直接输入回答。</span>
+                    <p className="text-sm font-semibold text-slate-900">确认文字回答</p>
+                    <span className="text-xs text-slate-400">评分以此处最终确认的文字为准，语音仅用于辅助录入。</span>
                   </div>
                   <textarea
                     className={`${textareaClassName} mt-3 min-h-[128px]`}
                     disabled={aiJudgeAccessBlocked || aiJudgeStage === "judging" || aiJudgeStage === "transcribing"}
                     onChange={(event) => setAiJudgeTranscriptDraft(event.target.value)}
-                    placeholder="语音识别失败时，可以直接在这里输入你的回答，再提交点评。"
+                    placeholder="请输入完整回答；使用语音录入后，请检查并修正识别结果。"
                     value={aiJudgeTranscriptDraft}
                   />
                   <div className="mt-3 flex flex-wrap gap-2">
@@ -1120,7 +1205,7 @@ export default function TrainingTab() {
                       onClick={submitAiJudgeFeedback}
                       variant="primary"
                     >
-                      提交点评
+                      确认回答并开始评分
                     </ActionButton>
                     <ActionButton disabled={aiJudgeStage === "judging"} onClick={resetAiJudgeAnswer}>
                       重新回答
@@ -1142,47 +1227,9 @@ export default function TrainingTab() {
                     </div>
                   </div>
 
-                  <div className="mt-4 grid gap-3 lg:grid-cols-3">
-                    {[
-                      { title: "命中要点", items: aiJudgeFeedback.hitPoints, tone: "emerald" },
-                      { title: "遗漏重点", items: aiJudgeFeedback.missingPoints, tone: "amber" },
-                      { title: "表达风险", items: aiJudgeFeedback.expressionRisks, tone: "rose" },
-                    ].map((block) => (
-                      <div className="min-h-[160px] rounded-xl border border-slate-100 bg-slate-50 p-4" key={block.title}>
-                        <p
-                          className={`text-xs font-semibold ${
-                            block.tone === "emerald"
-                              ? "text-emerald-600"
-                              : block.tone === "amber"
-                                ? "text-amber-600"
-                                : "text-rose-600"
-                          }`}
-                        >
-                          {block.title}
-                        </p>
-                        <ul className="mt-3 space-y-2 text-sm leading-6 text-slate-600">
-                          {block.items.length > 0 ? (
-                            block.items.map((item) => (
-                              <li className="rounded-lg bg-white/70 px-3 py-2" key={item}>
-                                {item}
-                              </li>
-                            ))
-                          ) : (
-                            <li className="rounded-lg bg-white/70 px-3 py-2">暂无明显记录</li>
-                          )}
-                        </ul>
-                      </div>
-                    ))}
-                  </div>
+                  <AiDefenseFeedbackDetails dimensions={aiJudgeFeedback.dimensions} expressionRisks={aiJudgeFeedback.expressionRisks} hitPoints={aiJudgeFeedback.hitPoints} improvedAnswer={aiJudgeFeedback.improvedAnswer} missingPoints={aiJudgeFeedback.missingPoints} />
 
-                  {aiJudgeFeedback.improvedAnswer ? (
-                    <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50/60 p-3">
-                      <p className="text-xs font-semibold text-blue-600">优化回答参考</p>
-                      <p className="mt-2 text-sm leading-7 text-slate-700">{aiJudgeFeedback.improvedAnswer}</p>
-                    </div>
-                  ) : null}
-
-                  {aiJudgeFeedback.followUpQuestion ? (
+                  {aiJudgeFeedback.followUpQuestion && aiJudgeTurns.length < 3 ? (
                     <div className="mt-4 rounded-xl border border-slate-200 bg-white p-3">
                       <p className="text-xs font-semibold text-slate-500">下一轮追问</p>
                       <p className="mt-2 text-base font-semibold leading-7 text-slate-900">
@@ -1193,6 +1240,27 @@ export default function TrainingTab() {
                           继续追问
                         </ActionButton>
                       </div>
+                    </div>
+                  ) : null}
+
+                  <div className="mt-4 flex flex-wrap gap-2 border-t border-slate-100 pt-4">
+                    <ActionButton onClick={() => setAiJudgeStage("editing")}>修改回答并重新评分</ActionButton>
+                    <ActionButton disabled={!aiJudgeAttemptId} onClick={openAiJudgeRevision}>提交题库要点修订</ActionButton>
+                    <ActionButton disabled={!aiJudgeSessionId} onClick={() => void completeAiJudgeSession()}>结束本次训练</ActionButton>
+                  </div>
+
+                  {aiJudgeRevisionSubmitted ? (
+                    <p className="mt-3 rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm text-emerald-700">修订申请审核中，审核结果将在系统通知中反馈。</p>
+                  ) : null}
+
+                  {aiJudgeRevisionOpen ? (
+                    <QuestionRevisionForm onCancel={() => setAiJudgeRevisionOpen(false)} onPointsChange={setAiJudgeRevisionPoints} onReasonChange={setAiJudgeRevisionReason} onSubmit={() => void submitAiJudgeRevision()} pending={aiJudgeRevisionPending} points={aiJudgeRevisionPoints} reason={aiJudgeRevisionReason} />
+                  ) : null}
+
+                  {aiJudgeSummary ? (
+                    <div className="mt-4 rounded-xl border border-emerald-100 bg-emerald-50 p-4">
+                      <p className="text-sm font-semibold text-emerald-800">本次训练已结束</p>
+                      <p className="mt-2 text-sm text-emerald-700">平均分 {aiJudgeSummary.averageScore} 分；表现较好：{aiJudgeSummary.strongestDimension}；后续重点：{aiJudgeSummary.weakestDimension}。</p>
                     </div>
                   ) : null}
                 </div>
