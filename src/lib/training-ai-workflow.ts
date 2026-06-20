@@ -33,3 +33,16 @@ export function validateTrainingTurnNumber(value: unknown) {
 export function canTransitionTrainingRevision(from: TrainingRevisionStatus, to: TrainingRevisionStatus) {
   return trainingRevisionTransitions[from].has(to);
 }
+
+export function canReviewTrainingRevision(
+  actor: { id: string; role: string; teamGroupId?: string | null },
+  request: { submittedById: string; questionCreatedById: string; teamGroupId?: string | null },
+) {
+  if (actor.id === request.submittedById) return false;
+  if (actor.role === "admin" || actor.role === "school_admin") return true;
+  if (actor.id === request.questionCreatedById) return true;
+  return (
+    (actor.role === "teacher" || actor.role === "leader") &&
+    Boolean(actor.teamGroupId && actor.teamGroupId === request.teamGroupId)
+  );
+}
