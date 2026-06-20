@@ -30,3 +30,28 @@ test("production has an idempotent AI defense schema provisioning script", () =>
   assert.match(script, /TrainingQuestionRevisionRequest/);
   assert.match(script, /CREATE (?:UNIQUE )?INDEX IF NOT EXISTS/);
 });
+
+test("AI judge uses a server-owned session and persists scored attempts", () => {
+  const judgeRoute = readFileSync("src/app/api/training/ai-judge/route.ts", "utf8");
+  assert.match(judgeRoute, /sessionId/);
+  assert.match(judgeRoute, /validateTrainingTurnNumber/);
+  assert.match(judgeRoute, /normalizeTrainingAnswer/);
+  assert.match(judgeRoute, /aiTrainingSession\.findFirst/);
+  assert.match(judgeRoute, /aiTrainingTurn\.upsert/);
+  assert.match(judgeRoute, /aiTrainingAttempt\.create/);
+  assert.doesNotMatch(judgeRoute, /previousTurns:\s*Array\.isArray\(body\?\.previousTurns\)/);
+});
+
+test("AI training session routes support creation, history, and completion", () => {
+  const sessionRoutePath = "src/app/api/training/ai-sessions/route.ts";
+  const completeRoutePath = "src/app/api/training/ai-sessions/[sessionId]/complete/route.ts";
+  assert.equal(existsSync(sessionRoutePath), true);
+  assert.equal(existsSync(completeRoutePath), true);
+  const sessionRoute = readFileSync(sessionRoutePath, "utf8");
+  const completeRoute = readFileSync(completeRoutePath, "utf8");
+  assert.match(sessionRoute, /export async function GET/);
+  assert.match(sessionRoute, /export async function POST/);
+  assert.match(completeRoute, /completedAt/);
+  assert.match(completeRoute, /weakestDimension/);
+  assert.match(completeRoute, /strongestDimension/);
+});
