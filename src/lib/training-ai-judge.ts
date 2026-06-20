@@ -12,6 +12,13 @@ export type TrainingJudgeTurn = {
 
 export type TrainingJudgeFeedback = {
   score: number;
+  dimensions: {
+    questionResponse: number;
+    keyPointCoverage: number;
+    logicalStructure: number;
+    evidenceQuality: number;
+    expressionAccuracy: number;
+  };
   summary: string;
   hitPoints: string[];
   missingPoints: string[];
@@ -20,13 +27,13 @@ export type TrainingJudgeFeedback = {
   followUpQuestion: string;
 };
 
-const clampScore = (value: unknown) => {
+const clampScore = (value: unknown, maximum = 100) => {
   const numericValue = Number(value);
   if (!Number.isFinite(numericValue)) {
     return 0;
   }
 
-  return Math.min(100, Math.max(0, Math.round(numericValue)));
+  return Math.min(maximum, Math.max(0, Math.round(numericValue)));
 };
 
 const normalizeStringArray = (value: unknown) => {
@@ -39,9 +46,21 @@ const normalizeStringArray = (value: unknown) => {
 
 const normalizeFeedback = (value: unknown): TrainingJudgeFeedback => {
   const payload = (value && typeof value === "object" ? value : {}) as Record<string, unknown>;
+  const rawDimensions =
+    payload.dimensions && typeof payload.dimensions === "object"
+      ? (payload.dimensions as Record<string, unknown>)
+      : {};
+  const dimensions = {
+    questionResponse: clampScore(rawDimensions.questionResponse, 20),
+    keyPointCoverage: clampScore(rawDimensions.keyPointCoverage, 20),
+    logicalStructure: clampScore(rawDimensions.logicalStructure, 20),
+    evidenceQuality: clampScore(rawDimensions.evidenceQuality, 20),
+    expressionAccuracy: clampScore(rawDimensions.expressionAccuracy, 20),
+  };
 
   return {
-    score: clampScore(payload.score),
+    score: Object.values(dimensions).reduce((total, score) => total + score, 0),
+    dimensions,
     summary: `${payload.summary ?? "AI 已完成点评，请结合命中要点继续复盘。"}`.trim(),
     hitPoints: normalizeStringArray(payload.hitPoints),
     missingPoints: normalizeStringArray(payload.missingPoints),
@@ -111,11 +130,18 @@ ${previousTurnsText}
 5. 标出空话、套话、夸大、没有支撑的表达风险。
 6. followUpQuestion 必须像真实评委追问，针对刚才回答的漏洞，不要泛泛而问。
 7. improvedAnswer 写一段学生下一次可以参考的 30-60 秒回答；没有依据的事实不要写进参考回答。
-8. 只返回 JSON，不要 Markdown，不要解释 JSON 外的任何文字。
+8. dimensions 必须分别评价问题回应、要点覆盖、逻辑结构、事实依据和表达准确性，每项 0 到 20 的整数。扣分必须能对应到具体缺失内容或具体文字。
+9. 只返回 JSON，不要 Markdown，不要解释 JSON 外的任何文字。
 
 JSON 格式：
 {
-  "score": 0到100的整数,
+  "dimensions": {
+    "questionResponse": 0到20的整数,
+    "keyPointCoverage": 0到20的整数,
+    "logicalStructure": 0到20的整数,
+    "evidenceQuality": 0到20的整数,
+    "expressionAccuracy": 0到20的整数
+  },
   "summary": "一句话总体评价",
   "hitPoints": ["命中要点1", "命中要点2"],
   "missingPoints": ["遗漏点1", "遗漏点2"],

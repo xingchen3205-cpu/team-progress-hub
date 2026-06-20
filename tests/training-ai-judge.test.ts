@@ -40,7 +40,13 @@ test("training judge prompt anchors feedback to source question and current foll
 test("training judge parser accepts fenced json and normalizes unsafe fields", () => {
   const feedback = parseTrainingJudgeResponse(`\`\`\`json
 {
-  "score": 135,
+  "dimensions": {
+    "questionResponse": 24,
+    "keyPointCoverage": 18,
+    "logicalStructure": 17,
+    "evidenceQuality": 16,
+    "expressionAccuracy": 15
+  },
   "summary": "回答有数据，但没有解释对比对象。",
   "hitPoints": ["有测试数据"],
   "missingPoints": ["缺少竞品对比"],
@@ -50,10 +56,36 @@ test("training judge parser accepts fenced json and normalizes unsafe fields", (
 }
 \`\`\``);
 
-  assert.equal(feedback.score, 100);
+  assert.deepEqual(feedback.dimensions, {
+    questionResponse: 20,
+    keyPointCoverage: 18,
+    logicalStructure: 17,
+    evidenceQuality: 16,
+    expressionAccuracy: 15,
+  });
+  assert.equal(feedback.score, 86);
   assert.deepEqual(feedback.hitPoints, ["有测试数据"]);
   assert.deepEqual(feedback.missingPoints, ["缺少竞品对比"]);
   assert.equal(feedback.followUpQuestion, "这个 18% 是和什么方案相比？");
+});
+
+test("training judge prompt requires five evidence-based scoring dimensions", () => {
+  const prompt = buildTrainingJudgePrompt({
+    sourceQuestion: {
+      category: "商业模式",
+      question: "项目如何形成持续收入？",
+      answerPoints: "付费客户、收入来源、成本结构、续费依据",
+    },
+    currentPrompt: "项目如何形成持续收入？",
+    transcript: "我们向企业客户收取年度服务费，并根据服务范围分档定价。",
+  });
+
+  assert.match(prompt, /questionResponse/);
+  assert.match(prompt, /keyPointCoverage/);
+  assert.match(prompt, /logicalStructure/);
+  assert.match(prompt, /evidenceQuality/);
+  assert.match(prompt, /expressionAccuracy/);
+  assert.match(prompt, /每项 0 到 20 的整数/);
 });
 
 test("training audio validation rejects empty and oversized recordings", () => {
