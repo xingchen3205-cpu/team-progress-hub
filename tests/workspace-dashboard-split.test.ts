@@ -301,12 +301,19 @@ test("system administrator has a question bank center and everyone can export vi
   const questionBankTabSource = read("src/components/tabs/question-bank-tab.tsx");
   const trainingTabSource = read("src/components/tabs/training-tab.tsx");
   const exportRouteSource = read("src/app/api/training/questions/export/route.ts");
-  const schoolAdminBlock = contextSource.match(/school_admin:\s*\{[\s\S]*?\n  teacher:/)?.[0] ?? "";
+  const adminVisibleTabsBlock =
+    contextSource.match(/const adminWorkspaceVisibleTabs = \[[\s\S]*?\] as TabKey\[\];/)?.[0] ?? "";
+  const adminSidebarTabsBlock =
+    contextSource.match(/const adminPrimarySidebarTabKeys = new Set<TabKey>\(\[[\s\S]*?\]\);/)?.[0] ?? "";
+  const adminBlock = contextSource.match(/admin:\s*\{[\s\S]*?\n  school_admin:/)?.[0] ?? "";
+  const schoolAdminBlock = contextSource.match(/school_admin:\s*\{[\s\S]*?\n  training_teacher:/)?.[0] ?? "";
 
   assert.match(contextSource, /\|\s*"questionBank"/);
   assert.match(contextSource, /key:\s*"questionBank"[\s\S]*?label:\s*"题库中心"/);
-  assert.match(contextSource, /admin:\s*\{[\s\S]*?"questionBank"/);
-  assert.doesNotMatch(schoolAdminBlock, /"questionBank"/);
+  assert.match(adminVisibleTabsBlock, /"questionBank"/);
+  assert.match(adminSidebarTabsBlock, /"questionBank"/);
+  assert.match(adminBlock, /visibleTabs:\s*adminWorkspaceVisibleTabs/);
+  assert.match(schoolAdminBlock, /visibleTabs:\s*adminWorkspaceVisibleTabs/);
   assert.match(contextSource, /case "questionBank":[\s\S]*?return \["trainingQuestions", "team"\]/);
   assert.match(dashboardSource, /QuestionBankTab/);
   assert.match(dashboardSource, /safeActiveTab === "questionBank"/);

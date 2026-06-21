@@ -1214,6 +1214,7 @@ const adminWorkspaceVisibleTabs = [
   "reports",
   "documents",
   "training",
+  "questionBank",
   "review",
   "team",
   "systemLogs",
@@ -1242,6 +1243,7 @@ const projectManagerVisibleTabs = [
 const adminPrimarySidebarTabKeys = new Set<TabKey>([
   "overview",
   "board",
+  "questionBank",
   "review",
   "team",
   "systemLogs",
