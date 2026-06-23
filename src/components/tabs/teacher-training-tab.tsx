@@ -765,9 +765,15 @@ export default function TeacherTrainingTab() {
     User,
     Users,
     fieldClassName,
-    surfaceCardClassName,
     textareaClassName,
   } = Workspace;
+  const teacherTrainingScrollableListClassName =
+    "max-h-[min(68vh,760px)] overflow-y-auto pr-1 overscroll-contain";
+  // 列表卡片在两栏布局里随对侧表单拉伸到等高，内部列表区填满剩余高度并自行滚动，
+  // 避免短列表在表单旁留下大块空白。
+  const teacherTrainingListCardClassName = "tt-card flex min-h-0 flex-col p-5";
+  const teacherTrainingFillingListClassName =
+    "min-h-0 flex-1 max-h-[min(68vh,760px)] overflow-y-auto pr-1 overscroll-contain";
 
   const selectedCohortId = activeTeacherTrainingCohortId;
   const setSelectedCohortId = setActiveTeacherTrainingCohortId;
@@ -2866,10 +2872,10 @@ export default function TeacherTrainingTab() {
     keys.includes(effectiveTeacherTrainingSection);
   const teacherTrainingManagementGridClassName =
     canManage && showTeacherTrainingSection("cohorts")
-      ? "xl:grid-cols-1"
+      ? "items-start xl:grid-cols-1"
       : canManage && showTeacherTrainingSection("participants")
-        ? "xl:grid-cols-[420px_minmax(0,1fr)]"
-        : "";
+        ? "items-stretch xl:grid-cols-[420px_minmax(0,1fr)]"
+        : "items-start";
   const getCheckInProgress = (task: Workspace.TeacherTrainingCheckInTaskItem) => {
     const total = selectedCohort?.participants.length ?? 0;
     const signed = task.records.length;
@@ -2898,7 +2904,7 @@ export default function TeacherTrainingTab() {
         </div>
       </div>
 
-      <div className="space-y-4 pb-16" id="teacher-training-content">
+      <div className="space-y-4" id="teacher-training-content">
           <section
             aria-label="省培操作提示"
             className="teacher-training-mobile-guide rounded-2xl border border-blue-100 bg-white/86 p-4 shadow-[0_18px_42px_rgba(26,111,212,0.12)] backdrop-blur transition duration-300 sm:hidden"
@@ -3120,32 +3126,34 @@ export default function TeacherTrainingTab() {
           ) : null}
 
           {canManage && showTeacherTrainingSection("overview") ? (
-            <section className="grid gap-3 md:grid-cols-3 xl:grid-cols-5" aria-label="省培详细数据">
+            <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5" aria-label="省培详细数据">
               {metricCards.map(({ label, value, Icon, onClick, title }) => (
                 <button
                   key={label}
                   aria-label={`查看省培${label}明细`}
-                  className="depth-subtle group rounded-2xl border border-white/70 p-4 text-left transition duration-200 hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-lg focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200/70"
+                  className="tt-stat group text-left focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200/70"
                   onClick={onClick}
                   title={title}
                   type="button"
                 >
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="text-sm text-slate-500">{label}</p>
-                    <Icon className="h-4 w-4 text-[#1a6fd4] transition group-hover:scale-110" />
+                  <div className="flex items-center justify-between gap-3 pl-1.5">
+                    <p className="tt-stat-label">{label}</p>
+                    <span className="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-[#1a6fd4]/10 text-[#1a6fd4] transition group-hover:bg-[#1a6fd4] group-hover:text-white">
+                      <Icon className="h-4 w-4" />
+                    </span>
                   </div>
-                  <p className="mt-3 text-2xl font-bold text-slate-950">{value}</p>
+                  <p className="tt-stat-value mt-2 pl-1.5">{value}</p>
                 </button>
               ))}
             </section>
           ) : null}
 
           {canManage && showTeacherTrainingSection("overview") ? (
-            <section className="grid gap-4 xl:grid-cols-[minmax(0,1.08fr)_minmax(320px,0.92fr)]" aria-label="班次指挥台">
-              <div className="depth-card overflow-hidden rounded-2xl border border-blue-100/80 bg-[linear-gradient(135deg,rgba(26,111,212,0.10),rgba(255,255,255,0.92)_42%,rgba(20,184,166,0.10))] p-5 shadow-[0_22px_60px_rgba(26,111,212,0.13)]">
+            <section className="grid items-stretch gap-5 xl:grid-cols-[minmax(0,1.08fr)_minmax(320px,0.92fr)]" aria-label="班次指挥台">
+              <div className="tt-card-accent flex flex-col gap-5 p-5">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                   <div className="min-w-0">
-                    <p className="text-xs font-semibold text-[#1a6fd4]">班次指挥台</p>
+                    <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#1a6fd4]">班次指挥台</p>
                     <h3 className="mt-2 text-2xl font-bold leading-8 text-slate-950">
                       {selectedCohort?.title ?? "暂无省培班次"}
                     </h3>
@@ -3155,62 +3163,40 @@ export default function TeacherTrainingTab() {
                         : "系统管理员可先创建班次，再维护名单、课程、签到、汇报和请假流程。"}
                     </p>
                   </div>
-                  <span className="inline-flex min-w-[76px] shrink-0 items-center justify-center whitespace-nowrap rounded-full border border-blue-200 bg-white/78 px-4 py-2 text-xs font-bold text-blue-700">
-                    {canManage ? "管理端" : "教师端"}
+                  <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-blue-200/70 bg-white/85 px-4 py-2 text-xs font-bold text-blue-700 shadow-sm">
+                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                    {selectedCohort ? "当前班次运行中" : "待建班"}
                   </span>
                 </div>
-                <div className="mt-4 rounded-2xl border border-white/75 bg-white/72 p-4">
-                  <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                    <div>
-                      <p className="text-sm font-bold text-slate-950">当前班次</p>
-                      <p className="mt-1 text-xs leading-5 text-slate-500">
-                        {selectedCohort
-                          ? `${selectedCohort.startDate} 至 ${selectedCohort.endDate}${selectedCohort.location ? ` · ${selectedCohort.location}` : ""}`
-                          : "请先创建或选择省培班次。"}
-                      </p>
-                    </div>
-                    <span className="w-fit rounded-full bg-blue-50 px-3 py-1 text-xs font-bold text-blue-700">
-                      {selectedCohort ? "当前班次运行中" : "待建班"}
-                    </span>
-                  </div>
-                  <div className="mt-3 grid gap-2 sm:grid-cols-3">
-                    {overviewSummaryCards.map((item) => (
-                      <button
-                        key={item.label}
-                        aria-label={item.title}
-                        className="rounded-xl border border-slate-200/70 bg-white/82 px-3 py-3 text-left transition hover:border-blue-200 hover:bg-blue-50/60 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200/70"
-                        onClick={item.onClick}
-                        title={item.title}
-                        type="button"
-                      >
-                        <p className="text-xs font-semibold text-slate-500">{item.label}</p>
-                        <p className="mt-1 text-2xl font-black text-slate-950">{item.value}</p>
-                        <p className="mt-1 text-xs text-slate-400">{item.helper}</p>
-                      </button>
-                    ))}
-                  </div>
+
+                <div className="grid gap-2.5 sm:grid-cols-3">
+                  {overviewSummaryCards.map((item) => (
+                    <button
+                      key={item.label}
+                      aria-label={item.title}
+                      className="tt-action-card px-4 py-3.5 text-left focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200/70"
+                      onClick={item.onClick}
+                      title={item.title}
+                      type="button"
+                    >
+                      <p className="text-xs font-semibold text-slate-500">{item.label}</p>
+                      <p className="mt-1.5 text-[26px] font-extrabold leading-none tracking-tight text-slate-950">{item.value}</p>
+                      <p className="mt-1.5 text-xs leading-4 text-slate-400">{item.helper}</p>
+                    </button>
+                  ))}
                 </div>
-                <div className="mt-4">
+
+                <div>
                   <div className="flex items-center justify-between gap-3">
-                    <p className="text-sm font-bold text-slate-950">核心待办</p>
-                    <span className="rounded-full bg-white/80 px-3 py-1 text-xs font-bold text-slate-600">
-                      按当前班次统计
-                    </span>
+                    <p className="tt-block-title">核心待办</p>
+                    <span className="tt-pill tt-pill-neutral">按当前班次统计</span>
                   </div>
                   <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
                     {managerCommandTodoCards.map((item) => (
                     <button
                       key={item.label}
                       aria-label={`查看省培${item.label}`}
-                      className={`group rounded-2xl border bg-white/84 p-4 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-lg focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200/70 ${
-                        item.tone === "amber"
-                          ? "border-amber-100 hover:border-amber-200"
-                          : item.tone === "rose"
-                            ? "border-rose-100 hover:border-rose-200"
-                            : item.tone === "emerald"
-                              ? "border-emerald-100 hover:border-emerald-200"
-                              : "border-blue-100 hover:border-blue-200"
-                      }`}
+                      className="tt-action-card group p-4 text-left focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200/70"
                       onClick={item.onClick}
                       title={`查看省培${item.label}`}
                       type="button"
@@ -3229,7 +3215,7 @@ export default function TeacherTrainingTab() {
                         >
                           <item.Icon className="h-4 w-4" />
                         </span>
-                        <span className="text-2xl font-black text-slate-950">{item.value}</span>
+                        <span className="text-[26px] font-extrabold leading-none tracking-tight text-slate-950">{item.value}</span>
                       </div>
                       <p className="mt-3 text-sm font-bold text-slate-950">{item.label}</p>
                       <p className="mt-1 text-xs leading-5 text-slate-500">{item.helper}</p>
@@ -3239,28 +3225,26 @@ export default function TeacherTrainingTab() {
                 </div>
               </div>
 
-              <div className="depth-subtle rounded-2xl border border-slate-200/70 bg-white/86 p-4">
+              <div className="tt-card flex flex-col p-5">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="text-sm font-bold text-slate-950">快捷入口</p>
-                    <p className="mt-1 text-xs leading-5 text-slate-500">常用管理动作集中进入。</p>
+                    <p className="tt-block-title">快捷入口</p>
+                    <p className="mt-1.5 text-xs leading-5 text-slate-500">常用管理动作集中进入。</p>
                   </div>
-                  <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-500">
-                    {managerCommandQuickLinks.length} 项
-                  </span>
+                  <span className="tt-pill">{managerCommandQuickLinks.length} 项</span>
                 </div>
-                <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-1">
+                <div className="mt-4 grid flex-1 content-start gap-3 sm:grid-cols-2 xl:grid-cols-1">
                   {managerCommandQuickLinks.map((item) => (
                     <button
                       key={item.label}
                       aria-label={`进入省培${item.label}`}
-                      className="group flex items-center justify-between gap-3 rounded-2xl border border-slate-200/70 bg-white/80 px-4 py-3 text-left shadow-sm transition hover:-translate-y-0.5 hover:border-blue-200 hover:bg-blue-50/70 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200/70"
+                      className="tt-action-card group flex items-center justify-between gap-3 px-4 py-3 text-left focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200/70"
                       onClick={item.onClick}
                       title={`进入省培${item.label}`}
                       type="button"
                     >
                       <span className="flex min-w-0 items-center gap-3">
-                        <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-700 transition group-hover:bg-white">
+                        <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-700 transition group-hover:bg-[#1a6fd4] group-hover:text-white">
                           <item.Icon className="h-4 w-4" />
                         </span>
                         <span className="min-w-0">
@@ -3268,7 +3252,7 @@ export default function TeacherTrainingTab() {
                           <span className="mt-0.5 block truncate text-xs text-slate-500">{item.helper}</span>
                         </span>
                       </span>
-                      <span className="text-sm font-black text-blue-700">进入</span>
+                      <span className="shrink-0 text-sm font-bold text-blue-700 transition group-hover:translate-x-0.5">进入 →</span>
                     </button>
                   ))}
                 </div>
@@ -3278,7 +3262,7 @@ export default function TeacherTrainingTab() {
 
           <div className={`grid gap-4 ${teacherTrainingManagementGridClassName}`}>
         {canManage && showTeacherTrainingSection("cohorts", "participants") ? (
-          <aside className={`${surfaceCardClassName} space-y-5`}>
+          <aside className="tt-card space-y-5 self-start p-5">
             <div>
               <p className="text-sm font-semibold text-slate-900">班次</p>
               <p className="mt-1 text-xs leading-5 text-slate-500">按账号权限切换可管理或可参与的省培班次。</p>
@@ -3305,24 +3289,22 @@ export default function TeacherTrainingTab() {
             </div>
 
             {showTeacherTrainingSection("cohorts") ? (
-              <div className="rounded-xl border border-slate-200/70 bg-white/70 p-4">
+              <div className="tt-subcard p-4">
                 <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                   <div>
-                    <p className="text-sm font-semibold text-slate-900">已设置班次</p>
-                    <p className="mt-1 text-xs leading-5 text-slate-500">
+                    <p className="tt-block-title">已设置班次</p>
+                    <p className="mt-1.5 text-xs leading-5 text-slate-500">
                       共 {teacherTrainingCohorts.length} 个班次，点击班次可切换到对应管理页。
                     </p>
                   </div>
-                  <span className="inline-flex h-8 shrink-0 items-center rounded-full bg-blue-50 px-3 text-xs font-bold text-blue-700">
-                    班次总数 {teacherTrainingCohorts.length}
-                  </span>
+                  <span className="tt-pill">{teacherTrainingCohorts.length} 个</span>
                 </div>
                 {teacherTrainingCohorts.length === 0 ? (
                   <p className="mt-3 rounded-xl border border-dashed border-slate-200 bg-white/70 px-3 py-4 text-center text-xs text-slate-400">
                     暂无已设置班次。
                   </p>
                 ) : (
-                  <div className="mt-3 space-y-3">
+                  <div className={`mt-3 space-y-3 ${teacherTrainingScrollableListClassName}`}>
                     {teacherTrainingCohorts.map((cohort) => (
                       <div
                         key={cohort.id}
@@ -3391,10 +3373,12 @@ export default function TeacherTrainingTab() {
             ) : null}
 
             {canShowCohortDraftForm && showTeacherTrainingSection("cohorts") ? (
-            <div className="rounded-xl border border-slate-200/70 bg-white/70 p-4">
-              <div className="flex items-center gap-2">
-                <Plus className="h-4 w-4 text-[#1a6fd4]" />
-                <p className="text-sm font-semibold text-slate-900">
+            <div className="tt-subcard p-4">
+              <div className="flex items-center gap-2.5">
+                <span className="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-[#1a6fd4]/10 text-[#1a6fd4]">
+                  <Plus className="h-4 w-4" />
+                </span>
+                <p className="text-[15px] font-bold text-slate-950">
                   {cohortDraft.id ? "正在修改班次" : "新建省培班次"}
                 </p>
               </div>
@@ -3475,12 +3459,14 @@ export default function TeacherTrainingTab() {
             ) : null}
 
             {canManage && showTeacherTrainingSection("participants") ? (
-              <div className="rounded-xl border border-slate-200/70 bg-white/70 p-4">
-                <div className="flex items-center gap-2">
-                  <Users className="h-4 w-4 text-[#1a6fd4]" />
+              <div className="tt-subcard p-4">
+                <div className="flex items-center gap-2.5">
+                  <span className="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-[#1a6fd4]/10 text-[#1a6fd4]">
+                    <Users className="h-4 w-4" />
+                  </span>
                   <div>
-                    <p className="text-sm font-semibold text-slate-900">参训教师中心</p>
-                    <p className="mt-1 text-xs leading-5 text-slate-500">新增省培教师账号，也可绑定已有平台账号。</p>
+                    <p className="text-[15px] font-bold text-slate-950">参训教师中心</p>
+                    <p className="mt-0.5 text-xs leading-5 text-slate-500">新增省培教师账号，也可绑定已有平台账号。</p>
                   </div>
                 </div>
                 <div className="mt-3 space-y-3">
@@ -3663,11 +3649,13 @@ export default function TeacherTrainingTab() {
             ) : null}
 
             {canCreateTeacherTrainingCohort && selectedCohort && showTeacherTrainingSection("cohorts") ? (
-              <div className="rounded-xl border border-slate-200/70 bg-white/70 p-4">
-                <div className="flex items-center gap-2">
-                  <User className="h-4 w-4 text-[#1a6fd4]" />
+              <div className="tt-subcard p-4">
+                <div className="flex items-center gap-2.5">
+                  <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[#1a6fd4]/10 text-[#1a6fd4]">
+                    <User className="h-4 w-4" />
+                  </span>
                   <div>
-                    <p className="text-sm font-semibold text-slate-900">班次负责人/班主任设置</p>
+                    <p className="text-[15px] font-bold text-slate-950">班次负责人/班主任设置</p>
                     <p className="mt-1 text-xs leading-5 text-slate-500">
                       负责人显示在班主任前面；两者省培管理权限一致，请假审批顺序以请假审批模块配置为准。
                     </p>
@@ -3799,7 +3787,7 @@ export default function TeacherTrainingTab() {
 
         <div className="space-y-4">
           {!selectedCohort ? (
-            <div className={surfaceCardClassName}>
+            <div className="tt-card p-5">
               <EmptyState
                 description="先创建一个省培班次，再维护名单、签到、任务和汇报。"
                 icon={ClipboardCheck}
@@ -3809,7 +3797,7 @@ export default function TeacherTrainingTab() {
           ) : (
             <>
               {!showTeacherTrainingSection("overview") ? (
-              <section className={surfaceCardClassName}>
+              <section className="tt-card p-5">
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                   <div>
                     <p className="text-xs font-semibold text-[#1a6fd4]">当前班次</p>
@@ -3848,29 +3836,36 @@ export default function TeacherTrainingTab() {
 
               {showTeacherTrainingSection("courses") ? (
               canManage ? (
-              <section className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(420px,460px)]">
-                <div className={surfaceCardClassName}>
-                  <div className="flex items-center justify-between gap-3">
+              <section className="grid items-stretch gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(420px,460px)]">
+                <div className={teacherTrainingListCardClassName}>
+                  <div className="flex items-start justify-between gap-3">
                     <div>
-                      <p className="text-sm font-semibold text-slate-900">课程安排</p>
-                      <p className="mt-1 text-xs leading-5 text-slate-500">
+                      <p className="tt-block-title">课程安排</p>
+                      <p className="mt-1.5 text-xs leading-5 text-slate-500">
                         参训教师登录省培账号后，只看到自己班次的课程设置安排。
                       </p>
                     </div>
-                    <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
-                      {courseSessions.length} 节
-                    </span>
+                    <span className="tt-pill">{courseSessions.length} 节</span>
                   </div>
-                  <div className="mt-4 grid gap-3">
+                  <div className={`mt-4 grid gap-3 ${teacherTrainingFillingListClassName}`}>
                     {courseSessions.length === 0 ? (
-                      <EmptyState description="在课程安排模块添加课程后，教师端会同步显示课程表。" icon={CalendarDays} title="暂无课程安排" />
+                      <div className="tt-empty-fill">
+                        <span className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-50 text-[#1a6fd4]">
+                          <CalendarDays className="h-6 w-6" />
+                        </span>
+                        <p className="text-sm font-semibold text-slate-700">暂无课程安排</p>
+                        <p className="max-w-[260px] text-xs leading-5 text-slate-400">
+                          在右侧添加课程后，教师端会同步显示课程表。
+                        </p>
+                      </div>
                     ) : (
                       courseSessions.map((course) => (
-                        <article key={course.id} className="rounded-xl border border-slate-200/75 bg-white/72 p-4">
-                          <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                        <article key={course.id} className="tt-action-card group p-4">
+                          <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                             <div className="min-w-0">
                               <div className="flex flex-wrap items-center gap-2">
-                                <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-500">
+                                <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
+                                  <CalendarDays className="h-3.5 w-3.5 text-slate-400" />
                                   {course.courseDate}
                                   {course.startTime ? ` ${course.startTime}` : ""}
                                   {course.endTime ? `-${course.endTime}` : ""}
@@ -3880,20 +3875,20 @@ export default function TeacherTrainingTab() {
                                     {course.location}
                                   </span>
                                 ) : null}
+                                {course.instructor ? (
+                                  <span className="rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-semibold text-emerald-700">
+                                    {course.instructor}
+                                  </span>
+                                ) : null}
                               </div>
-                              <p className="mt-3 font-semibold text-slate-950">{course.title}</p>
+                              <p className="mt-2.5 font-semibold text-slate-950">{course.title}</p>
                               {course.description ? (
                                 <p className="mt-1 text-sm leading-6 text-slate-500">{course.description}</p>
                               ) : null}
                             </div>
-                            {course.instructor ? (
-                              <span className="shrink-0 rounded-full bg-emerald-50 px-3 py-1 text-xs font-semibold text-emerald-700">
-                                {course.instructor}
-                              </span>
-                            ) : null}
-                            <div className="flex shrink-0 gap-2">
+                            <div className="flex shrink-0 gap-2 sm:opacity-0 sm:transition sm:group-hover:opacity-100">
                               <button
-                                className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-600"
+                                className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-600 transition hover:border-blue-200 hover:text-blue-700"
                                 onClick={() => editCourseSession(course)}
                                 type="button"
                               >
@@ -3901,7 +3896,7 @@ export default function TeacherTrainingTab() {
                                 修改
                               </button>
                               <button
-                                className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-2.5 text-xs font-semibold text-rose-600"
+                                className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-2.5 text-xs font-semibold text-rose-600 transition hover:bg-rose-100"
                                 onClick={() => void removeCourseSession(course)}
                                 type="button"
                               >
@@ -3916,10 +3911,12 @@ export default function TeacherTrainingTab() {
                   </div>
                 </div>
 
-                <div className={surfaceCardClassName}>
-                  <div className="flex items-center gap-2">
-                    <CalendarDays className="h-4 w-4 text-[#1a6fd4]" />
-                    <p className="text-sm font-semibold text-slate-900">新增课程</p>
+                <div className="tt-card p-5">
+                  <div className="flex items-center gap-2.5">
+                    <span className="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-[#1a6fd4]/10 text-[#1a6fd4]">
+                      <CalendarDays className="h-4 w-4" />
+                    </span>
+                    <p className="text-[15px] font-bold text-slate-950">新增课程</p>
                   </div>
                   <div className="mt-4 space-y-3">
                     <label className={teacherTrainingFieldShellClassName}>
@@ -4075,15 +4072,13 @@ export default function TeacherTrainingTab() {
                 </div>
               </section>
               ) : (
-              <section className={surfaceCardClassName}>
+              <section className="tt-card p-5">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <p className="text-sm font-semibold text-slate-900">课程安排</p>
-                    <p className="mt-1 text-xs leading-5 text-slate-500">按时间顺序查看全部课程、地点和授课教师。</p>
+                    <p className="tt-block-title">课程安排</p>
+                    <p className="mt-1.5 text-xs leading-5 text-slate-500">按时间顺序查看全部课程、地点和授课教师。</p>
                   </div>
-                  <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
-                    {courseSessions.length} 节
-                  </span>
+                  <span className="tt-pill">{courseSessions.length} 节</span>
                 </div>
                 <div className="mt-4 grid gap-3">
                   {courseSessions.length === 0 ? (
@@ -4130,26 +4125,24 @@ export default function TeacherTrainingTab() {
               ) : null}
 
               {showTeacherTrainingSection("checkins") ? (
-              <section className={surfaceCardClassName}>
+              <section className="tt-card p-5">
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                   <div>
-                    <p className="text-sm font-semibold text-slate-900">
+                    <p className="tt-block-title">
                       {canManage ? "发布签到任务" : "课程定位签到"}
                     </p>
-                    <p className="mt-1 text-xs leading-5 text-slate-500">
+                    <p className="mt-1.5 text-xs leading-5 text-slate-500">
                       {canManage
                         ? "为当天课程发布定位签到，参训教师在省培账号里自行完成签到。"
                         : "到达授课地点后点击定位签到，管理员可导出最终课程签到名单。"}
                     </p>
                   </div>
-                  <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
-                    {selectedCohort.checkInTasks.length} 个任务
-                  </span>
+                  <span className="tt-pill">{selectedCohort.checkInTasks.length} 个任务</span>
                 </div>
 
                 {canManage ? (
-                  <div className="mt-4 grid gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
-                    <div className="grid gap-3 md:grid-cols-2">
+                  <div className="mt-4 grid items-stretch gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
+                    <div className="grid content-start gap-3 md:grid-cols-2">
                       <label className={teacherTrainingFieldShellClassName}>
                         <span className={teacherTrainingFieldLabelClassName}>签到标题</span>
                         <input
@@ -4285,12 +4278,10 @@ export default function TeacherTrainingTab() {
                       {locationMessage ? <p className="text-xs text-slate-500 md:col-span-2">{locationMessage}</p> : null}
                     </div>
 
-                    <div className="rounded-xl border border-slate-200/75 bg-white/72 p-4">
+                    <div className="tt-subcard flex min-h-0 flex-col p-4">
                       <div className="flex items-center justify-between gap-3">
-                        <p className="text-sm font-bold text-slate-950">签到进度</p>
-                        <span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-semibold text-blue-700">
-                          {selectedCohort.checkInTasks.length} 场
-                        </span>
+                        <p className="text-[15px] font-bold text-slate-950">签到进度</p>
+                        <span className="tt-pill">{selectedCohort.checkInTasks.length} 场</span>
                       </div>
                       <label className={`${teacherTrainingFieldShellClassName} mt-3`}>
                         <span className={teacherTrainingFieldLabelClassName}>搜索课程签到教师</span>
@@ -4313,9 +4304,15 @@ export default function TeacherTrainingTab() {
                             : undefined
                         }
                       />
-                      <div className="mt-3 space-y-3">
+                      <div className={`mt-3 space-y-3 ${teacherTrainingFillingListClassName}`}>
                         {filteredCheckInTasks.length === 0 ? (
-                          <EmptyState description="发布后会在这里显示签到进度。" icon={MapPin} title="暂无课程签到" />
+                          <div className="tt-empty-fill">
+                            <span className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-50 text-[#1a6fd4]">
+                              <MapPin className="h-6 w-6" />
+                            </span>
+                            <p className="text-sm font-semibold text-slate-700">暂无课程签到</p>
+                            <p className="max-w-[240px] text-xs leading-5 text-slate-400">发布签到任务后，这里会显示各场签到进度。</p>
+                          </div>
                         ) : (
                           filteredCheckInTasks.map((task) => {
                             const windowState = Workspace.getTeacherTrainingCheckInWindowState(task, checkInNow);
@@ -4550,13 +4547,13 @@ export default function TeacherTrainingTab() {
               ) : null}
 
               {showTeacherTrainingSection("leave") ? (
-              <section className={surfaceCardClassName}>
+              <section className="tt-card p-5">
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                   <div>
-                    <p className="text-sm font-semibold text-slate-900">
+                    <p className="tt-block-title">
                       {canManage ? "请假审批" : "临时请假"}
                     </p>
-                    <p className="mt-1 text-xs leading-5 text-slate-500">
+                    <p className="mt-1.5 text-xs leading-5 text-slate-500">
                       {canConfigureTeacherTrainingLeaveFlow
                         ? "系统管理员维护审批规则，管理人员按规则处理请假申请。"
                         : canManage
@@ -4564,9 +4561,7 @@ export default function TeacherTrainingTab() {
                         : "临时请假会按管理员配置的审批步骤流转，最终批准后自动写入请假签到记录。"}
                     </p>
                   </div>
-                  <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-500">
-                    {selectedCohort.leaveRequests.length} 条请假
-                  </span>
+                  <span className="tt-pill tt-pill-neutral">{selectedCohort.leaveRequests.length} 条请假</span>
                 </div>
 
                 {canManage ? (
@@ -4884,7 +4879,7 @@ export default function TeacherTrainingTab() {
                   </div>
                   </>
                 ) : (
-                  <div className="mt-4 grid gap-4 xl:grid-cols-[420px_minmax(0,1fr)]">
+                  <div className="mt-4 grid items-start gap-4 xl:grid-cols-[420px_minmax(0,1fr)]">
                     <div className="rounded-xl border border-slate-200/75 bg-white/72 p-4">
                       <p className="text-sm font-semibold text-slate-900">提交请假</p>
                       <div className="mt-3 grid gap-3 sm:grid-cols-2">
@@ -5127,10 +5122,12 @@ export default function TeacherTrainingTab() {
               ) : null}
 
               {!canManage && showTeacherTrainingSection("profile") ? (
-              <section className={surfaceCardClassName}>
-                <div className="flex items-center gap-2">
-                  <User className="h-4 w-4 text-[#1a6fd4]" />
-                  <p className="text-sm font-semibold text-slate-900">个人信息</p>
+              <section className="tt-card p-5">
+                <div className="flex items-center gap-2.5">
+                  <span className="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-[#1a6fd4]/10 text-[#1a6fd4]">
+                    <User className="h-4 w-4" />
+                  </span>
+                  <p className="text-[15px] font-bold text-slate-950">个人信息</p>
                 </div>
                 <div
                   aria-label="省培个人资料状态"
@@ -5340,14 +5337,14 @@ export default function TeacherTrainingTab() {
               ) : null}
 
               {canManage && showTeacherTrainingSection("participants") ? (
-              <section className={surfaceCardClassName}>
+              <section className={teacherTrainingListCardClassName}>
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                   <div>
-                    <p className="text-sm font-semibold text-slate-900">参训教师名单</p>
-                    <p className="mt-1 text-xs leading-5 text-slate-500">集中查看省培教师、账号状态、预计到达和预录扩展信息。</p>
+                    <p className="tt-block-title">参训教师名单</p>
+                    <p className="mt-1.5 text-xs leading-5 text-slate-500">集中查看省培教师、账号状态、预计到达和预录扩展信息。</p>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
-                    <span className="rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
+                    <span className="tt-pill">
                       {filteredParticipants.length}/{selectedCohort.participants.length} 人
                     </span>
                     <button
@@ -5364,11 +5361,11 @@ export default function TeacherTrainingTab() {
                   </div>
                 </div>
 
-                <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-4" aria-label="参训教师账号状态总览">
+                <div className="mt-4 grid gap-2.5 sm:grid-cols-2 xl:grid-cols-4" aria-label="参训教师账号状态总览">
                   {participantAccountStatusSummary.map((item) => (
                     <button
                       key={item.label}
-                      className={`rounded-2xl border px-4 py-3 text-left transition hover:-translate-y-0.5 hover:shadow-sm ${
+                      className={`relative overflow-hidden rounded-2xl border px-4 py-3 text-left transition hover:-translate-y-0.5 hover:shadow-[0_14px_30px_-18px_rgba(15,45,91,0.4)] ${
                         item.tone === "amber"
                           ? "border-amber-100 bg-amber-50/70 text-amber-800"
                           : item.tone === "emerald"
@@ -5380,8 +5377,8 @@ export default function TeacherTrainingTab() {
                       onClick={() => setParticipantAccountFilter(item.label === "未绑定账号" ? "unbound" : "all")}
                       type="button"
                     >
-                      <span className="text-xs font-semibold">{item.label}</span>
-                      <strong className="mt-1 block text-2xl">{item.value}</strong>
+                      <span className="text-xs font-semibold opacity-80">{item.label}</span>
+                      <strong className="mt-1 block text-[26px] font-extrabold leading-none tracking-tight">{item.value}</strong>
                     </button>
                   ))}
                 </div>
@@ -5437,14 +5434,22 @@ export default function TeacherTrainingTab() {
                   }
                 />
 
-                <div className="mt-4 grid gap-3">
+                <div className={`mt-4 grid gap-3 ${teacherTrainingFillingListClassName}`}>
                   {filteredParticipants.length === 0 ? (
-                    <EmptyState description="在参训教师模块添加名单后，这里会显示账号和预录信息。" icon={Users} title="名单为空" />
+                    <div className="tt-empty-fill">
+                      <span className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-50 text-[#1a6fd4]">
+                        <Users className="h-6 w-6" />
+                      </span>
+                      <p className="text-sm font-semibold text-slate-700">名单为空</p>
+                      <p className="max-w-[260px] text-xs leading-5 text-slate-400">
+                        在左侧录入参训教师后，这里会显示账号和预录信息。
+                      </p>
+                    </div>
                   ) : (
                     filteredParticipants.map((participant) => (
                       <article
                         key={participant.id}
-                        className="grid gap-3 rounded-2xl border border-slate-200/75 bg-white/78 p-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center"
+                        className="tt-action-card grid gap-3 p-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center"
                       >
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
@@ -5611,17 +5616,17 @@ export default function TeacherTrainingTab() {
               ) : null}
 
               {canManage && showTeacherTrainingSection("attendance") ? (
-              <section className={surfaceCardClassName}>
+              <section className="tt-card p-5">
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                   <div>
-                    <p className="text-sm font-semibold text-slate-900">参训教师报到</p>
-                    <p className="mt-1 text-xs leading-5 text-slate-500">
+                    <p className="tt-block-title">参训教师报到</p>
+                    <p className="mt-1.5 text-xs leading-5 text-slate-500">
                       所有人默认待报到；点击报到后确认酒店房号和材料情况，系统自动记录报到时间。
                     </p>
                   </div>
-                  <div className="rounded-xl border border-slate-200 bg-white/80 px-3 py-2 text-xs text-slate-500">
+                  <span className="tt-pill tt-pill-success">
                     已报到 {selectedCohort?.stats.presentCount ?? 0} / {selectedCohort?.stats.participantCount ?? 0}
-                  </div>
+                  </span>
                 </div>
 
                 <div className="mt-4 flex flex-col gap-2 rounded-2xl border border-slate-100 bg-white/70 p-2 sm:flex-row sm:items-center sm:justify-between">
@@ -5674,9 +5679,15 @@ export default function TeacherTrainingTab() {
 
                 <div className="mt-4 overflow-hidden rounded-xl border border-slate-200/75">
                   {filteredAttendanceParticipants.length === 0 ? (
-                    <EmptyState description="在参训教师模块添加名单后，这里会出现报到登记列表。" icon={Users} title="名单为空" />
+                    <div className="flex flex-col items-center justify-center gap-2.5 px-4 py-12 text-center">
+                      <span className="inline-flex h-14 w-14 items-center justify-center rounded-2xl bg-blue-50 text-[#1a6fd4]">
+                        <Users className="h-6 w-6" />
+                      </span>
+                      <p className="text-sm font-semibold text-slate-700">名单为空</p>
+                      <p className="max-w-[260px] text-xs leading-5 text-slate-400">在参训教师模块添加名单后，这里会出现报到登记列表。</p>
+                    </div>
                   ) : (
-                    <div className="divide-y divide-slate-100">
+                    <div className={`divide-y divide-slate-100 ${teacherTrainingScrollableListClassName}`}>
                       <div className="hidden grid-cols-[minmax(0,1.4fr)_120px_120px_120px_auto] gap-3 bg-slate-50 px-4 py-2 text-xs font-semibold text-slate-500 lg:grid">
                         <span>教师与单位</span>
                         <span>报到状态</span>
@@ -5880,24 +5891,22 @@ export default function TeacherTrainingTab() {
               ) : null}
 
               {showTeacherTrainingSection("tasks") ? (
-              <section className={showTeacherTrainingSubmissionForm ? "grid gap-4 xl:grid-cols-2" : "grid gap-4"}>
+              <section className={showTeacherTrainingSubmissionForm ? "grid items-stretch gap-4 xl:grid-cols-2" : "grid items-start gap-4"}>
                 {canManage ? (
-                <div className={surfaceCardClassName}>
+                <div className="tt-card p-5">
                   <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                     <div className="flex items-start gap-3">
-                      <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-700">
+                      <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#1a6fd4]/10 text-[#1a6fd4]">
                         <FileText className="h-4 w-4" />
                       </span>
                       <div>
-                        <p className="text-sm font-semibold text-slate-900">发布任务</p>
+                        <p className="text-[15px] font-bold text-slate-950">发布任务</p>
                         <p className="mt-1 text-xs leading-5 text-slate-500">
                           管理者只发布任务，参训教师登录后自行填写汇报。
                         </p>
                       </div>
                     </div>
-                    <span className="w-fit rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-500">
-                      {selectedCohort.tasks.length} 项任务
-                    </span>
+                    <span className="tt-pill tt-pill-neutral">{selectedCohort.tasks.length} 项任务</span>
                   </div>
                   <div className="mt-4 grid gap-3 lg:grid-cols-2">
                     <label className={teacherTrainingFieldShellClassName}>
@@ -5976,10 +5985,12 @@ export default function TeacherTrainingTab() {
                 ) : null}
 
                 {showTeacherTrainingSubmissionForm ? (
-                <div className={surfaceCardClassName} id="teacher-training-submission-form">
-                  <div className="flex items-center gap-2">
-                    <Send className="h-4 w-4 text-[#1a6fd4]" />
-                    <p className="text-sm font-semibold text-slate-900">填写汇报</p>
+                <div className="tt-card p-5" id="teacher-training-submission-form">
+                  <div className="flex items-center gap-2.5">
+                    <span className="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-[#1a6fd4]/10 text-[#1a6fd4]">
+                      <Send className="h-4 w-4" />
+                    </span>
+                    <p className="text-[15px] font-bold text-slate-950">填写汇报</p>
                   </div>
                   {!canManage ? (
                     <div
@@ -6240,17 +6251,15 @@ export default function TeacherTrainingTab() {
               ) : null}
 
               {showTeacherTrainingSection("tasks") ? (
-              <section className={surfaceCardClassName}>
+              <section className="tt-card p-5">
                 <div className="flex items-center justify-between gap-3">
                   <div>
-                    <p className="text-sm font-semibold text-slate-900">任务汇报概览</p>
-                    <p className="mt-1 text-xs text-slate-500">
+                    <p className="tt-block-title">任务汇报概览</p>
+                    <p className="mt-1.5 text-xs text-slate-500">
                       {canManage ? "管理员可按班次导出全部任务完成情况。" : "查看我的任务提交记录和完成情况。"}
                     </p>
                   </div>
-                  <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-500">
-                    {selectedCohort.tasks.length} 项任务
-                  </span>
+                  <span className="tt-pill tt-pill-neutral">{selectedCohort.tasks.length} 项任务</span>
                 </div>
                 {canManage ? (
                   <div className="mt-4 grid gap-3">
@@ -6439,20 +6448,18 @@ export default function TeacherTrainingTab() {
               ) : null}
 
               {canManage && showTeacherTrainingSection("exports") ? (
-                <section className={surfaceCardClassName}>
+                <section className="tt-card p-5">
                   <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                     <div>
-                      <p className="text-sm font-semibold text-slate-900">导出归档</p>
-                      <p className="mt-1 text-xs leading-5 text-slate-500">
+                      <p className="tt-block-title">导出归档</p>
+                      <p className="mt-1.5 text-xs leading-5 text-slate-500">
                         导出名单、报到信息、课程签到和任务汇报，按当前班次生成归档材料。
                       </p>
                       <p className="mt-1 text-xs leading-5 text-slate-400">
                         导出可能需要几十秒，按钮转圈时请不要重复点击。
                       </p>
                     </div>
-                    <span className="rounded-full bg-slate-100 px-3 py-1 text-xs font-semibold text-slate-500">
-                      {selectedCohort.title}
-                    </span>
+                    <span className="tt-pill">{selectedCohort.title}</span>
                   </div>
                   {exportStatus ? (
                     <p className="mt-4 rounded-xl border border-blue-100 bg-white/80 px-4 py-3 text-xs font-semibold leading-5 text-blue-700">
@@ -6465,7 +6472,7 @@ export default function TeacherTrainingTab() {
                       return (
                       <button
                         key={item.type}
-                        className="group rounded-2xl border border-slate-200/75 bg-white/76 p-4 text-left shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-xl hover:shadow-blue-900/10 disabled:cursor-wait disabled:opacity-70 disabled:hover:translate-y-0 disabled:hover:shadow-sm"
+                        className="tt-action-card group p-4 text-left disabled:cursor-wait disabled:opacity-70 disabled:hover:translate-y-0 disabled:hover:shadow-sm"
                         aria-label={`${item.label}：${item.description}`}
                         disabled={Boolean(exportingTeacherTrainingType)}
                         onClick={() => void downloadTeacherTrainingExport(item.type, item.label)}

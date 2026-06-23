@@ -17,7 +17,7 @@ type PlatformSwitchTarget = "workspace" | "teacherTraining";
 
 function WorkspaceUnitFooter() {
   return (
-    <footer className="pointer-events-none mt-8 hidden border-t border-white/70 bg-white/70 px-4 py-2 text-center text-[12px] leading-5 text-slate-500 sm:block">
+    <footer className="pointer-events-none hidden border-t border-white/70 bg-white/70 px-4 py-2.5 text-center text-[12px] leading-5 text-slate-500 sm:block">
       <span>用户单位：南京铁道职业技术学院</span>
       <span className="mx-3 text-slate-300">|</span>
       <span>支持单位：南京君如玉科技有限公司</span>
@@ -539,6 +539,9 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
   const [bugFeedbackError, setBugFeedbackError] = useState<string | null>(null);
   const [bugFeedbackSuccess, setBugFeedbackSuccess] = useState<string | null>(null);
   const [bugFeedbackSubmitting, setBugFeedbackSubmitting] = useState(false);
+  const workspaceMainClassName = isTeacherTrainingPlatform
+    ? "workspace-depth-bg workspace-shell-fade-in overflow-x-hidden px-4 pt-4 pb-8 md:px-6 md:pt-6 md:pb-8"
+    : "workspace-depth-bg workspace-shell-fade-in min-h-screen overflow-x-hidden p-4 pb-14 md:p-6 md:pb-14";
 
   const submitBugFeedback = async () => {
     const title = bugFeedbackDraft.title.trim();
@@ -803,7 +806,8 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
 
   return (
     <>
-      <main className="workspace-depth-bg workspace-shell-fade-in min-h-screen overflow-x-hidden p-4 pb-14 md:p-6 md:pb-14">
+      <div className="flex min-h-screen flex-col">
+      <main className={`${workspaceMainClassName} flex-1`}>
         <div aria-hidden className="workspace-orb-field" />
         <div className="relative z-[1] mx-auto flex max-w-[1500px] flex-col gap-4 overflow-x-hidden xl:flex-row">
           {mobileSidebarOpen && !isTeacherTrainingPlatform ? (
@@ -881,8 +885,8 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
           ) : null}
 
           {isTeacherTrainingPlatform ? (
-            <aside className="teacher-training-side-nav xl:sticky xl:top-4 xl:h-[calc(100svh-2rem)] xl:w-[270px] xl:flex-none xl:self-start">
-              <div className="depth-sidebar depth-sidebar-enhanced sidebar-government-pattern flex h-full flex-col rounded-xl px-4 py-6 text-white">
+            <aside className="teacher-training-side-nav xl:flex xl:w-[270px] xl:flex-none xl:flex-col xl:self-stretch">
+              <div className="depth-sidebar depth-sidebar-enhanced sidebar-government-pattern flex flex-1 flex-col rounded-xl px-4 py-6 text-white">
                 <div className="sidebar-header pb-5">
                   <div className="sidebar-logo flex items-center gap-3">
                     <div className="sidebar-logo-wrapper flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/15 bg-white/10">
@@ -1193,6 +1197,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
         </div>
       </main>
       <WorkspaceUnitFooter />
+      </div>
 
       <SuccessToast toast={successToast} />
       <ErrorToast message={loadError} onDismiss={() => setLoadError(null)} />

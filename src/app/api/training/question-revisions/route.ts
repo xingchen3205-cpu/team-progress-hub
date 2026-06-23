@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import type { Role } from "@prisma/client";
+import type { Prisma, Role } from "@prisma/client";
 
 import { getSessionUser } from "@/lib/auth";
 import { createNotifications } from "@/lib/notifications";
@@ -7,7 +7,17 @@ import { assertMainWorkspaceRole } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { canReviewTrainingRevision } from "@/lib/training-ai-workflow";
 
-const serializeRequest = (item: any) => ({
+const includeRequest = {
+  question: { select: { question: true, createdById: true } },
+  submittedBy: { select: { name: true } },
+  reviewedBy: { select: { name: true } },
+} as const;
+
+type TrainingQuestionRevisionRequestWithRelations = Prisma.TrainingQuestionRevisionRequestGetPayload<{
+  include: typeof includeRequest;
+}>;
+
+const serializeRequest = (item: TrainingQuestionRevisionRequestWithRelations) => ({
   id: item.id,
   questionId: item.questionId,
   question: item.question.question,
@@ -24,12 +34,6 @@ const serializeRequest = (item: any) => ({
   reviewedAt: item.reviewedAt?.toISOString() ?? null,
   createdAt: item.createdAt.toISOString(),
 });
-
-const includeRequest = {
-  question: { select: { question: true, createdById: true } },
-  submittedBy: { select: { name: true } },
-  reviewedBy: { select: { name: true } },
-} as const;
 
 const teamReviewerRoles: Role[] = ["teacher", "leader"];
 

@@ -67,6 +67,21 @@ test("workspace exposes teacher training as a switched admin platform", () => {
   assert.match(workspacePageSource, /"teacherTraining"/);
 });
 
+test("teacher training management layout keeps cards aligned without oversized empty canvas", () => {
+  const shellSource = read("src/components/workspace-shell.tsx");
+  const tabSource = read("src/components/tabs/teacher-training-tab.tsx");
+
+  assert.match(shellSource, /const workspaceMainClassName = isTeacherTrainingPlatform/);
+  assert.match(shellSource, /workspace-depth-bg workspace-shell-fade-in overflow-x-hidden px-4 pt-4 pb-8/);
+  assert.match(shellSource, /workspace-depth-bg workspace-shell-fade-in min-h-screen overflow-x-hidden p-4 pb-14/);
+  assert.match(shellSource, /<main className=\{workspaceMainClassName\}>/);
+  assert.match(tabSource, /teacherTrainingScrollableListClassName/);
+  assert.match(tabSource, /max-h-\[min\(68vh,760px\)\] overflow-y-auto/);
+  assert.match(tabSource, /teacherTrainingManagementGridClassName[\s\S]*items-start xl:grid-cols-\[420px_minmax\(0,1fr\)\]/);
+  assert.match(tabSource, /grid items-start gap-4 xl:grid-cols-\[minmax\(0,1fr\)_minmax\(420px,460px\)\]/);
+  assert.match(tabSource, /grid items-start gap-4 xl:grid-cols-2/);
+});
+
 test("teacher training APIs support admin-managed courses, check-in, tasks, submissions, profile, and export", () => {
   const mainRoute = read("src/app/api/teacher-training/route.ts");
   const authMeRoute = read("src/app/api/auth/me/route.ts");

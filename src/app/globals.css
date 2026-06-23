@@ -4248,3 +4248,164 @@ a:hover {
     margin-left: 0;
   }
 }
+
+/* ============================================================
+   省培管理平台 · 政务高级蓝视觉规范（tt- 前缀，独立作用域）
+   仅用于省培页面，不影响创新创业平台样式。
+   ============================================================ */
+
+/* 区块容器卡：承载内容的大卡片，不做交互上浮，沉稳大气 */
+.tt-card {
+  position: relative;
+  border: 1px solid rgba(196, 214, 238, 0.7);
+  border-radius: 18px;
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.96), rgba(248, 251, 255, 0.92));
+  box-shadow:
+    0 1px 2px rgba(15, 45, 91, 0.04),
+    0 18px 40px -28px rgba(15, 45, 91, 0.28);
+  backdrop-filter: blur(10px) saturate(140%);
+  -webkit-backdrop-filter: blur(10px) saturate(140%);
+}
+
+/* 强调容器卡：用于指挥台等需要主色渲染氛围的大区块 */
+.tt-card-accent {
+  position: relative;
+  border: 1px solid rgba(26, 111, 212, 0.18);
+  border-radius: 18px;
+  background:
+    radial-gradient(120% 120% at 0% 0%, rgba(26, 111, 212, 0.1), transparent 45%),
+    radial-gradient(120% 120% at 100% 100%, rgba(16, 185, 129, 0.08), transparent 48%),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.97), rgba(243, 248, 255, 0.95));
+  box-shadow:
+    0 1px 2px rgba(15, 45, 91, 0.05),
+    0 26px 60px -34px rgba(26, 111, 212, 0.4);
+  overflow: hidden;
+}
+
+/* 内嵌子卡 */
+.tt-subcard {
+  border: 1px solid rgba(206, 220, 240, 0.7);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.7);
+}
+
+/* 可点击的动作卡：保留 hover 上浮反馈 */
+.tt-action-card {
+  border: 1px solid rgba(206, 220, 240, 0.75);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.82);
+  box-shadow: 0 1px 2px rgba(15, 45, 91, 0.04);
+  transition:
+    transform 200ms ease,
+    box-shadow 200ms ease,
+    border-color 200ms ease,
+    background-color 200ms ease;
+}
+.tt-action-card:hover {
+  transform: translateY(-2px);
+  border-color: rgba(26, 111, 212, 0.4);
+  background: rgba(247, 251, 255, 0.96);
+  box-shadow:
+    0 14px 30px -16px rgba(26, 111, 212, 0.4),
+    0 2px 8px rgba(15, 45, 91, 0.06);
+}
+
+/* 统一区块标题：左侧主色竖条 + 标题 + 副标题 */
+.tt-block-title {
+  position: relative;
+  padding-left: 14px;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.4;
+  color: var(--color-ink);
+}
+.tt-block-title::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 4px;
+  height: 1.05em;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #1a6fd4, #2f97e3);
+}
+
+/* 计数 / 状态 pill */
+.tt-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  background: rgba(26, 111, 212, 0.1);
+  color: #155bb0;
+  white-space: nowrap;
+}
+.tt-pill-neutral {
+  background: rgba(100, 116, 139, 0.12);
+  color: #475569;
+}
+.tt-pill-success {
+  background: rgba(16, 185, 129, 0.12);
+  color: #047857;
+}
+
+/* 指标卡：首页 KPI 用，左侧主色细描边 + 大数字 */
+.tt-stat {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-height: 96px;
+  padding: 16px 18px;
+  border: 1px solid rgba(206, 220, 240, 0.7);
+  border-radius: 16px;
+  background: linear-gradient(160deg, rgba(255, 255, 255, 0.96), rgba(246, 250, 255, 0.9));
+  box-shadow: 0 1px 2px rgba(15, 45, 91, 0.04);
+  transition: transform 200ms ease, box-shadow 200ms ease, border-color 200ms ease;
+  overflow: hidden;
+}
+.tt-stat::after {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 3px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, #1a6fd4, #43a0e6);
+  opacity: 0.85;
+}
+.tt-stat:hover {
+  transform: translateY(-2px);
+  border-color: rgba(26, 111, 212, 0.32);
+  box-shadow: 0 14px 30px -18px rgba(26, 111, 212, 0.36);
+}
+.tt-stat-value {
+  font-size: 30px;
+  font-weight: 800;
+  line-height: 1.1;
+  letter-spacing: -0.02em;
+  color: var(--color-ink);
+}
+.tt-stat-label {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: rgba(15, 23, 42, 0.55);
+}
+
+/* 空状态：在填充容器内垂直居中 */
+.tt-empty-fill {
+  display: flex;
+  flex: 1 1 0%;
+  min-height: 0;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 32px 16px;
+  text-align: center;
+  color: rgba(15, 23, 42, 0.5);
+}
