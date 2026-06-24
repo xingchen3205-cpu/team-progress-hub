@@ -517,10 +517,16 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
     setActiveTeacherTrainingSection(key);
 
     window.requestAnimationFrame(() => {
-      document.getElementById("teacher-training-content")?.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-      });
+      const content = document.getElementById("teacher-training-content");
+      if (!content) {
+        return;
+      }
+
+      // 仅当内容区顶部已滚出视野上方时才平滑回滚，避免在顶部点击菜单触发多余的顿挫滚动。
+      const top = content.getBoundingClientRect().top;
+      if (top < -8) {
+        content.scrollIntoView({ behavior: "smooth", block: "start" });
+      }
     });
   };
   const topbarDateParts = {
@@ -885,8 +891,8 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
           ) : null}
 
           {isTeacherTrainingPlatform ? (
-            <aside className="teacher-training-side-nav xl:flex xl:w-[270px] xl:flex-none xl:flex-col xl:self-stretch">
-              <div className="depth-sidebar depth-sidebar-enhanced sidebar-government-pattern flex flex-1 flex-col rounded-xl px-4 py-6 text-white">
+            <aside className="teacher-training-side-nav xl:w-[270px] xl:flex-none xl:self-start">
+              <div className="depth-sidebar depth-sidebar-enhanced sidebar-government-pattern flex flex-col rounded-xl px-4 py-6 text-white xl:sticky xl:top-4 xl:h-[calc(100svh-2rem)]">
                 <div className="sidebar-header pb-5">
                   <div className="sidebar-logo flex items-center gap-3">
                     <div className="sidebar-logo-wrapper flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-white/15 bg-white/10">
@@ -903,7 +909,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                   </div>
                 </div>
 
-                <nav aria-label="省培左侧模块" className="sidebar-nav mt-5 flex-1 space-y-1 overflow-y-auto pr-1">
+                <nav aria-label="省培左侧模块" className="sidebar-nav mt-5 flex flex-1 flex-col gap-1 overflow-y-auto pr-1">
                   {teacherTrainingSidebarSections.map((item) => {
                     const Icon = item.icon;
                     const isActive = item.key === activeTeacherTrainingSection;
@@ -913,7 +919,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                         key={item.key}
                         aria-label={`${item.label}：${item.description}`}
                         aria-current={isActive ? "page" : undefined}
-                        className={`sidebar-nav-item w-full text-left ${isActive ? "sidebar-nav-item-active" : ""}`}
+                        className={`sidebar-nav-item w-full shrink-0 text-left ${isActive ? "sidebar-nav-item-active" : ""}`}
                         data-section-key={item.key}
                         onClick={() => openTeacherTrainingSection(item.key)}
                         title={item.description}

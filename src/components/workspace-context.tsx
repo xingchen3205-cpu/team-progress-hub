@@ -5310,7 +5310,7 @@ function useWorkspaceController({
 
     if (!title || !startDate || !endDate) {
       setLoadError("请先填写培训名称、开始日期和结束日期");
-      return;
+      return false;
     }
 
     setIsSaving(true);
@@ -5328,8 +5328,10 @@ function useWorkspaceController({
       });
       showSuccessToast(draft.id ? "省培班次已修改" : "省培班次已创建", "省培管理平台已经更新。");
       refreshWorkspace("teacherTraining");
+      return true;
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "省培班次创建失败");
+      return false;
     } finally {
       setIsSaving(false);
     }
@@ -5433,7 +5435,7 @@ function useWorkspaceController({
 
     if (!cohortId || !title || !courseDate) {
       setLoadError("请先填写班次、课程名称和上课日期");
-      return;
+      return false;
     }
 
     setIsSaving(true);
@@ -5454,8 +5456,10 @@ function useWorkspaceController({
       });
       showSuccessToast(draft.id ? "课程安排已修改" : "课程安排已保存", "参训教师的省培课程表已经更新。");
       refreshWorkspace("teacherTraining");
+      return true;
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "课程安排保存失败");
+      return false;
     } finally {
       setIsSaving(false);
     }
@@ -5516,7 +5520,7 @@ function useWorkspaceController({
 
     if (!cohortId || !title || !signDate) {
       setLoadError("请先填写班次、签到标题和签到日期");
-      return;
+      return false;
     }
 
     setIsSaving(true);
@@ -5539,8 +5543,10 @@ function useWorkspaceController({
       });
       showSuccessToast(draft.id ? "签到任务已修改" : "签到任务已发布", "参训教师可在省培账号里进行定位签到。");
       refreshWorkspace("teacherTraining");
+      return true;
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "签到任务发布失败");
+      return false;
     } finally {
       setIsSaving(false);
     }
@@ -5881,7 +5887,7 @@ function useWorkspaceController({
 
     if (!cohortId || !title || !description) {
       setLoadError("请先填写任务名称、任务说明和所属班次");
-      return;
+      return false;
     }
 
     setIsSaving(true);
@@ -5899,8 +5905,10 @@ function useWorkspaceController({
       });
       showSuccessToast(draft.id ? "省培任务已修改" : "省培任务已发布", "参训教师的任务汇报清单已经更新。");
       refreshWorkspace("teacherTraining");
+      return true;
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "省培任务发布失败");
+      return false;
     } finally {
       setIsSaving(false);
     }

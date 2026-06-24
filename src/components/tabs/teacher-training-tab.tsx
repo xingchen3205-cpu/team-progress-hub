@@ -1640,7 +1640,10 @@ export default function TeacherTrainingTab() {
     if (!cohortDraft.id && !canCreateTeacherTrainingCohort) {
       return;
     }
-    await createTeacherTrainingCohort(cohortDraft);
+    const ok = await createTeacherTrainingCohort(cohortDraft);
+    if (ok) {
+      setCohortDraft(createDefaultCohortDraft());
+    }
   };
 
   const confirmTeacherTrainingPermanentDelete = (options: {
@@ -1743,10 +1746,13 @@ export default function TeacherTrainingTab() {
 
   const submitCourseSession = async () => {
     if (!selectedCohort) return;
-    await createTeacherTrainingCourseSession({
+    const ok = await createTeacherTrainingCourseSession({
       ...courseDraft,
       cohortId: selectedCohort.id,
     });
+    if (ok) {
+      setCourseDraft(createDefaultCourseSessionDraft());
+    }
   };
 
   const editCourseSession = (course: Workspace.TeacherTrainingCourseSessionItem) => {
@@ -1918,10 +1924,13 @@ export default function TeacherTrainingTab() {
 
   const submitTask = async () => {
     if (!selectedCohort) return;
-    await createTeacherTrainingTask({
+    const ok = await createTeacherTrainingTask({
       ...taskDraft,
       cohortId: selectedCohort.id,
     });
+    if (ok) {
+      setTaskDraft({ cohortId: "", title: "", description: "", dueDate: "", requireAttachment: false });
+    }
   };
 
   const editTask = (task: Workspace.TeacherTrainingTaskItem) => {
@@ -2183,10 +2192,13 @@ export default function TeacherTrainingTab() {
 
   const submitCheckInTask = async () => {
     if (!selectedCohort) return;
-    await createTeacherTrainingCheckInTask({
+    const ok = await createTeacherTrainingCheckInTask({
       ...checkInDraft,
       cohortId: selectedCohort.id,
     });
+    if (ok) {
+      setCheckInDraft(createDefaultCheckInTaskDraft());
+    }
   };
 
   const editCheckInTask = (task: Workspace.TeacherTrainingCheckInTaskItem) => {
@@ -2904,7 +2916,7 @@ export default function TeacherTrainingTab() {
         </div>
       </div>
 
-      <div className="space-y-4" id="teacher-training-content">
+      <div key={effectiveTeacherTrainingSection} className="tt-fade-in space-y-4" id="teacher-training-content">
           <section
             aria-label="省培操作提示"
             className="teacher-training-mobile-guide rounded-2xl border border-blue-100 bg-white/86 p-4 shadow-[0_18px_42px_rgba(26,111,212,0.12)] backdrop-blur transition duration-300 sm:hidden"
@@ -3020,13 +3032,7 @@ export default function TeacherTrainingTab() {
                     <button
                       key={item.label}
                       aria-label={`处理省培${item.label}`}
-                      className={`group flex min-h-[74px] items-center gap-3 rounded-2xl border bg-white/88 px-3 py-3 text-left shadow-sm transition duration-200 hover:-translate-y-0.5 hover:shadow-lg focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200/70 ${
-                        item.tone === "amber"
-                          ? "border-amber-100 hover:border-amber-200"
-                          : item.tone === "emerald"
-                            ? "border-emerald-100 hover:border-emerald-200"
-                            : "border-blue-100 hover:border-blue-200"
-                        }`}
+                      className="tt-action-card group flex min-h-[74px] items-center gap-3 p-3 text-left focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200/70"
                       onClick={() => openTeacherTrainingSection(item.section)}
                       title={`处理省培${item.label}`}
                       type="button"
@@ -3096,13 +3102,13 @@ export default function TeacherTrainingTab() {
                   <button
                     key={item.label}
                     aria-label={`进入省培${item.label}`}
-                    className="group grid min-h-[92px] gap-2 rounded-2xl border border-slate-200/80 bg-white/82 px-3 py-3 text-left shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-blue-200 hover:bg-blue-50/60 hover:shadow-lg hover:shadow-blue-950/8 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200/70"
+                    className="tt-action-card group grid min-h-[92px] gap-2 p-3 text-left focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200/70"
                     onClick={item.onClick}
                     title={`进入省培${item.label}`}
                     type="button"
                   >
                     <span className="flex items-start justify-between gap-2">
-                      <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-blue-700 transition group-hover:bg-white">
+                      <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-blue-700 transition group-hover:bg-[#1a6fd4] group-hover:text-white">
                         <item.Icon className="h-4 w-4" />
                       </span>
                       <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-bold text-slate-600">
@@ -3473,6 +3479,7 @@ export default function TeacherTrainingTab() {
                   <label className={teacherTrainingFieldShellClassName}>
                     <span className={teacherTrainingFieldLabelClassName}>参训教师姓名</span>
                     <input
+                      id="tt-participant-name-input"
                       className={fieldClassName}
                       {...fieldHint("参训教师姓名")}
                       onChange={(event) => setParticipantDraft((current) => ({ ...current, name: event.target.value }))}
@@ -3857,6 +3864,18 @@ export default function TeacherTrainingTab() {
                         <p className="max-w-[260px] text-xs leading-5 text-slate-400">
                           在右侧添加课程后，教师端会同步显示课程表。
                         </p>
+                        <button
+                          type="button"
+                          className="mt-1 inline-flex items-center gap-1.5 rounded-lg bg-[#1a6fd4] px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-[#155bb0]"
+                          onClick={() => {
+                            const input = document.getElementById("tt-course-title-input");
+                            input?.scrollIntoView({ behavior: "smooth", block: "center" });
+                            window.setTimeout(() => (input as HTMLInputElement | null)?.focus(), 350);
+                          }}
+                        >
+                          <Plus className="h-3.5 w-3.5" />
+                          立即添加课程
+                        </button>
                       </div>
                     ) : (
                       courseSessions.map((course) => (
@@ -3922,6 +3941,7 @@ export default function TeacherTrainingTab() {
                     <label className={teacherTrainingFieldShellClassName}>
                       <span className={teacherTrainingFieldLabelClassName}>课程名称</span>
                       <input
+                        id="tt-course-title-input"
                         className={fieldClassName}
                         {...fieldHint("课程名称")}
                         onChange={(event) => setCourseDraft((current) => ({ ...current, title: event.target.value }))}
@@ -5444,6 +5464,18 @@ export default function TeacherTrainingTab() {
                       <p className="max-w-[260px] text-xs leading-5 text-slate-400">
                         在左侧录入参训教师后，这里会显示账号和预录信息。
                       </p>
+                      <button
+                        type="button"
+                        className="mt-1 inline-flex items-center gap-1.5 rounded-lg bg-[#1a6fd4] px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-[#155bb0]"
+                        onClick={() => {
+                          const input = document.getElementById("tt-participant-name-input");
+                          input?.scrollIntoView({ behavior: "smooth", block: "center" });
+                          window.setTimeout(() => (input as HTMLInputElement | null)?.focus(), 350);
+                        }}
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                        立即录入教师
+                      </button>
                     </div>
                   ) : (
                     filteredParticipants.map((participant) => (
@@ -6462,9 +6494,19 @@ export default function TeacherTrainingTab() {
                     <span className="tt-pill">{selectedCohort.title}</span>
                   </div>
                   {exportStatus ? (
-                    <p className="mt-4 rounded-xl border border-blue-100 bg-white/80 px-4 py-3 text-xs font-semibold leading-5 text-blue-700">
-                      {exportStatus}
-                    </p>
+                    <div className="mt-4 overflow-hidden rounded-xl border border-blue-100 bg-blue-50/60 px-4 py-3">
+                      <div className="flex items-center gap-2 text-xs font-semibold leading-5 text-blue-700">
+                        {exportingTeacherTrainingType ? (
+                          <Loader2 className="h-4 w-4 shrink-0 animate-spin" />
+                        ) : null}
+                        <span>{exportStatus}</span>
+                      </div>
+                      {exportingTeacherTrainingType ? (
+                        <div className="mt-2 h-1 overflow-hidden rounded-full bg-blue-100">
+                          <div className="tt-progress-indeterminate h-full rounded-full bg-gradient-to-r from-blue-500 to-cyan-400" />
+                        </div>
+                      ) : null}
+                    </div>
                   ) : null}
                   <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
                     {teacherTrainingExportItems.map((item) => {
