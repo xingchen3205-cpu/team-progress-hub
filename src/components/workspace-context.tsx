@@ -5728,6 +5728,27 @@ function useWorkspaceController({
     }
   };
 
+  const deleteTeacherTrainingParticipant = async (participantId: string) => {
+    if (!participantId) {
+      setLoadError("请先选择要删除的参训教师");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      await requestJson("/api/teacher-training/participants", {
+        method: "DELETE",
+        body: JSON.stringify({ id: participantId }),
+      });
+      showSuccessToast("参训教师已删除", "名单、报到、签到、请假和汇报记录已经同步删除。");
+      refreshWorkspace("teacherTraining");
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "参训教师删除失败");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const assignTeacherTrainingCohortManager = async (draft: TeacherTrainingCohortManagerDraft) => {
     const cohortId = draft.cohortId.trim();
     const userId = draft.userId.trim();
@@ -8370,6 +8391,7 @@ function useWorkspaceController({
     generateTeacherTrainingAccountMessage,
     updateTeacherTrainingParticipantAccount,
     deleteTeacherTrainingParticipantAccount,
+    deleteTeacherTrainingParticipant,
     assignTeacherTrainingCohortManager,
     removeTeacherTrainingCohortManager,
     updateTeacherTrainingLeaveFlow,

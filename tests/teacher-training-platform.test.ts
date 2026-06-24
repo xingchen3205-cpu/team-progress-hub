@@ -410,11 +410,16 @@ test("teacher training shows province-specific account titles instead of competi
 
 test("teacher training managers can edit and delete provincial teacher accounts inside provincial training", () => {
   const participantAccountRoute = read("src/app/api/teacher-training/participants/[participantId]/account/route.ts");
+  const participantsRoute = read("src/app/api/teacher-training/participants/route.ts");
   const contextSource = read("src/components/workspace-context.tsx");
   const tabSource = read("src/components/tabs/teacher-training-tab.tsx");
   const mainRouteSource = read("src/app/api/teacher-training/route.ts");
   const teacherTrainingSource = read("src/lib/teacher-training.ts");
 
+  assert.match(participantsRoute, /export async function DELETE/);
+  assert.match(participantsRoute, /hasTeacherTrainingCohortManageAccess/);
+  assert.match(participantsRoute, /teacherTrainingParticipant\.delete/);
+  assert.match(participantsRoute, /accountUserId/);
   assert.match(participantAccountRoute, /export async function PATCH/);
   assert.match(participantAccountRoute, /export async function DELETE/);
   assert.match(participantAccountRoute, /原平台账号只解除绑定/);
@@ -425,6 +430,7 @@ test("teacher training managers can edit and delete provincial teacher accounts 
 
   assert.match(contextSource, /updateTeacherTrainingParticipantAccount/);
   assert.match(contextSource, /deleteTeacherTrainingParticipantAccount/);
+  assert.match(contextSource, /deleteTeacherTrainingParticipant/);
   assert.match(tabSource, /participantAccountStatusSummary/);
   assert.match(tabSource, /未绑定账号/);
   assert.match(tabSource, /省培专用账号/);
@@ -433,6 +439,7 @@ test("teacher training managers can edit and delete provincial teacher accounts 
   assert.match(tabSource, /筛选未绑定账号/);
   assert.match(tabSource, /重置账号密码/);
   assert.match(tabSource, /解绑省培账号/);
+  assert.match(tabSource, /删除参训教师/);
   assert.match(tabSource, /确认解绑省培账号/);
 });
 

@@ -732,6 +732,7 @@ export default function TeacherTrainingTab() {
     generateTeacherTrainingAccountMessage,
     updateTeacherTrainingParticipantAccount,
     deleteTeacherTrainingParticipantAccount,
+    deleteTeacherTrainingParticipant,
     assignTeacherTrainingCohortManager,
     removeTeacherTrainingCohortManager,
     updateTeacherTrainingLeaveFlow,
@@ -746,6 +747,7 @@ export default function TeacherTrainingTab() {
   const {
     ActionButton,
     CalendarDays,
+    ChevronDown,
     CheckCircle2,
     ClipboardCheck,
     Copy,
@@ -778,6 +780,9 @@ export default function TeacherTrainingTab() {
   const selectedCohortId = activeTeacherTrainingCohortId;
   const setSelectedCohortId = setActiveTeacherTrainingCohortId;
   const [cohortDraft, setCohortDraft] = useState<Workspace.TeacherTrainingCohortDraft>(createDefaultCohortDraft);
+  // 班次管理页：新建/修改表单与辅助信息默认折叠，让页面以班次列表为主、更清爽。
+  const [cohortFormOpen, setCohortFormOpen] = useState(false);
+  const [cohortConfigOpen, setCohortConfigOpen] = useState(false);
   const [participantDraft, setParticipantDraft] = useState<Workspace.TeacherTrainingParticipantDraft>({
     cohortId: "",
     name: "",
@@ -1643,6 +1648,7 @@ export default function TeacherTrainingTab() {
     const ok = await createTeacherTrainingCohort(cohortDraft);
     if (ok) {
       setCohortDraft(createDefaultCohortDraft());
+      setCohortFormOpen(false);
     }
   };
 
@@ -1667,6 +1673,10 @@ export default function TeacherTrainingTab() {
       startDate: cohort.startDate,
       endDate: cohort.endDate,
       description: cohort.description,
+    });
+    setCohortFormOpen(true);
+    window.requestAnimationFrame(() => {
+      document.getElementById("tt-cohort-form")?.scrollIntoView({ behavior: "smooth", block: "center" });
     });
   };
 
@@ -2343,6 +2353,29 @@ export default function TeacherTrainingTab() {
       return;
     }
     await deleteTeacherTrainingParticipantAccount(participant.id);
+    if (accountEditParticipantId === participant.id) {
+      setAccountEditParticipantId("");
+      setAccountEditDraft({ accountUsername: "", accountPassword: "" });
+    }
+  };
+
+  const removeParticipant = async (participant: Workspace.TeacherTrainingParticipantItem) => {
+    if (
+      !confirmTeacherTrainingPermanentDelete({
+        title: participant.name,
+        firstMessage: `确认删除参训教师“${participant.name}”？\n\n删除后，这名教师的名单档案、报到状态、签到记录、请假申请和任务汇报会一起删除。`,
+        secondMessage: "该操作会从当前省培班次名单中移除这名教师；如果是省培专用账号，系统会同步删除该账号。",
+      })
+    ) {
+      return;
+    }
+
+    await deleteTeacherTrainingParticipant(participant.id);
+    setAccountMessagesByParticipantId((current) => {
+      const next = { ...current };
+      delete next[participant.id];
+      return next;
+    });
     if (accountEditParticipantId === participant.id) {
       setAccountEditParticipantId("");
       setAccountEditDraft({ accountUsername: "", accountPassword: "" });
@@ -3270,28 +3303,31 @@ export default function TeacherTrainingTab() {
         {canManage && showTeacherTrainingSection("cohorts", "participants") ? (
           <aside className="tt-card space-y-5 self-start p-5">
             <div>
-              <p className="text-sm font-semibold text-slate-900">班次</p>
-              <p className="mt-1 text-xs leading-5 text-slate-500">按账号权限切换可管理或可参与的省培班次。</p>
-              <label className={`${teacherTrainingFieldShellClassName} mt-3`}>
-                <span className={teacherTrainingFieldLabelClassName}>选择省培班次</span>
-                <select
-                  className={fieldClassName}
-                  {...fieldHint("选择省培班次")}
-                  onChange={(event) => {
-                    setSelectedCohortId(event.target.value);
-                    setLeaveFlowSteps([]);
-                    setAccountMessagesByParticipantId({});
-                  }}
-                  value={selectedCohort?.id ?? ""}
-                >
-                  {teacherTrainingCohorts.length === 0 ? <option value="">暂无班次</option> : null}
-                  {teacherTrainingCohorts.map((cohort) => (
-                    <option key={cohort.id} value={cohort.id}>
-                      {cohort.title}
-                    </option>
-                  ))}
-                </select>
-              </label>
+              <p className="tt-block-title">班次</p>
+              <p className="mt-1.5 text-xs leading-5 text-slate-500">按账号权限切换可管理或可参与的省培班次。</p>
+              {/* cohorts 页下方已有可点击切换的“已设置班次”列表，无需重复的下拉；仅在参训教师页保留下拉用于切换。 */}
+              {!showTeacherTrainingSection("cohorts") ? (
+                <label className={`${teacherTrainingFieldShellClassName} mt-3`}>
+                  <span className={teacherTrainingFieldLabelClassName}>选择省培班次</span>
+                  <select
+                    className={fieldClassName}
+                    {...fieldHint("选择省培班次")}
+                    onChange={(event) => {
+                      setSelectedCohortId(event.target.value);
+                      setLeaveFlowSteps([]);
+                      setAccountMessagesByParticipantId({});
+                    }}
+                    value={selectedCohort?.id ?? ""}
+                  >
+                    {teacherTrainingCohorts.length === 0 ? <option value="">暂无班次</option> : null}
+                    {teacherTrainingCohorts.map((cohort) => (
+                      <option key={cohort.id} value={cohort.id}>
+                        {cohort.title}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              ) : null}
             </div>
 
             {showTeacherTrainingSection("cohorts") ? (
@@ -3379,14 +3415,27 @@ export default function TeacherTrainingTab() {
             ) : null}
 
             {canShowCohortDraftForm && showTeacherTrainingSection("cohorts") ? (
-            <div className="tt-subcard p-4">
-              <div className="flex items-center gap-2.5">
+              cohortFormOpen || cohortDraft.id ? (
+            <div className="tt-subcard p-4" id="tt-cohort-form">
+              <div className="flex items-center justify-between gap-2.5">
+                <div className="flex items-center gap-2.5">
                 <span className="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-[#1a6fd4]/10 text-[#1a6fd4]">
                   <Plus className="h-4 w-4" />
                 </span>
                 <p className="text-[15px] font-bold text-slate-950">
                   {cohortDraft.id ? "正在修改班次" : "新建省培班次"}
                 </p>
+                </div>
+                {!cohortDraft.id ? (
+                  <button
+                    type="button"
+                    className="text-xs font-semibold text-slate-400 transition hover:text-slate-600"
+                    onClick={() => setCohortFormOpen(false)}
+                    aria-label="收起新建班次表单"
+                  >
+                    收起
+                  </button>
+                ) : null}
               </div>
               <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                 <label className={`${teacherTrainingFieldShellClassName} md:col-span-2`}>
@@ -3462,6 +3511,17 @@ export default function TeacherTrainingTab() {
                 </div>
               </div>
             </div>
+              ) : (
+                <button
+                  type="button"
+                  className="tt-action-card flex w-full items-center justify-center gap-2 px-4 py-3.5 text-sm font-semibold text-[#1a6fd4]"
+                  onClick={() => setCohortFormOpen(true)}
+                  aria-label="展开新建省培班次表单"
+                >
+                  <Plus className="h-4 w-4" />
+                  新建省培班次
+                </button>
+              )
             ) : null}
 
             {canManage && showTeacherTrainingSection("participants") ? (
@@ -3657,17 +3717,25 @@ export default function TeacherTrainingTab() {
 
             {canCreateTeacherTrainingCohort && selectedCohort && showTeacherTrainingSection("cohorts") ? (
               <div className="tt-subcard p-4">
-                <div className="flex items-center gap-2.5">
+                <button
+                  type="button"
+                  className="flex w-full items-center gap-2.5 text-left"
+                  onClick={() => setCohortConfigOpen((v) => !v)}
+                  aria-expanded={cohortConfigOpen}
+                >
                   <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[#1a6fd4]/10 text-[#1a6fd4]">
                     <User className="h-4 w-4" />
                   </span>
-                  <div>
+                  <div className="min-w-0 flex-1">
                     <p className="text-[15px] font-bold text-slate-950">班次负责人/班主任设置</p>
                     <p className="mt-1 text-xs leading-5 text-slate-500">
                       负责人显示在班主任前面；两者省培管理权限一致，请假审批顺序以请假审批模块配置为准。
                     </p>
                   </div>
-                </div>
+                  <ChevronDown className={`h-4 w-4 shrink-0 text-slate-400 transition ${cohortConfigOpen ? "rotate-180" : ""}`} />
+                </button>
+                {cohortConfigOpen ? (
+                <>
                 <div className="mt-3 rounded-xl border border-blue-100 bg-blue-50/40 p-3">
                   <p className="text-xs font-bold text-blue-700">班次配置状态</p>
                   <div className="mt-2 grid gap-2 sm:grid-cols-2">
@@ -3787,6 +3855,8 @@ export default function TeacherTrainingTab() {
                     ))
                   )}
                 </div>
+                </>
+                ) : null}
               </div>
             ) : null}
           </aside>
@@ -3815,7 +3885,7 @@ export default function TeacherTrainingTab() {
                     </p>
                   </div>
                   <div className="rounded-xl bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-700">
-                    {canManage ? "报到房号材料登记" : "我的省培任务"}
+                    {activeTeacherTrainingSectionMeta?.label ?? (canManage ? "省培管理" : "我的省培")}
                   </div>
                 </div>
                 {!canManage && teacherTrainingCohorts.length > 1 ? (
@@ -5545,6 +5615,17 @@ export default function TeacherTrainingTab() {
                             >
                               <Copy className="h-4 w-4" />
                               复制账号消息
+                            </button>
+                            <button
+                              className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-rose-200 bg-white px-3 text-sm font-semibold text-rose-600 transition hover:bg-rose-50"
+                              aria-label="删除参训教师"
+                              disabled={isSaving}
+                              onClick={() => void removeParticipant(participant)}
+                              title="删除参训教师"
+                              type="button"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                              删除参训教师
                             </button>
                             {participant.accountUsername ? (
                               <>

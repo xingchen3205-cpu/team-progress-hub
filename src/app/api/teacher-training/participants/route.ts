@@ -7,6 +7,7 @@ import { generateTemporaryPassword } from "@/lib/passwords";
 import { prisma } from "@/lib/prisma";
 import { mergeTeacherTrainingParticipantExtraInfo } from "@/lib/teacher-training";
 import { hasTeacherTrainingCohortManageAccess } from "@/lib/teacher-training-access";
+import { deleteStoredFile } from "@/lib/uploads";
 
 type TeacherTrainingParticipantInput = {
   cohortId?: string;
@@ -222,4 +223,123 @@ export async function POST(request: NextRequest) {
   });
 
   return NextResponse.json({ participant, temporaryPassword }, { status: 201 });
+}
+
+export async function DELETE(request: NextRequest) {
+  const user = await getSessionUser(request);
+  if (!user) {
+    return NextResponse.json({ message: "未登录" }, { status: 401 });
+  }
+
+  const body = (await request.json().catch(() => null)) as { id?: string } | null;
+  const participantId = body?.id?.trim();
+  if (!participantId) {
+    return NextResponse.json({ message: "请先选择要删除的参训教师" }, { status: 400 });
+  }
+
+  const participant = await prisma.teacherTrainingParticipant.findFirst({
+    where: {
+      id: participantId,
+      cohort: {
+        deletedAt: null,
+      },
+    },
+    include: {
+      accountUser: {
+        select: {
+          id: true,
+          role: true,
+          avatarImagePath: true,
+        },
+      },
+    },
+  });
+  if (!participant) {
+    return NextResponse.json({ message: "参训教师不存在" }, { status: 404 });
+  }
+  if (!(await hasTeacherTrainingCohortManageAccess(user, participant.cohortId))) {
+    return NextResponse.json({ message: "无权限删除该省培班次参训教师" }, { status: 403 });
+  }
+
+  const accountUser = participant.accountUser;
+  const shouldDeleteTrainingAccount = Boolean(accountUser && accountUser.role === "training_teacher");
+  if (shouldDeleteTrainingAccount && accountUser?.id === user.id) {
+    return NextResponse.json({ message: "不能删除当前登录账号绑定的参训教师" }, { status: 400 });
+  }
+
+  if (shouldDeleteTrainingAccount && accountUser) {
+    const linkedParticipantCount = await prisma.teacherTrainingParticipant.count({
+      where: {
+        accountUserId: accountUser.id,
+        id: {
+          not: participant.id,
+        },
+      },
+    });
+    const blockingApprovalCount = linkedParticipantCount === 0
+      ? await prisma.teacherTrainingLeaveApproval.count({
+          where: { approverId: accountUser.id },
+        })
+      : 0;
+    if (blockingApprovalCount > 0) {
+      return NextResponse.json({ message: "该省培账号已有审批记录，不能随名单一起删除；请先解绑账号后再处理名单。" }, { status: 409 });
+    }
+  }
+
+  let deletedTrainingAccount = false;
+  let deletedAccountAvatarPath: string | null = null;
+
+  await prisma.$transaction(async (tx) => {
+    await tx.teacherTrainingParticipant.delete({
+      where: { id: participant.id },
+    });
+
+    if (!shouldDeleteTrainingAccount || !accountUser) {
+      return;
+    }
+
+    const remainingParticipantCount = await tx.teacherTrainingParticipant.count({
+      where: { accountUserId: accountUser.id },
+    });
+    if (remainingParticipantCount > 0) {
+      return;
+    }
+
+    await tx.teacherTrainingLeaveRequest.updateMany({
+      where: { submittedById: accountUser.id },
+      data: { submittedById: user.id },
+    });
+    await tx.teacherTrainingSubmission.updateMany({
+      where: { submittedById: accountUser.id },
+      data: { submittedById: user.id },
+    });
+    await tx.report.deleteMany({
+      where: { userId: accountUser.id },
+    });
+    await tx.notification.deleteMany({
+      where: { userId: accountUser.id },
+    });
+    await tx.notification.updateMany({
+      where: { senderId: accountUser.id },
+      data: { senderId: null },
+    });
+    await tx.user.updateMany({
+      where: { approvedById: accountUser.id },
+      data: { approvedById: null },
+    });
+    await tx.user.delete({
+      where: { id: accountUser.id },
+    });
+    deletedTrainingAccount = true;
+    deletedAccountAvatarPath = accountUser.avatarImagePath;
+  });
+
+  if (deletedAccountAvatarPath) {
+    await deleteStoredFile(deletedAccountAvatarPath).catch(() => {});
+  }
+
+  return NextResponse.json({
+    success: true,
+    deletedAccount: deletedTrainingAccount,
+  });
 }
