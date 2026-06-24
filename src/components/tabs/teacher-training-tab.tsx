@@ -3859,12 +3859,15 @@ export default function TeacherTrainingTab() {
                                 className="text-xs font-semibold text-rose-500"
                                 aria-label={`移除${manager.name}的省培管理权限`}
                                 disabled={isSaving}
-                                onClick={() =>
+                                onClick={() => {
+                                  if (!window.confirm(`确认移除“${manager.name}”的省培管理权限？\n\n移除后该成员将无法再管理本班次（不影响其登录账号本身）。`)) {
+                                    return;
+                                  }
                                   void removeTeacherTrainingCohortManager({
                                     cohortId: selectedCohort.id,
                                     userId: manager.userId,
-                                  })
-                                }
+                                  });
+                                }}
                                 title={`移除${manager.name}的省培管理权限`}
                                 type="button"
                               >

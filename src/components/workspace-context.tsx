@@ -5370,6 +5370,17 @@ function useWorkspaceController({
       return;
     }
 
+    const phone = draft.phone.trim();
+    const email = draft.email.trim();
+    if (phone && !/^1[3-9]\d{9}$/.test(phone)) {
+      setLoadError("手机号格式不正确，请填写 11 位中国大陆手机号");
+      return;
+    }
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setLoadError("邮箱格式不正确，请检查后重新填写");
+      return;
+    }
+
     setIsSaving(true);
     try {
       await requestJson("/api/teacher-training/participants", {
@@ -5378,10 +5389,10 @@ function useWorkspaceController({
           cohortId,
           name,
           organization,
-          phone: draft.phone.trim(),
+          phone,
           groupName: draft.groupName.trim(),
           title: draft.title.trim(),
-          email: draft.email.trim(),
+          email,
           arrivalTransportation: draft.arrivalTransportation.trim(),
           arrivalAt: draft.arrivalAt.trim(),
           arrivalVehicleNo: draft.arrivalVehicleNo.trim(),
