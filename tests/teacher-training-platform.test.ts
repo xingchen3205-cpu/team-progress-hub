@@ -440,6 +440,9 @@ test("teacher training managers can edit and delete provincial teacher accounts 
   assert.match(tabSource, /重置账号密码/);
   assert.match(tabSource, /解绑省培账号/);
   assert.match(tabSource, /删除参训教师/);
+  assert.match(tabSource, /参训教师档案/);
+  assert.match(tabSource, /省培账号处理/);
+  assert.doesNotMatch(tabSource, /tt-action-card grid gap-3 p-4 lg:grid-cols-\[minmax\(0,1fr\)_auto\]/);
   assert.match(tabSource, /确认解绑省培账号/);
 });
 

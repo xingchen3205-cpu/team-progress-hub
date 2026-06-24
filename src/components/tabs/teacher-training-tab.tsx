@@ -5551,18 +5551,20 @@ export default function TeacherTrainingTab() {
                     filteredParticipants.map((participant) => (
                       <article
                         key={participant.id}
-                        className="tt-action-card grid gap-3 p-4 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-center"
+                        className="tt-action-card flex flex-col gap-3 p-4"
                       >
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
-                            <p className="font-semibold text-slate-950">{participant.name}</p>
-                            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">
+                            <p className="max-w-full truncate whitespace-nowrap text-base font-semibold text-slate-950">
+                              {participant.name}
+                            </p>
+                            <span className="whitespace-nowrap rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">
                               {participant.groupName || "未分组"}
                             </span>
-                            <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-700">
+                            <span className="whitespace-nowrap rounded-full bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-700">
                               {participant.accountUsername ? "已开通账号" : "待开通账号"}
                             </span>
-                            <span className={`rounded-full px-2 py-0.5 text-xs font-semibold ${getParticipantAccountTypeClassName(participant)}`}>
+                            <span className={`whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold ${getParticipantAccountTypeClassName(participant)}`}>
                               {getParticipantAccountTypeLabel(participant)}
                             </span>
                           </div>
@@ -5604,61 +5606,75 @@ export default function TeacherTrainingTab() {
                           ) : null}
                         </div>
                         {canManage ? (
-                          <div className="flex flex-wrap justify-start gap-2 lg:justify-end">
-                            <button
-                              className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 text-sm font-semibold text-blue-700 transition hover:border-blue-200 hover:bg-blue-100"
-                              aria-label="复制省培账号通知消息"
-                              disabled={isSaving}
-                              onClick={() => void copyAccountMessage(participant.id)}
-                              title="复制省培账号通知消息"
-                              type="button"
-                            >
-                              <Copy className="h-4 w-4" />
-                              复制账号消息
-                            </button>
-                            <button
-                              className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-rose-200 bg-white px-3 text-sm font-semibold text-rose-600 transition hover:bg-rose-50"
-                              aria-label="删除参训教师"
-                              disabled={isSaving}
-                              onClick={() => void removeParticipant(participant)}
-                              title="删除参训教师"
-                              type="button"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                              删除参训教师
-                            </button>
-                            {participant.accountUsername ? (
-                              <>
-                                {participant.accountRole === "training_teacher" ? (
-                                  <button
-                                    className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
-                                    aria-label="重置账号密码"
-                                    disabled={isSaving}
-                                    onClick={() => editParticipantAccount(participant)}
-                                    title="重置账号密码"
-                                    type="button"
-                                  >
-                                    <Pencil className="h-4 w-4" />
-                                    重置账号密码
-                                  </button>
-                                ) : (
-                                  <span className="inline-flex h-9 items-center rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-500">
-                                    原平台账号由团队账号管理维护
-                                  </span>
-                                )}
+                          <div className="grid gap-3 border-t border-slate-100 pt-3 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.6fr)]">
+                            <div className="rounded-xl border border-rose-100 bg-rose-50/35 p-3">
+                              <p className="text-[11px] font-bold tracking-wide text-rose-500">参训教师档案</p>
+                              <p className="mt-1 text-xs leading-5 text-rose-500">
+                                删除名单会同步删除该教师的报到、签到、请假和汇报记录。
+                              </p>
+                              <button
+                                className="mt-2 inline-flex h-9 max-w-full items-center justify-center gap-2 rounded-lg border border-rose-200 bg-white px-3 text-sm font-semibold text-rose-600 transition hover:bg-rose-50"
+                                aria-label="删除参训教师"
+                                disabled={isSaving}
+                                onClick={() => void removeParticipant(participant)}
+                                title="删除参训教师"
+                                type="button"
+                              >
+                                <Trash2 className="h-4 w-4 shrink-0" />
+                                <span className="truncate whitespace-nowrap">删除参训教师</span>
+                              </button>
+                            </div>
+                            <div className="rounded-xl border border-blue-100 bg-blue-50/35 p-3">
+                              <p className="text-[11px] font-bold tracking-wide text-blue-600">省培账号处理</p>
+                              <p className="mt-1 text-xs leading-5 text-blue-500">
+                                只处理登录账号，不删除参训教师档案。
+                              </p>
+                              <div className="mt-2 flex flex-wrap gap-2">
                                 <button
-                                  className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 text-sm font-semibold text-rose-600 transition hover:bg-rose-100"
-                                  aria-label="解绑省培账号"
+                                  className="inline-flex h-9 max-w-full items-center justify-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 text-sm font-semibold text-blue-700 transition hover:border-blue-200 hover:bg-blue-100"
+                                  aria-label="复制省培账号通知消息"
                                   disabled={isSaving}
-                                  onClick={() => void removeParticipantAccount(participant)}
-                                  title="解绑省培账号"
+                                  onClick={() => void copyAccountMessage(participant.id)}
+                                  title="复制省培账号通知消息"
                                   type="button"
                                 >
-                                  <Trash2 className="h-4 w-4" />
-                                  解绑省培账号
+                                  <Copy className="h-4 w-4 shrink-0" />
+                                  <span className="truncate whitespace-nowrap">复制账号消息</span>
                                 </button>
-                              </>
-                            ) : null}
+                                {participant.accountUsername ? (
+                                  <>
+                                    {participant.accountRole === "training_teacher" ? (
+                                      <button
+                                        className="inline-flex h-9 max-w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+                                        aria-label="重置账号密码"
+                                        disabled={isSaving}
+                                        onClick={() => editParticipantAccount(participant)}
+                                        title="重置账号密码"
+                                        type="button"
+                                      >
+                                        <Pencil className="h-4 w-4 shrink-0" />
+                                        <span className="truncate whitespace-nowrap">重置账号密码</span>
+                                      </button>
+                                    ) : (
+                                      <span className="inline-flex min-h-9 max-w-full items-center rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-500">
+                                        <span className="truncate">原平台账号由团队账号管理维护</span>
+                                      </span>
+                                    )}
+                                    <button
+                                      className="inline-flex h-9 max-w-full items-center justify-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 text-sm font-semibold text-amber-700 transition hover:bg-amber-100"
+                                      aria-label="解绑省培账号"
+                                      disabled={isSaving}
+                                      onClick={() => void removeParticipantAccount(participant)}
+                                      title="解绑省培账号"
+                                      type="button"
+                                    >
+                                      <Trash2 className="h-4 w-4 shrink-0" />
+                                      <span className="truncate whitespace-nowrap">解绑省培账号</span>
+                                    </button>
+                                  </>
+                                ) : null}
+                              </div>
+                            </div>
                           </div>
                         ) : null}
                         {accountEditParticipantId === participant.id ? (
