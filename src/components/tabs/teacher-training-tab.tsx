@@ -743,6 +743,7 @@ export default function TeacherTrainingTab() {
     saveTeacherTrainingSubmission,
     updateTeacherTrainingProfile,
     loadTeacherTrainingCohortDetails,
+    setLoadError,
   } = Workspace.useWorkspaceContext();
   const {
     ActionButton,
@@ -2494,6 +2495,7 @@ export default function TeacherTrainingTab() {
   ) => {
     if (teacherInitialProfileRequired && key !== "profile") {
       setActiveTeacherTrainingSection("profile");
+      setLoadError("请先在“个人信息”里完善资料并保存，之后即可使用其他模块。");
       return;
     }
 

@@ -396,16 +396,12 @@ export const getTeacherTrainingEffectiveRoleLabel = ({
   const participantProfile = orderedCohorts
     .flatMap((cohort) => cohort.participants ?? [])
     .find((participant) => participant.accountUserId === user.id);
-  const participantTitle = participantProfile?.title?.trim();
-
-  if (participantTitle) {
-    return participantTitle;
-  }
 
   if (user.role === "admin" || user.role === "school_admin") {
     return "省培管理员";
   }
 
+  // 普通参训教师统一显示角色“省培教师”，不再用其职务（如“教研室主任”）作为身份标签。
   const isParticipant = Boolean(participantProfile);
   if (
     user.role === "training_teacher" ||
