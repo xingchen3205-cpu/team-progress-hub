@@ -783,6 +783,20 @@ export default function TeacherTrainingTab() {
   // 班次管理页：新建/修改表单与辅助信息默认折叠，让页面以班次列表为主、更清爽。
   const [cohortFormOpen, setCohortFormOpen] = useState(false);
   const [cohortConfigOpen, setCohortConfigOpen] = useState(false);
+  // 参训教师页：录入表单默认折叠，名单区更宽更清爽。
+  const [participantFormOpen, setParticipantFormOpen] = useState(false);
+  // 名单条目默认只显示核心信息，到达/交通/账号处理等细节按需展开。
+  const [expandedParticipantIds, setExpandedParticipantIds] = useState<Set<string>>(new Set());
+  const toggleParticipantExpanded = (id: string) =>
+    setExpandedParticipantIds((current) => {
+      const next = new Set(current);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
   const [participantDraft, setParticipantDraft] = useState<Workspace.TeacherTrainingParticipantDraft>({
     cohortId: "",
     name: "",
@@ -3525,16 +3539,23 @@ export default function TeacherTrainingTab() {
             ) : null}
 
             {canManage && showTeacherTrainingSection("participants") ? (
-              <div className="tt-subcard p-4">
-                <div className="flex items-center gap-2.5">
-                  <span className="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-[#1a6fd4]/10 text-[#1a6fd4]">
+              <div className="tt-subcard p-4" id="tt-participant-form">
+                <button
+                  type="button"
+                  className="flex w-full items-center gap-2.5 text-left"
+                  onClick={() => setParticipantFormOpen((v) => !v)}
+                  aria-expanded={participantFormOpen}
+                >
+                  <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[#1a6fd4]/10 text-[#1a6fd4]">
                     <Users className="h-4 w-4" />
                   </span>
-                  <div>
+                  <div className="min-w-0 flex-1">
                     <p className="text-[15px] font-bold text-slate-950">参训教师中心</p>
                     <p className="mt-0.5 text-xs leading-5 text-slate-500">新增省培教师账号，也可绑定已有平台账号。</p>
                   </div>
-                </div>
+                  <ChevronDown className={`h-4 w-4 shrink-0 text-slate-400 transition ${participantFormOpen ? "rotate-180" : ""}`} />
+                </button>
+                {participantFormOpen ? (
                 <div className="mt-3 space-y-3">
                   <label className={teacherTrainingFieldShellClassName}>
                     <span className={teacherTrainingFieldLabelClassName}>参训教师姓名</span>
@@ -3712,6 +3733,7 @@ export default function TeacherTrainingTab() {
                     </ActionButton>
                   </div>
                 </div>
+                ) : null}
               </div>
             ) : null}
 
@@ -3874,22 +3896,24 @@ export default function TeacherTrainingTab() {
           ) : (
             <>
               {!showTeacherTrainingSection("overview") ? (
-              <section className="tt-card p-5">
-                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                  <div>
-                    <p className="text-xs font-semibold text-[#1a6fd4]">当前班次</p>
-                    <h3 className="mt-2 text-xl font-bold text-slate-950">{selectedCohort.title}</h3>
-                    <p className="mt-2 text-sm leading-6 text-slate-500">
+              <section className="tt-card flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex min-w-0 items-center gap-2.5">
+                  <span className="inline-flex h-7 shrink-0 items-center rounded-lg bg-[#1a6fd4]/10 px-2.5 text-xs font-bold text-[#1a6fd4]">
+                    当前班次
+                  </span>
+                  <p className="min-w-0 truncate text-sm font-semibold text-slate-900" title={selectedCohort.title}>
+                    {selectedCohort.title}
+                    <span className="ml-2 font-normal text-slate-400">
                       {selectedCohort.startDate} 至 {selectedCohort.endDate}
                       {selectedCohort.location ? ` · ${selectedCohort.location}` : ""}
-                    </p>
-                  </div>
-                  <div className="rounded-xl bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-700">
-                    {activeTeacherTrainingSectionMeta?.label ?? (canManage ? "省培管理" : "我的省培")}
-                  </div>
+                    </span>
+                  </p>
                 </div>
+                <span className="w-fit shrink-0 rounded-lg bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
+                  {activeTeacherTrainingSectionMeta?.label ?? (canManage ? "省培管理" : "我的省培")}
+                </span>
                 {!canManage && teacherTrainingCohorts.length > 1 ? (
-                  <label className={`${teacherTrainingFieldShellClassName} mt-4 max-w-md`}>
+                  <label className={`${teacherTrainingFieldShellClassName} w-full sm:max-w-[260px]`}>
                     <span className={teacherTrainingFieldLabelClassName}>选择我的省培班次</span>
                     <select
                       className={fieldClassName}
@@ -5439,14 +5463,14 @@ export default function TeacherTrainingTab() {
                     </span>
                     <button
                       className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-blue-100 bg-white px-3 text-xs font-semibold text-blue-700 transition hover:border-blue-200 hover:bg-blue-50"
-                      aria-label="批量按手机号分配账号"
+                      aria-label="为未绑定账号的教师批量生成登录账号"
                       disabled={isSaving || !selectedCohort.participants.some((participant) => !participant.accountUserId && getPhoneAccountUsername(participant))}
                       onClick={() => void batchGeneratePhoneAccounts()}
-                      title="批量按手机号分配账号"
+                      title="给还没有省培登录账号的教师，用其手机号一键批量生成账号（已有账号的不受影响）"
                       type="button"
                     >
                       <Copy className="h-4 w-4" />
-                      批量按手机号分配账号
+                      批量生成账号
                     </button>
                   </div>
                 </div>
@@ -5538,9 +5562,12 @@ export default function TeacherTrainingTab() {
                         type="button"
                         className="mt-1 inline-flex items-center gap-1.5 rounded-lg bg-[#1a6fd4] px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-[#155bb0]"
                         onClick={() => {
-                          const input = document.getElementById("tt-participant-name-input");
-                          input?.scrollIntoView({ behavior: "smooth", block: "center" });
-                          window.setTimeout(() => (input as HTMLInputElement | null)?.focus(), 350);
+                          setParticipantFormOpen(true);
+                          window.requestAnimationFrame(() => {
+                            const input = document.getElementById("tt-participant-name-input");
+                            input?.scrollIntoView({ behavior: "smooth", block: "center" });
+                            window.setTimeout(() => (input as HTMLInputElement | null)?.focus(), 350);
+                          });
                         }}
                       >
                         <Plus className="h-3.5 w-3.5" />
@@ -5575,6 +5602,17 @@ export default function TeacherTrainingTab() {
                               {participant.accountRole !== "training_teacher" ? "（绑定原平台账号）" : ""}
                             </p>
                           ) : null}
+                          <button
+                            type="button"
+                            className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-[#1a6fd4] transition hover:text-[#155bb0]"
+                            onClick={() => toggleParticipantExpanded(participant.id)}
+                            aria-expanded={expandedParticipantIds.has(participant.id)}
+                          >
+                            {expandedParticipantIds.has(participant.id) ? "收起详情" : "到达 · 账号 · 删除等详情"}
+                            <ChevronDown className={`h-3.5 w-3.5 transition ${expandedParticipantIds.has(participant.id) ? "rotate-180" : ""}`} />
+                          </button>
+                          {expandedParticipantIds.has(participant.id) ? (
+                          <>
                           <div className="mt-2 grid gap-2 sm:grid-cols-2">
                             <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2">
                               <p className="text-[11px] font-semibold text-slate-400">预计到达时间</p>
@@ -5604,8 +5642,10 @@ export default function TeacherTrainingTab() {
                               ))}
                             </div>
                           ) : null}
+                          </>
+                          ) : null}
                         </div>
-                        {canManage ? (
+                        {canManage && expandedParticipantIds.has(participant.id) ? (
                           <div className="grid gap-3 border-t border-slate-100 pt-3 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.6fr)]">
                             <div className="rounded-xl border border-rose-100 bg-rose-50/35 p-3">
                               <p className="text-[11px] font-bold tracking-wide text-rose-500">参训教师档案</p>
