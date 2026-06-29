@@ -158,6 +158,9 @@ export type TeacherTrainingCheckInRecordItem = {
   participantName: string;
 };
 
+export const getTeacherTrainingCheckInRecordStatusLabel = (status: string) =>
+  status === "manual" ? "人工确认" : "已签到";
+
 export type TeacherTrainingCheckInTaskItem = {
   id: string;
   cohortId: string;
@@ -769,6 +772,21 @@ export const calculateDistanceMeters = (
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
 
   return Math.round(earthRadiusMeters * c);
+};
+
+export const TEACHER_TRAINING_CHECK_IN_DEFAULT_RADIUS_METERS = 500;
+export const TEACHER_TRAINING_CHECK_IN_MAX_GPS_TOLERANCE_METERS = 200;
+
+export const getAllowedTeacherTrainingCheckInDistanceMeters = (radiusMeters: number, accuracy: number | null) => {
+  const baseRadius = Number.isFinite(radiusMeters)
+    ? Math.max(50, Math.round(radiusMeters))
+    : TEACHER_TRAINING_CHECK_IN_DEFAULT_RADIUS_METERS;
+  const accuracyTolerance =
+    accuracy !== null && Number.isFinite(accuracy)
+      ? Math.min(TEACHER_TRAINING_CHECK_IN_MAX_GPS_TOLERANCE_METERS, Math.max(0, Math.round(accuracy)))
+      : 0;
+
+  return baseRadius + accuracyTolerance;
 };
 
 export const isValidTeacherTrainingLatitude = (value: number | null) =>
@@ -1642,7 +1660,7 @@ export const buildTeacherTrainingCsv = ({
             participant.name,
             participant.organization,
             participant.groupName,
-            record ? "已签到" : "未签到",
+            record ? getTeacherTrainingCheckInRecordStatusLabel(record.status) : "未签到",
             record?.signedAt ?? "",
             record?.distanceMeters ?? "",
             record?.accuracy ?? "",

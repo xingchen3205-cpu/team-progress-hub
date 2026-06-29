@@ -3,7 +3,11 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import test from "node:test";
 
-import { getTeacherTrainingEffectiveRoleLabel, validateTeacherTrainingLeaveRange } from "../src/lib/teacher-training";
+import {
+  getAllowedTeacherTrainingCheckInDistanceMeters,
+  getTeacherTrainingEffectiveRoleLabel,
+  validateTeacherTrainingLeaveRange,
+} from "../src/lib/teacher-training";
 import { parseTeacherTrainingParticipantImportText } from "../src/lib/teacher-training-participant-import";
 
 const root = process.cwd();
@@ -91,6 +95,7 @@ test("teacher training APIs support admin-managed courses, check-in, tasks, subm
   const courseRoute = read("src/app/api/teacher-training/course-sessions/route.ts");
   const checkInRoute = read("src/app/api/teacher-training/check-ins/route.ts");
   const checkInSignRoute = read("src/app/api/teacher-training/check-ins/sign/route.ts");
+  const checkInManualRoute = read("src/app/api/teacher-training/check-ins/manual/route.ts");
   const leaveFlowRoute = read("src/app/api/teacher-training/leave-flow/route.ts");
   const leaveRequestRoute = read("src/app/api/teacher-training/leave-requests/route.ts");
   const leaveReviewRoute = read("src/app/api/teacher-training/leave-requests/[leaveRequestId]/review/route.ts");
@@ -151,10 +156,15 @@ test("teacher training APIs support admin-managed courses, check-in, tasks, subm
   assert.match(checkInRoute, /请同时填写纬度和经度/);
   assert.match(checkInRoute, /经纬度范围不正确/);
   assert.match(checkInSignRoute, /calculateDistanceMeters/);
+  assert.match(checkInSignRoute, /getAllowedTeacherTrainingCheckInDistanceMeters/);
   assert.match(checkInSignRoute, /getTeacherTrainingCheckInWindowState/);
   assert.match(checkInSignRoute, /teacherTrainingCheckInWindowMessages/);
   assert.match(checkInSignRoute, /定位坐标不正确/);
   assert.match(checkInSignRoute, /upsert/);
+  assert.match(checkInManualRoute, /hasTeacherTrainingCohortManageAccess/);
+  assert.match(checkInManualRoute, /人工补签原因/);
+  assert.match(checkInManualRoute, /status:\s*"manual"/);
+  assert.match(checkInManualRoute, /upsert/);
   assert.match(leaveFlowRoute, /approvalSteps/);
   assert.match(leaveFlowRoute, /requiredCount/);
   assert.match(leaveRequestRoute, /accountUserId:\s*user\.id/);
@@ -1211,10 +1221,13 @@ test("teacher training destructive and import paths include reviewer-requested s
   assert.match(participantRouteSource, /名单中存在重复教师/);
   assert.match(participantRouteSource, /该班次已存在相同姓名和单位或相同手机号的参训教师/);
 
-  assert.match(signRouteSource, /TEACHER_TRAINING_CHECK_IN_ACCURACY_REVIEW_THRESHOLD_METERS/);
-  assert.match(signRouteSource, /accuracy_review/);
+  assert.doesNotMatch(signRouteSource, /accuracy_review/);
   assert.match(tabSource, /TeacherTrainingCheckInRecordStatusBadge/);
-  assert.match(checkInStatusBadgeSource, /精度待复核/);
+  assert.match(checkInStatusBadgeSource, /人工确认/);
+  assert.doesNotMatch(checkInStatusBadgeSource, /精度待复核/);
+  assert.match(tabSource, /人工补签/);
+  assert.match(tabSource, /manualSignTeacherTrainingCheckIn/);
+  assert.match(teacherTrainingLibSource, /getTeacherTrainingCheckInRecordStatusLabel/);
   assert.match(tabSource, /签到率/);
   assert.match(tabSource, /conic-gradient/);
   assert.match(tabSource, /报到状态/);
@@ -1228,6 +1241,12 @@ test("teacher training destructive and import paths include reviewer-requested s
     assert.match(source, /auditLog\.create/);
     assert.match(source, /teacher_training\.notification\.failed/);
   }
+});
+
+test("teacher training check-in distance allows bounded GPS drift without review workload", () => {
+  assert.equal(getAllowedTeacherTrainingCheckInDistanceMeters(500, null), 500);
+  assert.equal(getAllowedTeacherTrainingCheckInDistanceMeters(500, 68.4), 568);
+  assert.equal(getAllowedTeacherTrainingCheckInDistanceMeters(500, 999), 700);
 });
 
 test("teacher training workspace loads cohort summaries first and hydrates selected cohort details on demand", () => {

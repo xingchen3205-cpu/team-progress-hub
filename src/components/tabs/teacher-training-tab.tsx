@@ -469,7 +469,7 @@ const createDefaultCheckInTaskDraft = (): Workspace.TeacherTrainingCheckInTaskDr
   locationName: "",
   latitude: "",
   longitude: "",
-  radiusMeters: "300",
+  radiusMeters: String(Workspace.TEACHER_TRAINING_CHECK_IN_DEFAULT_RADIUS_METERS),
 });
 
 const statusStyleMap: Record<AttendanceStatus, string> = {
@@ -728,6 +728,7 @@ export default function TeacherTrainingTab() {
     createTeacherTrainingCheckInTask,
     deleteTeacherTrainingCheckInTask,
     signTeacherTrainingCheckIn,
+    manualSignTeacherTrainingCheckIn,
     markTeacherTrainingAttendance,
     generateTeacherTrainingAccountMessage,
     updateTeacherTrainingParticipantAccount,
@@ -846,6 +847,11 @@ export default function TeacherTrainingTab() {
   const [locationMessage, setLocationMessage] = useState("");
   const [accountMessagesByParticipantId, setAccountMessagesByParticipantId] = useState<Record<string, string>>({});
   const [checkInSigningId, setCheckInSigningId] = useState("");
+  const [manualCheckInDraft, setManualCheckInDraft] = useState<Workspace.TeacherTrainingManualCheckInDraft>({
+    checkInTaskId: "",
+    participantId: "",
+    note: "定位失败，现场人工确认",
+  });
   const [checkInClock, setCheckInClock] = useState(() => Date.now());
   const [leaveFlowSteps, setLeaveFlowSteps] = useState<Workspace.TeacherTrainingLeaveFlowStep[]>([]);
   const [leaveDraft, setLeaveDraft] = useState<Workspace.TeacherTrainingLeaveRequestDraft>({
@@ -1184,6 +1190,13 @@ export default function TeacherTrainingTab() {
       task.title,
       task.signDate,
       task.locationName,
+      ...(selectedCohort?.participants ?? []).flatMap((participant) => [
+        participant.name,
+        participant.organization,
+        participant.groupName,
+        participant.title,
+        participant.email,
+      ]),
       ...task.records.flatMap((record) => {
         const participant = participantById.get(record.participantId);
         return [
@@ -1221,6 +1234,26 @@ export default function TeacherTrainingTab() {
       : task.records;
 
     return records.slice(0, checkInSearchKeyword ? 8 : 3);
+  };
+  const getUnsignedCheckInParticipants = (task: Workspace.TeacherTrainingCheckInTaskItem) => {
+    const signedParticipantIds = new Set(task.records.map((record) => record.participantId));
+    const participants = (selectedCohort?.participants ?? []).filter((participant) => {
+      if (signedParticipantIds.has(participant.id)) return false;
+      if (!checkInSearchKeyword) return true;
+
+      return [
+        participant.name,
+        participant.organization,
+        participant.groupName,
+        participant.title,
+        participant.email,
+      ]
+        .join(" ")
+        .toLocaleLowerCase("zh-CN")
+        .includes(checkInSearchKeyword);
+    });
+
+    return participants.slice(0, checkInSearchKeyword ? 8 : 4);
   };
   const teacherSubmittedTaskIds = new Set(
     (selectedCohort?.tasks ?? [])
@@ -2224,6 +2257,30 @@ export default function TeacherTrainingTab() {
     if (ok) {
       setCheckInDraft(createDefaultCheckInTaskDraft());
     }
+  };
+
+  const openManualCheckIn = (
+    task: Workspace.TeacherTrainingCheckInTaskItem,
+    participant: Workspace.TeacherTrainingParticipantItem,
+  ) => {
+    setManualCheckInDraft({
+      checkInTaskId: task.id,
+      participantId: participant.id,
+      note: "定位失败，现场人工确认",
+    });
+  };
+
+  const submitManualCheckIn = async () => {
+    if (!manualCheckInDraft.checkInTaskId || !manualCheckInDraft.participantId || !manualCheckInDraft.note.trim()) {
+      return;
+    }
+
+    await manualSignTeacherTrainingCheckIn(manualCheckInDraft);
+    setManualCheckInDraft({
+      checkInTaskId: "",
+      participantId: "",
+      note: "定位失败，现场人工确认",
+    });
   };
 
   const editCheckInTask = (task: Workspace.TeacherTrainingCheckInTaskItem) => {
@@ -3961,7 +4018,7 @@ export default function TeacherTrainingTab() {
                         </span>
                         <p className="text-sm font-semibold text-slate-700">暂无课程安排</p>
                         <p className="max-w-[260px] text-xs leading-5 text-slate-400">
-                          在右侧添加课程后，教师端会同步显示课程表。
+                          添加课程后，教师端会同步显示课程表。
                         </p>
                         <button
                           type="button"
@@ -4437,6 +4494,11 @@ export default function TeacherTrainingTab() {
                             const windowState = Workspace.getTeacherTrainingCheckInWindowState(task, checkInNow);
                             const progress = getCheckInProgress(task);
                             const visibleRecords = getVisibleCheckInRecords(task);
+                            const visibleUnsignedParticipants = getUnsignedCheckInParticipants(task);
+                            const manualCheckInParticipant = selectedCohort.participants.find(
+                              (participant) => participant.id === manualCheckInDraft.participantId,
+                            );
+                            const isManualCheckInOpen = manualCheckInDraft.checkInTaskId === task.id;
                             return (
                               <article
                                 key={task.id}
@@ -4528,6 +4590,77 @@ export default function TeacherTrainingTab() {
                                   <p className="mt-3 rounded-lg bg-slate-50 px-3 py-2 text-xs text-slate-400">
                                     这个签到任务下没有匹配的教师记录。
                                   </p>
+                                ) : null}
+                                {visibleUnsignedParticipants.length > 0 ? (
+                                  <div className="mt-3 rounded-xl border border-amber-100 bg-amber-50/70 p-3">
+                                    <div className="flex flex-wrap items-center justify-between gap-2">
+                                      <p className="text-xs font-bold text-amber-800">未签到教师</p>
+                                      <span className="rounded-full bg-white px-2 py-0.5 text-[11px] font-semibold text-amber-700">
+                                        可人工补签
+                                      </span>
+                                    </div>
+                                    <div className="mt-2 grid gap-2">
+                                      {visibleUnsignedParticipants.map((participant) => (
+                                        <div
+                                          key={participant.id}
+                                          className="flex flex-col gap-2 rounded-lg bg-white/86 px-3 py-2 text-xs text-slate-500 sm:flex-row sm:items-center sm:justify-between"
+                                        >
+                                          <span>
+                                            <span className="font-semibold text-slate-900">{participant.name}</span>
+                                            {participant.organization ? <span> · {participant.organization}</span> : null}
+                                          </span>
+                                          <button
+                                            className="inline-flex h-8 items-center justify-center rounded-lg border border-amber-200 bg-amber-50 px-2.5 text-xs font-semibold text-amber-700 transition hover:bg-amber-100"
+                                            onClick={() => openManualCheckIn(task, participant)}
+                                            type="button"
+                                          >
+                                            人工补签
+                                          </button>
+                                        </div>
+                                      ))}
+                                    </div>
+                                  </div>
+                                ) : null}
+                                {isManualCheckInOpen && manualCheckInParticipant ? (
+                                  <div className="mt-3 rounded-xl border border-blue-100 bg-blue-50/70 p-3">
+                                    <p className="text-xs font-bold text-blue-800">
+                                      人工补签：{manualCheckInParticipant.name}
+                                    </p>
+                                    <textarea
+                                      className={`${fieldClassName} mt-2 min-h-20`}
+                                      onChange={(event) =>
+                                        setManualCheckInDraft((current) => ({
+                                          ...current,
+                                          note: event.target.value,
+                                        }))
+                                      }
+                                      placeholder="请填写原因，例如：定位失败，现场人工确认"
+                                      value={manualCheckInDraft.note}
+                                    />
+                                    <div className="mt-2 flex flex-wrap gap-2">
+                                      <button
+                                        className="inline-flex h-8 items-center justify-center rounded-lg bg-[#1f64f2] px-3 text-xs font-semibold text-white disabled:cursor-not-allowed disabled:bg-slate-300"
+                                        disabled={isSaving || !manualCheckInDraft.note.trim()}
+                                        onClick={() => void submitManualCheckIn()}
+                                        type="button"
+                                      >
+                                        确认补签
+                                      </button>
+                                      <button
+                                        className="inline-flex h-8 items-center justify-center rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600"
+                                        onClick={() =>
+                                          setManualCheckInDraft({
+                                            checkInTaskId: "",
+                                            participantId: "",
+                                            note: "定位失败，现场人工确认",
+                                          })
+                                        }
+                                        type="button"
+                                      >
+                                        取消
+                                      </button>
+                                    </div>
+                                  </div>
                                 ) : null}
                               </article>
                             );

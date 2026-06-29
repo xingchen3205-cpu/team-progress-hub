@@ -5,16 +5,19 @@ import { prisma } from "@/lib/prisma";
 import {
   areValidTeacherTrainingCoordinates,
   calculateDistanceMeters,
+  getAllowedTeacherTrainingCheckInDistanceMeters,
   getTeacherTrainingCheckInWindowState,
   teacherTrainingCheckInWindowMessages,
 } from "@/lib/teacher-training";
 
 const parseRequiredNumber = (value: unknown) => {
+  if (value === null || value === undefined || value === "") {
+    return null;
+  }
+
   const numberValue = Number(value);
   return Number.isFinite(numberValue) ? numberValue : null;
 };
-
-const TEACHER_TRAINING_CHECK_IN_ACCURACY_REVIEW_THRESHOLD_METERS = 200;
 
 export async function POST(request: NextRequest) {
   const user = await getSessionUser(request);
@@ -105,13 +108,11 @@ export async function POST(request: NextRequest) {
       ? calculateDistanceMeters(checkInTask.latitude, checkInTask.longitude, latitude, longitude)
       : null;
 
-  if (distanceMeters !== null && distanceMeters > checkInTask.radiusMeters) {
+  const allowedDistanceMeters = getAllowedTeacherTrainingCheckInDistanceMeters(checkInTask.radiusMeters, accuracy);
+
+  if (distanceMeters !== null && distanceMeters > allowedDistanceMeters) {
     return NextResponse.json({ message: `不在签到范围内，当前距离约 ${distanceMeters} 米` }, { status: 400 });
   }
-  const checkInStatus =
-    accuracy !== null && accuracy > TEACHER_TRAINING_CHECK_IN_ACCURACY_REVIEW_THRESHOLD_METERS
-      ? "accuracy_review"
-      : "valid";
 
   const record = await prisma.teacherTrainingCheckInRecord.upsert({
     where: {
@@ -125,7 +126,7 @@ export async function POST(request: NextRequest) {
       longitude,
       accuracy,
       distanceMeters,
-      status: checkInStatus,
+      status: "valid",
       note: body?.note?.trim() || null,
       signedAt: new Date(),
     },
@@ -136,7 +137,7 @@ export async function POST(request: NextRequest) {
       longitude,
       accuracy,
       distanceMeters,
-      status: checkInStatus,
+      status: "valid",
       note: body?.note?.trim() || null,
     },
   });

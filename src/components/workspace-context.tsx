@@ -296,6 +296,12 @@ export type TeacherTrainingCheckInSignDraft = {
   accuracy: number | null;
 };
 
+export type TeacherTrainingManualCheckInDraft = {
+  checkInTaskId: string;
+  participantId: string;
+  note: string;
+};
+
 export type TeacherTrainingAccountMessageDraft = {
   participantId: string;
   accountUsername?: string;
@@ -5605,6 +5611,31 @@ function useWorkspaceController({
     }
   };
 
+  const manualSignTeacherTrainingCheckIn = async (draft: TeacherTrainingManualCheckInDraft) => {
+    if (!draft.checkInTaskId || !draft.participantId || !draft.note.trim()) {
+      setLoadError("请先选择签到任务、参训教师并填写人工补签原因");
+      return;
+    }
+
+    setIsSaving(true);
+    try {
+      await requestJson("/api/teacher-training/check-ins/manual", {
+        method: "POST",
+        body: JSON.stringify({
+          checkInTaskId: draft.checkInTaskId,
+          participantId: draft.participantId,
+          note: draft.note.trim(),
+        }),
+      });
+      showSuccessToast("人工补签已记录", "签到名单和导出记录会同步更新。");
+      refreshWorkspace("teacherTraining");
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "人工补签失败");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const markTeacherTrainingAttendance = async ({
     cohortId,
     participantId,
@@ -8398,6 +8429,7 @@ function useWorkspaceController({
     createTeacherTrainingCheckInTask,
     deleteTeacherTrainingCheckInTask,
     signTeacherTrainingCheckIn,
+    manualSignTeacherTrainingCheckIn,
     markTeacherTrainingAttendance,
     generateTeacherTrainingAccountMessage,
     updateTeacherTrainingParticipantAccount,

@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import {
+  TEACHER_TRAINING_CHECK_IN_DEFAULT_RADIUS_METERS,
   areValidTeacherTrainingCoordinates,
   isTeacherTrainingDateKey,
   parseTeacherTrainingTimeToMinutes,
@@ -21,7 +22,7 @@ const parseOptionalNumber = (value: unknown) => {
 const clampRadiusMeters = (value: unknown) => {
   const radius = Number(value);
   if (!Number.isFinite(radius)) {
-    return 300;
+    return TEACHER_TRAINING_CHECK_IN_DEFAULT_RADIUS_METERS;
   }
 
   return Math.min(5000, Math.max(50, Math.round(radius)));

@@ -1057,7 +1057,7 @@ model TeacherTrainingCheckInTask {
   locationName    String?
   latitude        Float?
   longitude       Float?
-  radiusMeters    Int                            @default(300)
+  radiusMeters    Int                            @default(500)
   isActive        Boolean                        @default(true)
   createdById     String
   deletedAt       DateTime?
