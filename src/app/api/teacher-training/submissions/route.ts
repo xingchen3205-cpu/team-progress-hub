@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { getSessionUser } from "@/lib/auth";
 import { hasTeacherTrainingCohortManageAccess } from "@/lib/teacher-training-access";
+import { isTeacherTrainingTaskReleased } from "@/lib/teacher-training";
 import { prisma } from "@/lib/prisma";
 import { HeadObjectCommand, R2_BUCKET, r2Client } from "@/lib/r2";
 import {
@@ -44,13 +45,28 @@ export async function POST(request: NextRequest) {
         deletedAt: null,
       },
     },
-    select: { cohortId: true, requireAttachment: true },
+    select: {
+      cohortId: true,
+      requireAttachment: true,
+      releaseMode: true,
+      releaseAt: true,
+      courseSession: {
+        select: {
+          courseDate: true,
+          startTime: true,
+          endTime: true,
+        },
+      },
+    },
   });
   if (!task) {
     return NextResponse.json({ message: "省培任务不存在" }, { status: 404 });
   }
 
   const canManageCohort = await hasTeacherTrainingCohortManageAccess(user, task.cohortId);
+  if (!canManageCohort && !isTeacherTrainingTaskReleased(task)) {
+    return NextResponse.json({ message: "该任务尚未开放提交，请按发布时间再填写" }, { status: 403 });
+  }
   const participant = await prisma.teacherTrainingParticipant.findFirst({
     where: {
       id: participantId,

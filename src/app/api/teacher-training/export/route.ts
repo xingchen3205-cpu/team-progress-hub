@@ -76,11 +76,20 @@ export async function GET(request: NextRequest) {
         orderBy: [{ createdAt: "asc" }],
         include: {
           creator: { select: { name: true } },
+          courseSession: {
+            select: {
+              title: true,
+              courseDate: true,
+              startTime: true,
+              endTime: true,
+            },
+          },
           submissions: {
             orderBy: [{ submittedAt: "asc" }],
             include: {
               participant: { select: { name: true } },
               submittedBy: { select: { name: true } },
+              finalReviewer: { select: { name: true } },
             },
           },
         },

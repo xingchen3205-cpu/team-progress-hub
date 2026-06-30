@@ -196,6 +196,7 @@ model User {
   teacherTrainingManagerAssignments TeacherTrainingCohortManager[]    @relation("TeacherTrainingCohortManagerCreator")
   teacherTrainingTasks              TeacherTrainingTask[]             @relation("TeacherTrainingTaskCreator")
   teacherTrainingSubmissions        TeacherTrainingSubmission[]       @relation("TeacherTrainingSubmissionSubmitter")
+  teacherTrainingSubmissionReviews  TeacherTrainingSubmission[]       @relation("TeacherTrainingSubmissionReviewer")
   passwordResetTokens               PasswordResetToken[]
   reportEvaluations                 ReportEvaluation[]                @relation("ReportEvaluationCreator")
   projectReviewStages               ProjectReviewStage[]              @relation("ProjectReviewStageCreator")
@@ -1017,6 +1018,7 @@ model TeacherTrainingCourseSession {
   cohort        TeacherTrainingCohort        @relation(fields: [cohortId], references: [id], onDelete: Cascade)
   creator       User                         @relation("TeacherTrainingCourseSessionCreator", fields: [createdById], references: [id])
   checkInTasks  TeacherTrainingCheckInTask[]
+  tasks         TeacherTrainingTask[]
 
   @@index([cohortId, courseDate, startTime])
   @@index([createdById, createdAt])
@@ -1176,10 +1178,16 @@ model TeacherTrainingAttendance {
 model TeacherTrainingTask {
   id                String                      @id @default(cuid())
   cohortId          String
+  courseSessionId   String?
   title             String
   description       String
   dueDate           String?
+  taskType          String                      @default("cohort")
+  releaseMode       String                      @default("immediate")
+  releaseAt         String?
   requireAttachment Boolean                     @default(false)
+  enableAiReview    Boolean                     @default(false)
+  scoringRubric     String?
   createdById       String
   deletedAt         DateTime?
   deletedById       String?
@@ -1187,10 +1195,13 @@ model TeacherTrainingTask {
   createdAt         DateTime                    @default(now())
   updatedAt         DateTime                    @updatedAt
   cohort            TeacherTrainingCohort       @relation(fields: [cohortId], references: [id], onDelete: Cascade)
+  courseSession     TeacherTrainingCourseSession? @relation(fields: [courseSessionId], references: [id], onDelete: SetNull)
   creator           User                        @relation("TeacherTrainingTaskCreator", fields: [createdById], references: [id])
   submissions       TeacherTrainingSubmission[]
 
   @@index([cohortId, dueDate])
+  @@index([courseSessionId])
+  @@index([cohortId, taskType, releaseMode])
   @@index([createdById, createdAt])
   @@index([deletedAt])
 }
@@ -1202,16 +1213,25 @@ model TeacherTrainingSubmission {
   content       String
   attachment    String?
   status        String                     @default("submitted")
+  aiScore       Int?
+  aiComment     String?
+  aiReviewedAt  DateTime?
+  finalScore    Int?
+  finalComment  String?
+  finalReviewedById String?
+  finalReviewedAt DateTime?
   submittedById String
   submittedAt   DateTime                   @default(now())
   updatedAt     DateTime                   @updatedAt
   task          TeacherTrainingTask        @relation(fields: [taskId], references: [id], onDelete: Cascade)
   participant   TeacherTrainingParticipant @relation(fields: [participantId], references: [id], onDelete: Cascade)
   submittedBy   User                       @relation("TeacherTrainingSubmissionSubmitter", fields: [submittedById], references: [id])
+  finalReviewer User?                      @relation("TeacherTrainingSubmissionReviewer", fields: [finalReviewedById], references: [id], onDelete: SetNull)
 
   @@unique([taskId, participantId])
   @@index([participantId, submittedAt])
   @@index([submittedById, submittedAt])
+  @@index([finalReviewedById, finalReviewedAt])
 }
 
 model PasswordResetToken {

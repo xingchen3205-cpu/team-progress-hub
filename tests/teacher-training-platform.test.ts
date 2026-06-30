@@ -6,6 +6,8 @@ import test from "node:test";
 import {
   getAllowedTeacherTrainingCheckInDistanceMeters,
   getTeacherTrainingEffectiveRoleLabel,
+  getTeacherTrainingTaskAvailableAt,
+  isTeacherTrainingTaskReleased,
   validateTeacherTrainingLeaveRange,
 } from "../src/lib/teacher-training";
 import { parseTeacherTrainingParticipantImportText } from "../src/lib/teacher-training-participant-import";
@@ -28,6 +30,14 @@ test("teacher provincial training has isolated durable models", () => {
   assert.match(schema, /model TeacherTrainingAttendance/);
   assert.match(schema, /model TeacherTrainingTask/);
   assert.match(schema, /model TeacherTrainingSubmission/);
+  assert.match(schema, /courseSessionId\s+String\?/);
+  assert.match(schema, /taskType\s+String\s+@default\("cohort"\)/);
+  assert.match(schema, /releaseMode\s+String\s+@default\("immediate"\)/);
+  assert.match(schema, /enableAiReview\s+Boolean\s+@default\(false\)/);
+  assert.match(schema, /scoringRubric\s+String\?/);
+  assert.match(schema, /aiScore\s+Int\?/);
+  assert.match(schema, /finalScore\s+Int\?/);
+  assert.match(schema, /TeacherTrainingSubmissionReviewer/);
   assert.match(schema, /training_teacher/);
   assert.match(schema, /@@unique\(\[participantId,\s*sessionDate,\s*sessionLabel\]\)/);
   assert.match(schema, /markedById/);
@@ -105,6 +115,9 @@ test("teacher training APIs support admin-managed courses, check-in, tasks, subm
   const attendanceRoute = read("src/app/api/teacher-training/attendance/route.ts");
   const taskRoute = read("src/app/api/teacher-training/tasks/route.ts");
   const submissionRoute = read("src/app/api/teacher-training/submissions/route.ts");
+  const submissionUploadRoute = read("src/app/api/teacher-training/submissions/upload-url/route.ts");
+  const submissionReviewRoute = read("src/app/api/teacher-training/submissions/[submissionId]/review/route.ts");
+  const taskAiReviewRoute = read("src/app/api/teacher-training/tasks/[taskId]/ai-review/route.ts");
   const profileRoute = read("src/app/api/teacher-training/profile/route.ts");
   const exportRoute = read("src/app/api/teacher-training/export/route.ts");
 
@@ -151,6 +164,10 @@ test("teacher training APIs support admin-managed courses, check-in, tasks, subm
   assert.match(mainRoute, /leaveFlow/);
   assert.match(mainRoute, /leaveRequests/);
   assert.match(mainRoute, /approverOptions/);
+  assert.match(mainRoute, /enableAiReview:\s*false/);
+  assert.match(mainRoute, /scoringRubric:\s*null/);
+  assert.match(mainRoute, /aiScore:\s*null/);
+  assert.match(mainRoute, /finalScore:\s*null/);
   assert.match(courseRoute, /createdById:\s*user\.id/);
   assert.match(checkInRoute, /createdById:\s*user\.id/);
   assert.match(checkInRoute, /请同时填写纬度和经度/);
@@ -190,15 +207,52 @@ test("teacher training APIs support admin-managed courses, check-in, tasks, subm
   assert.match(attendanceRoute, /upsert/);
   assert.match(attendanceRoute, /markedById:\s*user\.id/);
   assert.match(taskRoute, /createdById:\s*user\.id/);
+  assert.match(taskRoute, /courseSessionId/);
+  assert.match(taskRoute, /releaseMode/);
+  assert.match(taskRoute, /enableAiReview/);
+  assert.match(taskRoute, /课程结束后开放必须先选择关联课程/);
   assert.match(submissionRoute, /submittedById:\s*user\.id/);
   assert.match(submissionRoute, /hasTeacherTrainingCohortManageAccess/);
+  assert.match(submissionRoute, /isTeacherTrainingTaskReleased/);
+  assert.match(submissionUploadRoute, /isTeacherTrainingTaskReleased/);
   assert.match(submissionRoute, /requireAttachment/);
   assert.match(submissionRoute, /该任务要求上传 Word\/PDF 附件/);
   assert.match(submissionRoute, /getTeacherTrainingSubmissionAttachmentObjectKeyPrefix/);
   assert.match(submissionRoute, /附件路径与当前任务不匹配/);
+  assert.match(submissionReviewRoute, /hasTeacherTrainingCohortManageAccess/);
+  assert.match(submissionReviewRoute, /finalScore/);
+  assert.match(taskAiReviewRoute, /hasTeacherTrainingCohortManageAccess/);
+  assert.match(taskAiReviewRoute, /DIFY_API_KEY/);
+  assert.match(taskAiReviewRoute, /enableAiReview/);
   assert.match(exportRoute, /text\/csv/);
   assert.match(exportRoute, /buildTeacherTrainingCsv/);
   assert.match(exportRoute, /checkIns/);
+});
+
+test("teacher training task release timing follows course end and scheduled windows", () => {
+  const courseTask = {
+    releaseMode: "after_course",
+    releaseAt: null,
+    courseSession: {
+      courseDate: "2026-05-30",
+      startTime: "09:00",
+      endTime: "11:30",
+    },
+  };
+
+  assert.equal(getTeacherTrainingTaskAvailableAt(courseTask), "2026-05-30T11:30");
+  assert.equal(isTeacherTrainingTaskReleased(courseTask, new Date("2026-05-30T11:29:00+08:00")), false);
+  assert.equal(isTeacherTrainingTaskReleased(courseTask, new Date("2026-05-30T11:30:00+08:00")), true);
+
+  const scheduledTask = {
+    releaseMode: "scheduled",
+    releaseAt: "2026-05-31T20:00",
+    courseSession: null,
+  };
+
+  assert.equal(getTeacherTrainingTaskAvailableAt(scheduledTask), "2026-05-31T20:00");
+  assert.equal(isTeacherTrainingTaskReleased(scheduledTask, new Date("2026-05-31T19:59:00+08:00")), false);
+  assert.equal(isTeacherTrainingTaskReleased(scheduledTask, new Date("2026-05-31T20:01:00+08:00")), true);
 });
 
 test("teacher training managed records can be edited or deleted with clear confirmation", () => {

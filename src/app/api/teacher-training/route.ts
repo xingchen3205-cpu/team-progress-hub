@@ -9,7 +9,11 @@ import {
   hasTeacherTrainingCohortManageAccess,
   isTeacherTrainingSystemAdmin,
 } from "@/lib/teacher-training-access";
-import { serializeTeacherTrainingCohort, type TeacherTrainingCohortItem } from "@/lib/teacher-training";
+import {
+  isTeacherTrainingTaskReleased,
+  serializeTeacherTrainingCohort,
+  type TeacherTrainingCohortItem,
+} from "@/lib/teacher-training";
 import { decodeTeacherTrainingSubmissionAttachmentFile } from "@/lib/teacher-training-submission-attachments";
 import { deleteStoredFile } from "@/lib/uploads";
 
@@ -177,6 +181,14 @@ const buildTeacherTrainingInclude = (options: { participantAccountUserId?: strin
           name: true,
         },
       },
+      courseSession: {
+        select: {
+          title: true,
+          courseDate: true,
+          startTime: true,
+          endTime: true,
+        },
+      },
       submissions: {
         where: participantOwnedWhere,
         orderBy: [{ submittedAt: "desc" as const }],
@@ -187,6 +199,11 @@ const buildTeacherTrainingInclude = (options: { participantAccountUserId?: strin
             },
           },
           submittedBy: {
+            select: {
+              name: true,
+            },
+          },
+          finalReviewer: {
             select: {
               name: true,
             },
@@ -364,10 +381,26 @@ const filterCohortForParticipantOnly = (
       records: task.records.filter((record) => participantIds.has(record.participantId)),
     })),
     leaveRequests: cohort.leaveRequests.filter((request) => participantIds.has(request.participantId)),
-    tasks: cohort.tasks.map((task) => ({
-      ...task,
-      submissions: task.submissions.filter((submission) => participantIds.has(submission.participantId)),
-    })),
+    tasks: cohort.tasks
+      .filter((task) => isTeacherTrainingTaskReleased(task))
+      .map((task) => ({
+        ...task,
+        enableAiReview: false,
+        scoringRubric: null,
+        submissions: task.submissions
+          .filter((submission) => participantIds.has(submission.participantId))
+          .map((submission) => ({
+            ...submission,
+            aiScore: null,
+            aiComment: null,
+            aiReviewedAt: null,
+            finalScore: null,
+            finalComment: null,
+            finalReviewedById: null,
+            finalReviewedAt: null,
+            finalReviewer: null,
+          })),
+      })),
   };
 };
 

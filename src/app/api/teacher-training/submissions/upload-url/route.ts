@@ -10,6 +10,7 @@ import {
   validateTeacherTrainingSubmissionAttachmentMeta,
 } from "@/lib/teacher-training-submission-attachments";
 import { hasTeacherTrainingCohortManageAccess } from "@/lib/teacher-training-access";
+import { isTeacherTrainingTaskReleased } from "@/lib/teacher-training";
 import { buildStoredObjectKey } from "@/lib/uploads";
 
 export const runtime = "nodejs";
@@ -56,13 +57,27 @@ export async function POST(request: NextRequest) {
         deletedAt: null,
       },
     },
-    select: { cohortId: true },
+    select: {
+      cohortId: true,
+      releaseMode: true,
+      releaseAt: true,
+      courseSession: {
+        select: {
+          courseDate: true,
+          startTime: true,
+          endTime: true,
+        },
+      },
+    },
   });
   if (!task) {
     return NextResponse.json({ message: "省培任务不存在" }, { status: 404 });
   }
 
   const canManageCohort = await hasTeacherTrainingCohortManageAccess(user, task.cohortId);
+  if (!canManageCohort && !isTeacherTrainingTaskReleased(task)) {
+    return NextResponse.json({ message: "该任务尚未开放提交，请按发布时间再上传附件" }, { status: 403 });
+  }
   const participant = await prisma.teacherTrainingParticipant.findFirst({
     where: {
       id: participantId,

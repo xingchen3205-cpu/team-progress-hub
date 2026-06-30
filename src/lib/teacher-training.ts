@@ -116,15 +116,40 @@ export type TeacherTrainingSubmissionItem = {
   status: string;
   submittedAt: string;
   submittedByName: string;
+  aiScore: number | null;
+  aiComment: string;
+  aiReviewedAt: string;
+  finalScore: number | null;
+  finalComment: string;
+  finalReviewedById: string | null;
+  finalReviewedByName: string;
+  finalReviewedAt: string;
+  reviewStatusLabel: string;
 };
+
+export type TeacherTrainingTaskReleaseMode = "immediate" | "after_course" | "scheduled";
 
 export type TeacherTrainingTaskItem = {
   id: string;
   cohortId: string;
+  courseSessionId: string | null;
+  courseTitle: string;
+  courseDate: string;
+  courseTimeRange: string;
   title: string;
   description: string;
   dueDate: string | null;
+  taskType: string;
+  taskTypeLabel: string;
+  releaseMode: TeacherTrainingTaskReleaseMode;
+  releaseAt: string;
+  availableAt: string;
+  availableAtLabel: string;
+  isReleased: boolean;
+  releaseStatusLabel: string;
   requireAttachment: boolean;
+  enableAiReview: boolean;
+  scoringRubric: string;
   createdAt: string;
   createdByName: string;
   submissions: TeacherTrainingSubmissionItem[];
@@ -661,7 +686,125 @@ export const teacherTrainingLeaveStatusLabels: Record<string, string> = {
 
 const teacherTrainingDateOnlyPattern = /^\d{4}-\d{2}-\d{2}$/;
 const teacherTrainingTimeOnlyPattern = /^\d{2}:\d{2}$/;
+const teacherTrainingDateTimePattern = /^(\d{4}-\d{2}-\d{2})[T\s](\d{2}:\d{2})/;
 const teacherTrainingMaxLeaveDays = 31;
+
+export const teacherTrainingTaskReleaseModeLabels: Record<TeacherTrainingTaskReleaseMode, string> = {
+  immediate: "立即开放",
+  after_course: "课程结束后开放",
+  scheduled: "指定时间开放",
+};
+
+export const teacherTrainingTaskTypeLabels: Record<string, string> = {
+  cohort: "班级任务",
+  course: "课程任务",
+  stage: "阶段任务",
+};
+
+export const normalizeTeacherTrainingTaskReleaseMode = (value?: string | null): TeacherTrainingTaskReleaseMode => {
+  if (value === "after_course" || value === "scheduled") {
+    return value;
+  }
+
+  return "immediate";
+};
+
+export const normalizeTeacherTrainingTaskDateTime = (value?: string | null) => {
+  const trimmed = value?.trim() ?? "";
+  if (!trimmed) return "";
+
+  const dateTimeMatch = trimmed.match(teacherTrainingDateTimePattern);
+  if (dateTimeMatch) {
+    return `${dateTimeMatch[1]}T${dateTimeMatch[2]}`;
+  }
+
+  if (teacherTrainingDateOnlyPattern.test(trimmed)) {
+    return trimmed;
+  }
+
+  return trimmed;
+};
+
+const parseTeacherTrainingBeijingDateTime = (value?: string | null) => {
+  const normalized = normalizeTeacherTrainingTaskDateTime(value);
+  if (!normalized) return null;
+
+  const dateTimeMatch = normalized.match(teacherTrainingDateTimePattern);
+  const dateOnlyMatch = normalized.match(teacherTrainingDateOnlyPattern);
+  const date = dateTimeMatch
+    ? new Date(`${dateTimeMatch[1]}T${dateTimeMatch[2]}:00+08:00`)
+    : dateOnlyMatch
+      ? new Date(`${normalized}T00:00:00+08:00`)
+      : new Date(normalized);
+
+  return Number.isNaN(date.getTime()) ? null : date;
+};
+
+export const formatTeacherTrainingTaskDateTimeLabel = (value?: string | null) => {
+  const parsed = parseTeacherTrainingBeijingDateTime(value);
+  if (!parsed) return "";
+
+  return toDateTimeLabel(parsed);
+};
+
+export const getTeacherTrainingTaskCourseTimeRange = (course?: {
+  startTime?: string | null;
+  endTime?: string | null;
+} | null) => [course?.startTime ?? "", course?.endTime ?? ""].filter(Boolean).join("-");
+
+export const getTeacherTrainingTaskAvailableAt = (task: {
+  releaseMode?: string | null;
+  releaseAt?: string | null;
+  courseSession?: {
+    courseDate?: string | null;
+    startTime?: string | null;
+    endTime?: string | null;
+  } | null;
+}) => {
+  const releaseMode = normalizeTeacherTrainingTaskReleaseMode(task.releaseMode);
+  if (releaseMode === "immediate") {
+    return "";
+  }
+
+  if (releaseMode === "scheduled") {
+    return normalizeTeacherTrainingTaskDateTime(task.releaseAt);
+  }
+
+  const courseDate = task.courseSession?.courseDate?.trim();
+  if (!courseDate) {
+    return normalizeTeacherTrainingTaskDateTime(task.releaseAt);
+  }
+
+  const releaseTime =
+    task.courseSession?.endTime?.trim() || task.courseSession?.startTime?.trim() || "23:59";
+  return `${courseDate}T${releaseTime}`;
+};
+
+export const isTeacherTrainingTaskReleased = (
+  task: {
+    releaseMode?: string | null;
+    releaseAt?: string | null;
+    courseSession?: {
+      courseDate?: string | null;
+      startTime?: string | null;
+      endTime?: string | null;
+    } | null;
+  },
+  now = new Date(),
+) => {
+  const releaseMode = normalizeTeacherTrainingTaskReleaseMode(task.releaseMode);
+  if (releaseMode === "immediate") {
+    return true;
+  }
+
+  const availableAt = getTeacherTrainingTaskAvailableAt(task);
+  const releaseDate = parseTeacherTrainingBeijingDateTime(availableAt);
+  if (!releaseDate) {
+    return false;
+  }
+
+  return now.getTime() >= releaseDate.getTime();
+};
 
 export const validateTeacherTrainingLeaveRange = ({
   startDate,
@@ -1049,11 +1192,23 @@ type TeacherTrainingLeaveRequestRecord = {
 type TeacherTrainingTaskRecord = {
   id: string;
   cohortId: string;
+  courseSessionId?: string | null;
   title: string;
   description: string;
   dueDate?: string | null;
+  taskType?: string | null;
+  releaseMode?: string | null;
+  releaseAt?: string | null;
   requireAttachment: boolean;
+  enableAiReview?: boolean | null;
+  scoringRubric?: string | null;
   createdAt: Date;
+  courseSession?: {
+    title: string;
+    courseDate: string;
+    startTime?: string | null;
+    endTime?: string | null;
+  } | null;
   creator?: { name: string } | null;
   submissions?: Array<TeacherTrainingSubmissionRecord>;
 };
@@ -1065,9 +1220,17 @@ type TeacherTrainingSubmissionRecord = {
   content: string;
   attachment?: string | null;
   status: string;
+  aiScore?: number | null;
+  aiComment?: string | null;
+  aiReviewedAt?: Date | null;
+  finalScore?: number | null;
+  finalComment?: string | null;
+  finalReviewedById?: string | null;
+  finalReviewedAt?: Date | null;
   submittedAt: Date;
   participant?: { name: string } | null;
   submittedBy?: { name: string } | null;
+  finalReviewer?: { name: string } | null;
 };
 
 export const serializeTeacherTrainingAttendance = (
@@ -1117,6 +1280,15 @@ export const serializeTeacherTrainingSubmission = (
     status: submission.status,
     submittedAt: toDateTimeLabel(submission.submittedAt),
     submittedByName: submission.submittedBy?.name ?? "工作人员",
+    aiScore: typeof submission.aiScore === "number" ? submission.aiScore : null,
+    aiComment: submission.aiComment ?? "",
+    aiReviewedAt: toDateTimeLabel(submission.aiReviewedAt ?? null),
+    finalScore: typeof submission.finalScore === "number" ? submission.finalScore : null,
+    finalComment: submission.finalComment ?? "",
+    finalReviewedById: submission.finalReviewedById ?? null,
+    finalReviewedByName: submission.finalReviewer?.name ?? "",
+    finalReviewedAt: toDateTimeLabel(submission.finalReviewedAt ?? null),
+    reviewStatusLabel: typeof submission.finalScore === "number" ? "已确认终评分" : "待人工确认",
   };
 };
 
@@ -1239,17 +1411,43 @@ export const serializeTeacherTrainingCohort = (
     createdByName: task.creator?.name ?? "管理员",
     records: (task.records ?? []).map(serializeTeacherTrainingCheckInRecord),
   }));
-  const tasks = (cohort.tasks ?? []).map((task) => ({
-    id: task.id,
-    cohortId: task.cohortId,
-    title: task.title,
-    description: task.description,
-    dueDate: task.dueDate ?? null,
-    requireAttachment: task.requireAttachment,
-    createdAt: toDateTimeLabel(task.createdAt),
-    createdByName: task.creator?.name ?? "管理员",
-    submissions: (task.submissions ?? []).map(serializeTeacherTrainingSubmission),
-  }));
+  const tasks = (cohort.tasks ?? []).map((task) => {
+    const releaseMode = normalizeTeacherTrainingTaskReleaseMode(task.releaseMode);
+    const taskType = task.taskType || (task.courseSessionId ? "course" : "cohort");
+    const availableAt = getTeacherTrainingTaskAvailableAt(task);
+    const isReleased = isTeacherTrainingTaskReleased(task);
+    const availableAtLabel = formatTeacherTrainingTaskDateTimeLabel(availableAt);
+
+    return {
+      id: task.id,
+      cohortId: task.cohortId,
+      courseSessionId: task.courseSessionId ?? null,
+      courseTitle: task.courseSession?.title ?? "",
+      courseDate: task.courseSession?.courseDate ?? "",
+      courseTimeRange: getTeacherTrainingTaskCourseTimeRange(task.courseSession),
+      title: task.title,
+      description: task.description,
+      dueDate: task.dueDate ?? null,
+      taskType,
+      taskTypeLabel: teacherTrainingTaskTypeLabels[taskType] ?? "班级任务",
+      releaseMode,
+      releaseAt: normalizeTeacherTrainingTaskDateTime(task.releaseAt),
+      availableAt,
+      availableAtLabel,
+      isReleased,
+      releaseStatusLabel: isReleased
+        ? "已开放"
+        : availableAtLabel
+          ? `${availableAtLabel} 开放`
+          : teacherTrainingTaskReleaseModeLabels[releaseMode],
+      requireAttachment: task.requireAttachment,
+      enableAiReview: Boolean(task.enableAiReview),
+      scoringRubric: task.scoringRubric ?? "",
+      createdAt: toDateTimeLabel(task.createdAt),
+      createdByName: task.creator?.name ?? "管理员",
+      submissions: (task.submissions ?? []).map(serializeTeacherTrainingSubmission),
+    };
+  });
   const participants = (cohort.participants ?? []).map((participant) => {
     const profileExtra = parseTeacherTrainingParticipantExtraInfo(participant.extraInfo);
     const arrivalInfo = profileExtra.arrivalInfo;
@@ -1421,12 +1619,18 @@ const buildTeacherTrainingSubmissionTaskBlock = (
   const submission = task.submissions.find((item) => item.participantId === participant.id);
   const rows = [
     wordKeyValueRow("任务名称", task.title),
+    wordKeyValueRow("任务类型", task.taskTypeLabel),
+    wordKeyValueRow("关联课程", task.courseTitle ? `${task.courseDate} ${task.courseTimeRange} ${task.courseTitle}`.trim() : "无"),
+    wordKeyValueRow("开放状态", task.releaseStatusLabel),
     wordKeyValueRow("任务说明", task.description || "无"),
     wordKeyValueRow("截止日期", task.dueDate || "无截止日期"),
     wordKeyValueRow("提交状态", submission ? "已提交" : "未提交"),
     wordKeyValueRow("提交时间", submission?.submittedAt || "未提交"),
     wordKeyValueRow("汇报内容", submission?.content || "未提交汇报"),
     wordKeyValueRow("附件", submission?.attachmentLabel || (task.requireAttachment ? "需补充附件" : "无")),
+    wordKeyValueRow("AI初评", submission?.aiScore === null || submission?.aiScore === undefined ? "未评分" : `${submission.aiScore} 分`),
+    wordKeyValueRow("人工终评", submission?.finalScore === null || submission?.finalScore === undefined ? "未确认" : `${submission.finalScore} 分`),
+    wordKeyValueRow("人工评语", submission?.finalComment || "无"),
   ];
 
   return `${wordParagraph(`${index + 1}. ${task.title}`, {
@@ -1625,13 +1829,35 @@ export const buildTeacherTrainingCsv = ({
 
   if (type === "submissions") {
     return toCsv([
-      ["班次", "任务", "姓名", "单位", "分组", "提交状态", "提交时间", "汇报内容", "附件备注"],
+      [
+        "班次",
+        "任务类型",
+        "关联课程",
+        "任务",
+        "开放状态",
+        "姓名",
+        "单位",
+        "分组",
+        "提交状态",
+        "提交时间",
+        "汇报内容",
+        "附件备注",
+        "AI初评分",
+        "AI初评意见",
+        "人工终评分",
+        "人工评语",
+        "终评确认人",
+        "终评确认时间",
+      ],
       ...cohort.tasks.flatMap((task) =>
         task.submissions.map((submission) => {
           const participant = cohort.participants.find((item) => item.id === submission.participantId);
           return [
             cohort.title,
+            task.taskTypeLabel,
+            task.courseTitle ? `${task.courseDate} ${task.courseTimeRange} ${task.courseTitle}`.trim() : "",
             task.title,
+            task.releaseStatusLabel,
             participant?.name ?? submission.participantName,
             participant?.organization ?? "",
             participant?.groupName ?? "",
@@ -1639,6 +1865,12 @@ export const buildTeacherTrainingCsv = ({
             submission.submittedAt,
             submission.content,
             submission.attachmentLabel,
+            submission.aiScore ?? "",
+            submission.aiComment,
+            submission.finalScore ?? "",
+            submission.finalComment,
+            submission.finalReviewedByName,
+            submission.finalReviewedAt,
           ];
         }),
       ),

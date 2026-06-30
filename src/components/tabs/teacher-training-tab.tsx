@@ -472,6 +472,20 @@ const createDefaultCheckInTaskDraft = (): Workspace.TeacherTrainingCheckInTaskDr
   radiusMeters: String(Workspace.TEACHER_TRAINING_CHECK_IN_DEFAULT_RADIUS_METERS),
 });
 
+const createDefaultTaskDraft = (): Workspace.TeacherTrainingTaskDraft => ({
+  cohortId: "",
+  courseSessionId: "",
+  title: "",
+  description: "",
+  dueDate: "",
+  taskType: "cohort",
+  releaseMode: "immediate",
+  releaseAt: "",
+  requireAttachment: false,
+  enableAiReview: false,
+  scoringRubric: "",
+});
+
 const statusStyleMap: Record<AttendanceStatus, string> = {
   present: "border-emerald-200 bg-emerald-50 text-emerald-700",
   leave: "border-amber-200 bg-amber-50 text-amber-700",
@@ -742,12 +756,15 @@ export default function TeacherTrainingTab() {
     createTeacherTrainingTask,
     deleteTeacherTrainingTask,
     saveTeacherTrainingSubmission,
+    reviewTeacherTrainingSubmission,
+    runTeacherTrainingTaskAiReview,
     updateTeacherTrainingProfile,
     loadTeacherTrainingCohortDetails,
     setLoadError,
   } = Workspace.useWorkspaceContext();
   const {
     ActionButton,
+    Bot,
     CalendarDays,
     ChevronDown,
     CheckCircle2,
@@ -890,13 +907,10 @@ export default function TeacherTrainingTab() {
     materialsComplete: "",
     note: "",
   });
-  const [taskDraft, setTaskDraft] = useState<Workspace.TeacherTrainingTaskDraft>({
-    cohortId: "",
-    title: "",
-    description: "",
-    dueDate: "",
-    requireAttachment: false,
-  });
+  const [taskDraft, setTaskDraft] = useState<Workspace.TeacherTrainingTaskDraft>(createDefaultTaskDraft);
+  const [submissionReviewDrafts, setSubmissionReviewDrafts] = useState<
+    Record<string, { finalScore: string; finalComment: string }>
+  >({});
   const [courseImportText, setCourseImportText] = useState("");
   const [courseImportStatus, setCourseImportStatus] = useState("");
   const [courseImportLoading, setCourseImportLoading] = useState(false);
@@ -941,7 +955,17 @@ export default function TeacherTrainingTab() {
     () => new Map((selectedCohort?.participants ?? []).map((participant) => [participant.id, participant])),
     [selectedCohort?.participants],
   );
-  const selectedTask = selectedCohort?.tasks.find((task) => task.id === submissionDraft.taskId) ?? selectedCohort?.tasks[0] ?? null;
+  const selectedCohortTasksForCurrentUser = useMemo(
+    () =>
+      canManageTeacherTraining
+        ? selectedCohort?.tasks ?? []
+        : (selectedCohort?.tasks ?? []).filter((task) => task.isReleased),
+    [canManageTeacherTraining, selectedCohort?.tasks],
+  );
+  const selectedTask =
+    selectedCohortTasksForCurrentUser.find((task) => task.id === submissionDraft.taskId) ??
+    selectedCohortTasksForCurrentUser[0] ??
+    null;
   const selectedParticipant =
     selectedCohort?.participants.find((participant) => participant.id === submissionDraft.participantId) ??
     selectedCohort?.participants[0] ??
@@ -1141,6 +1165,11 @@ export default function TeacherTrainingTab() {
     return [
       task.title,
       task.description,
+      task.taskTypeLabel,
+      task.courseTitle,
+      task.courseDate,
+      task.courseTimeRange,
+      task.releaseStatusLabel,
       ...task.submissions.flatMap((submission) => {
         const participant = participantById.get(submission.participantId);
         return [
@@ -1150,10 +1179,13 @@ export default function TeacherTrainingTab() {
           participant?.title ?? "",
           participant?.email ?? "",
           submission.content,
-          submission.attachment,
-          submission.attachmentLabel,
-          submission.submittedAt,
-        ];
+            submission.attachment,
+            submission.attachmentLabel,
+            submission.submittedAt,
+            submission.finalScore === null ? "" : `${submission.finalScore}`,
+            submission.finalComment,
+            submission.reviewStatusLabel,
+          ];
       }),
     ]
       .join(" ")
@@ -1174,6 +1206,9 @@ export default function TeacherTrainingTab() {
             submission.attachment,
             submission.attachmentLabel,
             submission.submittedAt,
+            submission.finalScore === null ? "" : `${submission.finalScore}`,
+            submission.finalComment,
+            submission.reviewStatusLabel,
           ]
             .join(" ")
             .toLocaleLowerCase("zh-CN")
@@ -1181,9 +1216,10 @@ export default function TeacherTrainingTab() {
         })
       : task.submissions;
 
-    return submissions.slice(0, submissionSearchKeyword ? 8 : 3);
+    return submissions.slice(0, canManage ? 80 : submissionSearchKeyword ? 8 : 3);
   };
-  const filteredSubmissionTasks = (selectedCohort?.tasks ?? []).filter(matchesSubmissionSearch);
+  const submissionTaskPool = canManage ? selectedCohort?.tasks ?? [] : selectedCohortTasksForCurrentUser;
+  const filteredSubmissionTasks = submissionTaskPool.filter(matchesSubmissionSearch);
   const filteredCheckInTasks = (selectedCohort?.checkInTasks ?? []).filter((task) => {
     if (!checkInSearchKeyword) return true;
     return [
@@ -1255,22 +1291,25 @@ export default function TeacherTrainingTab() {
 
     return participants.slice(0, checkInSearchKeyword ? 8 : 4);
   };
+  const teacherReleasedTasks = (selectedCohort?.tasks ?? []).filter((task) => task.isReleased);
+  const teacherWaitingReleaseTasks = (selectedCohort?.tasks ?? []).filter((task) => !task.isReleased);
   const teacherSubmittedTaskIds = new Set(
-    (selectedCohort?.tasks ?? [])
+    teacherReleasedTasks
       .filter((task) => task.submissions.some((submission) => submission.participantId === selectedParticipant?.id))
       .map((task) => task.id),
   );
   const teacherPendingTaskCount =
     !canManage && selectedCohort
-      ? selectedCohort.tasks.filter((task) => !teacherSubmittedTaskIds.has(task.id)).length
+      ? teacherReleasedTasks.filter((task) => !teacherSubmittedTaskIds.has(task.id)).length
       : 0;
-  const teacherTaskProgressItems = (selectedCohort?.tasks ?? []).map((task) => {
+  const teacherTaskProgressItems = teacherReleasedTasks.map((task) => {
     const submission = task.submissions.find((item) => item.participantId === selectedParticipant?.id) ?? null;
 
     return {
       id: task.id,
       title: task.title,
       dueDate: task.dueDate,
+      releaseStatusLabel: task.releaseStatusLabel,
       isComplete: Boolean(submission),
       statusLabel: submission ? "任务已提交" : "任务待提交",
       submittedAt: submission?.submittedAt ?? "",
@@ -1528,7 +1567,7 @@ export default function TeacherTrainingTab() {
       {
         key: "count",
         label: "结果",
-        value: `${filteredSubmissionTasks.length}/${selectedCohort?.tasks.length ?? 0} 个任务`,
+        value: `${filteredSubmissionTasks.length}/${submissionTaskPool.length} 个任务`,
       },
     ].filter(Boolean) as TeacherTrainingFilterSummaryItem[],
   };
@@ -1987,7 +2026,7 @@ export default function TeacherTrainingTab() {
       cohortId: selectedCohort.id,
     });
     if (ok) {
-      setTaskDraft({ cohortId: "", title: "", description: "", dueDate: "", requireAttachment: false });
+      setTaskDraft(createDefaultTaskDraft());
     }
   };
 
@@ -1995,10 +2034,16 @@ export default function TeacherTrainingTab() {
     setTaskDraft({
       id: task.id,
       cohortId: task.cohortId,
+      courseSessionId: task.courseSessionId ?? "",
       title: task.title,
       description: task.description,
       dueDate: task.dueDate ?? "",
+      taskType: task.taskType,
+      releaseMode: task.releaseMode,
+      releaseAt: task.releaseAt,
       requireAttachment: task.requireAttachment,
+      enableAiReview: task.enableAiReview,
+      scoringRubric: task.scoringRubric,
     });
   };
 
@@ -2183,6 +2228,40 @@ export default function TeacherTrainingTab() {
       setSubmissionAttachmentError(error instanceof Error ? error.message : "任务汇报附件上传失败");
       setSubmissionSaveStatus("");
     }
+  };
+
+  const getSubmissionReviewDraft = (submission: Workspace.TeacherTrainingSubmissionItem) =>
+    submissionReviewDrafts[submission.id] ?? {
+      finalScore: submission.finalScore === null ? "" : String(submission.finalScore),
+      finalComment: submission.finalComment,
+    };
+
+  const updateSubmissionReviewDraft = (
+    submission: Workspace.TeacherTrainingSubmissionItem,
+    patch: Partial<{ finalScore: string; finalComment: string }>,
+  ) => {
+    setSubmissionReviewDrafts((current) => ({
+      ...current,
+      [submission.id]: {
+        ...getSubmissionReviewDraft(submission),
+        ...patch,
+      },
+    }));
+  };
+
+  const submitSubmissionReview = async (submission: Workspace.TeacherTrainingSubmissionItem) => {
+    const draft = getSubmissionReviewDraft(submission);
+    if (!draft.finalScore.trim() && !draft.finalComment.trim()) {
+      if (!window.confirm(`确认清空“${submission.participantName}”的人工评分？`)) {
+        return;
+      }
+    }
+
+    await reviewTeacherTrainingSubmission({
+      submissionId: submission.id,
+      finalScore: draft.finalScore,
+      finalComment: draft.finalComment,
+    });
   };
 
   const updateProfileDraftField = <K extends keyof Workspace.TeacherTrainingProfileDraft>(
@@ -6236,6 +6315,79 @@ export default function TeacherTrainingTab() {
                         value={taskDraft.dueDate}
                       />
                     </label>
+                    <label className={teacherTrainingFieldShellClassName}>
+                      <span className={teacherTrainingFieldLabelClassName}>任务类型</span>
+                      <select
+                        className={fieldClassName}
+                        {...fieldHint("省培任务类型")}
+                        onChange={(event) => {
+                          const nextType = event.target.value;
+                          setTaskDraft((current) => ({
+                            ...current,
+                            taskType: nextType,
+                            courseSessionId:
+                              nextType === "course" ? current.courseSessionId || courseSessions[0]?.id || "" : "",
+                            releaseMode:
+                              nextType === "course" ? current.releaseMode : current.releaseMode === "after_course" ? "immediate" : current.releaseMode,
+                          }));
+                        }}
+                        value={taskDraft.taskType}
+                      >
+                        <option value="cohort">班级任务</option>
+                        <option value="course">课程任务</option>
+                        <option value="stage">阶段任务</option>
+                      </select>
+                    </label>
+                    {taskDraft.taskType === "course" ? (
+                      <label className={teacherTrainingFieldShellClassName}>
+                        <span className={teacherTrainingFieldLabelClassName}>关联课程</span>
+                        <select
+                          className={fieldClassName}
+                          {...fieldHint("关联课程")}
+                          onChange={(event) => setTaskDraft((current) => ({ ...current, courseSessionId: event.target.value }))}
+                          value={taskDraft.courseSessionId}
+                        >
+                          {courseSessions.length === 0 ? <option value="">暂无课程，请先添加课程</option> : null}
+                          {courseSessions.map((course) => (
+                            <option key={course.id} value={course.id}>
+                              {course.courseDate} {course.startTime ? `${course.startTime} ` : ""}{course.title}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                    ) : null}
+                    <label className={teacherTrainingFieldShellClassName}>
+                      <span className={teacherTrainingFieldLabelClassName}>开放时间</span>
+                      <select
+                        className={fieldClassName}
+                        {...fieldHint("省培任务开放时间")}
+                        onChange={(event) =>
+                          setTaskDraft((current) => ({
+                            ...current,
+                            releaseMode: event.target.value as Workspace.TeacherTrainingTaskReleaseMode,
+                          }))
+                        }
+                        value={taskDraft.releaseMode}
+                      >
+                        <option value="immediate">立即开放</option>
+                        <option disabled={taskDraft.taskType !== "course"} value="after_course">
+                          课程结束后开放
+                        </option>
+                        <option value="scheduled">指定时间开放</option>
+                      </select>
+                    </label>
+                    {taskDraft.releaseMode === "scheduled" ? (
+                      <label className={teacherTrainingFieldShellClassName}>
+                        <span className={teacherTrainingFieldLabelClassName}>指定开放时间</span>
+                        <input
+                          className={fieldClassName}
+                          {...fieldHint("指定开放时间")}
+                          onChange={(event) => setTaskDraft((current) => ({ ...current, releaseAt: event.target.value }))}
+                          type="datetime-local"
+                          value={taskDraft.releaseAt}
+                        />
+                      </label>
+                    ) : null}
                     <label className={`${teacherTrainingFieldShellClassName} lg:col-span-2`}>
                       <span className={teacherTrainingFieldLabelClassName}>省培任务说明</span>
                       <textarea
@@ -6247,6 +6399,7 @@ export default function TeacherTrainingTab() {
                       />
                     </label>
                     <div className="flex flex-col gap-3 lg:col-span-2 lg:flex-row lg:items-center lg:justify-between">
+                      <div className="grid gap-3 sm:grid-cols-2">
                       <div className={teacherTrainingFieldShellClassName}>
                         <span className={teacherTrainingFieldLabelClassName}>省培任务附件要求</span>
                         <label className="mt-1.5 inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-600">
@@ -6259,6 +6412,21 @@ export default function TeacherTrainingTab() {
                           需要附件
                         </label>
                       </div>
+                      <div className={teacherTrainingFieldShellClassName}>
+                        <span className={teacherTrainingFieldLabelClassName}>AI 辅助评分</span>
+                        <label className="mt-1.5 inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-600">
+                          <input
+                            checked={taskDraft.enableAiReview}
+                            {...fieldHint("是否开启 AI 辅助评分")}
+                            onChange={(event) =>
+                              setTaskDraft((current) => ({ ...current, enableAiReview: event.target.checked }))
+                            }
+                            type="checkbox"
+                          />
+                          管理端可用
+                        </label>
+                      </div>
+                      </div>
                       <ActionButton
                         aria-label="发布省培任务汇报要求"
                         className="w-full lg:w-auto"
@@ -6270,17 +6438,23 @@ export default function TeacherTrainingTab() {
                         {taskDraft.id ? "保存任务修改" : "发布任务"}
                       </ActionButton>
                     </div>
+                    {taskDraft.enableAiReview ? (
+                      <label className={`${teacherTrainingFieldShellClassName} lg:col-span-2`}>
+                        <span className={teacherTrainingFieldLabelClassName}>评分细则</span>
+                        <textarea
+                          className={`${textareaClassName} min-h-24`}
+                          {...fieldHint("AI辅助评分细则")}
+                          onChange={(event) => setTaskDraft((current) => ({ ...current, scoringRubric: event.target.value }))}
+                          placeholder="例如：课程理解40分、结合实际30分、结构表达20分、规范完成10分。未填写时按完成度和内容质量辅助判断。"
+                          value={taskDraft.scoringRubric}
+                        />
+                      </label>
+                    ) : null}
                     {taskDraft.id ? (
                       <button
                         className="text-xs font-semibold text-slate-500 lg:col-span-2"
                         onClick={() =>
-                          setTaskDraft({
-                            cohortId: "",
-                            title: "",
-                            description: "",
-                            dueDate: "",
-                            requireAttachment: false,
-                          })
+                          setTaskDraft(createDefaultTaskDraft())
                         }
                         type="button"
                       >
@@ -6351,6 +6525,16 @@ export default function TeacherTrainingTab() {
                             </button>
                           ))
                         )}
+                        {teacherWaitingReleaseTasks.map((task) => (
+                          <div
+                            key={task.id}
+                            className="rounded-xl border border-slate-100 bg-white/76 px-3 py-2 text-xs font-semibold text-slate-500"
+                            title={`${task.title}：${task.releaseStatusLabel}`}
+                          >
+                            <span className="block truncate text-slate-900">{task.title}</span>
+                            <span className="mt-1 block">{task.releaseStatusLabel}</span>
+                          </div>
+                        ))}
                       </div>
                     </div>
                   ) : null}
@@ -6363,8 +6547,8 @@ export default function TeacherTrainingTab() {
                         onChange={(event) => updateSubmissionSelection({ taskId: event.target.value })}
                         value={selectedTask?.id ?? ""}
                       >
-                        {selectedCohort.tasks.length === 0 ? <option value="">暂无任务</option> : null}
-                        {selectedCohort.tasks.map((task) => (
+                        {selectedCohortTasksForCurrentUser.length === 0 ? <option value="">暂无可填写任务</option> : null}
+                        {selectedCohortTasksForCurrentUser.map((task) => (
                           <option key={task.id} value={task.id}>
                             {task.title}
                           </option>
@@ -6636,12 +6820,41 @@ export default function TeacherTrainingTab() {
                         (submission) => submission.participantId === selectedParticipant?.id,
                       );
                       const visibleSubmissions = getVisibleTaskSubmissions(task);
+                      const rankedSubmissions = canManage
+                        ? [...task.submissions]
+                            .filter((submission) => submission.finalScore !== null || submission.aiScore !== null)
+                            .sort(
+                              (left, right) =>
+                                (right.finalScore ?? right.aiScore ?? -1) - (left.finalScore ?? left.aiScore ?? -1),
+                            )
+                            .slice(0, 5)
+                        : [];
 
                       return (
                       <div key={task.id} className="rounded-xl border border-slate-200/75 bg-white/72 p-4">
                         <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                           <div>
                             <p className="font-semibold text-slate-950">{task.title}</p>
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-600">
+                                {task.taskTypeLabel}
+                              </span>
+                              {task.courseTitle ? (
+                                <span className="rounded-full bg-blue-50 px-2.5 py-1 text-[11px] font-bold text-blue-700">
+                                  {task.courseDate} {task.courseTimeRange ? `${task.courseTimeRange} ` : ""}{task.courseTitle}
+                                </span>
+                              ) : null}
+                              <span className={`rounded-full px-2.5 py-1 text-[11px] font-bold ${
+                                task.isReleased ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"
+                              }`}>
+                                {task.releaseStatusLabel}
+                              </span>
+                              {task.enableAiReview && canManage ? (
+                                <span className="rounded-full bg-indigo-50 px-2.5 py-1 text-[11px] font-bold text-indigo-700">
+                                  AI 辅助评分
+                                </span>
+                              ) : null}
+                            </div>
                             <p className="mt-1 text-sm leading-6 text-slate-500">{task.description}</p>
                           </div>
                           <div className="flex shrink-0 flex-wrap items-center gap-2">
@@ -6660,6 +6873,27 @@ export default function TeacherTrainingTab() {
                             </span>
                             {canManage ? (
                               <>
+                                {task.enableAiReview ? (
+                                  <button
+                                    className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-indigo-200 bg-indigo-50 px-2.5 text-xs font-semibold text-indigo-700 disabled:cursor-wait disabled:opacity-60"
+                                    disabled={isSaving || task.submissions.length === 0}
+                                    onClick={() => {
+                                      if (
+                                        !window.confirm(
+                                          `确认对“${task.title}”的 ${task.submissions.length} 份汇报生成 AI 初评？\n\nAI 初评只供管理端参考，不会覆盖人工最终得分。`,
+                                        )
+                                      ) {
+                                        return;
+                                      }
+                                      void runTeacherTrainingTaskAiReview(task.id);
+                                    }}
+                                    title={task.submissions.length === 0 ? "暂无已提交汇报" : "生成 AI 初评"}
+                                    type="button"
+                                  >
+                                    <Bot className="h-3.5 w-3.5" />
+                                    AI 初评
+                                  </button>
+                                ) : null}
                                 <button
                                   className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-2.5 text-xs font-semibold text-slate-600"
                                   onClick={() => editTask(task)}
@@ -6700,42 +6934,129 @@ export default function TeacherTrainingTab() {
                             </div>
                           </div>
                         ) : null}
+                        {canManage && rankedSubmissions.length > 0 ? (
+                          <div className="mt-3 rounded-xl border border-blue-100 bg-blue-50/55 px-3 py-2">
+                            <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                              <p className="text-xs font-bold text-blue-800">评分排名摘要</p>
+                              <p className="text-[11px] text-blue-700">按人工终评分优先，未确认时参考 AI 初评分</p>
+                            </div>
+                            <div className="mt-2 flex flex-wrap gap-2">
+                              {rankedSubmissions.map((submission, index) => (
+                                <span
+                                  key={submission.id}
+                                  className="rounded-full bg-white px-2.5 py-1 text-xs font-semibold text-slate-700"
+                                >
+                                  {index + 1}. {submission.participantName} {submission.finalScore ?? submission.aiScore}分
+                                </span>
+                              ))}
+                            </div>
+                          </div>
+                        ) : null}
                         {visibleSubmissions.length > 0 ? (
                           <div className="mt-3 grid gap-2">
                             {visibleSubmissions.map((submission) => {
                               const attachmentFile = submission.attachmentFile;
+                              const reviewDraft = getSubmissionReviewDraft(submission);
+                              const participant = participantById.get(submission.participantId);
 
                               return (
-                                <div key={submission.id} className="rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-600">
-                                  <span className="font-semibold text-slate-900">{submission.participantName}</span>
-                                  {participantById.get(submission.participantId)?.organization ? (
-                                    <>
-                                      <span className="mx-2 text-slate-300">/</span>
-                                      <span>{participantById.get(submission.participantId)?.organization}</span>
-                                    </>
-                                  ) : null}
-                                  <span className="mx-2 text-slate-300">/</span>
-                                  <span>{submission.submittedAt}</span>
-                                  {attachmentFile ? (
-                                    <button
-                                      className="ml-0 mt-2 inline-flex w-fit items-center gap-1 rounded-md border border-blue-100 bg-white px-2 py-1 text-xs font-semibold text-blue-700 sm:ml-2 sm:mt-0"
-                                      disabled={downloadingTeacherTrainingFile === attachmentFile.downloadUrl}
-                                      onClick={() =>
-                                        void downloadTeacherTrainingFile({
-                                          url: attachmentFile.downloadUrl,
-                                          label: "任务汇报附件",
-                                          fallbackName: attachmentFile.fileName,
-                                        })
-                                      }
-                                      type="button"
-                                    >
-                                      <Download className="h-3 w-3" />
-                                      附件：{attachmentFile.fileName}
-                                    </button>
-                                  ) : submission.attachmentLabel ? (
-                                    <span className="ml-0 mt-2 inline-flex w-fit rounded-md bg-white px-2 py-1 text-xs font-semibold text-slate-500 sm:ml-2 sm:mt-0">
-                                      附件：{submission.attachmentLabel}
-                                    </span>
+                                <div key={submission.id} className="rounded-xl border border-slate-100 bg-slate-50/80 p-3 text-sm text-slate-600">
+                                  <div className="flex flex-col gap-2 lg:flex-row lg:items-start lg:justify-between">
+                                    <div className="min-w-0">
+                                      <div className="flex flex-wrap items-center gap-2">
+                                        <span className="font-semibold text-slate-900">{submission.participantName}</span>
+                                        {participant?.organization ? (
+                                          <span className="rounded-full bg-white px-2 py-0.5 text-xs font-semibold text-slate-500">
+                                            {participant.organization}
+                                          </span>
+                                        ) : null}
+                                        {canManage ? (
+                                          <span className="rounded-full bg-white px-2 py-0.5 text-xs font-semibold text-slate-500">
+                                            {submission.reviewStatusLabel}
+                                          </span>
+                                        ) : null}
+                                      </div>
+                                      <p className="mt-1 text-xs text-slate-500">提交时间：{submission.submittedAt}</p>
+                                      <p className="mt-2 line-clamp-3 whitespace-pre-wrap text-xs leading-5 text-slate-600">
+                                        {submission.content}
+                                      </p>
+                                    </div>
+                                    <div className="flex shrink-0 flex-wrap gap-2">
+                                      {attachmentFile ? (
+                                        <button
+                                          className="inline-flex h-8 w-fit items-center gap-1 rounded-md border border-blue-100 bg-white px-2 py-1 text-xs font-semibold text-blue-700"
+                                          disabled={downloadingTeacherTrainingFile === attachmentFile.downloadUrl}
+                                          onClick={() =>
+                                            void downloadTeacherTrainingFile({
+                                              url: attachmentFile.downloadUrl,
+                                              label: "任务汇报附件",
+                                              fallbackName: attachmentFile.fileName,
+                                            })
+                                          }
+                                          type="button"
+                                        >
+                                          <Download className="h-3 w-3" />
+                                          附件
+                                        </button>
+                                      ) : submission.attachmentLabel ? (
+                                        <span className="inline-flex h-8 w-fit items-center rounded-md bg-white px-2 py-1 text-xs font-semibold text-slate-500">
+                                          附件：{submission.attachmentLabel}
+                                        </span>
+                                      ) : null}
+                                    </div>
+                                  </div>
+                                  {canManage ? (
+                                    <div className="mt-3 grid gap-2 rounded-lg border border-white bg-white/70 p-3 lg:grid-cols-[120px_minmax(0,1fr)_auto] lg:items-end">
+                                      {task.enableAiReview ? (
+                                        <div className="lg:col-span-3 rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-2 text-xs leading-5 text-indigo-700">
+                                          AI 初评：{submission.aiScore === null ? "尚未评分" : `${submission.aiScore} 分`}
+                                          {submission.aiComment ? ` · ${submission.aiComment}` : "。AI 结果仅供管理端参考，最终以人工确认分为准。"}
+                                        </div>
+                                      ) : null}
+                                      <label className={teacherTrainingFieldShellClassName}>
+                                        <span className={teacherTrainingFieldLabelClassName}>最终得分</span>
+                                        <input
+                                          className={fieldClassName}
+                                          inputMode="numeric"
+                                          max={100}
+                                          min={0}
+                                          onChange={(event) =>
+                                            updateSubmissionReviewDraft(submission, {
+                                              finalScore: event.target.value.replace(/[^\d]/g, "").slice(0, 3),
+                                            })
+                                          }
+                                          placeholder="0-100"
+                                          type="text"
+                                          value={reviewDraft.finalScore}
+                                        />
+                                      </label>
+                                      <label className={teacherTrainingFieldShellClassName}>
+                                        <span className={teacherTrainingFieldLabelClassName}>人工评语</span>
+                                        <input
+                                          className={fieldClassName}
+                                          onChange={(event) =>
+                                            updateSubmissionReviewDraft(submission, { finalComment: event.target.value })
+                                          }
+                                          placeholder="可选，填写最终评价或修改意见"
+                                          value={reviewDraft.finalComment}
+                                        />
+                                      </label>
+                                      <ActionButton
+                                        aria-label={`保存${submission.participantName}任务汇报评分`}
+                                        className="h-10"
+                                        loading={isSaving}
+                                        onClick={() => void submitSubmissionReview(submission)}
+                                        title={`保存${submission.participantName}任务汇报评分`}
+                                        variant="secondary"
+                                      >
+                                        保存评分
+                                      </ActionButton>
+                                      {submission.finalReviewedAt ? (
+                                        <p className="lg:col-span-3 text-xs text-slate-500">
+                                          已由 {submission.finalReviewedByName || "管理者"} 于 {submission.finalReviewedAt} 确认
+                                        </p>
+                                      ) : null}
+                                    </div>
                                   ) : null}
                                 </div>
                               );

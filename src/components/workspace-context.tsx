@@ -119,6 +119,7 @@ import type {
   TeacherTrainingAttendanceStatus,
   TeacherTrainingCohortItem,
   TeacherTrainingLeaveFlowStep,
+  TeacherTrainingTaskReleaseMode,
 } from "@/lib/teacher-training";
 import {
   buildTaskWorkflowSteps,
@@ -338,10 +339,16 @@ export type TeacherTrainingLeaveReviewDraft = {
 export type TeacherTrainingTaskDraft = {
   id?: string;
   cohortId: string;
+  courseSessionId: string;
   title: string;
   description: string;
   dueDate: string;
+  taskType: string;
+  releaseMode: TeacherTrainingTaskReleaseMode;
+  releaseAt: string;
   requireAttachment: boolean;
+  enableAiReview: boolean;
+  scoringRubric: string;
 };
 
 export type TeacherTrainingCourseSessionDraft = {
@@ -361,6 +368,12 @@ export type TeacherTrainingSubmissionDraft = {
   participantId: string;
   content: string;
   attachment: string;
+};
+
+export type TeacherTrainingSubmissionReviewDraft = {
+  submissionId: string;
+  finalScore: string;
+  finalComment: string;
 };
 
 export type TeacherTrainingProfileDraft = {
@@ -5960,10 +5973,16 @@ function useWorkspaceController({
         body: JSON.stringify({
           id: draft.id,
           cohortId,
+          courseSessionId: draft.courseSessionId.trim(),
           title,
           description,
           dueDate: draft.dueDate.trim(),
+          taskType: draft.taskType,
+          releaseMode: draft.releaseMode,
+          releaseAt: draft.releaseAt.trim(),
           requireAttachment: draft.requireAttachment,
+          enableAiReview: draft.enableAiReview,
+          scoringRubric: draft.scoringRubric.trim(),
         }),
       });
       showSuccessToast(draft.id ? "省培任务已修改" : "省培任务已发布", "参训教师的任务汇报清单已经更新。");
@@ -6024,6 +6043,59 @@ function useWorkspaceController({
       return true;
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "任务汇报保存失败");
+      return false;
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const reviewTeacherTrainingSubmission = async (draft: TeacherTrainingSubmissionReviewDraft) => {
+    const submissionId = draft.submissionId.trim();
+    if (!submissionId) {
+      setLoadError("请先选择要评分的任务汇报");
+      return false;
+    }
+
+    setIsSaving(true);
+    try {
+      await requestJson(`/api/teacher-training/submissions/${encodeURIComponent(submissionId)}/review`, {
+        method: "PATCH",
+        body: JSON.stringify({
+          finalScore: draft.finalScore.trim(),
+          finalComment: draft.finalComment.trim(),
+        }),
+      });
+      showSuccessToast("任务汇报评分已保存", "人工确认分数已经更新。");
+      refreshWorkspace("teacherTraining");
+      return true;
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "任务汇报评分保存失败");
+      return false;
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const runTeacherTrainingTaskAiReview = async (taskId: string) => {
+    const normalizedTaskId = taskId.trim();
+    if (!normalizedTaskId) {
+      setLoadError("请先选择要 AI 评分的任务");
+      return false;
+    }
+
+    setIsSaving(true);
+    try {
+      const payload = await requestJson<{ reviewedCount?: number }>(
+        `/api/teacher-training/tasks/${encodeURIComponent(normalizedTaskId)}/ai-review`,
+        {
+          method: "POST",
+        },
+      );
+      showSuccessToast("AI 初评已完成", `已生成 ${payload.reviewedCount ?? 0} 份汇报的 AI 初评。`);
+      refreshWorkspace("teacherTraining");
+      return true;
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "AI 初评失败");
       return false;
     } finally {
       setIsSaving(false);
@@ -8443,6 +8515,8 @@ function useWorkspaceController({
     createTeacherTrainingTask,
     deleteTeacherTrainingTask,
     saveTeacherTrainingSubmission,
+    reviewTeacherTrainingSubmission,
+    runTeacherTrainingTaskAiReview,
     updateTeacherTrainingProfile,
     publishAnnouncement,
     saveReminder,
