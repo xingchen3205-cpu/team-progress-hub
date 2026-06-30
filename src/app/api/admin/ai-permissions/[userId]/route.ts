@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { getSessionUser } from "@/lib/auth";
 import { updateAiPermissionForUser } from "@/lib/ai-chat";
+import { competitionAiDisabledMessage, isCompetitionAiEnabled } from "@/lib/competition-ai";
 import { assertRole } from "@/lib/permissions";
 
 export const dynamic = "force-dynamic";
@@ -10,6 +11,10 @@ export async function PUT(
   request: NextRequest,
   context: { params: Promise<{ userId: string }> },
 ) {
+  if (!isCompetitionAiEnabled()) {
+    return NextResponse.json({ message: competitionAiDisabledMessage }, { status: 503 });
+  }
+
   const user = await getSessionUser(request);
   if (!user) {
     return NextResponse.json({ message: "未登录" }, { status: 401 });

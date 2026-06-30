@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { getSessionUser } from "@/lib/auth";
 import { deleteAiConversation, getAiConversationMessages } from "@/lib/ai-chat";
+import { competitionAiDisabledMessage, isCompetitionAiEnabled } from "@/lib/competition-ai";
 
 export const dynamic = "force-dynamic";
 
@@ -12,6 +13,10 @@ type RouteContext = {
 };
 
 export async function GET(request: NextRequest, context: RouteContext) {
+  if (!isCompetitionAiEnabled()) {
+    return NextResponse.json({ message: competitionAiDisabledMessage }, { status: 503 });
+  }
+
   const user = await getSessionUser(request);
   if (!user) {
     return NextResponse.json({ message: "未登录" }, { status: 401 });
@@ -42,6 +47,10 @@ export async function GET(request: NextRequest, context: RouteContext) {
 }
 
 export async function DELETE(request: NextRequest, context: RouteContext) {
+  if (!isCompetitionAiEnabled()) {
+    return NextResponse.json({ message: competitionAiDisabledMessage }, { status: 503 });
+  }
+
   const user = await getSessionUser(request);
   if (!user) {
     return NextResponse.json({ message: "未登录" }, { status: 401 });

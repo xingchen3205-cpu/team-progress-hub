@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { getSessionUser } from "@/lib/auth";
+import { competitionAiDisabledMessage, isCompetitionAiEnabled } from "@/lib/competition-ai";
 import { assertRole } from "@/lib/permissions";
 import { recognizeCustomReviewTargetNamesFromImage } from "@/lib/custom-review-target-ocr";
 
@@ -10,6 +11,10 @@ const allowedImageTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
 const maxScreenshotSize = 6 * 1024 * 1024;
 
 export async function POST(request: NextRequest) {
+  if (!isCompetitionAiEnabled()) {
+    return NextResponse.json({ message: competitionAiDisabledMessage }, { status: 503 });
+  }
+
   const user = await getSessionUser(request);
   if (!user) {
     return NextResponse.json({ message: "未登录" }, { status: 401 });

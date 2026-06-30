@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { getSessionUser } from "@/lib/auth";
+import { competitionAiDisabledMessage, isCompetitionAiEnabled } from "@/lib/competition-ai";
 import { assertMainWorkspaceRole } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import type { TrainingJudgeFeedback } from "@/lib/training-ai-judge";
@@ -17,6 +18,10 @@ export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ sessionId: string }> },
 ) {
+  if (!isCompetitionAiEnabled()) {
+    return NextResponse.json({ message: competitionAiDisabledMessage }, { status: 503 });
+  }
+
   const user = await getSessionUser(request);
   if (!user) return NextResponse.json({ message: "未登录" }, { status: 401 });
   try {

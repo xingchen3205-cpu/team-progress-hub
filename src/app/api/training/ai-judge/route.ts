@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import { NextRequest, NextResponse } from "next/server";
 
 import { getSessionUser } from "@/lib/auth";
+import { competitionAiDisabledMessage, isCompetitionAiEnabled } from "@/lib/competition-ai";
 import { assertMainWorkspaceRole } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { buildTeamScopedResourceWhere } from "@/lib/team-scope";
@@ -12,6 +13,10 @@ import { normalizeTrainingAnswer, validateTrainingTurnNumber } from "@/lib/train
 const parseFeedback = (value: string) => JSON.parse(value) as TrainingJudgeFeedback;
 
 export async function POST(request: NextRequest) {
+  if (!isCompetitionAiEnabled()) {
+    return NextResponse.json({ message: competitionAiDisabledMessage }, { status: 503 });
+  }
+
   const user = await getSessionUser(request);
   if (!user) return NextResponse.json({ message: "未登录" }, { status: 401 });
 

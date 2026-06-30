@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import mammoth from "mammoth";
 
 import { getSessionUser } from "@/lib/auth";
+import { competitionAiDisabledMessage, isCompetitionAiEnabled } from "@/lib/competition-ai";
 import { assertMainWorkspaceRole } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { buildTeamScopedResourceWhere } from "@/lib/team-scope";
@@ -173,6 +174,9 @@ export async function POST(request: NextRequest) {
   const file = formData?.get("file");
   const modeValue = formData?.get("mode");
   const importMode = modeValue === "ai" ? "ai" : "local";
+  if (importMode === "ai" && !isCompetitionAiEnabled()) {
+    return NextResponse.json({ message: competitionAiDisabledMessage }, { status: 503 });
+  }
 
   if (!(file instanceof File)) {
     return NextResponse.json({ message: "请上传题库文档" }, { status: 400 });
