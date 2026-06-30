@@ -601,6 +601,10 @@ const teacherTrainingActionHints: Partial<Record<Workspace.TeacherTrainingSectio
     title: "参训教师",
     steps: ["录入教师信息", "可绑定已有账号", "复制账号消息"],
   },
+  accounts: {
+    title: "省培账号管理",
+    steps: ["区分创赛原平台账号和省培专用账号", "已有账号只绑定省培身份", "共用账号只解绑不删除"],
+  },
   courses: {
     title: "课程安排",
     steps: ["查看课程日期", "确认地点和授课教师", "手机端按时间顺序查看"],
@@ -1106,12 +1110,12 @@ export default function TeacherTrainingTab() {
       { label: "已绑定账号", value: boundCount, tone: "blue" },
       { label: "未绑定账号", value: unboundCount, tone: unboundCount > 0 ? "amber" : "emerald" },
       { label: "省培专用账号", value: dedicatedCount, tone: "emerald" },
-      { label: "原平台账号", value: platformCount, tone: "slate" },
+      { label: "创赛原平台共用账号", value: platformCount, tone: "slate" },
     ];
   }, [selectedCohort?.participants]);
   const getParticipantAccountTypeLabel = (participant: Workspace.TeacherTrainingParticipantItem) => {
     if (!participant.accountUserId) return "未绑定账号";
-    return participant.accountRole === "training_teacher" ? "省培专用账号" : "原平台账号";
+    return participant.accountRole === "training_teacher" ? "省培专用账号" : "创赛原平台账号";
   };
   const getParticipantAccountTypeClassName = (participant: Workspace.TeacherTrainingParticipantItem) => {
     if (!participant.accountUserId) return "bg-amber-50 text-amber-700";
@@ -1119,6 +1123,17 @@ export default function TeacherTrainingTab() {
       ? "bg-emerald-50 text-emerald-700"
       : "bg-slate-100 text-slate-600";
   };
+  const getParticipantAccountBoundaryText = (participant: Workspace.TeacherTrainingParticipantItem) => {
+    if (!participant.accountUserId) {
+      return "未绑定登录账号：可绑定创赛原平台账号，或生成省培专用账号。";
+    }
+
+    return participant.accountRole === "training_teacher"
+      ? "省培专用账号：只用于省培系统，可在省培里重置密码或删除账号。"
+      : "创赛原平台共用账号：只在这里增加省培身份；密码、姓名等基础账号信息由创赛账号管理维护。";
+  };
+  const getParticipantAccountRemoveLabel = (participant: Workspace.TeacherTrainingParticipantItem) =>
+    participant.accountRole === "training_teacher" ? "删除省培专用账号" : "解除省培绑定";
   const filteredAttendanceParticipants = (selectedCohort?.participants ?? []).filter((participant) => {
     if (!matchesAttendanceOverviewFilter(participant)) return false;
     if (!attendanceSearchKeyword) return true;
@@ -2495,10 +2510,10 @@ export default function TeacherTrainingTab() {
     if (
       !confirmTeacherTrainingPermanentDelete({
         title: participant.accountUsername,
-        firstMessage: `确认解绑省培账号“${participant.accountUsername}”？\n\n解绑后，该教师将不能再通过此参训档案进入省培系统；参训教师档案、报到、请假和汇报记录会保留。`,
+        firstMessage: `确认${getParticipantAccountRemoveLabel(participant)}“${participant.accountUsername}”？\n\n处理后，该教师将不能再通过此参训档案进入省培系统；参训教师档案、报到、请假和汇报记录会保留。`,
         secondMessage: participant.accountRole === "training_teacher"
-          ? "只删除省培专用登录账号，不删除参训教师档案。"
-          : "只解绑账号，不删除档案，也不删除原平台账号。",
+          ? "删除省培专用账号：会删除该省培登录账号本体，不删除参训教师档案。"
+          : "解除省培绑定：共用账号只解绑省培身份，不删除创赛系统账号。",
       })
     ) {
       return;
@@ -2515,7 +2530,7 @@ export default function TeacherTrainingTab() {
       !confirmTeacherTrainingPermanentDelete({
         title: participant.name,
         firstMessage: `确认删除参训教师“${participant.name}”？\n\n删除后，这名教师的名单档案、报到状态、签到记录、请假申请和任务汇报会一起删除。`,
-        secondMessage: "该操作会从当前省培班次名单中移除这名教师；如果是省培专用账号，系统会同步删除该账号。",
+        secondMessage: "该操作会从当前省培班次名单中移除这名教师；如果绑定的是创赛原平台账号，只解除省培绑定；如果是省培专用账号，系统会同步删除该账号。",
       })
     ) {
       return;
@@ -2844,6 +2859,7 @@ export default function TeacherTrainingTab() {
     onClick: () => void;
   }> = [
     { label: "参训教师", helper: "名单、账号、预录信息", Icon: Users, onClick: () => openTeacherTrainingSection("participants") },
+    { label: "账号管理", helper: "绑定创赛账号或省培专用账号", Icon: Users, onClick: () => openTeacherTrainingSection("accounts") },
     { label: "课程安排", helper: "课程表和授课信息", Icon: CalendarDays, onClick: () => openTeacherTrainingSection("courses") },
     { label: "报到签到", helper: "报到登记和课程签到", Icon: MapPin, onClick: () => openTeacherTrainingSection("attendance") },
     { label: "请假审批", helper: "待审批和全部申请", Icon: FileCheck, onClick: () => openTeacherTrainingSection("leave") },
@@ -2853,6 +2869,7 @@ export default function TeacherTrainingTab() {
   const teacherTrainingSectionCounts: Partial<Record<Workspace.TeacherTrainingSectionKey, number>> = {
     cohorts: selectedCohort?.stats.managerCount ?? 0,
     participants: selectedCohort?.stats.participantCount ?? 0,
+    accounts: participantAccountStatusSummary[0]?.value ?? 0,
     courses: selectedCohort?.stats.courseCount ?? 0,
     checkins: selectedCohort?.stats.checkInRecordCount ?? 0,
     attendance: selectedCohort?.stats.presentCount ?? 0,
@@ -2877,6 +2894,7 @@ export default function TeacherTrainingTab() {
     : visibleTeacherTrainingSections.some((section) => section.key === activeTeacherTrainingSection)
     ? activeTeacherTrainingSection
     : "overview";
+  const isAccountManagementSection = effectiveTeacherTrainingSection === "accounts";
   const activeTeacherTrainingSectionMeta =
     visibleTeacherTrainingSections.find((section) => section.key === effectiveTeacherTrainingSection) ??
     visibleTeacherTrainingSections[0];
@@ -3452,7 +3470,7 @@ export default function TeacherTrainingTab() {
           ) : null}
 
           <div className={`grid gap-4 ${teacherTrainingManagementGridClassName}`}>
-        {canManage && showTeacherTrainingSection("cohorts", "participants") ? (
+        {canManage && showTeacherTrainingSection("cohorts", "participants", "accounts") ? (
           <aside className="tt-card space-y-5 self-start p-5">
             <div>
               <p className="tt-block-title">班次</p>
@@ -3689,7 +3707,7 @@ export default function TeacherTrainingTab() {
                   </span>
                   <div className="min-w-0 flex-1">
                     <p className="text-[15px] font-bold text-slate-950">参训教师中心</p>
-                    <p className="mt-0.5 text-xs leading-5 text-slate-500">新增省培教师账号，也可绑定已有平台账号。</p>
+                    <p className="mt-0.5 text-xs leading-5 text-slate-500">新增省培教师档案；可绑定创赛原平台账号，也可生成省培专用账号。</p>
                   </div>
                   <ChevronDown className={`h-4 w-4 shrink-0 text-slate-400 transition ${participantFormOpen ? "rotate-180" : ""}`} />
                 </button>
@@ -3762,12 +3780,12 @@ export default function TeacherTrainingTab() {
                   </div>
                   <div className="grid gap-3 sm:grid-cols-2">
                     <label className={teacherTrainingFieldShellClassName}>
-                      <span className={teacherTrainingFieldLabelClassName}>省培登录账号</span>
+                      <span className={teacherTrainingFieldLabelClassName}>省培登录账号 / 绑定创赛原平台账号</span>
                       <input
                         className={fieldClassName}
-                        {...fieldHint("省培登录账号")}
+                        {...fieldHint("省培登录账号 / 绑定创赛原平台账号")}
                         onChange={(event) => setParticipantDraft((current) => ({ ...current, accountUsername: event.target.value }))}
-                        placeholder="省培登录账号；填已有平台账号可直接绑定"
+                        placeholder="填已有创赛账号则绑定；留空可后续生成省培专用账号"
                         value={participantDraft.accountUsername}
                       />
                     </label>
@@ -5667,12 +5685,16 @@ export default function TeacherTrainingTab() {
               </section>
               ) : null}
 
-              {canManage && showTeacherTrainingSection("participants") ? (
+              {canManage && showTeacherTrainingSection("participants", "accounts") ? (
               <section className={teacherTrainingListCardClassName}>
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                   <div>
-                    <p className="tt-block-title">参训教师名单</p>
-                    <p className="mt-1.5 text-xs leading-5 text-slate-500">集中查看省培教师、账号状态、预计到达和预录扩展信息。</p>
+                    <p className="tt-block-title">{isAccountManagementSection ? "省培账号管理" : "参训教师名单"}</p>
+                    <p className="mt-1.5 text-xs leading-5 text-slate-500">
+                      {isAccountManagementSection
+                        ? "集中处理省培身份绑定、账号通知、密码重置和解绑；创赛原平台账号与省培专用账号分开标识。"
+                        : "集中查看省培教师、账号状态、预计到达和预录扩展信息。"}
+                    </p>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="tt-pill">
@@ -5691,6 +5713,29 @@ export default function TeacherTrainingTab() {
                     </button>
                   </div>
                 </div>
+
+                {isAccountManagementSection ? (
+                  <div className="mt-4 grid gap-3 lg:grid-cols-3">
+                    <div className="rounded-2xl border border-blue-100 bg-blue-50/70 p-4">
+                      <p className="text-sm font-bold text-blue-800">绑定创赛原平台账号</p>
+                      <p className="mt-1.5 text-xs leading-5 text-blue-700">
+                        教师原来在创赛系统已有账号时，录入或编辑省培账号填写该用户名即可绑定；教师继续使用原密码登录，只新增省培入口。
+                      </p>
+                    </div>
+                    <div className="rounded-2xl border border-emerald-100 bg-emerald-50/70 p-4">
+                      <p className="text-sm font-bold text-emerald-800">生成省培专用账号</p>
+                      <p className="mt-1.5 text-xs leading-5 text-emerald-700">
+                        教师没有原平台账号时，可用手机号批量生成或逐人生成省培专用账号；该账号只服务省培系统。
+                      </p>
+                    </div>
+                    <div className="rounded-2xl border border-amber-100 bg-amber-50/70 p-4">
+                      <p className="text-sm font-bold text-amber-800">删除和解绑边界</p>
+                      <p className="mt-1.5 text-xs leading-5 text-amber-700">
+                        共用账号只解绑省培身份，不删除创赛系统账号；只有省培专用账号才允许删除账号本体。
+                      </p>
+                    </div>
+                  </div>
+                ) : null}
 
                 <div className="mt-4 grid gap-2.5 sm:grid-cols-2 xl:grid-cols-4" aria-label="参训教师账号状态总览">
                   {participantAccountStatusSummary.map((item) => (
@@ -5773,12 +5818,17 @@ export default function TeacherTrainingTab() {
                       </span>
                       <p className="text-sm font-semibold text-slate-700">名单为空</p>
                       <p className="max-w-[260px] text-xs leading-5 text-slate-400">
-                        在左侧录入参训教师后，这里会显示账号和预录信息。
+                        {isAccountManagementSection
+                          ? "请先到参训教师页录入名单，再回到这里处理账号绑定。"
+                          : "在左侧录入参训教师后，这里会显示账号和预录信息。"}
                       </p>
                       <button
                         type="button"
                         className="mt-1 inline-flex items-center gap-1.5 rounded-lg bg-[#1a6fd4] px-3.5 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-[#155bb0]"
                         onClick={() => {
+                          if (isAccountManagementSection) {
+                            openTeacherTrainingSection("participants");
+                          }
                           setParticipantFormOpen(true);
                           window.requestAnimationFrame(() => {
                             const input = document.getElementById("tt-participant-name-input");
@@ -5788,7 +5838,7 @@ export default function TeacherTrainingTab() {
                         }}
                       >
                         <Plus className="h-3.5 w-3.5" />
-                        立即录入教师
+                        {isAccountManagementSection ? "去录入教师" : "立即录入教师"}
                       </button>
                     </div>
                   ) : (
@@ -5816,9 +5866,12 @@ export default function TeacherTrainingTab() {
                           {participant.accountUsername ? (
                             <p className="mt-1 text-xs text-slate-400">
                               省培账号：{participant.accountUsername}
-                              {participant.accountRole !== "training_teacher" ? "（绑定原平台账号）" : ""}
+                              {participant.accountRole !== "training_teacher" ? "（绑定创赛原平台账号）" : ""}
                             </p>
                           ) : null}
+                          <p className="mt-1 text-xs leading-5 text-slate-500">
+                            {getParticipantAccountBoundaryText(participant)}
+                          </p>
                           <button
                             type="button"
                             className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-[#1a6fd4] transition hover:text-[#155bb0]"
@@ -5884,19 +5937,21 @@ export default function TeacherTrainingTab() {
                             <div className="rounded-xl border border-blue-100 bg-blue-50/35 p-3">
                               <p className="text-[11px] font-bold tracking-wide text-blue-600">省培账号处理</p>
                               <p className="mt-1 text-xs leading-5 text-blue-500">
-                                只处理登录账号，不删除参训教师档案。
+                                只处理账号与省培身份绑定，不删除参训教师档案。
                               </p>
                               <div className="mt-2 flex flex-wrap gap-2">
                                 <button
                                   className="inline-flex h-9 max-w-full items-center justify-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 text-sm font-semibold text-blue-700 transition hover:border-blue-200 hover:bg-blue-100"
-                                  aria-label="复制省培账号通知消息"
+                                  aria-label={participant.accountUsername ? "复制省培账号通知消息" : "生成省培专用账号并复制通知消息"}
                                   disabled={isSaving}
                                   onClick={() => void copyAccountMessage(participant.id)}
-                                  title="复制省培账号通知消息"
+                                  title={participant.accountUsername ? "复制省培账号通知消息" : "生成省培专用账号并复制通知消息"}
                                   type="button"
                                 >
                                   <Copy className="h-4 w-4 shrink-0" />
-                                  <span className="truncate whitespace-nowrap">复制账号消息</span>
+                                  <span className="truncate whitespace-nowrap">
+                                    {participant.accountUsername ? "复制账号消息" : "生成省培专用账号"}
+                                  </span>
                                 </button>
                                 {participant.accountUsername ? (
                                   <>
@@ -5914,19 +5969,19 @@ export default function TeacherTrainingTab() {
                                       </button>
                                     ) : (
                                       <span className="inline-flex min-h-9 max-w-full items-center rounded-lg border border-slate-200 bg-slate-50 px-3 text-sm font-semibold text-slate-500">
-                                        <span className="truncate">原平台账号由团队账号管理维护</span>
+                                        <span className="truncate">创赛原平台账号由创赛账号管理维护</span>
                                       </span>
                                     )}
                                     <button
                                       className="inline-flex h-9 max-w-full items-center justify-center gap-2 rounded-lg border border-amber-200 bg-amber-50 px-3 text-sm font-semibold text-amber-700 transition hover:bg-amber-100"
-                                      aria-label="解绑省培账号"
+                                      aria-label={getParticipantAccountRemoveLabel(participant)}
                                       disabled={isSaving}
                                       onClick={() => void removeParticipantAccount(participant)}
-                                      title="解绑省培账号"
+                                      title={getParticipantAccountRemoveLabel(participant)}
                                       type="button"
                                     >
                                       <Trash2 className="h-4 w-4 shrink-0" />
-                                      <span className="truncate whitespace-nowrap">解绑省培账号</span>
+                                      <span className="truncate whitespace-nowrap">{getParticipantAccountRemoveLabel(participant)}</span>
                                     </button>
                                   </>
                                 ) : null}
@@ -5937,10 +5992,10 @@ export default function TeacherTrainingTab() {
                         {accountEditParticipantId === participant.id ? (
                           <div className="lg:col-span-2 grid gap-3 rounded-xl border border-blue-100 bg-blue-50/50 p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
                             <label className={teacherTrainingFieldShellClassName}>
-                              <span className={teacherTrainingFieldLabelClassName}>省培登录账号</span>
+                              <span className={teacherTrainingFieldLabelClassName}>省培专用登录账号</span>
                               <input
                                 className={fieldClassName}
-                                {...fieldHint("重置省培账号")}
+                                {...fieldHint("重置省培专用账号")}
                                 onChange={(event) =>
                                   setAccountEditDraft((current) => ({ ...current, accountUsername: event.target.value }))
                                 }

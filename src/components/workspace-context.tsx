@@ -27,6 +27,7 @@ import {
   HelpCircle,
   Home,
   KanbanSquare,
+  KeyRound,
   Loader2,
   LogOut,
   MapPin,
@@ -194,6 +195,7 @@ export type TeacherTrainingSectionKey =
   | "overview"
   | "cohorts"
   | "participants"
+  | "accounts"
   | "courses"
   | "checkins"
   | "attendance"
@@ -894,6 +896,13 @@ export const teacherTrainingSectionTabs: TeacherTrainingSectionItem[] = [
     managerOnly: true,
   },
   {
+    key: "accounts",
+    label: "省培账号管理",
+    description: "创赛原平台账号与省培身份绑定",
+    icon: KeyRound,
+    managerOnly: true,
+  },
+  {
     key: "courses",
     label: "课程安排",
     description: "课程表和授课信息",
@@ -944,6 +953,7 @@ export const teacherTrainingManagerSectionKeys = new Set<TeacherTrainingSectionK
   "overview",
   "cohorts",
   "participants",
+  "accounts",
   "courses",
   "checkins",
   "attendance",

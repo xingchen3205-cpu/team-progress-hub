@@ -498,16 +498,16 @@ test("teacher training managers can edit and delete provincial teacher accounts 
   assert.match(tabSource, /participantAccountStatusSummary/);
   assert.match(tabSource, /未绑定账号/);
   assert.match(tabSource, /省培专用账号/);
-  assert.match(tabSource, /原平台账号/);
-  assert.match(tabSource, /只解绑账号，不删除档案/);
+  assert.match(tabSource, /创赛原平台账号/);
+  assert.match(tabSource, /共用账号只解绑省培身份，不删除创赛系统账号/);
   assert.match(tabSource, /筛选未绑定账号/);
   assert.match(tabSource, /重置账号密码/);
-  assert.match(tabSource, /解绑省培账号/);
+  assert.match(tabSource, /解除省培绑定/);
   assert.match(tabSource, /删除参训教师/);
   assert.match(tabSource, /参训教师档案/);
   assert.match(tabSource, /省培账号处理/);
   assert.doesNotMatch(tabSource, /tt-action-card grid gap-3 p-4 lg:grid-cols-\[minmax\(0,1fr\)_auto\]/);
-  assert.match(tabSource, /确认解绑省培账号/);
+  assert.match(tabSource, /确认\$\{getParticipantAccountRemoveLabel\(participant\)\}/);
 });
 
 test("teacher training participant import accepts uploaded Excel and maps headers", () => {
@@ -1480,6 +1480,21 @@ test("teacher training managers can reset participant account and password in pr
   assert.match(accountRoute, /accountPassword/);
   assert.match(accountRoute, /buildTeacherTrainingAccountMessage/);
   assert.match(accountRoute, /hasTeacherTrainingCohortManageAccess/);
+});
+
+test("teacher training account management separates competition accounts from provincial identities", () => {
+  const contextSource = read("src/components/workspace-context.tsx");
+  const tabSource = read("src/components/tabs/teacher-training-tab.tsx");
+  const accountRoute = read("src/app/api/teacher-training/participants/[participantId]/account/route.ts");
+
+  assert.match(contextSource, /"accounts"/);
+  assert.match(contextSource, /省培账号管理/);
+  assert.match(contextSource, /创赛原平台账号/);
+  assert.match(tabSource, /绑定创赛原平台账号/);
+  assert.match(tabSource, /生成省培专用账号/);
+  assert.match(tabSource, /共用账号只解绑省培身份，不删除创赛系统账号/);
+  assert.match(tabSource, /删除省培专用账号/);
+  assert.match(accountRoute, /原平台账号只解除绑定，不删除账号本体/);
 });
 
 test("workspace unit footer does not cover teacher training forms", () => {
