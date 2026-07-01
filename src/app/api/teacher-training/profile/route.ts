@@ -51,14 +51,10 @@ export async function PATCH(request: NextRequest) {
     !phone ||
     !groupName ||
     !title ||
-    !email ||
-    !arrivalAt ||
-    !arrivalTransportation ||
-    !arrivalVehicleNo ||
-    !arrivalDeparture
+    !email
   ) {
     return NextResponse.json(
-      { message: "请填写姓名、单位、手机、分组、职务、邮箱、预计到达时间、交通方式、车次/航班/车牌和出发地" },
+      { message: "请填写姓名、单位、手机、分组、职务和邮箱" },
       { status: 400 },
     );
   }
@@ -66,7 +62,7 @@ export async function PATCH(request: NextRequest) {
   if (emailError) {
     return NextResponse.json({ message: emailError }, { status: 400 });
   }
-  if (!isTeacherTrainingArrivalAtValue(arrivalAt)) {
+  if (arrivalAt && !isTeacherTrainingArrivalAtValue(arrivalAt)) {
     return NextResponse.json({ message: "预计到达时间格式不正确" }, { status: 400 });
   }
   if (passwordChangeRequired && !password) {

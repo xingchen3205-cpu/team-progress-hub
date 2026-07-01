@@ -730,10 +730,6 @@ const getTeacherTrainingProfileDisabledReason = (
     draft.groupName,
     draft.title,
     draft.email,
-    draft.arrivalAt,
-    draft.arrivalTransportation,
-    draft.arrivalVehicleNo,
-    draft.arrivalDeparture,
   ];
   if (requiredFields.some((value) => !value.trim())) {
     return "请填写完整个人资料后再保存";
@@ -1544,34 +1540,6 @@ export default function TeacherTrainingTab() {
       isComplete: Boolean(effectiveProfileDraft.organization.trim()),
       completeLabel: "单位已填写",
       incompleteLabel: "单位待补充",
-      required: true,
-    },
-    {
-      label: "预计到达",
-      isComplete: Boolean(effectiveProfileDraft.arrivalAt.trim()),
-      completeLabel: "预计到达时间已填写",
-      incompleteLabel: "预计到达时间待补充",
-      required: true,
-    },
-    {
-      label: "交通方式",
-      isComplete: Boolean(effectiveProfileDraft.arrivalTransportation.trim()),
-      completeLabel: "交通方式已填写",
-      incompleteLabel: "交通方式待补充",
-      required: true,
-    },
-    {
-      label: "车次/航班/车牌",
-      isComplete: Boolean(effectiveProfileDraft.arrivalVehicleNo.trim()),
-      completeLabel: "车次信息已填写",
-      incompleteLabel: "车次信息待补充",
-      required: true,
-    },
-    {
-      label: "出发地",
-      isComplete: Boolean(effectiveProfileDraft.arrivalDeparture.trim()),
-      completeLabel: "出发地已填写",
-      incompleteLabel: "出发地待补充",
       required: true,
     },
     {
@@ -6185,9 +6153,9 @@ export default function TeacherTrainingTab() {
                 </div>
                 {teacherInitialProfileRequired ? (
                   <div className="mt-4 border-y border-amber-100 bg-amber-50/60 px-1 py-3">
-                    <p className="text-sm font-bold text-amber-800">首次登录需先完成报到信息</p>
+                    <p className="text-sm font-bold text-amber-800">首次登录需先完善账号资料</p>
                     <p className="mt-1 text-xs leading-5 text-amber-700">
-                      请完整填写个人资料和预计到达信息，并把初始密码 123456 改成新密码，保存后进入主界面。
+                      请填写个人联系方式和邮箱，并把初始密码 123456 改成新密码；到达信息可稍后补充。
                     </p>
                   </div>
                 ) : null}
@@ -6294,7 +6262,7 @@ export default function TeacherTrainingTab() {
                       <Navigation className="h-4 w-4 text-[#1a6fd4]" />
                       <p className="text-sm font-semibold text-slate-900">预计报到 / 到达信息</p>
                     </div>
-                    <p className="text-xs leading-5 text-slate-500">以下到达信息均为必填，用于报到统计、接站核对和现场联系。</p>
+                    <p className="text-xs leading-5 text-slate-500">到达信息可稍后补充；填写后用于报到统计、接站核对和现场联系。</p>
                   </div>
                   <label className={teacherTrainingFieldShellClassName}>
                     <span className={teacherTrainingFieldLabelClassName}>预计到达时间</span>
@@ -6302,7 +6270,6 @@ export default function TeacherTrainingTab() {
                       className={fieldClassName}
                       {...fieldHint("预计到达时间")}
                       onChange={(event) => updateProfileDraftField("arrivalAt", event.target.value)}
-                      required
                       type="datetime-local"
                       value={effectiveProfileDraft.arrivalAt}
                     />
@@ -6313,7 +6280,6 @@ export default function TeacherTrainingTab() {
                       className={fieldClassName}
                       {...fieldHint("交通方式")}
                       onChange={(event) => updateProfileDraftField("arrivalTransportation", event.target.value)}
-                      required
                       value={effectiveProfileDraft.arrivalTransportation}
                     >
                       {arrivalTransportationOptions.map((option) => (
@@ -6330,7 +6296,6 @@ export default function TeacherTrainingTab() {
                       {...fieldHint("车次/航班/车牌")}
                       onChange={(event) => updateProfileDraftField("arrivalVehicleNo", event.target.value)}
                       placeholder="如 G1234、MU5678、苏A12345"
-                      required
                       value={effectiveProfileDraft.arrivalVehicleNo}
                     />
                   </label>
@@ -6341,7 +6306,6 @@ export default function TeacherTrainingTab() {
                       {...fieldHint("出发地")}
                       onChange={(event) => updateProfileDraftField("arrivalDeparture", event.target.value)}
                       placeholder="出发城市、站点或机场"
-                      required
                       value={effectiveProfileDraft.arrivalDeparture}
                     />
                   </label>

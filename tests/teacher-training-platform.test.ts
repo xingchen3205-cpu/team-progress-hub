@@ -1427,7 +1427,7 @@ test("teacher training list filters and cohort health check use clear operationa
   assert.match(tabSource, /请假审批人/);
 });
 
-test("teacher training arrival reporting is required for first teacher login and exportable by managers", () => {
+test("teacher training arrival reporting is optional at first login and exportable by managers", () => {
   const libSource = read("src/lib/teacher-training.ts");
   const profileRoute = read("src/app/api/teacher-training/profile/route.ts");
   const participantsRoute = read("src/app/api/teacher-training/participants/route.ts");
@@ -1447,22 +1447,22 @@ test("teacher training arrival reporting is required for first teacher login and
   assert.match(contextSource, /arrivalAt:\s*draft\.arrivalAt\.trim\(\)/);
   assert.match(tabSource, /teacherInitialProfileRequired/);
   assert.match(tabSource, /activeTeacherTrainingSection !== "profile"/);
-  assert.match(tabSource, /首次登录需先完成报到信息/);
-  assert.match(tabSource, /保存后进入主界面/);
+  assert.match(tabSource, /首次登录需先完善账号资料/);
+  assert.match(tabSource, /到达信息可稍后补充/);
   assert.match(tabSource, /预计到达时间/);
   assert.match(tabSource, /交通方式/);
   assert.match(tabSource, /车次\/航班\/车牌/);
-  assert.match(tabSource, /首次登录后请及时修改初始密码/);
-  assert.match(tabSource, /getTeacherTrainingProfileDisabledReason\(effectiveProfileDraft\)/);
+  assert.match(tabSource, /初始密码为 123456/);
+  assert.match(tabSource, /getTeacherTrainingProfileDisabledReason\(effectiveProfileDraft,\s*teacherPasswordChangeRequired\)/);
   assert.doesNotMatch(tabSource, /同行人数|住宿需求|到达备注|arrivalLodgingOptions/);
   assert.doesNotMatch(exportRoute, /同行人数|住宿需求|到达备注/);
   assert.match(tabSource, /batchGeneratePhoneAccounts/);
-  assert.match(tabSource, /批量按手机号分配账号/);
+  assert.match(tabSource, /用手机号批量生成/);
   assert.match(exportRoute, /arrivals/);
   assert.match(libSource, /预计到达时间/);
   assert.match(libSource, /交通方式/);
   assert.match(libSource, /车次\/航班\/车牌/);
-  assert.match(profileRoute, /请填写姓名、单位、手机、分组、职务、邮箱、预计到达时间、交通方式、车次\/航班\/车牌和出发地/);
+  assert.match(profileRoute, /请填写姓名、单位、手机、分组、职务和邮箱/);
   assert.match(profileRoute, /emailChanged/);
   assert.match(profileRoute, /emailStatus/);
   assert.match(tabSource, /profileSaveStatus/);
@@ -1523,6 +1523,20 @@ test("teacher training password policy requires 8 to 16 mixed alphanumeric chara
   assert.equal(validatePasswordPolicy("Aa123456789012345", {}), "密码不能超过 16 位");
   assert.equal(validatePasswordPolicy("aaaaaaaa", {}), "密码需要包含大写字母、小写字母和数字");
   assert.equal(validatePasswordPolicy("13800000000", { phone: "13800000000" }), "密码不能与手机号相同");
+});
+
+test("teacher training first-login profile requires contact and password but keeps arrival info optional", () => {
+  const profileRoute = read("src/app/api/teacher-training/profile/route.ts");
+  const tabSource = read("src/components/tabs/teacher-training-tab.tsx");
+
+  assert.match(profileRoute, /请填写姓名、单位、手机、分组、职务和邮箱/);
+  assert.match(profileRoute, /if \(arrivalAt && !isTeacherTrainingArrivalAtValue\(arrivalAt\)\)/);
+  assert.doesNotMatch(profileRoute, /!arrivalAt\s*\|\|/);
+  assert.doesNotMatch(profileRoute, /!arrivalTransportation\s*\|\|/);
+  assert.doesNotMatch(profileRoute, /!arrivalVehicleNo\s*\|\|/);
+  assert.doesNotMatch(profileRoute, /!arrivalDeparture/);
+  assert.match(tabSource, /到达信息可稍后补充/);
+  assert.doesNotMatch(tabSource, /以下到达信息均为必填/);
 });
 
 test("teacher training account management is a manager account pool, not another participant roster", () => {
