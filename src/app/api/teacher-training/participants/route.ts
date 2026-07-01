@@ -3,7 +3,6 @@ import bcrypt from "bcryptjs";
 
 import { validateUsername } from "@/lib/account-policy";
 import { getSessionUser } from "@/lib/auth";
-import { generateTemporaryPassword } from "@/lib/passwords";
 import { prisma } from "@/lib/prisma";
 import { mergeTeacherTrainingParticipantExtraInfo } from "@/lib/teacher-training";
 import { hasTeacherTrainingCohortManageAccess } from "@/lib/teacher-training-access";
@@ -17,6 +16,12 @@ type TeacherTrainingParticipantInput = {
   groupName?: string;
   title?: string;
   email?: string;
+  gender?: string;
+  age?: string;
+  personnelCategory?: string;
+  subject?: string;
+  professionalTitle?: string;
+  city?: string;
   arrivalTransportation?: string;
   arrivalAt?: string;
   arrivalVehicleNo?: string;
@@ -66,6 +71,12 @@ export async function POST(request: NextRequest) {
       extraInfo: mergeTeacherTrainingParticipantExtraInfo(participant.extraInfo?.trim() || "", {
         title: participant.title?.trim() || "",
         email: participant.email?.trim() || "",
+        gender: participant.gender?.trim() || "",
+        age: participant.age?.trim() || "",
+        personnelCategory: participant.personnelCategory?.trim() || "",
+        subject: participant.subject?.trim() || "",
+        professionalTitle: participant.professionalTitle?.trim() || "",
+        city: participant.city?.trim() || "",
         arrivalTransportation: participant.arrivalTransportation?.trim() || "",
         arrivalAt: participant.arrivalAt?.trim() || "",
         arrivalVehicleNo: participant.arrivalVehicleNo?.trim() || "",
@@ -178,8 +189,8 @@ export async function POST(request: NextRequest) {
       }
       accountUserId = existingAccount.id;
     } else {
-      temporaryPassword = providedPassword ? null : generateTemporaryPassword();
-      const passwordHash = await bcrypt.hash(providedPassword || temporaryPassword || generateTemporaryPassword(), 10);
+      temporaryPassword = providedPassword || "123456";
+      const passwordHash = await bcrypt.hash(temporaryPassword, 10);
       const accountUser = await prisma.user.create({
         data: {
           name,
@@ -213,6 +224,12 @@ export async function POST(request: NextRequest) {
       extraInfo: mergeTeacherTrainingParticipantExtraInfo(body?.extraInfo?.trim() || "", {
         title: body?.title?.trim() || "",
         email: body?.email?.trim() || "",
+        gender: body?.gender?.trim() || "",
+        age: body?.age?.trim() || "",
+        personnelCategory: body?.personnelCategory?.trim() || "",
+        subject: body?.subject?.trim() || "",
+        professionalTitle: body?.professionalTitle?.trim() || "",
+        city: body?.city?.trim() || "",
         arrivalTransportation: body?.arrivalTransportation?.trim() || "",
         arrivalAt: body?.arrivalAt?.trim() || "",
         arrivalVehicleNo: body?.arrivalVehicleNo?.trim() || "",

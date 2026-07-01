@@ -80,6 +80,7 @@ const TEACHER_TRAINING_IMPORT_TIMEOUT_MS = 30_000;
 const TEACHER_TRAINING_EXPORT_TIMEOUT_MS = 60_000;
 const TEACHER_TRAINING_UPLOAD_URL_TIMEOUT_MS = 20_000;
 const TEACHER_TRAINING_DOWNLOAD_TIMEOUT_MS = 60_000;
+const teacherTrainingDefaultInitialPassword = "123456";
 
 type TeacherTrainingExportType = "participants" | "arrivals" | "attendance" | "checkIns" | "submissions";
 
@@ -88,7 +89,7 @@ const teacherTrainingExportItems: Array<{
   type: TeacherTrainingExportType;
   description: string;
 }> = [
-  { label: "导出名单", type: "participants", description: "参训教师、单位、账号和预录信息" },
+  { label: "导出名单", type: "participants", description: "参训教师、单位、预录信息和账号状态" },
   { label: "导出到达信息", type: "arrivals", description: "预计到达时间、交通方式和车次信息" },
   { label: "导出报到信息", type: "attendance", description: "报到状态、时间、房号和材料情况" },
   { label: "导出课程签到", type: "checkIns", description: "定位签到任务和签到明细" },
@@ -180,8 +181,14 @@ const buildParticipantImportFieldSummary = (text: string): TeacherTrainingImport
     { key: "name", label: "姓名列", fallbackIndex: 0 },
     { key: "organization", label: "单位列", fallbackIndex: 1 },
     { key: "phone", label: "手机号列", fallbackIndex: 2 },
-    { key: "email", label: "邮箱列", fallbackIndex: 5 },
-    { key: "arrivalAt", label: "到达时间列", fallbackIndex: 6 },
+    { key: "gender", label: "性别列", fallbackIndex: 3 },
+    { key: "age", label: "年龄列", fallbackIndex: 4 },
+    { key: "personnelCategory", label: "人员类别列", fallbackIndex: 5 },
+    { key: "subject", label: "学科列", fallbackIndex: 6 },
+    { key: "professionalTitle", label: "职称列", fallbackIndex: 7 },
+    { key: "city", label: "所属市列", fallbackIndex: 8 },
+    { key: "email", label: "邮箱列", fallbackIndex: 9 },
+    { key: "arrivalAt", label: "到达时间列", fallbackIndex: 10 },
   ];
 
   return fields.map((field) => ({
@@ -700,7 +707,10 @@ const getTeacherTrainingSubmissionDisabledReason = (
   return "";
 };
 
-const getTeacherTrainingProfileDisabledReason = (draft: Workspace.TeacherTrainingProfileDraft) => {
+const getTeacherTrainingProfileDisabledReason = (
+  draft: Workspace.TeacherTrainingProfileDraft,
+  passwordRequired = false,
+) => {
   const participantReason = getTeacherTrainingParticipantDisabledReason(Boolean(draft.participantId));
   if (participantReason) return participantReason;
 
@@ -718,6 +728,29 @@ const getTeacherTrainingProfileDisabledReason = (draft: Workspace.TeacherTrainin
   ];
   if (requiredFields.some((value) => !value.trim())) {
     return "请填写完整个人资料后再保存";
+  }
+
+  if (passwordRequired) {
+    const password = draft.password.trim();
+    const passwordConfirm = draft.passwordConfirm.trim();
+    if (!password || !passwordConfirm) {
+      return "首次登录请设置新密码";
+    }
+    if (password !== passwordConfirm) {
+      return "两次输入的新密码不一致";
+    }
+    if (password === teacherTrainingDefaultInitialPassword) {
+      return "不能继续使用初始密码 123456";
+    }
+    if (password.length < 8) {
+      return "密码至少需要 8 位";
+    }
+    if (password.length > 16) {
+      return "密码不能超过 16 位";
+    }
+    if (!/[A-Z]/.test(password) || !/[a-z]/.test(password) || !/\d/.test(password)) {
+      return "密码需要包含大写字母、小写字母和数字";
+    }
   }
 
   return "";
@@ -828,6 +861,12 @@ export default function TeacherTrainingTab() {
     groupName: "",
     title: "",
     email: "",
+    gender: "",
+    age: "",
+    personnelCategory: "",
+    subject: "",
+    professionalTitle: "",
+    city: "",
     arrivalTransportation: "",
     arrivalAt: "",
     arrivalVehicleNo: "",
@@ -898,6 +937,8 @@ export default function TeacherTrainingTab() {
     arrivalAt: "",
     arrivalVehicleNo: "",
     arrivalDeparture: "",
+    password: "",
+    passwordConfirm: "",
     note: "",
   });
   const [attendanceRegistrationDraft, setAttendanceRegistrationDraft] = useState<{
@@ -1029,6 +1070,8 @@ export default function TeacherTrainingTab() {
           arrivalAt: selectedParticipant.arrivalInfo.arrivalAt,
           arrivalVehicleNo: selectedParticipant.arrivalInfo.vehicleNo,
           arrivalDeparture: selectedParticipant.arrivalInfo.departure,
+          password: "",
+          passwordConfirm: "",
           note: selectedParticipant.note,
         }
       : profileDraft;
@@ -1041,6 +1084,7 @@ export default function TeacherTrainingTab() {
   const canCreateTeacherTrainingCohort = currentUser?.role === "admin";
   const canShowCohortDraftForm = canCreateTeacherTrainingCohort || Boolean(cohortDraft.id);
   const canConfigureTeacherTrainingLeaveFlow = currentUser?.role === "admin";
+  const isAccountManagementSection = activeTeacherTrainingSection === "accounts";
   const participantSearchKeyword = normalizeSearchText(participantSearch);
   const attendanceSearchKeyword = normalizeSearchText(attendanceSearch);
   const checkInSearchKeyword = normalizeSearchText(checkInSearch);
@@ -1077,7 +1121,7 @@ export default function TeacherTrainingTab() {
     return true;
   };
   const filteredParticipants = (selectedCohort?.participants ?? []).filter((participant) => {
-    if (participantAccountFilter === "unbound" && participant.accountUserId) return false;
+    if (isAccountManagementSection && participantAccountFilter === "unbound" && participant.accountUserId) return false;
     if (!participantSearchKeyword) return true;
     return [
       participant.name,
@@ -1086,6 +1130,12 @@ export default function TeacherTrainingTab() {
       participant.groupName,
       participant.title,
       participant.email,
+      participant.gender,
+      participant.age,
+      participant.personnelCategory,
+      participant.subject,
+      participant.professionalTitle,
+      participant.city,
       participant.arrivalInfo.arrivalAt,
       participant.arrivalInfo.transportationLabel,
       participant.arrivalInfo.vehicleNo,
@@ -1144,6 +1194,12 @@ export default function TeacherTrainingTab() {
       participant.groupName,
       participant.title,
       participant.email,
+      participant.gender,
+      participant.age,
+      participant.personnelCategory,
+      participant.subject,
+      participant.professionalTitle,
+      participant.city,
       getParticipantAttendanceRecord(participant, "present", "报到")?.statusLabel ?? Workspace.teacherTrainingAttendancePendingLabel,
       getParticipantAttendanceRecord(participant, "leave")?.statusLabel ?? "",
       getParticipantAttendanceRecord(participant, "absent")?.statusLabel ?? "",
@@ -1193,14 +1249,20 @@ export default function TeacherTrainingTab() {
           participant?.groupName ?? "",
           participant?.title ?? "",
           participant?.email ?? "",
+          participant?.gender ?? "",
+          participant?.age ?? "",
+          participant?.personnelCategory ?? "",
+          participant?.subject ?? "",
+          participant?.professionalTitle ?? "",
+          participant?.city ?? "",
           submission.content,
-            submission.attachment,
-            submission.attachmentLabel,
-            submission.submittedAt,
-            submission.finalScore === null ? "" : `${submission.finalScore}`,
-            submission.finalComment,
-            submission.reviewStatusLabel,
-          ];
+          submission.attachment,
+          submission.attachmentLabel,
+          submission.submittedAt,
+          submission.finalScore === null ? "" : `${submission.finalScore}`,
+          submission.finalComment,
+          submission.reviewStatusLabel,
+        ];
       }),
     ]
       .join(" ")
@@ -1217,6 +1279,12 @@ export default function TeacherTrainingTab() {
             participant?.groupName ?? "",
             participant?.title ?? "",
             participant?.email ?? "",
+            participant?.gender ?? "",
+            participant?.age ?? "",
+            participant?.personnelCategory ?? "",
+            participant?.subject ?? "",
+            participant?.professionalTitle ?? "",
+            participant?.city ?? "",
             submission.content,
             submission.attachment,
             submission.attachmentLabel,
@@ -1247,6 +1315,12 @@ export default function TeacherTrainingTab() {
         participant.groupName,
         participant.title,
         participant.email,
+        participant.gender,
+        participant.age,
+        participant.personnelCategory,
+        participant.subject,
+        participant.professionalTitle,
+        participant.city,
       ]),
       ...task.records.flatMap((record) => {
         const participant = participantById.get(record.participantId);
@@ -1256,6 +1330,12 @@ export default function TeacherTrainingTab() {
           participant?.groupName ?? "",
           participant?.title ?? "",
           participant?.email ?? "",
+          participant?.gender ?? "",
+          participant?.age ?? "",
+          participant?.personnelCategory ?? "",
+          participant?.subject ?? "",
+          participant?.professionalTitle ?? "",
+          participant?.city ?? "",
           record.signedAt,
           record.note,
         ];
@@ -1275,6 +1355,12 @@ export default function TeacherTrainingTab() {
             participant?.groupName ?? "",
             participant?.title ?? "",
             participant?.email ?? "",
+            participant?.gender ?? "",
+            participant?.age ?? "",
+            participant?.personnelCategory ?? "",
+            participant?.subject ?? "",
+            participant?.professionalTitle ?? "",
+            participant?.city ?? "",
             record.signedAt,
             record.note,
           ]
@@ -1298,6 +1384,12 @@ export default function TeacherTrainingTab() {
         participant.groupName,
         participant.title,
         participant.email,
+        participant.gender,
+        participant.age,
+        participant.personnelCategory,
+        participant.subject,
+        participant.professionalTitle,
+        participant.city,
       ]
         .join(" ")
         .toLocaleLowerCase("zh-CN")
@@ -1413,6 +1505,7 @@ export default function TeacherTrainingTab() {
         : teacherPendingCheckInCount > 0
           ? "bg-amber-50 text-amber-700"
           : "bg-emerald-50 text-emerald-700";
+  const teacherPasswordChangeRequired = !canManage && currentUser?.role === "training_teacher" && !currentUser.email;
   const teacherProfileCompletionItems = [
     {
       label: "姓名",
@@ -1477,6 +1570,20 @@ export default function TeacherTrainingTab() {
       incompleteLabel: "邮箱待补充",
       required: true,
     },
+    ...(teacherPasswordChangeRequired
+      ? [
+          {
+            label: "登录密码",
+            isComplete: Boolean(
+              effectiveProfileDraft.password.trim() &&
+                effectiveProfileDraft.password.trim() === effectiveProfileDraft.passwordConfirm.trim(),
+            ),
+            completeLabel: "新密码已填写",
+            incompleteLabel: "初始密码待修改",
+            required: true,
+          },
+        ]
+      : []),
   ];
   const teacherProfileCompletedCount = teacherProfileCompletionItems.filter((item) => item.isComplete).length;
   const teacherProfileCompletionPercent = Math.round(
@@ -1486,7 +1593,8 @@ export default function TeacherTrainingTab() {
   const teacherProfileNeedsAttention =
     !hasSelectedParticipant || teacherRequiredProfileItems.some((item) => !item.isComplete);
   const teacherProfileStatusText = teacherProfileNeedsAttention ? "资料待完善" : "资料已完整";
-  const teacherInitialProfileRequired = !canManage && hasSelectedParticipant && teacherProfileNeedsAttention;
+  const teacherInitialProfileRequired =
+    !canManage && hasSelectedParticipant && (teacherProfileNeedsAttention || teacherPasswordChangeRequired);
 
   useEffect(() => {
     if (teacherInitialProfileRequired && activeTeacherTrainingSection !== "profile") {
@@ -1500,7 +1608,7 @@ export default function TeacherTrainingTab() {
     leaveDraft.reason,
     canManage,
   );
-  const profileDisabledReason = getTeacherTrainingProfileDisabledReason(effectiveProfileDraft);
+  const profileDisabledReason = getTeacherTrainingProfileDisabledReason(effectiveProfileDraft, teacherPasswordChangeRequired);
   const submissionDisabledReason = getTeacherTrainingSubmissionDisabledReason(
     Boolean(selectedTask),
     hasSelectedParticipant,
@@ -2300,8 +2408,13 @@ export default function TeacherTrainingTab() {
             : saved.emailStatus === "not_configured"
               ? "资料已保存，当前未配置邮件发送。"
               : "资料已保存。";
-      setProfileSaveStatus(emailStatusText);
-    }
+        setProfileSaveStatus(emailStatusText);
+        setProfileDraft((current) => ({
+          ...current,
+          password: "",
+          passwordConfirm: "",
+        }));
+      }
     if (saved?.ok && !canManage) {
       setActiveTeacherTrainingSection("overview");
     }
@@ -2550,7 +2663,8 @@ export default function TeacherTrainingTab() {
 
   const getPhoneAccountUsername = (participant: Workspace.TeacherTrainingParticipantItem) => {
     const digits = participant.phone.replace(/\D/g, "");
-    return digits ? `sp${digits.slice(-8)}` : "";
+    if (!/^1[3-9]\d{9}$/.test(digits)) return "";
+    return digits;
   };
 
   const batchGeneratePhoneAccounts = async () => {
@@ -2569,6 +2683,7 @@ export default function TeacherTrainingTab() {
       const messageText = await generateTeacherTrainingAccountMessage({
         participantId: participant.id,
         accountUsername: getPhoneAccountUsername(participant),
+        accountPassword: teacherTrainingDefaultInitialPassword,
       });
       if (messageText) {
         messages[participant.id] = messageText;
@@ -2760,7 +2875,7 @@ export default function TeacherTrainingTab() {
     {
       label: "参训教师",
       value: selectedCohort?.stats.participantCount ?? 0,
-      helper: "名单与账号",
+      helper: "名单档案",
       onClick: () => openOverviewMetric({ detailViewTitle: "全部参训教师", section: "participants" }),
       title: "查看参训教师名单",
     },
@@ -2858,7 +2973,7 @@ export default function TeacherTrainingTab() {
     Icon: typeof Users;
     onClick: () => void;
   }> = [
-    { label: "参训教师", helper: "名单、账号、预录信息", Icon: Users, onClick: () => openTeacherTrainingSection("participants") },
+    { label: "参训教师", helper: "报名档案和预录信息", Icon: Users, onClick: () => openTeacherTrainingSection("participants") },
     { label: "账号管理", helper: "绑定创赛账号或省培专用账号", Icon: Users, onClick: () => openTeacherTrainingSection("accounts") },
     { label: "课程安排", helper: "课程表和授课信息", Icon: CalendarDays, onClick: () => openTeacherTrainingSection("courses") },
     { label: "报到签到", helper: "报到登记和课程签到", Icon: MapPin, onClick: () => openTeacherTrainingSection("attendance") },
@@ -2894,7 +3009,6 @@ export default function TeacherTrainingTab() {
     : visibleTeacherTrainingSections.some((section) => section.key === activeTeacherTrainingSection)
     ? activeTeacherTrainingSection
     : "overview";
-  const isAccountManagementSection = effectiveTeacherTrainingSection === "accounts";
   const activeTeacherTrainingSectionMeta =
     visibleTeacherTrainingSections.find((section) => section.key === effectiveTeacherTrainingSection) ??
     visibleTeacherTrainingSections[0];
@@ -3753,6 +3867,72 @@ export default function TeacherTrainingTab() {
                         onChange={(event) => setParticipantDraft((current) => ({ ...current, groupName: event.target.value }))}
                         placeholder="分组"
                         value={participantDraft.groupName}
+                      />
+                    </label>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <label className={teacherTrainingFieldShellClassName}>
+                      <span className={teacherTrainingFieldLabelClassName}>性别</span>
+                      <input
+                        className={fieldClassName}
+                        {...fieldHint("性别")}
+                        onChange={(event) => setParticipantDraft((current) => ({ ...current, gender: event.target.value }))}
+                        placeholder="性别"
+                        value={participantDraft.gender}
+                      />
+                    </label>
+                    <label className={teacherTrainingFieldShellClassName}>
+                      <span className={teacherTrainingFieldLabelClassName}>年龄</span>
+                      <input
+                        className={fieldClassName}
+                        {...fieldHint("年龄")}
+                        onChange={(event) => setParticipantDraft((current) => ({ ...current, age: event.target.value }))}
+                        placeholder="年龄"
+                        value={participantDraft.age}
+                      />
+                    </label>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <label className={teacherTrainingFieldShellClassName}>
+                      <span className={teacherTrainingFieldLabelClassName}>人员类别</span>
+                      <input
+                        className={fieldClassName}
+                        {...fieldHint("人员类别")}
+                        onChange={(event) => setParticipantDraft((current) => ({ ...current, personnelCategory: event.target.value }))}
+                        placeholder="人员类别"
+                        value={participantDraft.personnelCategory}
+                      />
+                    </label>
+                    <label className={teacherTrainingFieldShellClassName}>
+                      <span className={teacherTrainingFieldLabelClassName}>学科</span>
+                      <input
+                        className={fieldClassName}
+                        {...fieldHint("学科")}
+                        onChange={(event) => setParticipantDraft((current) => ({ ...current, subject: event.target.value }))}
+                        placeholder="学科"
+                        value={participantDraft.subject}
+                      />
+                    </label>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <label className={teacherTrainingFieldShellClassName}>
+                      <span className={teacherTrainingFieldLabelClassName}>职称</span>
+                      <input
+                        className={fieldClassName}
+                        {...fieldHint("职称")}
+                        onChange={(event) => setParticipantDraft((current) => ({ ...current, professionalTitle: event.target.value }))}
+                        placeholder="职称"
+                        value={participantDraft.professionalTitle}
+                      />
+                    </label>
+                    <label className={teacherTrainingFieldShellClassName}>
+                      <span className={teacherTrainingFieldLabelClassName}>所属市</span>
+                      <input
+                        className={fieldClassName}
+                        {...fieldHint("所属市")}
+                        onChange={(event) => setParticipantDraft((current) => ({ ...current, city: event.target.value }))}
+                        placeholder="所属市"
+                        value={participantDraft.city}
                       />
                     </label>
                   </div>
@@ -5429,31 +5609,31 @@ export default function TeacherTrainingTab() {
                               <div className="flex items-center justify-between gap-3">
                                 <p className="text-sm font-semibold text-slate-900">
                                   {request.startDate} 至 {request.endDate}
-	                                </p>
-	                                <div className="flex items-center gap-2">
-	                                  {request.status === "approved" ? (
-	                                    <button
-	                                      className="text-xs font-semibold text-blue-700 disabled:cursor-wait disabled:text-blue-300"
-	                                      aria-label={`导出${request.startDate}请假 PDF`}
-	                                      disabled={downloadingTeacherTrainingFile === `/api/teacher-training/leave-requests/${request.id}/pdf`}
-	                                      onClick={() =>
-	                                        void downloadTeacherTrainingFile({
-	                                          url: `/api/teacher-training/leave-requests/${request.id}/pdf`,
-	                                          label: "PDF请假单",
-	                                          fallbackName: `${selectedCohort.title}-${request.startDate}-请假单.pdf`,
-	                                        })
-	                                      }
-	                                      title={`导出${request.startDate}请假 PDF`}
-	                                      type="button"
-	                                    >
-	                                      导出PDF请假单
-	                                    </button>
-	                                  ) : (
-	                                    <span className="text-xs font-semibold text-slate-400">审批完成后可导出PDF</span>
-	                                  )}
-	                                  <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-700">
-	                                    {request.statusLabel}
-	                                  </span>
+                                  </p>
+                                  <div className="flex items-center gap-2">
+                                    {request.status === "approved" ? (
+                                      <button
+                                        className="text-xs font-semibold text-blue-700 disabled:cursor-wait disabled:text-blue-300"
+                                        aria-label={`导出${request.startDate}请假 PDF`}
+                                        disabled={downloadingTeacherTrainingFile === `/api/teacher-training/leave-requests/${request.id}/pdf`}
+                                        onClick={() =>
+                                          void downloadTeacherTrainingFile({
+                                            url: `/api/teacher-training/leave-requests/${request.id}/pdf`,
+                                            label: "PDF请假单",
+                                            fallbackName: `${selectedCohort.title}-${request.startDate}-请假单.pdf`,
+                                          })
+                                        }
+                                        title={`导出${request.startDate}请假 PDF`}
+                                        type="button"
+                                      >
+                                        导出PDF请假单
+                                      </button>
+                                    ) : (
+                                      <span className="text-xs font-semibold text-slate-400">审批完成后可导出PDF</span>
+                                    )}
+                                    <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-700">
+                                      {request.statusLabel}
+                                    </span>
                                 </div>
                               </div>
                               <p className="mt-1 text-xs text-slate-500">{request.reason}</p>
@@ -5522,7 +5702,7 @@ export default function TeacherTrainingTab() {
                   <div className="mt-4 border-y border-amber-100 bg-amber-50/60 px-1 py-3">
                     <p className="text-sm font-bold text-amber-800">首次登录需先完成报到信息</p>
                     <p className="mt-1 text-xs leading-5 text-amber-700">
-                      请完整填写个人资料和预计到达信息；首次登录后请及时修改初始密码，保存后进入主界面。
+                      请完整填写个人资料和预计到达信息，并把初始密码 123456 改成新密码，保存后进入主界面。
                     </p>
                   </div>
                 ) : null}
@@ -5593,6 +5773,37 @@ export default function TeacherTrainingTab() {
                       value={effectiveProfileDraft.email}
                     />
                   </label>
+                  {teacherPasswordChangeRequired ? (
+                    <div className="md:col-span-2 rounded-2xl border border-amber-100 bg-amber-50/70 p-3">
+                      <div className="grid gap-3 md:grid-cols-2">
+                        <label className={teacherTrainingFieldShellClassName}>
+                          <span className={teacherTrainingFieldLabelClassName}>设置新密码</span>
+                          <input
+                            className={fieldClassName}
+                            {...fieldHint("设置新密码")}
+                            onChange={(event) => updateProfileDraftField("password", event.target.value)}
+                            placeholder="8-16位，含大小写字母和数字"
+                            type="password"
+                            value={effectiveProfileDraft.password}
+                          />
+                        </label>
+                        <label className={teacherTrainingFieldShellClassName}>
+                          <span className={teacherTrainingFieldLabelClassName}>再次输入新密码</span>
+                          <input
+                            className={fieldClassName}
+                            {...fieldHint("再次输入新密码")}
+                            onChange={(event) => updateProfileDraftField("passwordConfirm", event.target.value)}
+                            placeholder="再次输入新密码"
+                            type="password"
+                            value={effectiveProfileDraft.passwordConfirm}
+                          />
+                        </label>
+                      </div>
+                      <p className="mt-2 text-xs leading-5 text-amber-700">
+                        初始密码为 123456，首次保存资料时必须改掉；新密码需 8-16 位，并同时包含大写字母、小写字母和数字。
+                      </p>
+                    </div>
+                  ) : null}
                   <div className="md:col-span-2">
                     <div className="mb-1 flex items-center gap-2">
                       <Navigation className="h-4 w-4 text-[#1a6fd4]" />
@@ -5693,24 +5904,26 @@ export default function TeacherTrainingTab() {
                     <p className="mt-1.5 text-xs leading-5 text-slate-500">
                       {isAccountManagementSection
                         ? "集中处理省培身份绑定、账号通知、密码重置和解绑；创赛原平台账号与省培专用账号分开标识。"
-                        : "集中查看省培教师、账号状态、预计到达和预录扩展信息。"}
+                        : "集中查看省培教师报名档案、预录扩展信息和预计到达信息。"}
                     </p>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="tt-pill">
                       {filteredParticipants.length}/{selectedCohort.participants.length} 人
                     </span>
-                    <button
-                      className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-blue-100 bg-white px-3 text-xs font-semibold text-blue-700 transition hover:border-blue-200 hover:bg-blue-50"
-                      aria-label="为未绑定账号的教师批量生成登录账号"
-                      disabled={isSaving || !selectedCohort.participants.some((participant) => !participant.accountUserId && getPhoneAccountUsername(participant))}
-                      onClick={() => void batchGeneratePhoneAccounts()}
-                      title="给还没有省培登录账号的教师，用其手机号一键批量生成账号（已有账号的不受影响）"
-                      type="button"
-                    >
-                      <Copy className="h-4 w-4" />
-                      批量生成账号
-                    </button>
+                    {isAccountManagementSection ? (
+                      <button
+                        className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-blue-100 bg-white px-3 text-xs font-semibold text-blue-700 transition hover:border-blue-200 hover:bg-blue-50"
+                        aria-label="一键用手机号开通省培账号"
+                        disabled={isSaving || !selectedCohort.participants.some((participant) => !participant.accountUserId && getPhoneAccountUsername(participant))}
+                        onClick={() => void batchGeneratePhoneAccounts()}
+                        title="给还没有省培登录账号且手机号有效的教师，用手机号开通账号；初始密码统一为 123456。已有账号不受影响。"
+                        type="button"
+                      >
+                        <Copy className="h-4 w-4" />
+                        一键手机号开通账号
+                      </button>
+                    ) : null}
                   </div>
                 </div>
 
@@ -5737,55 +5950,59 @@ export default function TeacherTrainingTab() {
                   </div>
                 ) : null}
 
-                <div className="mt-4 grid gap-2.5 sm:grid-cols-2 xl:grid-cols-4" aria-label="参训教师账号状态总览">
-                  {participantAccountStatusSummary.map((item) => (
-                    <button
-                      key={item.label}
-                      className={`relative overflow-hidden rounded-2xl border px-4 py-3 text-left transition hover:-translate-y-0.5 hover:shadow-[0_14px_30px_-18px_rgba(15,45,91,0.4)] ${
-                        item.tone === "amber"
-                          ? "border-amber-100 bg-amber-50/70 text-amber-800"
-                          : item.tone === "emerald"
-                            ? "border-emerald-100 bg-emerald-50/70 text-emerald-800"
-                            : item.tone === "blue"
-                              ? "border-blue-100 bg-blue-50/70 text-blue-800"
-                              : "border-slate-200 bg-slate-50 text-slate-700"
-                      }`}
-                      onClick={() => setParticipantAccountFilter(item.label === "未绑定账号" ? "unbound" : "all")}
-                      type="button"
-                    >
-                      <span className="text-xs font-semibold opacity-80">{item.label}</span>
-                      <strong className="mt-1 block text-[26px] font-extrabold leading-none tracking-tight">{item.value}</strong>
-                    </button>
-                  ))}
-                </div>
-
-                <div className="mt-4 flex flex-col gap-2 rounded-2xl border border-slate-100 bg-white/70 p-2 sm:flex-row sm:items-center sm:justify-between">
-                  <span className="px-2 text-xs font-semibold text-slate-500">账号处理范围</span>
-                  <div className="grid gap-2 sm:flex sm:flex-wrap">
-                    {[
-                      { key: "all", label: "全部参训教师" },
-                      { key: "unbound", label: "筛选未绑定账号" },
-                    ].map((item) => {
-                      const isActive = participantAccountFilter === item.key;
-
-                      return (
+                {isAccountManagementSection ? (
+                  <>
+                    <div className="mt-4 grid gap-2.5 sm:grid-cols-2 xl:grid-cols-4" aria-label="参训教师账号状态总览">
+                      {participantAccountStatusSummary.map((item) => (
                         <button
-                          key={item.key}
-                          aria-pressed={isActive}
-                          className={`h-9 rounded-xl px-3 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200/70 ${
-                            isActive
-                              ? "bg-blue-600 text-white shadow-sm shadow-blue-900/15"
-                              : "border border-slate-200 bg-white text-slate-600 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
+                          key={item.label}
+                          className={`relative overflow-hidden rounded-2xl border px-4 py-3 text-left transition hover:-translate-y-0.5 hover:shadow-[0_14px_30px_-18px_rgba(15,45,91,0.4)] ${
+                            item.tone === "amber"
+                              ? "border-amber-100 bg-amber-50/70 text-amber-800"
+                              : item.tone === "emerald"
+                                ? "border-emerald-100 bg-emerald-50/70 text-emerald-800"
+                                : item.tone === "blue"
+                                  ? "border-blue-100 bg-blue-50/70 text-blue-800"
+                                  : "border-slate-200 bg-slate-50 text-slate-700"
                           }`}
-                          onClick={() => setParticipantAccountFilter(item.key as "all" | "unbound")}
+                          onClick={() => setParticipantAccountFilter(item.label === "未绑定账号" ? "unbound" : "all")}
                           type="button"
                         >
-                          {item.label}
+                          <span className="text-xs font-semibold opacity-80">{item.label}</span>
+                          <strong className="mt-1 block text-[26px] font-extrabold leading-none tracking-tight">{item.value}</strong>
                         </button>
-                      );
-                    })}
-                  </div>
-                </div>
+                      ))}
+                    </div>
+
+                    <div className="mt-4 flex flex-col gap-2 rounded-2xl border border-slate-100 bg-white/70 p-2 sm:flex-row sm:items-center sm:justify-between">
+                      <span className="px-2 text-xs font-semibold text-slate-500">账号处理范围</span>
+                      <div className="grid gap-2 sm:flex sm:flex-wrap">
+                        {[
+                          { key: "all", label: "全部参训教师" },
+                          { key: "unbound", label: "筛选未绑定账号" },
+                        ].map((item) => {
+                          const isActive = participantAccountFilter === item.key;
+
+                          return (
+                            <button
+                              key={item.key}
+                              aria-pressed={isActive}
+                              className={`h-9 rounded-xl px-3 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200/70 ${
+                                isActive
+                                  ? "bg-blue-600 text-white shadow-sm shadow-blue-900/15"
+                                  : "border border-slate-200 bg-white text-slate-600 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
+                              }`}
+                              onClick={() => setParticipantAccountFilter(item.key as "all" | "unbound")}
+                              type="button"
+                            >
+                              {item.label}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </>
+                ) : null}
 
                 <label className={`${teacherTrainingFieldShellClassName} mt-4`}>
                   <span className={teacherTrainingFieldLabelClassName}>搜索参训教师</span>
@@ -5793,14 +6010,20 @@ export default function TeacherTrainingTab() {
                     className={fieldClassName}
                     {...fieldHint("搜索参训教师")}
                     onChange={(event) => setParticipantSearch(event.target.value)}
-                    placeholder="按姓名、单位、分组、职务、邮箱或账号搜索"
+                    placeholder={
+                      isAccountManagementSection
+                        ? "按姓名、单位、手机号或账号搜索"
+                        : "按姓名、单位、所属市、学科或人员类别搜索"
+                    }
                     value={participantSearch}
                   />
                 </label>
                 <TeacherTrainingFilterSummary
                   items={teacherTrainingFilterSummaries.participants}
                   onClear={
-                    participantSearchKeyword || participantAccountFilter !== "all" || teacherTrainingDetailViewTitle
+                    participantSearchKeyword ||
+                    (isAccountManagementSection && participantAccountFilter !== "all") ||
+                    teacherTrainingDetailViewTitle
                       ? () => {
                           setParticipantSearch("");
                           setParticipantAccountFilter("all");
@@ -5820,7 +6043,7 @@ export default function TeacherTrainingTab() {
                       <p className="max-w-[260px] text-xs leading-5 text-slate-400">
                         {isAccountManagementSection
                           ? "请先到参训教师页录入名单，再回到这里处理账号绑定。"
-                          : "在左侧录入参训教师后，这里会显示账号和预录信息。"}
+                          : "在左侧录入参训教师后，这里会显示报名档案和预录信息。"}
                       </p>
                       <button
                         type="button"
@@ -5855,68 +6078,117 @@ export default function TeacherTrainingTab() {
                             <span className="whitespace-nowrap rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">
                               {participant.groupName || "未分组"}
                             </span>
-                            <span className="whitespace-nowrap rounded-full bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-700">
-                              {participant.accountUsername ? "已开通账号" : "待开通账号"}
-                            </span>
-                            <span className={`whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold ${getParticipantAccountTypeClassName(participant)}`}>
-                              {getParticipantAccountTypeLabel(participant)}
-                            </span>
+                            {isAccountManagementSection ? (
+                              <>
+                                <span className="whitespace-nowrap rounded-full bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-700">
+                                  {participant.accountUsername ? "已开通账号" : "待开通账号"}
+                                </span>
+                                <span className={`whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-semibold ${getParticipantAccountTypeClassName(participant)}`}>
+                                  {getParticipantAccountTypeLabel(participant)}
+                                </span>
+                              </>
+                            ) : (
+                              <>
+                                {participant.city ? (
+                                  <span className="whitespace-nowrap rounded-full bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-700">
+                                    {participant.city}
+                                  </span>
+                                ) : null}
+                                {participant.personnelCategory ? (
+                                  <span className="whitespace-nowrap rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-semibold text-emerald-700">
+                                    {participant.personnelCategory}
+                                  </span>
+                                ) : null}
+                              </>
+                            )}
                           </div>
                           <p className="mt-1 text-sm text-slate-500">{participant.organization || "单位待补充"}</p>
-                          {participant.accountUsername ? (
+                          {isAccountManagementSection && participant.accountUsername ? (
                             <p className="mt-1 text-xs text-slate-400">
                               省培账号：{participant.accountUsername}
                               {participant.accountRole !== "training_teacher" ? "（绑定创赛原平台账号）" : ""}
                             </p>
                           ) : null}
-                          <p className="mt-1 text-xs leading-5 text-slate-500">
-                            {getParticipantAccountBoundaryText(participant)}
-                          </p>
+                          {isAccountManagementSection ? (
+                            <p className="mt-1 text-xs leading-5 text-slate-500">
+                              {getParticipantAccountBoundaryText(participant)}
+                            </p>
+                          ) : null}
                           <button
                             type="button"
                             className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-[#1a6fd4] transition hover:text-[#155bb0]"
                             onClick={() => toggleParticipantExpanded(participant.id)}
                             aria-expanded={expandedParticipantIds.has(participant.id)}
                           >
-                            {expandedParticipantIds.has(participant.id) ? "收起详情" : "到达 · 账号 · 删除等详情"}
+                            {expandedParticipantIds.has(participant.id)
+                              ? "收起详情"
+                              : isAccountManagementSection
+                                ? "账号处理详情"
+                                : "报名档案详情"}
                             <ChevronDown className={`h-3.5 w-3.5 transition ${expandedParticipantIds.has(participant.id) ? "rotate-180" : ""}`} />
                           </button>
-                          {expandedParticipantIds.has(participant.id) ? (
-                          <>
-                          <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                            <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2">
-                              <p className="text-[11px] font-semibold text-slate-400">预计到达时间</p>
-                              <p className="mt-0.5 text-xs font-semibold text-slate-700">
-                                {participant.arrivalInfo.arrivalAt ? Workspace.formatTeacherTrainingArrivalAt(participant.arrivalInfo.arrivalAt) : "未填写"}
-                              </p>
-                            </div>
-                            <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2">
-                              <p className="text-[11px] font-semibold text-slate-400">交通方式</p>
-                              <p className="mt-0.5 text-xs font-semibold text-slate-700">
-                                {[
-                                  participant.arrivalInfo.transportationLabel,
-                                  participant.arrivalInfo.vehicleNo,
-                                  participant.arrivalInfo.lodging,
-                                ]
-                                  .filter(Boolean)
-                                  .join(" · ") || "未填写"}
-                              </p>
-                            </div>
-                          </div>
-                          {participant.extraInfoLines.length > 0 ? (
-                            <div className="mt-2 flex flex-wrap gap-1.5">
-                              {participant.extraInfoLines.slice(0, 5).map((line) => (
-                                <span key={line} className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">
-                                  {line}
-                                </span>
-                              ))}
-                            </div>
-                          ) : null}
-                          </>
+                          {!isAccountManagementSection && expandedParticipantIds.has(participant.id) ? (
+                            <>
+                              {[
+                                { label: "性别", value: participant.gender },
+                                { label: "年龄", value: participant.age },
+                                { label: "人员类别", value: participant.personnelCategory },
+                                { label: "学科", value: participant.subject },
+                                { label: "职称", value: participant.professionalTitle },
+                                { label: "所属市", value: participant.city },
+                              ].some((item) => item.value) ? (
+                                <div className="mt-2 grid gap-2 sm:grid-cols-3">
+                                  {[
+                                    { label: "性别", value: participant.gender },
+                                    { label: "年龄", value: participant.age },
+                                    { label: "人员类别", value: participant.personnelCategory },
+                                    { label: "学科", value: participant.subject },
+                                    { label: "职称", value: participant.professionalTitle },
+                                    { label: "所属市", value: participant.city },
+                                  ]
+                                    .filter((item) => item.value)
+                                    .map((item) => (
+                                      <div key={item.label} className="rounded-xl border border-blue-100 bg-blue-50/45 px-3 py-2">
+                                        <p className="text-[11px] font-semibold text-blue-500">{item.label}</p>
+                                        <p className="mt-0.5 truncate text-xs font-semibold text-slate-700">{item.value}</p>
+                                      </div>
+                                    ))}
+                                </div>
+                              ) : null}
+                              <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                                <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2">
+                                  <p className="text-[11px] font-semibold text-slate-400">预计到达时间</p>
+                                  <p className="mt-0.5 text-xs font-semibold text-slate-700">
+                                    {participant.arrivalInfo.arrivalAt ? Workspace.formatTeacherTrainingArrivalAt(participant.arrivalInfo.arrivalAt) : "未填写"}
+                                  </p>
+                                </div>
+                                <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2">
+                                  <p className="text-[11px] font-semibold text-slate-400">交通方式</p>
+                                  <p className="mt-0.5 text-xs font-semibold text-slate-700">
+                                    {[
+                                      participant.arrivalInfo.transportationLabel,
+                                      participant.arrivalInfo.vehicleNo,
+                                      participant.arrivalInfo.lodging,
+                                    ]
+                                      .filter(Boolean)
+                                      .join(" · ") || "未填写"}
+                                  </p>
+                                </div>
+                              </div>
+                              {participant.extraInfoLines.length > 0 ? (
+                                <div className="mt-2 flex flex-wrap gap-1.5">
+                                  {participant.extraInfoLines.slice(0, 5).map((line) => (
+                                    <span key={line} className="rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-500">
+                                      {line}
+                                    </span>
+                                  ))}
+                                </div>
+                              ) : null}
+                            </>
                           ) : null}
                         </div>
-                        {canManage && expandedParticipantIds.has(participant.id) ? (
-                          <div className="grid gap-3 border-t border-slate-100 pt-3 xl:grid-cols-[minmax(0,0.9fr)_minmax(0,1.6fr)]">
+                        {!isAccountManagementSection && expandedParticipantIds.has(participant.id) ? (
+                          <div className="border-t border-slate-100 pt-3">
                             <div className="rounded-xl border border-rose-100 bg-rose-50/35 p-3">
                               <p className="text-[11px] font-bold tracking-wide text-rose-500">参训教师档案</p>
                               <p className="mt-1 text-xs leading-5 text-rose-500">
@@ -5934,6 +6206,10 @@ export default function TeacherTrainingTab() {
                                 <span className="truncate whitespace-nowrap">删除参训教师</span>
                               </button>
                             </div>
+                          </div>
+                        ) : null}
+                        {isAccountManagementSection && expandedParticipantIds.has(participant.id) ? (
+                          <div className="border-t border-slate-100 pt-3">
                             <div className="rounded-xl border border-blue-100 bg-blue-50/35 p-3">
                               <p className="text-[11px] font-bold tracking-wide text-blue-600">省培账号处理</p>
                               <p className="mt-1 text-xs leading-5 text-blue-500">
@@ -5989,7 +6265,7 @@ export default function TeacherTrainingTab() {
                             </div>
                           </div>
                         ) : null}
-                        {accountEditParticipantId === participant.id ? (
+                        {isAccountManagementSection && accountEditParticipantId === participant.id ? (
                           <div className="lg:col-span-2 grid gap-3 rounded-xl border border-blue-100 bg-blue-50/50 p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
                             <label className={teacherTrainingFieldShellClassName}>
                               <span className={teacherTrainingFieldLabelClassName}>省培专用登录账号</span>
@@ -6006,11 +6282,11 @@ export default function TeacherTrainingTab() {
                               <span className={teacherTrainingFieldLabelClassName}>新密码</span>
                               <input
                                 className={fieldClassName}
-	                                {...fieldHint("省培账号重置密码")}
+                                {...fieldHint("省培账号重置密码")}
                                 onChange={(event) =>
                                   setAccountEditDraft((current) => ({ ...current, accountPassword: event.target.value }))
                                 }
-	                                placeholder="不填则仅修改账号名；填写后重置密码"
+                                placeholder="不填则仅修改账号名；填写后重置密码"
                                 value={accountEditDraft.accountPassword}
                               />
                             </label>
@@ -6036,7 +6312,7 @@ export default function TeacherTrainingTab() {
                             </div>
                           </div>
                         ) : null}
-                        {accountMessagesByParticipantId[participant.id] ? (
+                        {isAccountManagementSection && accountMessagesByParticipantId[participant.id] ? (
                           <textarea
                             className={`${textareaClassName} lg:col-span-2 min-h-28 bg-blue-50/40`}
                             {...fieldHint(`${participant.name}省培账号通知消息`)}
@@ -6101,7 +6377,7 @@ export default function TeacherTrainingTab() {
                     className={fieldClassName}
                     {...fieldHint("搜索报到登记")}
                     onChange={(event) => setAttendanceSearch(event.target.value)}
-                    placeholder="按姓名、单位、分组、职务或邮箱搜索"
+                      placeholder="按姓名、单位、所属市、学科、人员类别或手机号搜索"
                     value={attendanceSearch}
                   />
                 </label>

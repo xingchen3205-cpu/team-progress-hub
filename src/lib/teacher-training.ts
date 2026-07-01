@@ -313,6 +313,12 @@ export type TeacherTrainingParticipantItem = {
   groupName: string;
   title: string;
   email: string;
+  gender: string;
+  age: string;
+  personnelCategory: string;
+  subject: string;
+  professionalTitle: string;
+  city: string;
   arrivalInfo: TeacherTrainingArrivalInfoItem;
   arrivalAt: string;
   arrivalTransportationLabel: string;
@@ -445,6 +451,12 @@ export const getTeacherTrainingEffectiveRoleLabel = ({
 
 const participantTitlePattern = /^(?:职务|个人职务)\s*[：:]\s*(.*)$/;
 const participantEmailPattern = /^(?:邮箱|电子邮箱|个人邮箱)\s*[：:]\s*(.*)$/;
+const participantGenderPattern = /^(?:性别|学员性别)\s*[：:]\s*(.*)$/;
+const participantAgePattern = /^(?:年龄|学员年龄)\s*[：:]\s*(.*)$/;
+const participantPersonnelCategoryPattern = /^(?:人员类别|人员类型|教师类别|学员类别)\s*[：:]\s*(.*)$/;
+const participantSubjectPattern = /^(?:学科|专业学科|任教学科)\s*[：:]\s*(.*)$/;
+const participantProfessionalTitlePattern = /^(?:职称|专业技术职称|教师职称)\s*[：:]\s*(.*)$/;
+const participantCityPattern = /^(?:所属市|地市|所在市|城市)\s*[：:]\s*(.*)$/;
 const participantArrivalTransportationPattern = /^(?:交通方式|到达交通方式|预计到达交通方式)\s*[：:]\s*(.*)$/;
 const participantArrivalAtPattern = /^(?:预计到达时间|预计报到时间|到达时间|报到时间)\s*[：:]\s*(.*)$/;
 const participantArrivalVehicleNoPattern = /^(?:车次\/航班\/车牌|车次|航班|车牌|班次)\s*[：:]\s*(.*)$/;
@@ -456,6 +468,12 @@ const participantArrivalNotePattern = /^(?:到达备注|报到备注|交通备�
 const participantStructuredExtraPatterns = [
   participantTitlePattern,
   participantEmailPattern,
+  participantGenderPattern,
+  participantAgePattern,
+  participantPersonnelCategoryPattern,
+  participantSubjectPattern,
+  participantProfessionalTitlePattern,
+  participantCityPattern,
   participantArrivalTransportationPattern,
   participantArrivalAtPattern,
   participantArrivalVehicleNoPattern,
@@ -586,6 +604,12 @@ export const parseTeacherTrainingArrivalInfo = (value?: string | null): TeacherT
 export const parseTeacherTrainingParticipantExtraInfo = (value?: string | null) => {
   let title = "";
   let email = "";
+  let gender = "";
+  let age = "";
+  let personnelCategory = "";
+  let subject = "";
+  let professionalTitle = "";
+  let city = "";
   const arrivalInfo = parseTeacherTrainingArrivalInfo(value);
 
   for (const rawLine of (value ?? "").split(/\r?\n/)) {
@@ -601,10 +625,46 @@ export const parseTeacherTrainingParticipantExtraInfo = (value?: string | null) 
     const emailMatch = line.match(participantEmailPattern);
     if (emailMatch) {
       email = emailMatch[1]?.trim() ?? "";
+      continue;
+    }
+
+    const genderMatch = line.match(participantGenderPattern);
+    if (genderMatch) {
+      gender = genderMatch[1]?.trim() ?? "";
+      continue;
+    }
+
+    const ageMatch = line.match(participantAgePattern);
+    if (ageMatch) {
+      age = ageMatch[1]?.trim() ?? "";
+      continue;
+    }
+
+    const personnelCategoryMatch = line.match(participantPersonnelCategoryPattern);
+    if (personnelCategoryMatch) {
+      personnelCategory = personnelCategoryMatch[1]?.trim() ?? "";
+      continue;
+    }
+
+    const subjectMatch = line.match(participantSubjectPattern);
+    if (subjectMatch) {
+      subject = subjectMatch[1]?.trim() ?? "";
+      continue;
+    }
+
+    const professionalTitleMatch = line.match(participantProfessionalTitlePattern);
+    if (professionalTitleMatch) {
+      professionalTitle = professionalTitleMatch[1]?.trim() ?? "";
+      continue;
+    }
+
+    const cityMatch = line.match(participantCityPattern);
+    if (cityMatch) {
+      city = cityMatch[1]?.trim() ?? "";
     }
   }
 
-  return { title, email, arrivalInfo };
+  return { title, email, gender, age, personnelCategory, subject, professionalTitle, city, arrivalInfo };
 };
 
 export const mergeTeacherTrainingParticipantExtraInfo = (
@@ -612,6 +672,12 @@ export const mergeTeacherTrainingParticipantExtraInfo = (
   fields: {
     title?: string | null;
     email?: string | null;
+    gender?: string | null;
+    age?: string | null;
+    personnelCategory?: string | null;
+    subject?: string | null;
+    professionalTitle?: string | null;
+    city?: string | null;
     arrivalTransportation?: string | null;
     arrivalAt?: string | null;
     arrivalVehicleNo?: string | null;
@@ -621,6 +687,14 @@ export const mergeTeacherTrainingParticipantExtraInfo = (
   const existing = parseTeacherTrainingParticipantExtraInfo(value);
   const title = fields.title === undefined ? existing.title : fields.title?.trim() ?? "";
   const email = fields.email === undefined ? existing.email : fields.email?.trim() ?? "";
+  const gender = fields.gender === undefined ? existing.gender : fields.gender?.trim() ?? "";
+  const age = fields.age === undefined ? existing.age : fields.age?.trim() ?? "";
+  const personnelCategory =
+    fields.personnelCategory === undefined ? existing.personnelCategory : fields.personnelCategory?.trim() ?? "";
+  const subject = fields.subject === undefined ? existing.subject : fields.subject?.trim() ?? "";
+  const professionalTitle =
+    fields.professionalTitle === undefined ? existing.professionalTitle : fields.professionalTitle?.trim() ?? "";
+  const city = fields.city === undefined ? existing.city : fields.city?.trim() ?? "";
   const arrivalTransportation =
     fields.arrivalTransportation === undefined
       ? existing.arrivalInfo.transportation
@@ -639,6 +713,12 @@ export const mergeTeacherTrainingParticipantExtraInfo = (
   return [
     title ? `职务：${title}` : "",
     email ? `邮箱：${email}` : "",
+    gender ? `性别：${gender}` : "",
+    age ? `年龄：${age}` : "",
+    personnelCategory ? `人员类别：${personnelCategory}` : "",
+    subject ? `学科：${subject}` : "",
+    professionalTitle ? `职称：${professionalTitle}` : "",
+    city ? `所属市：${city}` : "",
     arrivalAt ? `预计到达时间：${arrivalAt}` : "",
     arrivalTransportation ? `交通方式：${getTeacherTrainingArrivalTransportationLabel(`${arrivalTransportation}`)}` : "",
     arrivalVehicleNo ? `车次/航班/车牌：${arrivalVehicleNo}` : "",
@@ -1461,6 +1541,12 @@ export const serializeTeacherTrainingCohort = (
       groupName: participant.groupName ?? "",
       title: profileExtra.title,
       email: profileExtra.email,
+      gender: profileExtra.gender,
+      age: profileExtra.age,
+      personnelCategory: profileExtra.personnelCategory,
+      subject: profileExtra.subject,
+      professionalTitle: profileExtra.professionalTitle,
+      city: profileExtra.city,
       arrivalInfo,
       arrivalAt: arrivalInfo.arrivalAt,
       arrivalTransportationLabel: arrivalInfo.transportationLabel,
@@ -1773,12 +1859,35 @@ export const buildTeacherTrainingCsv = ({
 }) => {
   if (type === "arrivals") {
     return toCsv([
-      ["班次", "姓名", "单位", "手机号", "分组", "预计到达时间", "交通方式", "车次/航班/车牌", "出发地", "账号状态"],
+      [
+        "班次",
+        "姓名",
+        "单位",
+        "手机号",
+        "性别",
+        "年龄",
+        "人员类别",
+        "学科",
+        "职称",
+        "所属市",
+        "分组",
+        "预计到达时间",
+        "交通方式",
+        "车次/航班/车牌",
+        "出发地",
+        "账号状态",
+      ],
       ...cohort.participants.map((participant) => [
         cohort.title,
         participant.name,
         participant.organization,
         participant.phone,
+        participant.gender,
+        participant.age,
+        participant.personnelCategory,
+        participant.subject,
+        participant.professionalTitle,
+        participant.city,
         participant.groupName,
         formatTeacherTrainingArrivalAt(participant.arrivalInfo.arrivalAt),
         participant.arrivalInfo.transportationLabel,
@@ -1796,6 +1905,12 @@ export const buildTeacherTrainingCsv = ({
         "姓名",
         "单位",
         "分组",
+        "性别",
+        "年龄",
+        "人员类别",
+        "学科",
+        "职称",
+        "所属市",
         "预计到达时间",
         "交通方式",
         "报到状态",
@@ -1814,6 +1929,12 @@ export const buildTeacherTrainingCsv = ({
           participant.name,
           participant.organization,
           participant.groupName,
+          participant.gender,
+          participant.age,
+          participant.personnelCategory,
+          participant.subject,
+          participant.professionalTitle,
+          participant.city,
           formatTeacherTrainingArrivalAt(participant.arrivalInfo.arrivalAt),
           participant.arrivalInfo.transportationLabel,
           attendance ? attendance.statusLabel : teacherTrainingAttendancePendingLabel,
@@ -1879,7 +2000,27 @@ export const buildTeacherTrainingCsv = ({
 
   if (type === "checkIns") {
     return toCsv([
-      ["班次", "签到任务", "日期", "时间", "地点", "姓名", "单位", "分组", "签到状态", "签到时间", "距离米", "定位精度米", "备注"],
+      [
+        "班次",
+        "签到任务",
+        "日期",
+        "时间",
+        "地点",
+        "姓名",
+        "单位",
+        "分组",
+        "性别",
+        "年龄",
+        "人员类别",
+        "学科",
+        "职称",
+        "所属市",
+        "签到状态",
+        "签到时间",
+        "距离米",
+        "定位精度米",
+        "备注",
+      ],
       ...cohort.checkInTasks.flatMap((task) =>
         cohort.participants.map((participant) => {
           const record = task.records.find((item) => item.participantId === participant.id);
@@ -1892,6 +2033,12 @@ export const buildTeacherTrainingCsv = ({
             participant.name,
             participant.organization,
             participant.groupName,
+            participant.gender,
+            participant.age,
+            participant.personnelCategory,
+            participant.subject,
+            participant.professionalTitle,
+            participant.city,
             record ? getTeacherTrainingCheckInRecordStatusLabel(record.status) : "未签到",
             record?.signedAt ?? "",
             record?.distanceMeters ?? "",
@@ -1904,12 +2051,37 @@ export const buildTeacherTrainingCsv = ({
   }
 
   return toCsv([
-    ["班次", "姓名", "单位", "手机号", "分组", "账号状态", "预计到达时间", "交通方式", "车次/航班/车牌", "出发地", "预录扩展信息", "备注"],
+    [
+      "班次",
+      "姓名",
+      "单位",
+      "手机号",
+      "性别",
+      "年龄",
+      "人员类别",
+      "学科",
+      "职称",
+      "所属市",
+      "分组",
+      "账号状态",
+      "预计到达时间",
+      "交通方式",
+      "车次/航班/车牌",
+      "出发地",
+      "预录扩展信息",
+      "备注",
+    ],
     ...cohort.participants.map((participant) => [
       cohort.title,
       participant.name,
       participant.organization,
       participant.phone,
+      participant.gender,
+      participant.age,
+      participant.personnelCategory,
+      participant.subject,
+      participant.professionalTitle,
+      participant.city,
       participant.groupName,
       participant.accountUserId ? `已分配账号：${participant.accountUsername || participant.accountName}` : "未分配账号",
       formatTeacherTrainingArrivalAt(participant.arrivalInfo.arrivalAt),

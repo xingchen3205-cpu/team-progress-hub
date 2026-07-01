@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import path from "node:path";
 import test from "node:test";
 
+import { validatePasswordPolicy } from "../src/lib/account-policy";
 import {
   getAllowedTeacherTrainingCheckInDistanceMeters,
   getTeacherTrainingEffectiveRoleLabel,
@@ -1482,6 +1483,48 @@ test("teacher training managers can reset participant account and password in pr
   assert.match(accountRoute, /hasTeacherTrainingCohortManageAccess/);
 });
 
+test("teacher training imports roster demographics and opens phone accounts with a forced password change", () => {
+  const importSource = read("src/lib/teacher-training-participant-import.ts");
+  const participantsRoute = read("src/app/api/teacher-training/participants/route.ts");
+  const accountRoute = read("src/app/api/teacher-training/participants/[participantId]/account/route.ts");
+  const profileRoute = read("src/app/api/teacher-training/profile/route.ts");
+  const libSource = read("src/lib/teacher-training.ts");
+  const tabSource = read("src/components/tabs/teacher-training-tab.tsx");
+  const accountPolicySource = read("src/lib/account-policy.ts");
+
+  assert.match(importSource, /gender: \[/);
+  assert.match(importSource, /personnelCategory: \[/);
+  assert.match(importSource, /professionalTitle: \[/);
+  assert.match(importSource, /city: \[/);
+  assert.match(participantsRoute, /gender: participant\.gender/);
+  assert.match(participantsRoute, /professionalTitle: participant\.professionalTitle/);
+  assert.match(accountRoute, /const teacherTrainingDefaultInitialPassword = "123456"/);
+  assert.match(tabSource, /return digits/);
+  assert.match(tabSource, /accountPassword: teacherTrainingDefaultInitialPassword/);
+  assert.match(profileRoute, /passwordChangeRequired/);
+  assert.match(profileRoute, /不能继续使用初始密码 123456/);
+  assert.match(accountPolicySource, /密码需要包含大写字母、小写字母和数字/);
+  assert.match(accountPolicySource, /密码不能超过 16 位/);
+  assert.match(libSource, /gender: profileExtra\.gender/);
+  assert.match(tabSource, /人员类别/);
+  assert.match(tabSource, /所属市/);
+});
+
+test("teacher training password policy requires 8 to 16 mixed alphanumeric characters", () => {
+  assert.equal(
+    validatePasswordPolicy("Aa123456", {
+      username: "13800000000",
+      phone: "13800000000",
+      disallowDefaultPassword: true,
+    }),
+    null,
+  );
+  assert.equal(validatePasswordPolicy("Aa1234", {}), "密码至少需要 8 位");
+  assert.equal(validatePasswordPolicy("Aa123456789012345", {}), "密码不能超过 16 位");
+  assert.equal(validatePasswordPolicy("aaaaaaaa", {}), "密码需要包含大写字母、小写字母和数字");
+  assert.equal(validatePasswordPolicy("13800000000", { phone: "13800000000" }), "密码不能与手机号相同");
+});
+
 test("teacher training account management separates competition accounts from provincial identities", () => {
   const contextSource = read("src/components/workspace-context.tsx");
   const tabSource = read("src/components/tabs/teacher-training-tab.tsx");
@@ -1494,6 +1537,11 @@ test("teacher training account management separates competition accounts from pr
   assert.match(tabSource, /生成省培专用账号/);
   assert.match(tabSource, /共用账号只解绑省培身份，不删除创赛系统账号/);
   assert.match(tabSource, /删除省培专用账号/);
+  assert.match(tabSource, /isAccountManagementSection && participantAccountFilter === "unbound"/);
+  assert.match(tabSource, /\{isAccountManagementSection \? \(\s*<button[\s\S]{0,800}一键手机号开通账号/);
+  assert.match(tabSource, /isAccountManagementSection\s*\?\s*"账号处理详情"\s*:\s*"报名档案详情"/);
+  assert.match(tabSource, /!isAccountManagementSection && expandedParticipantIds\.has\(participant\.id\)/);
+  assert.match(tabSource, /isAccountManagementSection && expandedParticipantIds\.has\(participant\.id\)/);
   assert.match(accountRoute, /原平台账号只解除绑定，不删除账号本体/);
 });
 

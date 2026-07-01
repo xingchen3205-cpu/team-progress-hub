@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
+import bcrypt from "bcryptjs";
 
-import { validateRequiredEmail } from "@/lib/account-policy";
+import { validatePasswordPolicy, validateRequiredEmail } from "@/lib/account-policy";
 import { getSessionUser } from "@/lib/auth";
 import { buildAppUrl, isEmailConfigured, renderSystemEmail, sendEmail } from "@/lib/email";
 import { prisma } from "@/lib/prisma";
@@ -25,6 +26,7 @@ export async function PATCH(request: NextRequest) {
         arrivalAt?: string;
         arrivalVehicleNo?: string;
         arrivalDeparture?: string;
+        password?: string;
         note?: string;
       }
     | null;
@@ -39,6 +41,8 @@ export async function PATCH(request: NextRequest) {
   const arrivalAt = body?.arrivalAt?.trim() || "";
   const arrivalVehicleNo = body?.arrivalVehicleNo?.trim() || "";
   const arrivalDeparture = body?.arrivalDeparture?.trim() || "";
+  const password = body?.password?.trim() || "";
+  const passwordChangeRequired = user.role === "training_teacher" && !user.email;
 
   if (
     !participantId ||
@@ -64,6 +68,12 @@ export async function PATCH(request: NextRequest) {
   }
   if (!isTeacherTrainingArrivalAtValue(arrivalAt)) {
     return NextResponse.json({ message: "预计到达时间格式不正确" }, { status: 400 });
+  }
+  if (passwordChangeRequired && !password) {
+    return NextResponse.json({ message: "首次登录必须修改初始密码" }, { status: 400 });
+  }
+  if (password === "123456") {
+    return NextResponse.json({ message: "不能继续使用初始密码 123456" }, { status: 400 });
   }
   const emailConflict = await prisma.user.findFirst({
     where: {
@@ -98,9 +108,20 @@ export async function PATCH(request: NextRequest) {
   if (!participant) {
     return NextResponse.json({ message: "未找到当前省培账号对应的参训档案" }, { status: 404 });
   }
+  if (password) {
+    const passwordError = validatePasswordPolicy(password, {
+      username: user.username,
+      phone,
+      disallowDefaultPassword: true,
+    });
+    if (passwordError) {
+      return NextResponse.json({ message: passwordError }, { status: 400 });
+    }
+  }
 
   const emailChanged = Boolean(email && email !== (user.email ?? ""));
   let emailStatus: "unchanged" | "not_configured" | "sent" | "failed" = emailChanged ? "not_configured" : "unchanged";
+  const passwordHash = password ? await bcrypt.hash(password, 10) : undefined;
 
   await prisma.$transaction([
     prisma.teacherTrainingParticipant.update({
@@ -126,6 +147,7 @@ export async function PATCH(request: NextRequest) {
       data: {
         name,
         email,
+        password: passwordHash,
         avatar: name.slice(0, 1),
       },
     }),

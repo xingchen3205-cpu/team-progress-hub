@@ -1,9 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
 
-import { validateUsername } from "@/lib/account-policy";
+import { validatePasswordPolicy, validateUsername } from "@/lib/account-policy";
 import { getSessionUser } from "@/lib/auth";
-import { generateTemporaryPassword } from "@/lib/passwords";
 import { prisma } from "@/lib/prisma";
 import { buildTeacherTrainingAccountMessage } from "@/lib/teacher-training";
 import { hasTeacherTrainingCohortManageAccess } from "@/lib/teacher-training-access";
@@ -16,11 +15,15 @@ type RouteContext = {
 };
 
 const normalizeUsernameSeed = (value: string) => value.toLowerCase().replace(/[^a-z0-9_]/g, "").slice(0, 24);
+const teacherTrainingDefaultInitialPassword = "123456";
 
 const buildDefaultUsername = (participant: { phone?: string | null; name: string }) => {
   const phoneDigits = participant.phone?.replace(/\D/g, "") ?? "";
-  const suffix = phoneDigits ? phoneDigits.slice(-8) : normalizeUsernameSeed(participant.name);
+  if (/^1[3-9]\d{9}$/.test(phoneDigits)) {
+    return phoneDigits;
+  }
 
+  const suffix = normalizeUsernameSeed(participant.name);
   return `sp${suffix || Date.now().toString().slice(-8)}`;
 };
 
@@ -156,7 +159,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
     accountUsername = await buildUniqueUsername(accountUsername);
   }
 
-  const temporaryPassword = body?.accountPassword?.trim() || generateTemporaryPassword();
+  const temporaryPassword = body?.accountPassword?.trim() || teacherTrainingDefaultInitialPassword;
   const passwordHash = await bcrypt.hash(temporaryPassword, 10);
 
   const accountUser = participant.accountUserId && participant.accountUser?.role === "training_teacher"
@@ -277,6 +280,16 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
   }
 
   const nextPassword = body?.accountPassword?.trim();
+  if (nextPassword) {
+    const passwordError = validatePasswordPolicy(nextPassword, {
+      username: nextUsername || participant.accountUser.username,
+      phone: participant.phone,
+      disallowDefaultPassword: true,
+    });
+    if (passwordError) {
+      return NextResponse.json({ message: passwordError }, { status: 400 });
+    }
+  }
   const passwordHash = nextPassword ? await bcrypt.hash(nextPassword, 10) : undefined;
   const accountUser = await prisma.user.update({
     where: { id: participant.accountUser.id },

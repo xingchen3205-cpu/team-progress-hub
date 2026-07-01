@@ -267,6 +267,12 @@ export type TeacherTrainingParticipantDraft = {
   groupName: string;
   title: string;
   email: string;
+  gender: string;
+  age: string;
+  personnelCategory: string;
+  subject: string;
+  professionalTitle: string;
+  city: string;
   arrivalTransportation: string;
   arrivalAt: string;
   arrivalVehicleNo: string;
@@ -390,6 +396,8 @@ export type TeacherTrainingProfileDraft = {
   arrivalAt: string;
   arrivalVehicleNo: string;
   arrivalDeparture: string;
+  password: string;
+  passwordConfirm: string;
   note: string;
 };
 
@@ -891,7 +899,7 @@ export const teacherTrainingSectionTabs: TeacherTrainingSectionItem[] = [
   {
     key: "participants",
     label: "参训教师",
-    description: "名单、账号和预录信息",
+    description: "报名档案和预录信息",
     icon: Users,
     managerOnly: true,
   },
@@ -5422,6 +5430,12 @@ function useWorkspaceController({
           groupName: draft.groupName.trim(),
           title: draft.title.trim(),
           email,
+          gender: draft.gender.trim(),
+          age: draft.age.trim(),
+          personnelCategory: draft.personnelCategory.trim(),
+          subject: draft.subject.trim(),
+          professionalTitle: draft.professionalTitle.trim(),
+          city: draft.city.trim(),
           arrivalTransportation: draft.arrivalTransportation.trim(),
           arrivalAt: draft.arrivalAt.trim(),
           arrivalVehicleNo: draft.arrivalVehicleNo.trim(),
@@ -5443,7 +5457,7 @@ function useWorkspaceController({
 
   const importTeacherTrainingParticipants = async (
     cohortId: string,
-    participants: Array<Pick<TeacherTrainingParticipantDraft, "name" | "organization" | "phone" | "groupName" | "title" | "email" | "arrivalTransportation" | "arrivalAt" | "arrivalVehicleNo" | "arrivalDeparture" | "extraInfo" | "note">>,
+    participants: Array<Pick<TeacherTrainingParticipantDraft, "name" | "organization" | "phone" | "groupName" | "title" | "email" | "gender" | "age" | "personnelCategory" | "subject" | "professionalTitle" | "city" | "arrivalTransportation" | "arrivalAt" | "arrivalVehicleNo" | "arrivalDeparture" | "extraInfo" | "note">>,
   ) => {
     if (!cohortId || participants.length === 0) {
       setLoadError("请先选择班次并填写导入名单");
@@ -6140,6 +6154,7 @@ function useWorkspaceController({
           arrivalAt: draft.arrivalAt.trim(),
           arrivalVehicleNo: draft.arrivalVehicleNo.trim(),
           arrivalDeparture: draft.arrivalDeparture.trim(),
+          password: draft.password.trim(),
           note: draft.note.trim(),
         }),
         },
