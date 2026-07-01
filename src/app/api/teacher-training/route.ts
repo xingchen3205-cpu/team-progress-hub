@@ -463,7 +463,7 @@ export async function GET(request: NextRequest) {
       }
     : baseWhere;
   const shouldLoadSummary = mode === "summary" && !cohortId && !isParticipantOnly;
-  const [cohorts, approverOptions, managerOptions] = await Promise.all([
+  const [cohorts, approverOptions, managerAccountOptions] = await Promise.all([
     prisma.teacherTrainingCohort.findMany({
       where,
       orderBy: [{ startDate: "desc" }, { createdAt: "desc" }],
@@ -504,21 +504,49 @@ export async function GET(request: NextRequest) {
     isManager
       ? prisma.user.findMany({
           where: {
-            role: {
-              not: "expert",
+            responsibility: {
+              in: ["省培负责人", "班主任"],
             },
+            role: { notIn: ["expert", "training_teacher"] },
             approvalStatus: "approved",
           },
-          orderBy: [{ role: "asc" }, { name: "asc" }],
+          orderBy: [{ responsibility: "asc" }, { name: "asc" }],
           select: {
             id: true,
             name: true,
             username: true,
+            email: true,
+            phone: true,
             role: true,
+            responsibility: true,
+            createdAt: true,
+            teacherTrainingManagedCohorts: {
+              where: {
+                cohort: {
+                  deletedAt: null,
+                },
+              },
+              select: {
+                cohortId: true,
+                title: true,
+                cohort: {
+                  select: {
+                    title: true,
+                  },
+                },
+              },
+              orderBy: { createdAt: "desc" },
+            },
           },
         })
       : Promise.resolve([]),
   ]);
+  const managerOptions = managerAccountOptions.map((account) => ({
+    id: account.id,
+    name: account.name,
+    username: account.username,
+    role: account.role,
+  }));
   const visibleCohorts = shouldLoadSummary
     ? cohorts
     : isManager
@@ -535,6 +563,21 @@ export async function GET(request: NextRequest) {
       : (visibleCohorts as TeacherTrainingCohortWithRelations[]).map(serializeTeacherTrainingCohort),
     approverOptions,
     managerOptions,
+    managerAccountOptions: managerAccountOptions.map((account) => ({
+      id: account.id,
+      name: account.name,
+      username: account.username,
+      email: account.email ?? "",
+      phone: account.phone ?? "",
+      role: account.role,
+      responsibility: account.responsibility ?? "",
+      createdAt: account.createdAt.toISOString(),
+      managedCohorts: account.teacherTrainingManagedCohorts.map((manager) => ({
+        cohortId: manager.cohortId,
+        cohortTitle: manager.cohort.title,
+        title: manager.title,
+      })),
+    })),
   });
 }
 

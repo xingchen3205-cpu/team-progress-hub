@@ -40,10 +40,11 @@ export async function POST(request: NextRequest) {
       where: {
         id: userId,
         approvalStatus: "approved",
-        role: { not: "expert" },
+        role: { notIn: ["expert", "training_teacher"] },
       },
       select: {
         id: true,
+        responsibility: true,
       },
     }),
   ]);
@@ -53,6 +54,9 @@ export async function POST(request: NextRequest) {
   }
   if (!targetUser) {
     return NextResponse.json({ message: "只能选择已审核通过的非专家账号作为省培负责人或班主任" }, { status: 404 });
+  }
+  if (targetUser.responsibility !== title) {
+    return NextResponse.json({ message: `该账号未在省培账号管理中设置为${title}` }, { status: 400 });
   }
 
   const manager = await prisma.teacherTrainingCohortManager.upsert({

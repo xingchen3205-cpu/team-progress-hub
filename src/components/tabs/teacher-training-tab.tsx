@@ -493,6 +493,15 @@ const createDefaultTaskDraft = (): Workspace.TeacherTrainingTaskDraft => ({
   scoringRubric: "",
 });
 
+const createDefaultManagerAccountDraft = (): Workspace.TeacherTrainingManagerAccountDraft => ({
+  name: "",
+  username: "",
+  phone: "",
+  email: "",
+  password: "",
+  managerIdentity: "省培负责人",
+});
+
 const statusStyleMap: Record<AttendanceStatus, string> = {
   present: "border-emerald-200 bg-emerald-50 text-emerald-700",
   leave: "border-amber-200 bg-amber-50 text-amber-700",
@@ -761,7 +770,7 @@ export default function TeacherTrainingTab() {
     currentUser,
     teacherTrainingCohorts,
     teacherTrainingApproverOptions,
-    teacherTrainingManagerOptions,
+    teacherTrainingManagerAccounts,
     hasGlobalAdminRole,
     canManageTeacherTraining,
     activeTeacherTrainingSection,
@@ -771,13 +780,16 @@ export default function TeacherTrainingTab() {
     isSaving,
     createTeacherTrainingCohort,
     deleteTeacherTrainingCohort,
+    deleteTeacherTrainingCohorts,
     addTeacherTrainingParticipant,
     importTeacherTrainingParticipants,
     createTeacherTrainingCourseSession,
     importTeacherTrainingCourses,
     deleteTeacherTrainingCourseSession,
+    deleteTeacherTrainingCourseSessions,
     createTeacherTrainingCheckInTask,
     deleteTeacherTrainingCheckInTask,
+    deleteTeacherTrainingCheckInTasks,
     signTeacherTrainingCheckIn,
     manualSignTeacherTrainingCheckIn,
     markTeacherTrainingAttendance,
@@ -785,6 +797,9 @@ export default function TeacherTrainingTab() {
     updateTeacherTrainingParticipantAccount,
     deleteTeacherTrainingParticipantAccount,
     deleteTeacherTrainingParticipant,
+    deleteTeacherTrainingParticipants,
+    saveTeacherTrainingManagerAccount,
+    deleteTeacherTrainingManagerAccounts,
     assignTeacherTrainingCohortManager,
     removeTeacherTrainingCohortManager,
     updateTeacherTrainingLeaveFlow,
@@ -792,6 +807,7 @@ export default function TeacherTrainingTab() {
     reviewTeacherTrainingLeaveRequest,
     createTeacherTrainingTask,
     deleteTeacherTrainingTask,
+    deleteTeacherTrainingTasks,
     saveTeacherTrainingSubmission,
     reviewTeacherTrainingSubmission,
     runTeacherTrainingTaskAiReview,
@@ -881,6 +897,10 @@ export default function TeacherTrainingTab() {
   const [participantImportLoading, setParticipantImportLoading] = useState(false);
   const [participantSearch, setParticipantSearch] = useState("");
   const [participantAccountFilter, setParticipantAccountFilter] = useState<"all" | "unbound">("all");
+  const [managerAccountSearch, setManagerAccountSearch] = useState("");
+  const [managerAccountDraft, setManagerAccountDraft] = useState<Workspace.TeacherTrainingManagerAccountDraft>(
+    createDefaultManagerAccountDraft,
+  );
   const [attendanceSearch, setAttendanceSearch] = useState("");
   const [attendanceOverviewFilter, setAttendanceOverviewFilter] = useState<AttendanceOverviewFilter>("all");
   const [checkInSearch, setCheckInSearch] = useState("");
@@ -976,6 +996,12 @@ export default function TeacherTrainingTab() {
   const [submissionSaveStatus, setSubmissionSaveStatus] = useState("");
   const [isSubmissionAttachmentUploading, setIsSubmissionAttachmentUploading] = useState(false);
   const [profileSaveStatus, setProfileSaveStatus] = useState("");
+  const [selectedParticipantIds, setSelectedParticipantIds] = useState<string[]>([]);
+  const [selectedCohortIds, setSelectedCohortIds] = useState<string[]>([]);
+  const [selectedCourseSessionIds, setSelectedCourseSessionIds] = useState<string[]>([]);
+  const [selectedCheckInTaskIds, setSelectedCheckInTaskIds] = useState<string[]>([]);
+  const [selectedTeacherTrainingTaskIds, setSelectedTeacherTrainingTaskIds] = useState<string[]>([]);
+  const [selectedManagerAccountIds, setSelectedManagerAccountIds] = useState<string[]>([]);
 
   useEffect(() => {
     const timer = window.setInterval(() => setCheckInClock(Date.now()), 30000);
@@ -1121,7 +1147,6 @@ export default function TeacherTrainingTab() {
     return true;
   };
   const filteredParticipants = (selectedCohort?.participants ?? []).filter((participant) => {
-    if (isAccountManagementSection && participantAccountFilter === "unbound" && participant.accountUserId) return false;
     if (!participantSearchKeyword) return true;
     return [
       participant.name,
@@ -1715,6 +1740,27 @@ export default function TeacherTrainingTab() {
   const selectedManagerRoleOption =
     teacherTrainingManagerRoleOptions.find((option) => option.title === managerDraft.title) ??
     teacherTrainingManagerRoleOptions[0];
+  const selectedManagerAccountOptions = teacherTrainingManagerAccounts.filter(
+    (account) => account.responsibility === managerDraft.title,
+  );
+  const managerAccountSearchKeyword = normalizeSearchText(managerAccountSearch);
+  const filteredManagerAccounts = teacherTrainingManagerAccounts.filter((account) => {
+    if (!managerAccountSearchKeyword) return true;
+    return [account.name, account.username, account.phone, account.email, account.responsibility]
+      .join(" ")
+      .toLowerCase()
+      .includes(managerAccountSearchKeyword);
+  });
+  const toggleSelectedId = (currentIds: string[], id: string) =>
+    currentIds.includes(id) ? currentIds.filter((item) => item !== id) : [...currentIds, id];
+  const setVisibleSelection = (
+    visibleIds: string[],
+    selectedIds: string[],
+    setter: (ids: string[]) => void,
+  ) => {
+    const allSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedIds.includes(id));
+    setter(allSelected ? selectedIds.filter((id) => !visibleIds.includes(id)) : Array.from(new Set([...selectedIds, ...visibleIds])));
+  };
   const groupedCohortManagers = useMemo(() => {
     const managers = [...(selectedCohort?.managers ?? [])].sort((first, second) => {
       const rankDiff = getTeacherTrainingManagerRoleRank(first.title) - getTeacherTrainingManagerRoleRank(second.title);
@@ -1909,6 +1955,24 @@ export default function TeacherTrainingTab() {
     }
   };
 
+  const removeSelectedCohorts = async () => {
+    if (selectedCohortIds.length === 0) return;
+    if (
+      !confirmTeacherTrainingPermanentDelete({
+        title: `${selectedCohortIds.length} 个省培班次`,
+        firstMessage: `确认批量删除 ${selectedCohortIds.length} 个省培班次？\n\n每个班次下的课程、签到、请假、汇报和附件都会同步删除。`,
+        secondMessage: "这些班次及关联记录会从数据库中删除。",
+      })
+    ) {
+      return;
+    }
+    const deleted = await deleteTeacherTrainingCohorts(selectedCohortIds);
+    if (deleted) {
+      setSelectedCohortIds([]);
+      setSelectedCohortId(teacherTrainingCohorts.find((item) => !selectedCohortIds.includes(item.id))?.id ?? "");
+    }
+  };
+
   const submitParticipant = async () => {
     if (!selectedCohort) return;
     await addTeacherTrainingParticipant({
@@ -1964,6 +2028,49 @@ export default function TeacherTrainingTab() {
     });
   };
 
+  const submitManagerAccount = async () => {
+    const ok = await saveTeacherTrainingManagerAccount(managerAccountDraft);
+    if (ok) {
+      setManagerAccountDraft(createDefaultManagerAccountDraft());
+      setSelectedManagerAccountIds([]);
+    }
+  };
+
+  const editManagerAccount = (account: Workspace.TeacherTrainingManagerAccountItem) => {
+    setManagerAccountDraft({
+      id: account.id,
+      name: account.name,
+      username: account.username,
+      phone: account.phone,
+      email: account.email,
+      password: "",
+      managerIdentity: account.responsibility === "班主任" ? "班主任" : "省培负责人",
+    });
+    window.requestAnimationFrame(() => {
+      document.getElementById("tt-manager-account-form")?.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+  };
+
+  const removeSelectedManagerAccounts = async (ids = selectedManagerAccountIds) => {
+    if (ids.length === 0) return;
+    if (
+      !confirmTeacherTrainingPermanentDelete({
+        title: `${ids.length} 个省培管理账号`,
+        firstMessage: `确认删除 ${ids.length} 个省培负责人/班主任账号？\n\n删除后这些账号将无法登录，也不能再被班次选择。`,
+        secondMessage: "这只删除省培管理账号池里的负责人/班主任账号，不删除参训教师名单。",
+      })
+    ) {
+      return;
+    }
+    const deleted = await deleteTeacherTrainingManagerAccounts(ids);
+    if (deleted) {
+      setSelectedManagerAccountIds([]);
+      if (managerAccountDraft.id && ids.includes(managerAccountDraft.id)) {
+        setManagerAccountDraft(createDefaultManagerAccountDraft());
+      }
+    }
+  };
+
   const submitCourseSession = async () => {
     if (!selectedCohort) return;
     const ok = await createTeacherTrainingCourseSession({
@@ -2000,6 +2107,21 @@ export default function TeacherTrainingTab() {
       return;
     }
     await deleteTeacherTrainingCourseSession(course.id);
+  };
+
+  const removeSelectedCourseSessions = async () => {
+    if (selectedCourseSessionIds.length === 0) return;
+    if (
+      !confirmTeacherTrainingPermanentDelete({
+        title: `${selectedCourseSessionIds.length} 节课程`,
+        firstMessage: `确认批量删除 ${selectedCourseSessionIds.length} 节课程？\n\n删除后参训教师课程表会同步移除这些课程。`,
+        secondMessage: "这些课程安排会从当前班次中删除。",
+      })
+    ) {
+      return;
+    }
+    const deleted = await deleteTeacherTrainingCourseSessions(selectedCourseSessionIds);
+    if (deleted) setSelectedCourseSessionIds([]);
   };
 
   const importCourses = async () => {
@@ -2181,6 +2303,21 @@ export default function TeacherTrainingTab() {
       return;
     }
     await deleteTeacherTrainingTask(task.id);
+  };
+
+  const removeSelectedTasks = async () => {
+    if (selectedTeacherTrainingTaskIds.length === 0) return;
+    if (
+      !confirmTeacherTrainingPermanentDelete({
+        title: `${selectedTeacherTrainingTaskIds.length} 个汇报任务`,
+        firstMessage: `确认批量删除 ${selectedTeacherTrainingTaskIds.length} 个汇报任务？\n\n任务、已提交汇报和相关附件都会同步删除。`,
+        secondMessage: "这些任务及已提交内容会从当前班次中删除。",
+      })
+    ) {
+      return;
+    }
+    const deleted = await deleteTeacherTrainingTasks(selectedTeacherTrainingTaskIds);
+    if (deleted) setSelectedTeacherTrainingTaskIds([]);
   };
 
   const buildSubmissionDraftForSelection = (taskId: string, participantId: string) => {
@@ -2519,6 +2656,21 @@ export default function TeacherTrainingTab() {
     await deleteTeacherTrainingCheckInTask(task.id);
   };
 
+  const removeSelectedCheckInTasks = async () => {
+    if (selectedCheckInTaskIds.length === 0) return;
+    if (
+      !confirmTeacherTrainingPermanentDelete({
+        title: `${selectedCheckInTaskIds.length} 个签到任务`,
+        firstMessage: `确认批量删除 ${selectedCheckInTaskIds.length} 个签到任务？\n\n删除后参训教师手机端将不再看到这些签到，已有签到记录也会同步删除。`,
+        secondMessage: "这些签到任务及关联记录会从当前班次中删除。",
+      })
+    ) {
+      return;
+    }
+    const deleted = await deleteTeacherTrainingCheckInTasks(selectedCheckInTaskIds);
+    if (deleted) setSelectedCheckInTaskIds([]);
+  };
+
   const useCurrentLocationForCheckInTask = () => {
     if (!navigator.geolocation) {
       setLocationMessage("当前浏览器不支持定位，可手动填写经纬度。");
@@ -2659,6 +2811,21 @@ export default function TeacherTrainingTab() {
       setAccountEditParticipantId("");
       setAccountEditDraft({ accountUsername: "", accountPassword: "" });
     }
+  };
+
+  const removeSelectedParticipants = async () => {
+    if (selectedParticipantIds.length === 0) return;
+    if (
+      !confirmTeacherTrainingPermanentDelete({
+        title: `${selectedParticipantIds.length} 位参训教师`,
+        firstMessage: `确认批量删除 ${selectedParticipantIds.length} 位参训教师？\n\n删除后这些教师的报到、签到、请假和汇报记录会同步删除。`,
+        secondMessage: "这是删除参训教师档案，不是单纯解绑账号。",
+      })
+    ) {
+      return;
+    }
+    const deleted = await deleteTeacherTrainingParticipants(selectedParticipantIds);
+    if (deleted) setSelectedParticipantIds([]);
   };
 
   const getPhoneAccountUsername = (participant: Workspace.TeacherTrainingParticipantItem) => {
@@ -3476,7 +3643,7 @@ export default function TeacherTrainingTab() {
               <div className="tt-card-accent flex flex-col gap-5 p-5">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                   <div className="min-w-0">
-                    <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#1a6fd4]">班次指挥台</p>
+                    <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#1a6fd4]">省培Workbench</p>
                     <h3 className="mt-2 text-2xl font-bold leading-8 text-slate-950">
                       {selectedCohort?.title ?? "暂无省培班次"}
                     </h3>
@@ -3511,7 +3678,7 @@ export default function TeacherTrainingTab() {
 
                 <div>
                   <div className="flex items-center justify-between gap-3">
-                    <p className="tt-block-title">核心待办</p>
+                    <p className="tt-block-title">今日待办</p>
                     <span className="tt-pill tt-pill-neutral">按当前班次统计</span>
                   </div>
                   <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -3583,8 +3750,226 @@ export default function TeacherTrainingTab() {
             </section>
           ) : null}
 
+          {canManageGlobal && showTeacherTrainingSection("accounts") ? (
+            <section className="grid gap-5 xl:grid-cols-[minmax(320px,0.42fr)_minmax(0,0.58fr)]" aria-label="省培系统账号管理">
+              <div className="tt-card p-5" id="tt-manager-account-form">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <p className="tt-block-title">省培系统账号管理</p>
+                    <p className="mt-1.5 text-xs leading-5 text-slate-500">
+                      这里只维护省培负责人和班主任账号池；参训教师名单和学员账号在“参训教师”里处理。
+                    </p>
+                  </div>
+                  <span className="tt-pill">{teacherTrainingManagerAccounts.length} 个</span>
+                </div>
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  <label className={teacherTrainingFieldShellClassName}>
+                    <span className={teacherTrainingFieldLabelClassName}>姓名</span>
+                    <input
+                      className={fieldClassName}
+                      {...fieldHint("省培管理账号姓名")}
+                      onChange={(event) => setManagerAccountDraft((current) => ({ ...current, name: event.target.value }))}
+                      placeholder="负责人或班主任姓名"
+                      value={managerAccountDraft.name}
+                    />
+                  </label>
+                  <label className={teacherTrainingFieldShellClassName}>
+                    <span className={teacherTrainingFieldLabelClassName}>登录账号</span>
+                    <input
+                      className={fieldClassName}
+                      {...fieldHint("省培管理登录账号")}
+                      onChange={(event) => setManagerAccountDraft((current) => ({ ...current, username: event.target.value }))}
+                      placeholder="建议使用手机号或姓名拼音"
+                      value={managerAccountDraft.username}
+                    />
+                  </label>
+                  <label className={teacherTrainingFieldShellClassName}>
+                    <span className={teacherTrainingFieldLabelClassName}>手机号</span>
+                    <input
+                      className={fieldClassName}
+                      {...fieldHint("省培管理账号手机号")}
+                      onChange={(event) => setManagerAccountDraft((current) => ({ ...current, phone: event.target.value }))}
+                      placeholder="11 位手机号"
+                      value={managerAccountDraft.phone}
+                    />
+                  </label>
+                  <label className={teacherTrainingFieldShellClassName}>
+                    <span className={teacherTrainingFieldLabelClassName}>邮箱</span>
+                    <input
+                      className={fieldClassName}
+                      {...fieldHint("省培管理账号邮箱")}
+                      onChange={(event) => setManagerAccountDraft((current) => ({ ...current, email: event.target.value }))}
+                      placeholder="用于通知，可选"
+                      value={managerAccountDraft.email}
+                    />
+                  </label>
+                  <label className={teacherTrainingFieldShellClassName}>
+                    <span className={teacherTrainingFieldLabelClassName}>省培身份</span>
+                    <select
+                      className={fieldClassName}
+                      {...fieldHint("省培身份")}
+                      onChange={(event) =>
+                        setManagerAccountDraft((current) => ({
+                          ...current,
+                          managerIdentity: event.target.value === "班主任" ? "班主任" : "省培负责人",
+                        }))
+                      }
+                      value={managerAccountDraft.managerIdentity}
+                    >
+                      <option value="省培负责人">省培负责人</option>
+                      <option value="班主任">班主任</option>
+                    </select>
+                  </label>
+                  <label className={teacherTrainingFieldShellClassName}>
+                    <span className={teacherTrainingFieldLabelClassName}>密码</span>
+                    <input
+                      className={fieldClassName}
+                      {...fieldHint("省培管理账号密码")}
+                      onChange={(event) => setManagerAccountDraft((current) => ({ ...current, password: event.target.value }))}
+                      placeholder={managerAccountDraft.id ? "留空则不修改密码" : "留空默认 123456"}
+                      type="password"
+                      value={managerAccountDraft.password}
+                    />
+                  </label>
+                </div>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <ActionButton
+                    aria-label="保存省培管理账号"
+                    loading={isSaving}
+                    onClick={() => void submitManagerAccount()}
+                    title="保存省培管理账号"
+                    variant="primary"
+                  >
+                    {managerAccountDraft.id ? "保存账号修改" : "新增管理账号"}
+                  </ActionButton>
+                  {managerAccountDraft.id ? (
+                    <button
+                      className="inline-flex h-10 items-center rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600"
+                      onClick={() => setManagerAccountDraft(createDefaultManagerAccountDraft())}
+                      type="button"
+                    >
+                      取消修改
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+
+              <div className="tt-card p-5">
+                <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                  <div>
+                    <p className="tt-block-title">负责人/班主任账号池</p>
+                    <p className="mt-1.5 text-xs leading-5 text-slate-500">
+                      班次管理只能从这里选择对应身份的账号；账号身份在此处统一维护。
+                    </p>
+                  </div>
+                  <button
+                    className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 text-xs font-semibold text-rose-600 disabled:cursor-not-allowed disabled:opacity-50"
+                    disabled={selectedManagerAccountIds.length === 0 || isSaving}
+                    onClick={() => void removeSelectedManagerAccounts()}
+                    type="button"
+                  >
+                    <Trash2 className="h-4 w-4" />
+                    批量删除账号
+                  </button>
+                </div>
+                <label className={`${teacherTrainingFieldShellClassName} mt-4`}>
+                  <span className={teacherTrainingFieldLabelClassName}>搜索账号</span>
+                  <input
+                    className={fieldClassName}
+                    {...fieldHint("搜索省培管理账号")}
+                    onChange={(event) => setManagerAccountSearch(event.target.value)}
+                    placeholder="按姓名、账号、手机号、邮箱或身份搜索"
+                    value={managerAccountSearch}
+                  />
+                </label>
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  <button
+                    className="inline-flex h-8 items-center rounded-lg border border-blue-100 bg-white px-3 text-xs font-semibold text-blue-700"
+                    onClick={() =>
+                      setVisibleSelection(
+                        filteredManagerAccounts.map((account) => account.id),
+                        selectedManagerAccountIds,
+                        setSelectedManagerAccountIds,
+                      )
+                    }
+                    type="button"
+                  >
+                    全选/取消当前结果
+                  </button>
+                  <span className="tt-pill">
+                    已选 {selectedManagerAccountIds.length} / 当前 {filteredManagerAccounts.length}
+                  </span>
+                </div>
+                <div className={`mt-4 space-y-3 ${teacherTrainingScrollableListClassName}`}>
+                  {filteredManagerAccounts.length === 0 ? (
+                    <div className="tt-empty-fill">
+                      <Users className="h-6 w-6 text-blue-600" />
+                      <p className="text-sm font-semibold text-slate-700">暂无省培管理账号</p>
+                      <p className="text-xs text-slate-400">先新增省培负责人或班主任，再到班次管理中选择。</p>
+                    </div>
+                  ) : (
+                    filteredManagerAccounts.map((account) => (
+                      <article key={account.id} className="tt-action-card p-4">
+                        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                          <label className="flex min-w-0 items-start gap-3">
+                            <input
+                              checked={selectedManagerAccountIds.includes(account.id)}
+                              className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600"
+                              onChange={() =>
+                                setSelectedManagerAccountIds((current) => toggleSelectedId(current, account.id))
+                              }
+                              type="checkbox"
+                            />
+                            <span className="min-w-0">
+                              <span className="flex flex-wrap items-center gap-2">
+                                <span className="font-bold text-slate-950">{account.name}</span>
+                                <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-bold text-blue-700">
+                                  {account.responsibility}
+                                </span>
+                              </span>
+                              <span className="mt-1 block text-xs leading-5 text-slate-500">
+                                账号：{account.username}
+                                {account.phone ? ` · 手机：${account.phone}` : ""}
+                                {account.email ? ` · 邮箱：${account.email}` : ""}
+                              </span>
+                              <span className="mt-1 block text-xs leading-5 text-slate-400">
+                                已绑定班次：
+                                {account.managedCohorts.length > 0
+                                  ? account.managedCohorts.map((item) => `${item.cohortTitle}（${item.title}）`).join("、")
+                                  : "暂无"}
+                              </span>
+                            </span>
+                          </label>
+                          <div className="flex shrink-0 flex-wrap gap-2">
+                            <button
+                              className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600"
+                              onClick={() => editManagerAccount(account)}
+                              type="button"
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                              修改
+                            </button>
+                            <button
+                              className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-3 text-xs font-semibold text-rose-600"
+                              disabled={isSaving}
+                              onClick={() => void removeSelectedManagerAccounts([account.id])}
+                              type="button"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                              删除
+                            </button>
+                          </div>
+                        </div>
+                      </article>
+                    ))
+                  )}
+                </div>
+              </div>
+            </section>
+          ) : null}
+
           <div className={`grid gap-4 ${teacherTrainingManagementGridClassName}`}>
-        {canManage && showTeacherTrainingSection("cohorts", "participants", "accounts") ? (
+        {canManage && showTeacherTrainingSection("cohorts", "participants") ? (
           <aside className="tt-card space-y-5 self-start p-5">
             <div>
               <p className="tt-block-title">班次</p>
@@ -3623,7 +4008,32 @@ export default function TeacherTrainingTab() {
                       共 {teacherTrainingCohorts.length} 个班次，点击班次可切换到对应管理页。
                     </p>
                   </div>
-                  <span className="tt-pill">{teacherTrainingCohorts.length} 个</span>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="tt-pill">{teacherTrainingCohorts.length} 个</span>
+                    <button
+                      className="inline-flex h-8 items-center rounded-lg border border-blue-100 bg-white px-3 text-xs font-semibold text-blue-700"
+                      disabled={teacherTrainingCohorts.length === 0}
+                      onClick={() =>
+                        setVisibleSelection(
+                          teacherTrainingCohorts.map((cohort) => cohort.id),
+                          selectedCohortIds,
+                          setSelectedCohortIds,
+                        )
+                      }
+                      type="button"
+                    >
+                      全选/取消
+                    </button>
+                    <button
+                      className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-3 text-xs font-semibold text-rose-600 disabled:cursor-not-allowed disabled:opacity-50"
+                      disabled={selectedCohortIds.length === 0 || isSaving}
+                      onClick={() => void removeSelectedCohorts()}
+                      type="button"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      批量删除班次
+                    </button>
+                  </div>
                 </div>
                 {teacherTrainingCohorts.length === 0 ? (
                   <p className="mt-3 rounded-xl border border-dashed border-slate-200 bg-white/70 px-3 py-4 text-center text-xs text-slate-400">
@@ -3652,7 +4062,16 @@ export default function TeacherTrainingTab() {
                         >
                           <span className="flex items-start justify-between gap-3">
                             <span className="min-w-0">
-                              <span className="block truncate text-sm font-bold text-slate-950">{cohort.title}</span>
+                              <span className="flex min-w-0 items-center gap-2">
+                                <input
+                                  checked={selectedCohortIds.includes(cohort.id)}
+                                  className="h-4 w-4 shrink-0 rounded border-slate-300 text-blue-600"
+                                  onClick={(event) => event.stopPropagation()}
+                                  onChange={() => setSelectedCohortIds((current) => toggleSelectedId(current, cohort.id))}
+                                  type="checkbox"
+                                />
+                                <span className="block truncate text-sm font-bold text-slate-950">{cohort.title}</span>
+                              </span>
                               <span className="mt-1 block text-xs leading-5 text-slate-500">
                                 {cohort.startDate} 至 {cohort.endDate}
                                 {cohort.location ? ` · ${cohort.location}` : ""}
@@ -4145,23 +4564,17 @@ export default function TeacherTrainingTab() {
                       onChange={(event) => setManagerDraft((current) => ({ ...current, userId: event.target.value }))}
                       value={managerDraft.userId}
                     >
-                      <option value="">选择已有平台账号</option>
-                      {teacherTrainingManagerOptions.map((option) => (
+                      <option value="">
+                        {selectedManagerAccountOptions.length === 0
+                          ? `请先到省培账号管理新增${managerDraft.title}`
+                          : "选择已设置身份的账号"}
+                      </option>
+                      {selectedManagerAccountOptions.map((option) => (
                         <option key={option.id} value={option.id}>
                           {option.name} · {option.username}
                         </option>
                       ))}
                     </select>
-                  </label>
-                  <label className={teacherTrainingFieldShellClassName}>
-                    <span className={teacherTrainingFieldLabelClassName}>省培职务</span>
-                    <input
-                      className={fieldClassName}
-                      {...fieldHint("省培职务")}
-                      onChange={(event) => setManagerDraft((current) => ({ ...current, title: event.target.value }))}
-                      placeholder="职务，例如省培负责人、班主任、会务负责人"
-                      value={managerDraft.title}
-                    />
                   </label>
                   <ActionButton
                     aria-label={`设置当前班次${managerDraft.title || "省培工作人员"}`}
@@ -4285,7 +4698,32 @@ export default function TeacherTrainingTab() {
                         参训教师登录省培账号后，只看到自己班次的课程设置安排。
                       </p>
                     </div>
-                    <span className="tt-pill">{courseSessions.length} 节</span>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="tt-pill">{courseSessions.length} 节</span>
+                      <button
+                        className="inline-flex h-8 items-center rounded-lg border border-blue-100 bg-white px-3 text-xs font-semibold text-blue-700"
+                        disabled={courseSessions.length === 0}
+                        onClick={() =>
+                          setVisibleSelection(
+                            courseSessions.map((course) => course.id),
+                            selectedCourseSessionIds,
+                            setSelectedCourseSessionIds,
+                          )
+                        }
+                        type="button"
+                      >
+                        全选/取消
+                      </button>
+                      <button
+                        className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-3 text-xs font-semibold text-rose-600 disabled:cursor-not-allowed disabled:opacity-50"
+                        disabled={selectedCourseSessionIds.length === 0 || isSaving}
+                        onClick={() => void removeSelectedCourseSessions()}
+                        type="button"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                        批量删除课程
+                      </button>
+                    </div>
                   </div>
                   <div className={`mt-4 grid gap-3 ${teacherTrainingFillingListClassName}`}>
                     {courseSessions.length === 0 ? (
@@ -4316,6 +4754,14 @@ export default function TeacherTrainingTab() {
                           <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                             <div className="min-w-0">
                               <div className="flex flex-wrap items-center gap-2">
+                                <input
+                                  checked={selectedCourseSessionIds.includes(course.id)}
+                                  className="h-4 w-4 rounded border-slate-300 text-blue-600"
+                                  onChange={() =>
+                                    setSelectedCourseSessionIds((current) => toggleSelectedId(current, course.id))
+                                  }
+                                  type="checkbox"
+                                />
                                 <span className="inline-flex items-center gap-1.5 rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
                                   <CalendarDays className="h-3.5 w-3.5 text-slate-400" />
                                   {course.courseDate}
@@ -4590,7 +5036,36 @@ export default function TeacherTrainingTab() {
                         : "到达授课地点后点击定位签到，管理员可导出最终课程签到名单。"}
                     </p>
                   </div>
-                  <span className="tt-pill">{selectedCohort.checkInTasks.length} 个任务</span>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="tt-pill">{selectedCohort.checkInTasks.length} 个任务</span>
+                    {canManage ? (
+                      <>
+                        <button
+                          className="inline-flex h-8 items-center rounded-lg border border-blue-100 bg-white px-3 text-xs font-semibold text-blue-700"
+                          disabled={filteredCheckInTasks.length === 0}
+                          onClick={() =>
+                            setVisibleSelection(
+                              filteredCheckInTasks.map((task) => task.id),
+                              selectedCheckInTaskIds,
+                              setSelectedCheckInTaskIds,
+                            )
+                          }
+                          type="button"
+                        >
+                          全选/取消当前结果
+                        </button>
+                        <button
+                          className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-3 text-xs font-semibold text-rose-600 disabled:cursor-not-allowed disabled:opacity-50"
+                          disabled={selectedCheckInTaskIds.length === 0 || isSaving}
+                          onClick={() => void removeSelectedCheckInTasks()}
+                          type="button"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                          批量删除签到任务
+                        </button>
+                      </>
+                    ) : null}
+                  </div>
                 </div>
 
                 {canManage ? (
@@ -4784,6 +5259,16 @@ export default function TeacherTrainingTab() {
                                 <div className="flex items-start justify-between gap-3">
                                   <div className="min-w-0">
                                     <div className="flex flex-wrap items-center gap-2">
+                                      {canManage ? (
+                                        <input
+                                          checked={selectedCheckInTaskIds.includes(task.id)}
+                                          className="h-4 w-4 rounded border-slate-300 text-blue-600"
+                                          onChange={() =>
+                                            setSelectedCheckInTaskIds((current) => toggleSelectedId(current, task.id))
+                                          }
+                                          type="checkbox"
+                                        />
+                                      ) : null}
                                       <p className="truncate text-sm font-bold text-slate-950">{task.title}</p>
                                       <span className={`rounded-full border px-2 py-0.5 text-[11px] font-bold ${checkInWindowStyleMap[windowState]}`}>
                                         {Workspace.getTeacherTrainingCheckInWindowLabel(windowState)}
@@ -5896,7 +6381,7 @@ export default function TeacherTrainingTab() {
               </section>
               ) : null}
 
-              {canManage && showTeacherTrainingSection("participants", "accounts") ? (
+              {canManage && showTeacherTrainingSection("participants") ? (
               <section className={teacherTrainingListCardClassName}>
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                   <div>
@@ -5911,19 +6396,40 @@ export default function TeacherTrainingTab() {
                     <span className="tt-pill">
                       {filteredParticipants.length}/{selectedCohort.participants.length} 人
                     </span>
-                    {isAccountManagementSection ? (
-                      <button
-                        className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-blue-100 bg-white px-3 text-xs font-semibold text-blue-700 transition hover:border-blue-200 hover:bg-blue-50"
-                        aria-label="一键用手机号开通省培账号"
-                        disabled={isSaving || !selectedCohort.participants.some((participant) => !participant.accountUserId && getPhoneAccountUsername(participant))}
-                        onClick={() => void batchGeneratePhoneAccounts()}
-                        title="给还没有省培登录账号且手机号有效的教师，用手机号开通账号；初始密码统一为 123456。已有账号不受影响。"
-                        type="button"
-                      >
-                        <Copy className="h-4 w-4" />
-                        一键手机号开通账号
-                      </button>
-                    ) : null}
+                    <button
+                      className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-blue-100 bg-white px-3 text-xs font-semibold text-blue-700 transition hover:border-blue-200 hover:bg-blue-50"
+                      aria-label="一键用手机号开通省培账号"
+                      disabled={isSaving || !selectedCohort.participants.some((participant) => !participant.accountUserId && getPhoneAccountUsername(participant))}
+                      onClick={() => void batchGeneratePhoneAccounts()}
+                      title="给还没有省培登录账号且手机号有效的教师，用手机号开通账号；初始密码统一为 123456。已有账号不受影响。"
+                      type="button"
+                    >
+                      <Copy className="h-4 w-4" />
+                      一键手机号开通账号
+                    </button>
+                    <button
+                      className="inline-flex h-9 items-center rounded-lg border border-blue-100 bg-white px-3 text-xs font-semibold text-blue-700"
+                      disabled={filteredParticipants.length === 0}
+                      onClick={() =>
+                        setVisibleSelection(
+                          filteredParticipants.map((participant) => participant.id),
+                          selectedParticipantIds,
+                          setSelectedParticipantIds,
+                        )
+                      }
+                      type="button"
+                    >
+                      全选/取消当前结果
+                    </button>
+                    <button
+                      className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 text-xs font-semibold text-rose-600 disabled:cursor-not-allowed disabled:opacity-50"
+                      disabled={selectedParticipantIds.length === 0 || isSaving}
+                      onClick={() => void removeSelectedParticipants()}
+                      type="button"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                      批量删除参训教师
+                    </button>
                   </div>
                 </div>
 
@@ -6022,7 +6528,6 @@ export default function TeacherTrainingTab() {
                   items={teacherTrainingFilterSummaries.participants}
                   onClear={
                     participantSearchKeyword ||
-                    (isAccountManagementSection && participantAccountFilter !== "all") ||
                     teacherTrainingDetailViewTitle
                       ? () => {
                           setParticipantSearch("");
@@ -6072,6 +6577,12 @@ export default function TeacherTrainingTab() {
                       >
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
+                            <input
+                              checked={selectedParticipantIds.includes(participant.id)}
+                              className="h-4 w-4 rounded border-slate-300 text-blue-600"
+                              onChange={() => setSelectedParticipantIds((current) => toggleSelectedId(current, participant.id))}
+                              type="checkbox"
+                            />
                             <p className="max-w-full truncate whitespace-nowrap text-base font-semibold text-slate-950">
                               {participant.name}
                             </p>
@@ -7081,7 +7592,36 @@ export default function TeacherTrainingTab() {
                       {canManage ? "管理员可按班次导出全部任务完成情况。" : "查看我的任务提交记录和完成情况。"}
                     </p>
                   </div>
-                  <span className="tt-pill tt-pill-neutral">{selectedCohort.tasks.length} 项任务</span>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="tt-pill tt-pill-neutral">{selectedCohort.tasks.length} 项任务</span>
+                    {canManage ? (
+                      <>
+                        <button
+                          className="inline-flex h-8 items-center rounded-lg border border-blue-100 bg-white px-3 text-xs font-semibold text-blue-700"
+                          disabled={filteredSubmissionTasks.length === 0}
+                          onClick={() =>
+                            setVisibleSelection(
+                              filteredSubmissionTasks.map((task) => task.id),
+                              selectedTeacherTrainingTaskIds,
+                              setSelectedTeacherTrainingTaskIds,
+                            )
+                          }
+                          type="button"
+                        >
+                          全选/取消当前结果
+                        </button>
+                        <button
+                          className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-3 text-xs font-semibold text-rose-600 disabled:cursor-not-allowed disabled:opacity-50"
+                          disabled={selectedTeacherTrainingTaskIds.length === 0 || isSaving}
+                          onClick={() => void removeSelectedTasks()}
+                          type="button"
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                          批量删除汇报任务
+                        </button>
+                      </>
+                    ) : null}
+                  </div>
                 </div>
                 {canManage ? (
                   <div className="mt-4 grid gap-3">
@@ -7165,7 +7705,19 @@ export default function TeacherTrainingTab() {
                       <div key={task.id} className="rounded-xl border border-slate-200/75 bg-white/72 p-4">
                         <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                           <div>
-                            <p className="font-semibold text-slate-950">{task.title}</p>
+                            <div className="flex flex-wrap items-center gap-2">
+                              {canManage ? (
+                                <input
+                                  checked={selectedTeacherTrainingTaskIds.includes(task.id)}
+                                  className="h-4 w-4 rounded border-slate-300 text-blue-600"
+                                  onChange={() =>
+                                    setSelectedTeacherTrainingTaskIds((current) => toggleSelectedId(current, task.id))
+                                  }
+                                  type="checkbox"
+                                />
+                              ) : null}
+                              <p className="font-semibold text-slate-950">{task.title}</p>
+                            </div>
                             <div className="mt-2 flex flex-wrap gap-2">
                               <span className="rounded-full bg-slate-100 px-2.5 py-1 text-[11px] font-bold text-slate-600">
                                 {task.taskTypeLabel}

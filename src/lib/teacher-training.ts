@@ -211,6 +211,22 @@ export type TeacherTrainingApproverOptionItem = {
   role: string;
 };
 
+export type TeacherTrainingManagerAccountItem = {
+  id: string;
+  name: string;
+  username: string;
+  email: string;
+  phone: string;
+  role: string;
+  responsibility: string;
+  createdAt: string;
+  managedCohorts: Array<{
+    cohortId: string;
+    cohortTitle: string;
+    title: string;
+  }>;
+};
+
 export const teacherTrainingRoleTitleLabels: Record<string, string> = {
   admin: "系统管理员",
   school_admin: "校级管理员",
@@ -371,6 +387,7 @@ export type TeacherTrainingPayload = {
   cohorts: TeacherTrainingCohortItem[];
   approverOptions: TeacherTrainingApproverOptionItem[];
   managerOptions: TeacherTrainingApproverOptionItem[];
+  managerAccountOptions: TeacherTrainingManagerAccountItem[];
 };
 
 type TeacherTrainingRoleUser = {

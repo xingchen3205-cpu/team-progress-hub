@@ -140,7 +140,7 @@ test("teacher training APIs support admin-managed courses, check-in, tasks, subm
   assert.doesNotMatch(managerRoute, /assertRole\(user\.role,\s*\["admin",\s*"school_admin"\]\)/);
   assert.match(managerRoute, /teacherTrainingCohortManager\.upsert/);
   assert.match(managerRoute, /teacherTrainingCohortManager\.deleteMany/);
-  assert.match(managerRoute, /role:\s*\{\s*not:\s*"expert"\s*\}/);
+  assert.match(managerRoute, /role:\s*\{\s*notIn:\s*\["expert",\s*"training_teacher"\]\s*\}/);
   assert.doesNotMatch(checkInSignRoute, /assertRole\(user\.role,\s*\["training_teacher"\]\)/);
   assert.doesNotMatch(leaveRequestRoute, /assertRole\(user\.role,\s*\["training_teacher"\]\)/);
   assert.doesNotMatch(leaveReviewRoute, /assertRole\(user\.role,\s*\["admin",\s*"school_admin"\]\)/);
@@ -1525,24 +1525,55 @@ test("teacher training password policy requires 8 to 16 mixed alphanumeric chara
   assert.equal(validatePasswordPolicy("13800000000", { phone: "13800000000" }), "密码不能与手机号相同");
 });
 
-test("teacher training account management separates competition accounts from provincial identities", () => {
+test("teacher training account management is a manager account pool, not another participant roster", () => {
   const contextSource = read("src/components/workspace-context.tsx");
   const tabSource = read("src/components/tabs/teacher-training-tab.tsx");
-  const accountRoute = read("src/app/api/teacher-training/participants/[participantId]/account/route.ts");
+  const accountRoute = read("src/app/api/teacher-training/manager-accounts/route.ts");
+  const cohortManagerRoute = read("src/app/api/teacher-training/cohort-managers/route.ts");
+  const mainRoute = read("src/app/api/teacher-training/route.ts");
 
   assert.match(contextSource, /"accounts"/);
   assert.match(contextSource, /省培账号管理/);
-  assert.match(contextSource, /创赛原平台账号/);
-  assert.match(tabSource, /绑定创赛原平台账号/);
-  assert.match(tabSource, /生成省培专用账号/);
-  assert.match(tabSource, /共用账号只解绑省培身份，不删除创赛系统账号/);
-  assert.match(tabSource, /删除省培专用账号/);
-  assert.match(tabSource, /isAccountManagementSection && participantAccountFilter === "unbound"/);
-  assert.match(tabSource, /\{isAccountManagementSection \? \(\s*<button[\s\S]{0,800}一键手机号开通账号/);
-  assert.match(tabSource, /isAccountManagementSection\s*\?\s*"账号处理详情"\s*:\s*"报名档案详情"/);
-  assert.match(tabSource, /!isAccountManagementSection && expandedParticipantIds\.has\(participant\.id\)/);
-  assert.match(tabSource, /isAccountManagementSection && expandedParticipantIds\.has\(participant\.id\)/);
-  assert.match(accountRoute, /原平台账号只解除绑定，不删除账号本体/);
+  assert.match(contextSource, /teacherTrainingManagerAccounts/);
+  assert.match(contextSource, /saveTeacherTrainingManagerAccount/);
+  assert.match(contextSource, /deleteTeacherTrainingManagerAccounts/);
+  assert.match(mainRoute, /managerAccountOptions/);
+  assert.match(accountRoute, /export async function POST/);
+  assert.match(accountRoute, /export async function PATCH/);
+  assert.match(accountRoute, /export async function DELETE/);
+  assert.match(accountRoute, /responsibility:\s*managerIdentity/);
+  assert.match(accountRoute, /managerIdentity !== "省培负责人" && managerIdentity !== "班主任"/);
+  assert.match(cohortManagerRoute, /targetUser\.responsibility/);
+  assert.match(cohortManagerRoute, /targetUser\.responsibility !== title/);
+  assert.match(tabSource, /省培系统账号管理/);
+  assert.match(tabSource, /批量删除账号/);
+  assert.match(tabSource, /setSelectedManagerAccountIds/);
+  assert.doesNotMatch(tabSource, /isAccountManagementSection && participantAccountFilter === "unbound"/);
+  assert.doesNotMatch(tabSource, /一键手机号开通账号[\s\S]{0,400}isAccountManagementSection/);
+});
+
+test("teacher training manager pages support batch selection and a compact workbench", () => {
+  const tabSource = read("src/components/tabs/teacher-training-tab.tsx");
+  const contextSource = read("src/components/workspace-context.tsx");
+
+  assert.match(contextSource, /deleteTeacherTrainingParticipants/);
+  assert.match(contextSource, /deleteTeacherTrainingCohorts/);
+  assert.match(contextSource, /deleteTeacherTrainingCourseSessions/);
+  assert.match(contextSource, /deleteTeacherTrainingCheckInTasks/);
+  assert.match(contextSource, /deleteTeacherTrainingTasks/);
+  assert.match(tabSource, /selectedParticipantIds/);
+  assert.match(tabSource, /selectedCohortIds/);
+  assert.match(tabSource, /selectedCourseSessionIds/);
+  assert.match(tabSource, /selectedCheckInTaskIds/);
+  assert.match(tabSource, /selectedTeacherTrainingTaskIds/);
+  assert.match(tabSource, /批量删除参训教师/);
+  assert.match(tabSource, /批量删除班次/);
+  assert.match(tabSource, /批量删除课程/);
+  assert.match(tabSource, /批量删除签到任务/);
+  assert.match(tabSource, /批量删除汇报任务/);
+  assert.match(tabSource, /今日待办/);
+  assert.match(tabSource, /省培Workbench/);
+  assert.doesNotMatch(tabSource, /今日运行[\s\S]{0,1200}省培运行总览/);
 });
 
 test("workspace unit footer does not cover teacher training forms", () => {

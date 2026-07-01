@@ -120,6 +120,7 @@ import type {
   TeacherTrainingAttendanceStatus,
   TeacherTrainingCohortItem,
   TeacherTrainingLeaveFlowStep,
+  TeacherTrainingManagerAccountItem,
   TeacherTrainingTaskReleaseMode,
 } from "@/lib/teacher-training";
 import {
@@ -321,6 +322,16 @@ export type TeacherTrainingCohortManagerDraft = {
   cohortId: string;
   userId: string;
   title: string;
+};
+
+export type TeacherTrainingManagerAccountDraft = {
+  id?: string;
+  name: string;
+  username: string;
+  phone: string;
+  email: string;
+  password: string;
+  managerIdentity: "省培负责人" | "班主任";
 };
 
 export type TeacherTrainingLeaveFlowDraft = {
@@ -906,9 +917,9 @@ export const teacherTrainingSectionTabs: TeacherTrainingSectionItem[] = [
   {
     key: "accounts",
     label: "省培账号管理",
-    description: "创赛原平台账号与省培身份绑定",
+    description: "负责人和班主任账号池",
     icon: KeyRound,
-    managerOnly: true,
+    globalOnly: true,
   },
   {
     key: "courses",
@@ -2403,6 +2414,7 @@ function useWorkspaceController({
   const [teacherTrainingCohorts, setTeacherTrainingCohorts] = useState<TeacherTrainingCohortItem[]>([]);
   const [teacherTrainingApproverOptions, setTeacherTrainingApproverOptions] = useState<TeacherTrainingApproverOptionItem[]>([]);
   const [teacherTrainingManagerOptions, setTeacherTrainingManagerOptions] = useState<TeacherTrainingApproverOptionItem[]>([]);
+  const [teacherTrainingManagerAccounts, setTeacherTrainingManagerAccounts] = useState<TeacherTrainingManagerAccountItem[]>([]);
   const [trainingPanel, setTrainingPanel] = useState<"qa" | "pitch">("qa");
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [projectStages, setProjectStages] = useState<ProjectReviewStageItem[]>([]);
@@ -3011,6 +3023,7 @@ function useWorkspaceController({
     setTeacherTrainingCohorts([]);
     setTeacherTrainingApproverOptions([]);
     setTeacherTrainingManagerOptions([]);
+    setTeacherTrainingManagerAccounts([]);
     setDocuments([]);
     setProjectStages([]);
     setProjectMaterials([]);
@@ -3211,10 +3224,12 @@ function useWorkspaceController({
             cohorts: TeacherTrainingCohortItem[];
             approverOptions: TeacherTrainingApproverOptionItem[];
             managerOptions: TeacherTrainingApproverOptionItem[];
+            managerAccountOptions: TeacherTrainingManagerAccountItem[];
           }>("/api/teacher-training?mode=summary");
           setTeacherTrainingCohorts(payload.cohorts);
           setTeacherTrainingApproverOptions(payload.approverOptions ?? []);
           setTeacherTrainingManagerOptions(payload.managerOptions ?? []);
+          setTeacherTrainingManagerAccounts(payload.managerAccountOptions ?? []);
           const detailCohortId =
             activeTeacherTrainingCohortId && payload.cohorts.some((cohort) => cohort.id === activeTeacherTrainingCohortId)
               ? activeTeacherTrainingCohortId
@@ -5397,6 +5412,32 @@ function useWorkspaceController({
     }
   };
 
+  const deleteTeacherTrainingCohorts = async (cohortIds: string[]) => {
+    const ids = Array.from(new Set(cohortIds.map((id) => id.trim()).filter(Boolean)));
+    if (ids.length === 0) {
+      setLoadError("请先勾选要删除的省培班次");
+      return false;
+    }
+
+    setIsSaving(true);
+    try {
+      for (const id of ids) {
+        await requestJson("/api/teacher-training", {
+          method: "DELETE",
+          body: JSON.stringify({ id, confirmCascade: true }),
+        });
+      }
+      showSuccessToast("省培班次已批量删除", `已删除 ${ids.length} 个班次及其关联数据。`);
+      refreshWorkspace("teacherTraining");
+      return true;
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "省培班次批量删除失败");
+      return false;
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const addTeacherTrainingParticipant = async (draft: TeacherTrainingParticipantDraft) => {
     const cohortId = draft.cohortId.trim();
     const name = draft.name.trim();
@@ -5567,6 +5608,32 @@ function useWorkspaceController({
     }
   };
 
+  const deleteTeacherTrainingCourseSessions = async (courseSessionIds: string[]) => {
+    const ids = Array.from(new Set(courseSessionIds.map((id) => id.trim()).filter(Boolean)));
+    if (ids.length === 0) {
+      setLoadError("请先勾选要删除的课程");
+      return false;
+    }
+
+    setIsSaving(true);
+    try {
+      for (const id of ids) {
+        await requestJson("/api/teacher-training/course-sessions", {
+          method: "DELETE",
+          body: JSON.stringify({ id }),
+        });
+      }
+      showSuccessToast("课程已批量删除", `已删除 ${ids.length} 节课程及关联签到安排。`);
+      refreshWorkspace("teacherTraining");
+      return true;
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "课程批量删除失败");
+      return false;
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const createTeacherTrainingCheckInTask = async (draft: TeacherTrainingCheckInTaskDraft) => {
     const cohortId = draft.cohortId.trim();
     const title = draft.title.trim();
@@ -5622,6 +5689,32 @@ function useWorkspaceController({
       refreshWorkspace("teacherTraining");
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "签到任务删除失败");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const deleteTeacherTrainingCheckInTasks = async (checkInTaskIds: string[]) => {
+    const ids = Array.from(new Set(checkInTaskIds.map((id) => id.trim()).filter(Boolean)));
+    if (ids.length === 0) {
+      setLoadError("请先勾选要删除的签到任务");
+      return false;
+    }
+
+    setIsSaving(true);
+    try {
+      for (const id of ids) {
+        await requestJson("/api/teacher-training/check-ins", {
+          method: "DELETE",
+          body: JSON.stringify({ id }),
+        });
+      }
+      showSuccessToast("签到任务已批量删除", `已删除 ${ids.length} 个签到任务及关联记录。`);
+      refreshWorkspace("teacherTraining");
+      return true;
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "签到任务批量删除失败");
+      return false;
     } finally {
       setIsSaving(false);
     }
@@ -5823,6 +5916,106 @@ function useWorkspaceController({
       refreshWorkspace("teacherTraining");
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "参训教师删除失败");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const deleteTeacherTrainingParticipants = async (participantIds: string[]) => {
+    const ids = Array.from(new Set(participantIds.map((id) => id.trim()).filter(Boolean)));
+    if (ids.length === 0) {
+      setLoadError("请先勾选要删除的参训教师");
+      return false;
+    }
+
+    setIsSaving(true);
+    try {
+      for (const id of ids) {
+        await requestJson("/api/teacher-training/participants", {
+          method: "DELETE",
+          body: JSON.stringify({ id }),
+        });
+      }
+      showSuccessToast("参训教师已批量删除", `已删除 ${ids.length} 位参训教师及其省培记录。`);
+      refreshWorkspace("teacherTraining");
+      return true;
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "参训教师批量删除失败");
+      return false;
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const saveTeacherTrainingManagerAccount = async (draft: TeacherTrainingManagerAccountDraft) => {
+    const name = draft.name.trim();
+    const username = draft.username.trim();
+    const phone = draft.phone.trim();
+    const email = draft.email.trim();
+
+    if (!name || !username || !draft.managerIdentity) {
+      setLoadError("请填写姓名、账号和省培管理身份");
+      return false;
+    }
+
+    const usernameError = validateUsername(username);
+    if (usernameError) {
+      setLoadError(usernameError);
+      return false;
+    }
+    if (phone && !/^1[3-9]\d{9}$/.test(phone)) {
+      setLoadError("手机号格式不正确，请填写 11 位中国大陆手机号");
+      return false;
+    }
+    if (email && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      setLoadError("邮箱格式不正确，请检查后重新填写");
+      return false;
+    }
+
+    setIsSaving(true);
+    try {
+      await requestJson("/api/teacher-training/manager-accounts", {
+        method: draft.id ? "PATCH" : "POST",
+        body: JSON.stringify({
+          id: draft.id,
+          name,
+          username,
+          phone,
+          email,
+          password: draft.password.trim(),
+          managerIdentity: draft.managerIdentity,
+        }),
+      });
+      showSuccessToast(draft.id ? "省培管理账号已修改" : "省培管理账号已创建", "班次管理中可直接选择该账号。");
+      refreshWorkspace("teacherTraining");
+      return true;
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "省培管理账号保存失败");
+      return false;
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const deleteTeacherTrainingManagerAccounts = async (accountIds: string[]) => {
+    const ids = Array.from(new Set(accountIds.map((id) => id.trim()).filter(Boolean)));
+    if (ids.length === 0) {
+      setLoadError("请先勾选要删除的省培管理账号");
+      return false;
+    }
+
+    setIsSaving(true);
+    try {
+      await requestJson("/api/teacher-training/manager-accounts", {
+        method: "DELETE",
+        body: JSON.stringify({ ids }),
+      });
+      showSuccessToast("省培管理账号已删除", `已删除 ${ids.length} 个省培负责人/班主任账号。`);
+      refreshWorkspace("teacherTraining");
+      return true;
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "省培管理账号删除失败");
+      return false;
     } finally {
       setIsSaving(false);
     }
@@ -6036,6 +6229,32 @@ function useWorkspaceController({
       refreshWorkspace("teacherTraining");
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "省培任务删除失败");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const deleteTeacherTrainingTasks = async (taskIds: string[]) => {
+    const ids = Array.from(new Set(taskIds.map((id) => id.trim()).filter(Boolean)));
+    if (ids.length === 0) {
+      setLoadError("请先勾选要删除的汇报任务");
+      return false;
+    }
+
+    setIsSaving(true);
+    try {
+      for (const id of ids) {
+        await requestJson("/api/teacher-training/tasks", {
+          method: "DELETE",
+          body: JSON.stringify({ id }),
+        });
+      }
+      showSuccessToast("汇报任务已批量删除", `已删除 ${ids.length} 个任务及其提交记录。`);
+      refreshWorkspace("teacherTraining");
+      return true;
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "汇报任务批量删除失败");
+      return false;
     } finally {
       setIsSaving(false);
     }
@@ -8053,6 +8272,8 @@ function useWorkspaceController({
     setTeacherTrainingApproverOptions,
     teacherTrainingManagerOptions,
     setTeacherTrainingManagerOptions,
+    teacherTrainingManagerAccounts,
+    setTeacherTrainingManagerAccounts,
     trainingPanel,
     setTrainingPanel,
     documents,
@@ -8518,13 +8739,16 @@ function useWorkspaceController({
     saveTrainingSession,
     createTeacherTrainingCohort,
     deleteTeacherTrainingCohort,
+    deleteTeacherTrainingCohorts,
     addTeacherTrainingParticipant,
     importTeacherTrainingParticipants,
     createTeacherTrainingCourseSession,
     importTeacherTrainingCourses,
     deleteTeacherTrainingCourseSession,
+    deleteTeacherTrainingCourseSessions,
     createTeacherTrainingCheckInTask,
     deleteTeacherTrainingCheckInTask,
+    deleteTeacherTrainingCheckInTasks,
     signTeacherTrainingCheckIn,
     manualSignTeacherTrainingCheckIn,
     markTeacherTrainingAttendance,
@@ -8532,6 +8756,9 @@ function useWorkspaceController({
     updateTeacherTrainingParticipantAccount,
     deleteTeacherTrainingParticipantAccount,
     deleteTeacherTrainingParticipant,
+    deleteTeacherTrainingParticipants,
+    saveTeacherTrainingManagerAccount,
+    deleteTeacherTrainingManagerAccounts,
     assignTeacherTrainingCohortManager,
     removeTeacherTrainingCohortManager,
     updateTeacherTrainingLeaveFlow,
@@ -8539,6 +8766,7 @@ function useWorkspaceController({
     reviewTeacherTrainingLeaveRequest,
     createTeacherTrainingTask,
     deleteTeacherTrainingTask,
+    deleteTeacherTrainingTasks,
     saveTeacherTrainingSubmission,
     reviewTeacherTrainingSubmission,
     runTeacherTrainingTaskAiReview,
