@@ -1530,11 +1530,16 @@ test("teacher training first-login profile requires contact and password but kee
   const tabSource = read("src/components/tabs/teacher-training-tab.tsx");
 
   assert.match(profileRoute, /请填写姓名、单位、手机、分组、职务和邮箱/);
+  assert.match(profileRoute, /手机号格式不正确，请填写 11 位中国大陆手机号/);
+  assert.match(profileRoute, /shouldSyncPhoneUsername/);
+  assert.match(profileRoute, /username: phone/);
   assert.match(profileRoute, /if \(arrivalAt && !isTeacherTrainingArrivalAtValue\(arrivalAt\)\)/);
   assert.doesNotMatch(profileRoute, /!arrivalAt\s*\|\|/);
   assert.doesNotMatch(profileRoute, /!arrivalTransportation\s*\|\|/);
   assert.doesNotMatch(profileRoute, /!arrivalVehicleNo\s*\|\|/);
   assert.doesNotMatch(profileRoute, /!arrivalDeparture/);
+  assert.match(tabSource, /姓名、单位、手机号、分组和职务已从导入名单带入/);
+  assert.match(tabSource, /保存后会同步到管理端参训教师列表/);
   assert.match(tabSource, /到达信息可稍后补充/);
   assert.doesNotMatch(tabSource, /以下到达信息均为必填/);
 });

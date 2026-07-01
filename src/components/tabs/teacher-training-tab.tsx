@@ -6159,6 +6159,9 @@ export default function TeacherTrainingTab() {
                     </p>
                   </div>
                 ) : null}
+                <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50/70 px-3 py-2 text-xs leading-5 text-blue-700">
+                  姓名、单位、手机号、分组和职务已从导入名单带入，可按实际情况修改；保存后会同步到管理端参训教师列表。
+                </div>
                 <div className="mt-4 grid gap-3 md:grid-cols-2">
                   <label className={teacherTrainingFieldShellClassName}>
                     <span className={teacherTrainingFieldLabelClassName}>个人姓名</span>

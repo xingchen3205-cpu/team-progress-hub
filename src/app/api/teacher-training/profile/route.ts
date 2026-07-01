@@ -7,6 +7,8 @@ import { buildAppUrl, isEmailConfigured, renderSystemEmail, sendEmail } from "@/
 import { prisma } from "@/lib/prisma";
 import { isTeacherTrainingArrivalAtValue, mergeTeacherTrainingParticipantExtraInfo } from "@/lib/teacher-training";
 
+const teacherTrainingPhonePattern = /^1[3-9]\d{9}$/;
+
 export async function PATCH(request: NextRequest) {
   const user = await getSessionUser(request);
   if (!user) {
@@ -62,6 +64,9 @@ export async function PATCH(request: NextRequest) {
   if (emailError) {
     return NextResponse.json({ message: emailError }, { status: 400 });
   }
+  if (!teacherTrainingPhonePattern.test(phone)) {
+    return NextResponse.json({ message: "手机号格式不正确，请填写 11 位中国大陆手机号" }, { status: 400 });
+  }
   if (arrivalAt && !isTeacherTrainingArrivalAtValue(arrivalAt)) {
     return NextResponse.json({ message: "预计到达时间格式不正确" }, { status: 400 });
   }
@@ -93,6 +98,7 @@ export async function PATCH(request: NextRequest) {
     select: {
       id: true,
       accountUserId: true,
+      phone: true,
       extraInfo: true,
       cohort: {
         select: {
@@ -103,6 +109,22 @@ export async function PATCH(request: NextRequest) {
   });
   if (!participant) {
     return NextResponse.json({ message: "未找到当前省培账号对应的参训档案" }, { status: 404 });
+  }
+  const shouldSyncPhoneUsername =
+    user.role === "training_teacher" &&
+    user.username === (participant.phone ?? "").trim() &&
+    phone !== user.username;
+  if (shouldSyncPhoneUsername) {
+    const usernameConflict = await prisma.user.findFirst({
+      where: {
+        id: { not: user.id },
+        username: phone,
+      },
+      select: { id: true },
+    });
+    if (usernameConflict) {
+      return NextResponse.json({ message: "该手机号已被其他账号使用，请更换后再保存" }, { status: 409 });
+    }
   }
   if (password) {
     const passwordError = validatePasswordPolicy(password, {
@@ -142,6 +164,8 @@ export async function PATCH(request: NextRequest) {
       where: { id: user.id },
       data: {
         name,
+        phone,
+        ...(shouldSyncPhoneUsername ? { username: phone } : {}),
         email,
         password: passwordHash,
         avatar: name.slice(0, 1),
