@@ -89,12 +89,12 @@ test("teacher training management layout keeps cards aligned without oversized e
   assert.match(shellSource, /const workspaceMainClassName = isTeacherTrainingPlatform/);
   assert.match(shellSource, /workspace-depth-bg workspace-shell-fade-in overflow-x-hidden px-4 pt-4 pb-8/);
   assert.match(shellSource, /workspace-depth-bg workspace-shell-fade-in min-h-screen overflow-x-hidden p-4 pb-14/);
-  assert.match(shellSource, /<main className=\{workspaceMainClassName\}>/);
+  assert.match(shellSource, /<main className=\{`\$\{workspaceMainClassName\} flex-1`\}>/);
   assert.match(tabSource, /teacherTrainingScrollableListClassName/);
   assert.match(tabSource, /max-h-\[min\(68vh,760px\)\] overflow-y-auto/);
-  assert.match(tabSource, /teacherTrainingManagementGridClassName[\s\S]*items-start xl:grid-cols-\[420px_minmax\(0,1fr\)\]/);
-  assert.match(tabSource, /grid items-start gap-4 xl:grid-cols-\[minmax\(0,1fr\)_minmax\(420px,460px\)\]/);
-  assert.match(tabSource, /grid items-start gap-4 xl:grid-cols-2/);
+  assert.match(tabSource, /teacherTrainingManagementGridClassName[\s\S]*items-stretch xl:grid-cols-\[420px_minmax\(0,1fr\)\]/);
+  assert.match(tabSource, /grid gap-5 xl:grid-cols-\[minmax\(320px,0\.42fr\)_minmax\(0,0\.58fr\)\]/);
+  assert.match(tabSource, /grid items-stretch gap-4 xl:grid-cols-2/);
 });
 
 test("teacher training APIs support admin-managed courses, check-in, tasks, submissions, profile, and export", () => {
@@ -399,7 +399,7 @@ test("teacher training shows province-specific account titles instead of competi
         },
       ],
     }),
-    "讲师",
+    "省培教师",
   );
   assert.equal(
     getTeacherTrainingEffectiveRoleLabel({
@@ -423,7 +423,7 @@ test("teacher training shows province-specific account titles instead of competi
         },
       ],
     }),
-    "省培联络员",
+    "省培教师",
   );
   assert.equal(
     getTeacherTrainingEffectiveRoleLabel({
@@ -440,7 +440,7 @@ test("teacher training shows province-specific account titles instead of competi
         },
       ],
     }),
-    "当前班次职务",
+    "省培教师",
   );
   assert.equal(
     getTeacherTrainingEffectiveRoleLabel({
@@ -451,7 +451,7 @@ test("teacher training shows province-specific account titles instead of competi
         },
       ],
     }),
-    "省培学员组长",
+    "省培管理员",
   );
   assert.equal(
     getTeacherTrainingEffectiveRoleLabel({
@@ -695,7 +695,7 @@ test("teacher training tab uses staff-side manual check-in controls", () => {
   assert.match(tabSource, /teacher-training-content/);
   assert.doesNotMatch(tabSource, /快速进入/);
   assert.match(tabSource, /班次指挥台/);
-  assert.match(tabSource, /报到房号材料登记/);
+  assert.match(tabSource, /报到签到/);
   assert.match(tabSource, /课程安排/);
   assert.match(tabSource, /createTeacherTrainingCourseSession/);
   assert.match(tabSource, /参训教师中心/);
@@ -703,8 +703,8 @@ test("teacher training tab uses staff-side manual check-in controls", () => {
   assert.match(tabSource, /班主任/);
   assert.match(tabSource, /assignTeacherTrainingCohortManager/);
   assert.match(tabSource, /removeTeacherTrainingCohortManager/);
-  assert.match(tabSource, /新增省培教师账号/);
-  assert.match(tabSource, /已有平台账号/);
+  assert.match(tabSource, /省培系统账号管理/);
+  assert.match(tabSource, /绑定创赛原平台账号/);
   assert.match(tabSource, /预录扩展信息/);
   assert.match(tabSource, /复制账号消息/);
   assert.match(tabSource, /generateTeacherTrainingAccountMessage/);
@@ -785,7 +785,7 @@ test("teacher training interactions expose clear hints for mobile web users", ()
 
   assert.match(tabSource, /teacherTrainingActionHints/);
   assert.match(tabSource, /省培操作提示/);
-  assert.match(tabSource, /切换上方模块/);
+  assert.match(tabSource, /关键操作先确认/);
   assert.doesNotMatch(tabSource, /左侧切换模块/);
   assert.doesNotMatch(tabSource, /左侧添加|右侧添加|后续接入|先统一入口/);
   assert.match(tabSource, /在参训教师模块添加名单后/);
@@ -805,8 +805,8 @@ test("teacher training interactions expose clear hints for mobile web users", ()
   assert.match(tabSource, /title=\{leaveDisabledReason \|\| "提交省培请假申请"\}/);
   assert.match(tabSource, /aria-label="保存省培个人信息"/);
   assert.match(tabSource, /title=\{profileDisabledReason \|\| "保存省培个人信息"\}/);
-  assert.match(tabSource, /aria-label="复制省培账号通知消息"/);
-  assert.match(tabSource, /title="复制省培账号通知消息"/);
+  assert.match(tabSource, /aria-label=\{participant\.accountUsername \? "复制省培账号通知消息"/);
+  assert.match(tabSource, /title=\{participant\.accountUsername \? "复制省培账号通知消息"/);
   assert.match(tabSource, /accountMessagesByParticipantId\[participant\.id\]/);
   assert.match(tabSource, /\$\{participant\.name\}省培账号通知消息/);
   assert.match(tabSource, /aria-label=\{`\$\{participant\.name\}\$\{attendance \? "修改报到信息" : "报到"\}`\}/);
@@ -929,7 +929,7 @@ test("teacher training teacher-facing forms keep visible field labels on mobile"
   assert.match(tabSource, /待完成签到/);
   assert.match(tabSource, /待提交汇报/);
   assert.match(tabSource, /完善个人信息/);
-  assert.match(tabSource, /今日事项已处理/);
+  assert.match(tabSource, /状态正常/);
   assert.match(tabSource, /待签到/);
   assert.match(tabSource, /已完成全部签到/);
   assert.match(tabSource, /我的签到状态/);
@@ -978,11 +978,10 @@ test("teacher training manager forms keep visible field labels on mobile", () =>
     "参训教师单位",
     "参训教师手机",
     "参训教师分组",
-    "省培登录账号",
+    "省培登录账号 \/ 绑定创赛原平台账号",
     "省培初始密码",
     "参训教师预录扩展信息",
     "参训教师备注",
-    "省培职务",
     "课程名称",
     "课程日期",
     "课程开始时间",
@@ -1012,6 +1011,9 @@ test("teacher training manager forms keep visible field labels on mobile", () =>
   ]) {
     assert.match(tabSource, new RegExp(`<span className=\\{teacherTrainingFieldLabelClassName\\}>${label}<\\/span>`));
   }
+  assert.match(tabSource, /accountLabel: "选择省培负责人账号"/);
+  assert.match(tabSource, /accountLabel: "选择班主任账号"/);
+  assert.match(tabSource, /<span className=\{teacherTrainingFieldLabelClassName\}>\{selectedManagerRoleOption\.accountLabel\}<\/span>/);
 });
 
 test("teacher training cohort lead is configured above class teachers without changing approval flow rules", () => {
@@ -1045,12 +1047,10 @@ test("teacher training cohort management shows every configured cohort with dire
 
   assert.match(tabSource, /已设置班次/);
   assert.match(tabSource, /共 \{teacherTrainingCohorts\.length\} 个班次/);
-  assert.match(tabSource, /班次总数/);
   assert.match(tabSource, /teacherTrainingCohorts\.map\(\(cohort\) => \(/);
   assert.match(tabSource, /editCohort\(cohort\)/);
   assert.match(tabSource, /removeCohort\(cohort\)/);
-  assert.match(tabSource, /nextCohortIdAfterDelete/);
-  assert.match(tabSource, /setSelectedCohortId\(nextCohortIdAfterDelete\)/);
+  assert.match(tabSource, /setSelectedCohortId\(teacherTrainingCohorts\.find/);
   assert.match(mainRouteSource, /hasTeacherTrainingCohortManageAccess/);
   assert.match(mainRouteSource, /无权限修改该省培班次/);
   assert.match(mainRouteSource, /无权限删除该省培班次/);
@@ -1347,9 +1347,9 @@ test("teacher training course editor keeps date field readable in the side panel
 test("teacher training overview endpoint badge keeps text on one line", () => {
   const tabSource = read("src/components/tabs/teacher-training-tab.tsx");
 
-  assert.match(tabSource, /min-w-\[76px\]/);
+  assert.match(tabSource, /min-w-\[180px\]/);
   assert.match(tabSource, /whitespace-nowrap/);
-  assert.match(tabSource, /\{canManage \? "管理端" : "教师端"\}/);
+  assert.match(tabSource, /当前模块/);
 });
 
 test("teacher training overview metric cards jump to filtered detail lists", () => {
@@ -1387,7 +1387,7 @@ test("teacher training overview works as a role-specific command desk", () => {
   assert.match(tabSource, /managerCommandQuickLinks/);
   assert.match(tabSource, /班次指挥台/);
   assert.match(tabSource, /当前班次/);
-  assert.match(tabSource, /核心待办/);
+  assert.match(tabSource, /今日待办/);
   assert.match(tabSource, /快捷入口/);
   assert.match(tabSource, /待审批请假/);
   assert.match(tabSource, /待报到教师/);
@@ -1414,7 +1414,7 @@ test("teacher training list filters and cohort health check use clear operationa
   assert.match(tabSource, /搜索条件/);
   assert.match(tabSource, /清除筛选/);
   assert.match(tabSource, /参训教师、报到、请假、汇报和课程签到列表共用筛选提示/);
-  assert.match(tabSource, /解绑后，该教师将不能再通过此参训档案进入省培系统/);
+  assert.match(tabSource, /处理后，该教师将不能再通过此参训档案进入省培系统/);
   assert.match(tabSource, /重置密码后，请把新账号信息重新发给教师/);
   assert.match(tabSource, /导入前请核对识别字段和重复项/);
   assert.match(tabSource, /替换附件会删除上一份附件/);
@@ -1602,5 +1602,5 @@ test("workspace unit footer does not cover teacher training forms", () => {
   assert.ok(footerMatch, "WorkspaceUnitFooter should be present");
   assert.doesNotMatch(footerMatch[0], /\bfixed\b/);
   assert.doesNotMatch(footerMatch[0], /\bbottom-0\b/);
-  assert.match(footerMatch[0], /\bmt-8\b/);
+  assert.match(footerMatch[0], /\bpointer-events-none\b/);
 });

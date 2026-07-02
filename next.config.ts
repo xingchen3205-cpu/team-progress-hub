@@ -126,6 +126,7 @@ const securityHeaders = [
 const nextConfig: NextConfig = {
   allowedDevOrigins: getAllowedDevOrigins(),
   compress: true,
+  serverExternalPackages: ["@prisma/adapter-libsql", "@libsql/client", "libsql"],
   async headers() {
     return [
       {

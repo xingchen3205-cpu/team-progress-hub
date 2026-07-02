@@ -3029,29 +3029,6 @@ export default function TeacherTrainingTab() {
       title: "查看已提交汇报",
     },
   ];
-  const todayOverviewCards = [
-    {
-      label: "课程安排",
-      value: selectedCohort?.stats.courseCount ?? 0,
-      Icon: CalendarDays,
-      onClick: () => openOverviewMetric({ detailViewTitle: "课程安排", section: "courses" }),
-      title: "查看课程安排",
-    },
-    {
-      label: "签到记录",
-      value: selectedCohort?.stats.checkInRecordCount ?? 0,
-      Icon: MapPin,
-      onClick: () => openOverviewMetric({ detailViewTitle: "课程签到记录", section: "checkins" }),
-      title: "查看签到记录",
-    },
-    {
-      label: "任务汇报",
-      value: selectedCohort?.stats.submissionCount ?? 0,
-      Icon: Send,
-      onClick: () => openOverviewMetric({ detailViewTitle: "已提交汇报", section: "tasks", submissionFilter: "submitted" }),
-      title: "查看已提交汇报",
-    },
-  ];
   const managerPendingAttendanceCount = selectedCohort
     ? Math.max(0, selectedCohort.stats.participantCount - selectedCohort.stats.presentCount)
     : 0;
@@ -3208,19 +3185,6 @@ export default function TeacherTrainingTab() {
         ]
       : []),
   ];
-  const teacherMobileFocusItems =
-    teacherMobilePriorityItems.length > 0
-      ? teacherMobilePriorityItems
-      : [
-          {
-            label: "今日事项已处理",
-            value: "已完成",
-            helper: "可继续查看课程安排",
-            Icon: CheckCircle2,
-            section: "courses" as const,
-            tone: "emerald" as const,
-          },
-        ];
   const teacherCommandTodoCards: Array<{
     label: string;
     value: string;
@@ -3883,6 +3847,7 @@ export default function TeacherTrainingTab() {
                             <input
                               checked={selectedManagerAccountIds.includes(account.id)}
                               className="mt-1 h-4 w-4 rounded border-slate-300 text-blue-600"
+                              {...fieldHint(`选择省培管理账号：${account.name}`)}
                               onChange={() =>
                                 setSelectedManagerAccountIds((current) => toggleSelectedId(current, account.id))
                               }
@@ -4034,6 +3999,7 @@ export default function TeacherTrainingTab() {
                                 <input
                                   checked={selectedCohortIds.includes(cohort.id)}
                                   className="h-4 w-4 shrink-0 rounded border-slate-300 text-blue-600"
+                                  {...fieldHint(`选择省培班次：${cohort.title}`)}
                                   onClick={(event) => event.stopPropagation()}
                                   onChange={() => setSelectedCohortIds((current) => toggleSelectedId(current, cohort.id))}
                                   type="checkbox"
@@ -4725,6 +4691,7 @@ export default function TeacherTrainingTab() {
                                 <input
                                   checked={selectedCourseSessionIds.includes(course.id)}
                                   className="h-4 w-4 rounded border-slate-300 text-blue-600"
+                                  {...fieldHint(`选择课程：${course.title}`)}
                                   onChange={() =>
                                     setSelectedCourseSessionIds((current) => toggleSelectedId(current, course.id))
                                   }
@@ -5231,6 +5198,7 @@ export default function TeacherTrainingTab() {
                                         <input
                                           checked={selectedCheckInTaskIds.includes(task.id)}
                                           className="h-4 w-4 rounded border-slate-300 text-blue-600"
+                                          {...fieldHint(`选择签到任务：${task.title}`)}
                                           onChange={() =>
                                             setSelectedCheckInTaskIds((current) => toggleSelectedId(current, task.id))
                                           }
@@ -5358,6 +5326,7 @@ export default function TeacherTrainingTab() {
                                     </p>
                                     <textarea
                                       className={`${fieldClassName} mt-2 min-h-20`}
+                                      {...fieldHint(`${manualCheckInParticipant.name}人工补签原因`)}
                                       onChange={(event) =>
                                         setManualCheckInDraft((current) => ({
                                           ...current,
@@ -6547,6 +6516,7 @@ export default function TeacherTrainingTab() {
                             <input
                               checked={selectedParticipantIds.includes(participant.id)}
                               className="h-4 w-4 rounded border-slate-300 text-blue-600"
+                              {...fieldHint(`选择参训教师：${participant.name}`)}
                               onChange={() => setSelectedParticipantIds((current) => toggleSelectedId(current, participant.id))}
                               type="checkbox"
                             />
@@ -7677,6 +7647,7 @@ export default function TeacherTrainingTab() {
                                 <input
                                   checked={selectedTeacherTrainingTaskIds.includes(task.id)}
                                   className="h-4 w-4 rounded border-slate-300 text-blue-600"
+                                  {...fieldHint(`选择汇报任务：${task.title}`)}
                                   onChange={() =>
                                     setSelectedTeacherTrainingTaskIds((current) => toggleSelectedId(current, task.id))
                                   }
@@ -7868,6 +7839,7 @@ export default function TeacherTrainingTab() {
                                         <input
                                           className={fieldClassName}
                                           inputMode="numeric"
+                                          {...fieldHint(`${submission.participantName}最终得分`)}
                                           max={100}
                                           min={0}
                                           onChange={(event) =>
@@ -7884,6 +7856,7 @@ export default function TeacherTrainingTab() {
                                         <span className={teacherTrainingFieldLabelClassName}>人工评语</span>
                                         <input
                                           className={fieldClassName}
+                                          {...fieldHint(`${submission.participantName}人工评语`)}
                                           onChange={(event) =>
                                             updateSubmissionReviewDraft(submission, { finalComment: event.target.value })
                                           }

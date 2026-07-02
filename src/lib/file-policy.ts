@@ -1,5 +1,3 @@
-import path from "node:path";
-
 export const MAX_UPLOAD_SIZE = 20 * 1024 * 1024;
 export const MAX_DOCUMENT_CENTER_UPLOAD_SIZE = 100 * 1024 * 1024;
 
@@ -37,7 +35,13 @@ export const documentCenterAcceptAttribute = [
   ...documentArchiveExtensions,
 ].join(",");
 
-export const getFileExtension = (fileName: string) => path.extname(fileName).toLowerCase();
+export const getFileExtension = (fileName: string) => {
+  const slashIndex = Math.max(fileName.lastIndexOf("/"), fileName.lastIndexOf("\\"));
+  const baseName = slashIndex >= 0 ? fileName.slice(slashIndex + 1) : fileName;
+  const dotIndex = baseName.lastIndexOf(".");
+
+  return dotIndex > 0 ? baseName.slice(dotIndex).toLowerCase() : "";
+};
 
 export const isAllowedUploadExtension = (fileName: string) =>
   allowedFileExtensions.includes(

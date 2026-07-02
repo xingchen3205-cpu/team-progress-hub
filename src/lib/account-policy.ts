@@ -1,5 +1,3 @@
-import path from "node:path";
-
 export const USERNAME_REGEX = /^[A-Za-z0-9]{4,20}$/;
 export const USERNAME_RULE_HINT = "账号名仅支持 4-20 位英文字母和数字，不能使用中文。";
 export const EMAIL_RULE_HINT = "请输入有效邮箱，用于接收任务、公告和日程提醒。";
@@ -86,6 +84,14 @@ export const MAX_AVATAR_UPLOAD_SIZE = 2 * 1024 * 1024;
 
 const allowedAvatarExtensions = [".jpg", ".jpeg", ".png", ".webp"] as const;
 
+const getFileExtension = (fileName: string) => {
+  const slashIndex = Math.max(fileName.lastIndexOf("/"), fileName.lastIndexOf("\\"));
+  const baseName = slashIndex >= 0 ? fileName.slice(slashIndex + 1) : fileName;
+  const dotIndex = baseName.lastIndexOf(".");
+
+  return dotIndex > 0 ? baseName.slice(dotIndex).toLowerCase() : "";
+};
+
 export const validateAvatarUploadMeta = ({
   fileName,
   fileSize,
@@ -93,7 +99,7 @@ export const validateAvatarUploadMeta = ({
   fileName: string;
   fileSize: number;
 }) => {
-  const extension = path.extname(fileName).toLowerCase();
+  const extension = getFileExtension(fileName);
 
   if (!allowedAvatarExtensions.includes(extension as (typeof allowedAvatarExtensions)[number])) {
     return "头像仅支持 JPG、PNG 或 WEBP 格式";

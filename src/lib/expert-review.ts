@@ -11,11 +11,10 @@ import type {
   User,
   Role,
 } from "@prisma/client";
-import path from "node:path";
 
-import { isMimeTypeAllowedForFileName } from "@/lib/file-policy";
+import { getFileExtension, isMimeTypeAllowedForFileName } from "@/lib/file-policy";
 import { roleLabels } from "@/lib/permissions";
-import { isExcludedReviewSeatStatus, type ReviewScreenSeatStatus } from "@/lib/review-screen-session";
+import type { ReviewScreenSeatStatus } from "@/lib/review-screen-session";
 
 export const expertReviewCategoryCaps = {
   scorePersonalGrowth: 25,
@@ -113,6 +112,9 @@ const expertReviewMaterialAllowedExtensions: Record<ExpertReviewMaterialKind, st
 
 const expertReviewMaterialMaxSize = 30 * 1024 * 1024;
 
+const isExcludedReviewSeatStatus = (status: ReviewScreenSeatStatus) =>
+  status === "excluded" || status === "voided";
+
 export const validateExpertReviewMaterial = ({
   kind,
   fileName,
@@ -124,7 +126,7 @@ export const validateExpertReviewMaterial = ({
   fileSize: number;
   mimeType?: string | null;
 }) => {
-  const extension = path.extname(fileName).toLowerCase();
+  const extension = getFileExtension(fileName);
   if (!expertReviewMaterialAllowedExtensions[kind].includes(extension)) {
     return `${expertReviewMaterialLabels[kind]}不支持该文件格式`;
   }
