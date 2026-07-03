@@ -463,7 +463,8 @@ export async function GET(request: NextRequest) {
       }
     : baseWhere;
   const shouldLoadSummary = mode === "summary" && !cohortId && !isParticipantOnly;
-  const [cohorts, approverOptions, managerAccountOptions] = await Promise.all([
+  const canManageAnyTeacherTraining = isManager || managedCohortIds.size > 0;
+  const [cohorts, approverOptions, managerAccountOptions, participantAccountOptions] = await Promise.all([
     prisma.teacherTrainingCohort.findMany({
       where,
       orderBy: [{ startDate: "desc" }, { createdAt: "desc" }],
@@ -540,6 +541,26 @@ export async function GET(request: NextRequest) {
           },
         })
       : Promise.resolve([]),
+    canManageAnyTeacherTraining
+      ? prisma.user.findMany({
+          where: {
+            approvalStatus: "approved",
+            role: {
+              in: ["teacher", "leader", "member", "training_teacher"],
+            },
+          },
+          orderBy: [{ role: "asc" }, { name: "asc" }],
+          select: {
+            id: true,
+            name: true,
+            username: true,
+            email: true,
+            phone: true,
+            role: true,
+            responsibility: true,
+          },
+        })
+      : Promise.resolve([]),
   ]);
   const managerOptions = managerAccountOptions.map((account) => ({
     id: account.id,
@@ -577,6 +598,15 @@ export async function GET(request: NextRequest) {
         cohortTitle: manager.cohort.title,
         title: manager.title,
       })),
+    })),
+    participantAccountOptions: participantAccountOptions.map((account) => ({
+      id: account.id,
+      name: account.name,
+      username: account.username,
+      email: account.email ?? "",
+      phone: account.phone ?? "",
+      role: account.role,
+      responsibility: account.responsibility ?? "",
     })),
   });
 }

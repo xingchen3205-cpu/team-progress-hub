@@ -227,6 +227,16 @@ export type TeacherTrainingManagerAccountItem = {
   }>;
 };
 
+export type TeacherTrainingParticipantAccountOptionItem = {
+  id: string;
+  name: string;
+  username: string;
+  email: string;
+  phone: string;
+  role: string;
+  responsibility: string;
+};
+
 export const teacherTrainingRoleTitleLabels: Record<string, string> = {
   admin: "系统管理员",
   school_admin: "校级管理员",
@@ -388,6 +398,7 @@ export type TeacherTrainingPayload = {
   approverOptions: TeacherTrainingApproverOptionItem[];
   managerOptions: TeacherTrainingApproverOptionItem[];
   managerAccountOptions: TeacherTrainingManagerAccountItem[];
+  participantAccountOptions: TeacherTrainingParticipantAccountOptionItem[];
 };
 
 type TeacherTrainingRoleUser = {

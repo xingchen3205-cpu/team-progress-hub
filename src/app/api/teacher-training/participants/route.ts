@@ -1,5 +1,4 @@
 import { NextRequest, NextResponse } from "next/server";
-import bcrypt from "bcryptjs";
 
 import { validateUsername } from "@/lib/account-policy";
 import { getSessionUser } from "@/lib/auth";
@@ -28,12 +27,20 @@ type TeacherTrainingParticipantInput = {
   arrivalDeparture?: string;
   extraInfo?: string;
   accountUsername?: string;
-  accountPassword?: string;
   note?: string;
 };
 
 const getParticipantIdentityKey = (participant: { name: string; organization: string }) =>
   `${participant.name.trim()}@@${participant.organization.trim()}`.toLocaleLowerCase("zh-CN");
+
+const hasRequiredParticipantRosterFields = (participant: TeacherTrainingParticipantInput) =>
+  Boolean(
+    participant.name?.trim() &&
+      participant.organization?.trim() &&
+      participant.phone?.trim() &&
+      participant.groupName?.trim() &&
+      (participant.title?.trim() || participant.professionalTitle?.trim()),
+  );
 
 export async function POST(request: NextRequest) {
   const user = await getSessionUser(request);
@@ -84,8 +91,8 @@ export async function POST(request: NextRequest) {
       }) || null,
       note: participant.note?.trim() || null,
     }));
-    if (rows.length === 0 || rows.some((participant) => !participant.name || !participant.organization)) {
-      return NextResponse.json({ message: "导入名单需包含姓名和单位" }, { status: 400 });
+    if (body.participants.length === 0 || body.participants.some((participant) => !hasRequiredParticipantRosterFields(participant))) {
+      return NextResponse.json({ message: "导入名单需包含姓名、单位、手机号、分组，以及职务或职称" }, { status: 400 });
     }
     const importedParticipantKeys = rows.map(getParticipantIdentityKey);
     const duplicatedImportedParticipantKeys = importedParticipantKeys.filter(
@@ -132,8 +139,8 @@ export async function POST(request: NextRequest) {
   const name = body?.name?.trim();
   const organization = body?.organization?.trim();
 
-  if (!cohortId || !name || !organization) {
-    return NextResponse.json({ message: "请填写班次、姓名和单位" }, { status: 400 });
+  if (!cohortId || !name || !organization || !body?.phone?.trim() || !body?.groupName?.trim() || !(body?.title?.trim() || body?.professionalTitle?.trim())) {
+    return NextResponse.json({ message: "请填写班次、姓名、单位、手机号、分组，以及职务或职称" }, { status: 400 });
   }
 
   const cohort = await prisma.teacherTrainingCohort.findFirst({
@@ -167,9 +174,7 @@ export async function POST(request: NextRequest) {
   }
 
   const accountUsername = body?.accountUsername?.trim();
-  const providedPassword = body?.accountPassword?.trim();
   let accountUserId: string | null = null;
-  let temporaryPassword: string | null = null;
 
   if (accountUsername) {
     const usernameError = validateUsername(accountUsername);
@@ -181,36 +186,18 @@ export async function POST(request: NextRequest) {
       where: {
         OR: [{ username: accountUsername }, { email: accountUsername }],
       },
-      select: { id: true, role: true },
+      select: { id: true, role: true, approvalStatus: true },
     });
-    if (existingAccount) {
-      if (existingAccount.role === "expert") {
-        return NextResponse.json({ message: "评审专家账号不能绑定为省培参训教师" }, { status: 400 });
-      }
-      accountUserId = existingAccount.id;
-    } else {
-      temporaryPassword = providedPassword || "123456";
-      const passwordHash = await bcrypt.hash(temporaryPassword, 10);
-      const accountUser = await prisma.user.create({
-        data: {
-          name,
-          username: accountUsername,
-          email: null,
-          password: passwordHash,
-          role: "training_teacher",
-          approvalStatus: "approved",
-          approvedAt: new Date(),
-          approvedById: user.id,
-          avatar: name.slice(0, 1),
-          avatarImagePath: null,
-          responsibility: "江苏省职业院校创新创业教育（竞赛）指导能力提升培训参训教师",
-        },
-        select: {
-          id: true,
-        },
-      });
-      accountUserId = accountUser.id;
+    if (!existingAccount) {
+      return NextResponse.json({ message: "请选择已有账号；如需新开通，请保存教师档案后使用手机号开通账号" }, { status: 400 });
     }
+    if (existingAccount.approvalStatus !== "approved") {
+      return NextResponse.json({ message: "该账号尚未审核通过，不能绑定为省培参训教师" }, { status: 400 });
+    }
+    if (!["teacher", "leader", "member", "training_teacher"].includes(existingAccount.role)) {
+      return NextResponse.json({ message: "该账号身份不适合作为省培参训教师账号" }, { status: 400 });
+    }
+    accountUserId = existingAccount.id;
   }
 
   const participant = await prisma.teacherTrainingParticipant.create({
@@ -239,7 +226,7 @@ export async function POST(request: NextRequest) {
     },
   });
 
-  return NextResponse.json({ participant, temporaryPassword }, { status: 201 });
+  return NextResponse.json({ participant, temporaryPassword: null }, { status: 201 });
 }
 
 export async function DELETE(request: NextRequest) {

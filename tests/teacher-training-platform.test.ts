@@ -153,8 +153,9 @@ test("teacher training APIs support admin-managed courses, check-in, tasks, subm
   assert.match(profileRoute, /accountUserId:\s*user\.id/);
   assert.match(read("src/app/api/teacher-training/participants/route.ts"), /existingAccount/);
   assert.match(read("src/app/api/teacher-training/participants/route.ts"), /accountUserId\s*=\s*existingAccount\.id/);
-  assert.match(read("src/app/api/teacher-training/participants/route.ts"), /role === "expert"/);
-  assert.match(read("src/app/api/teacher-training/participants/route.ts"), /role:\s*"training_teacher"/);
+  assert.match(read("src/app/api/teacher-training/participants/route.ts"), /请选择已有账号；如需新开通/);
+  assert.match(read("src/app/api/teacher-training/participants/route.ts"), /\["teacher",\s*"leader",\s*"member",\s*"training_teacher"\]\.includes/);
+  assert.doesNotMatch(read("src/app/api/teacher-training/participants/route.ts"), /prisma\.user\.create\(\{[\s\S]*role:\s*"training_teacher"/);
   assert.match(read("src/app/api/teacher-training/participants/route.ts"), /extraInfo/);
   assert.match(participantAccountRoute, /buildTeacherTrainingAccountMessage/);
   assert.match(participantAccountRoute, /linkedExistingAccount/);
@@ -974,12 +975,11 @@ test("teacher training manager forms keep visible field labels on mobile", () =>
     "培训开始日期",
     "培训结束日期",
     "培训说明",
-    "参训教师姓名",
-    "参训教师单位",
-    "参训教师手机",
-    "参训教师分组",
-    "省培登录账号 \/ 绑定创赛原平台账号",
-    "省培初始密码",
+    "参训教师姓名（必填）",
+    "所在单位（必填）",
+    "报名手机号（必填）",
+    "参训教师分组（必填）",
+    "绑定已有登录账号（选填）",
     "参训教师预录扩展信息",
     "参训教师备注",
     "课程名称",
@@ -1554,6 +1554,7 @@ test("teacher training account management is a manager account pool, not another
   const accountRoute = read("src/app/api/teacher-training/manager-accounts/route.ts");
   const cohortManagerRoute = read("src/app/api/teacher-training/cohort-managers/route.ts");
   const mainRoute = read("src/app/api/teacher-training/route.ts");
+  const participantsRoute = read("src/app/api/teacher-training/participants/route.ts");
 
   assert.match(contextSource, /"accounts"/);
   assert.match(contextSource, /省培账号管理/);
@@ -1561,6 +1562,8 @@ test("teacher training account management is a manager account pool, not another
   assert.match(contextSource, /saveTeacherTrainingManagerAccount/);
   assert.match(contextSource, /deleteTeacherTrainingManagerAccounts/);
   assert.match(mainRoute, /managerAccountOptions/);
+  assert.match(mainRoute, /participantAccountOptions/);
+  assert.match(mainRoute, /role:\s*\{\s*in:\s*\["teacher",\s*"leader",\s*"member",\s*"training_teacher"\],?\s*\}/);
   assert.match(accountRoute, /export async function POST/);
   assert.match(accountRoute, /export async function PATCH/);
   assert.match(accountRoute, /export async function DELETE/);
@@ -1569,6 +1572,13 @@ test("teacher training account management is a manager account pool, not another
   assert.match(cohortManagerRoute, /targetUser\.responsibility/);
   assert.match(cohortManagerRoute, /targetUser\.responsibility !== title/);
   assert.match(tabSource, /省培系统账号管理/);
+  assert.match(tabSource, /档案必填/);
+  assert.match(tabSource, /姓名、单位、手机号、分组必须填写；职务和职称至少填写一项/);
+  assert.match(tabSource, /绑定已有登录账号（选填）/);
+  assert.match(tabSource, /availableParticipantAccountOptions\.map/);
+  assert.match(participantsRoute, /导入名单需包含姓名、单位、手机号、分组，以及职务或职称/);
+  assert.doesNotMatch(tabSource, /省培初始密码/);
+  assert.doesNotMatch(tabSource, /填已有创赛账号则绑定/);
   assert.match(tabSource, /批量删除账号/);
   assert.match(tabSource, /setSelectedManagerAccountIds/);
   assert.doesNotMatch(tabSource, /isAccountManagementSection && participantAccountFilter === "unbound"/);

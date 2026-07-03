@@ -261,7 +261,9 @@ const buildParticipantImportPreview = (
   rows: TeacherTrainingParticipantImportRow[],
   existingParticipants: Workspace.TeacherTrainingParticipantItem[],
 ): TeacherTrainingImportPreview<TeacherTrainingParticipantImportRow> => {
-  const missingRequiredCount = rows.filter((row) => !row.name.trim() || !row.organization.trim()).length;
+  const hasRequiredParticipantRosterFields = (row: TeacherTrainingParticipantImportRow) =>
+    Boolean(row.name.trim() && row.organization.trim() && row.phone.trim() && row.groupName.trim() && (row.title.trim() || row.professionalTitle.trim()));
+  const missingRequiredCount = rows.filter((row) => !hasRequiredParticipantRosterFields(row)).length;
   const identityKeys = rows
     .filter((row) => row.name.trim() && row.organization.trim())
     .map(getParticipantImportIdentityKey);
@@ -767,6 +769,7 @@ export default function TeacherTrainingTab() {
     teacherTrainingCohorts,
     teacherTrainingApproverOptions,
     teacherTrainingManagerAccounts,
+    teacherTrainingParticipantAccountOptions,
     hasGlobalAdminRole,
     canManageTeacherTraining,
     activeTeacherTrainingSection,
@@ -884,7 +887,6 @@ export default function TeacherTrainingTab() {
     arrivalVehicleNo: "",
     arrivalDeparture: "",
     accountUsername: "",
-    accountPassword: "",
     extraInfo: "",
     note: "",
   });
@@ -1184,6 +1186,17 @@ export default function TeacherTrainingTab() {
       { label: "创赛原平台共用账号", value: platformCount, tone: "slate" },
     ];
   }, [selectedCohort?.participants]);
+  const boundParticipantAccountUserIds = useMemo(
+    () => new Set((selectedCohort?.participants ?? []).map((participant) => participant.accountUserId).filter(Boolean)),
+    [selectedCohort?.participants],
+  );
+  const availableParticipantAccountOptions = useMemo(
+    () =>
+      teacherTrainingParticipantAccountOptions.filter(
+        (account) => !boundParticipantAccountUserIds.has(account.id) || account.username === participantDraft.accountUsername,
+      ),
+    [boundParticipantAccountUserIds, participantDraft.accountUsername, teacherTrainingParticipantAccountOptions],
+  );
   const getParticipantAccountTypeLabel = (participant: Workspace.TeacherTrainingParticipantItem) => {
     if (!participant.accountUserId) return "未绑定账号";
     return participant.accountRole === "training_teacher" ? "省培专用账号" : "创赛原平台账号";
@@ -1943,6 +1956,16 @@ export default function TeacherTrainingTab() {
 
   const submitParticipant = async () => {
     if (!selectedCohort) return;
+    if (
+      !participantDraft.name.trim() ||
+      !participantDraft.organization.trim() ||
+      !participantDraft.phone.trim() ||
+      !participantDraft.groupName.trim() ||
+      !(participantDraft.title.trim() || participantDraft.professionalTitle.trim())
+    ) {
+      alert("请先补全参训教师档案必填项：姓名、单位、手机号、分组，以及职务或职称。");
+      return;
+    }
     await addTeacherTrainingParticipant({
       ...participantDraft,
       cohortId: selectedCohort.id,
@@ -4170,14 +4193,18 @@ export default function TeacherTrainingTab() {
                   </span>
                   <div className="min-w-0 flex-1">
                     <p className="text-[15px] font-bold text-slate-950">参训教师中心</p>
-                    <p className="mt-0.5 text-xs leading-5 text-slate-500">新增省培教师档案；可绑定创赛原平台账号，也可生成省培专用账号。</p>
+                    <p className="mt-0.5 text-xs leading-5 text-slate-500">新增参训教师档案；登录账号可从已有账号中选择，或保存后在账号管理里用手机号开通。</p>
                   </div>
                   <ChevronDown className={`h-4 w-4 shrink-0 text-slate-400 transition ${participantFormOpen ? "rotate-180" : ""}`} />
                 </button>
                 {participantFormOpen ? (
                 <div className="mt-3 space-y-3">
+                  <div className="rounded-xl border border-blue-100 bg-blue-50/45 px-3 py-2">
+                    <p className="text-xs font-bold text-blue-700">档案必填</p>
+                    <p className="mt-1 text-xs leading-5 text-blue-600">姓名、单位、手机号、分组必须填写；职务和职称至少填写一项。</p>
+                  </div>
                   <label className={teacherTrainingFieldShellClassName}>
-                    <span className={teacherTrainingFieldLabelClassName}>参训教师姓名</span>
+                    <span className={teacherTrainingFieldLabelClassName}>参训教师姓名（必填）</span>
                     <input
                       id="tt-participant-name-input"
                       className={fieldClassName}
@@ -4188,7 +4215,7 @@ export default function TeacherTrainingTab() {
                     />
                   </label>
                   <label className={teacherTrainingFieldShellClassName}>
-                    <span className={teacherTrainingFieldLabelClassName}>参训教师单位</span>
+                    <span className={teacherTrainingFieldLabelClassName}>所在单位（必填）</span>
                     <input
                       className={fieldClassName}
                       {...fieldHint("参训教师单位")}
@@ -4199,7 +4226,7 @@ export default function TeacherTrainingTab() {
                   </label>
                   <div className="grid gap-3 sm:grid-cols-2">
                     <label className={teacherTrainingFieldShellClassName}>
-                      <span className={teacherTrainingFieldLabelClassName}>参训教师手机</span>
+                      <span className={teacherTrainingFieldLabelClassName}>报名手机号（必填）</span>
                       <input
                         className={fieldClassName}
                         {...fieldHint("参训教师手机")}
@@ -4209,7 +4236,7 @@ export default function TeacherTrainingTab() {
                       />
                     </label>
                     <label className={teacherTrainingFieldShellClassName}>
-                      <span className={teacherTrainingFieldLabelClassName}>参训教师分组</span>
+                      <span className={teacherTrainingFieldLabelClassName}>参训教师分组（必填）</span>
                       <input
                         className={fieldClassName}
                         {...fieldHint("参训教师分组")}
@@ -4218,6 +4245,31 @@ export default function TeacherTrainingTab() {
                         value={participantDraft.groupName}
                       />
                     </label>
+                  </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <label className={teacherTrainingFieldShellClassName}>
+                      <span className={teacherTrainingFieldLabelClassName}>参训教师职务</span>
+                      <input
+                        className={fieldClassName}
+                        {...fieldHint("参训教师职务")}
+                        onChange={(event) => setParticipantDraft((current) => ({ ...current, title: event.target.value }))}
+                        placeholder="职务；职务和职称至少填一项"
+                        value={participantDraft.title}
+                      />
+                    </label>
+                    <label className={teacherTrainingFieldShellClassName}>
+                      <span className={teacherTrainingFieldLabelClassName}>职称</span>
+                      <input
+                        className={fieldClassName}
+                        {...fieldHint("职称")}
+                        onChange={(event) => setParticipantDraft((current) => ({ ...current, professionalTitle: event.target.value }))}
+                        placeholder="职称；职务和职称至少填一项"
+                        value={participantDraft.professionalTitle}
+                      />
+                    </label>
+                  </div>
+                  <div className="pt-1">
+                    <p className="text-xs font-bold text-slate-500">档案选填</p>
                   </div>
                   <div className="grid gap-3 sm:grid-cols-2">
                     <label className={teacherTrainingFieldShellClassName}>
@@ -4265,16 +4317,6 @@ export default function TeacherTrainingTab() {
                   </div>
                   <div className="grid gap-3 sm:grid-cols-2">
                     <label className={teacherTrainingFieldShellClassName}>
-                      <span className={teacherTrainingFieldLabelClassName}>职称</span>
-                      <input
-                        className={fieldClassName}
-                        {...fieldHint("职称")}
-                        onChange={(event) => setParticipantDraft((current) => ({ ...current, professionalTitle: event.target.value }))}
-                        placeholder="职称"
-                        value={participantDraft.professionalTitle}
-                      />
-                    </label>
-                    <label className={teacherTrainingFieldShellClassName}>
                       <span className={teacherTrainingFieldLabelClassName}>所属市</span>
                       <input
                         className={fieldClassName}
@@ -4282,18 +4324,6 @@ export default function TeacherTrainingTab() {
                         onChange={(event) => setParticipantDraft((current) => ({ ...current, city: event.target.value }))}
                         placeholder="所属市"
                         value={participantDraft.city}
-                      />
-                    </label>
-                  </div>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <label className={teacherTrainingFieldShellClassName}>
-                      <span className={teacherTrainingFieldLabelClassName}>参训教师职务</span>
-                      <input
-                        className={fieldClassName}
-                        {...fieldHint("参训教师职务")}
-                        onChange={(event) => setParticipantDraft((current) => ({ ...current, title: event.target.value }))}
-                        placeholder="职务"
-                        value={participantDraft.title}
                       />
                     </label>
                     <label className={teacherTrainingFieldShellClassName}>
@@ -4307,28 +4337,27 @@ export default function TeacherTrainingTab() {
                       />
                     </label>
                   </div>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <label className={teacherTrainingFieldShellClassName}>
-                      <span className={teacherTrainingFieldLabelClassName}>省培登录账号 / 绑定创赛原平台账号</span>
-                      <input
-                        className={fieldClassName}
-                        {...fieldHint("省培登录账号 / 绑定创赛原平台账号")}
-                        onChange={(event) => setParticipantDraft((current) => ({ ...current, accountUsername: event.target.value }))}
-                        placeholder="填已有创赛账号则绑定；留空可后续生成省培专用账号"
-                        value={participantDraft.accountUsername}
-                      />
-                    </label>
-                    <label className={teacherTrainingFieldShellClassName}>
-                      <span className={teacherTrainingFieldLabelClassName}>省培初始密码</span>
-                      <input
-                        className={fieldClassName}
-                        {...fieldHint("省培初始密码")}
-                        onChange={(event) => setParticipantDraft((current) => ({ ...current, accountPassword: event.target.value }))}
-                        placeholder="初始密码，不填则自动生成"
-                        value={participantDraft.accountPassword}
-                      />
-                    </label>
-                  </div>
+                  <label className={teacherTrainingFieldShellClassName}>
+                    <span className={teacherTrainingFieldLabelClassName}>绑定已有登录账号（选填）</span>
+                    <select
+                      className={fieldClassName}
+                      {...fieldHint("绑定已有登录账号")}
+                      onChange={(event) => setParticipantDraft((current) => ({ ...current, accountUsername: event.target.value }))}
+                      value={participantDraft.accountUsername}
+                    >
+                      <option value="">暂不绑定，保存档案后在账号管理中开通</option>
+                      {availableParticipantAccountOptions.map((account) => (
+                        <option key={account.id} value={account.username}>
+                          {account.name}（{account.username}）
+                          {account.phone ? ` · ${account.phone}` : ""}
+                          {account.role === "training_teacher" ? " · 省培账号" : " · 原平台账号"}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <p className="text-xs leading-5 text-slate-500">
+                    这里不会新建账号。没有合适账号时请先保存教师档案，再到省培账号管理里用手机号开通，初始密码统一为 123456。
+                  </p>
                   <label className={teacherTrainingFieldShellClassName}>
                     <span className={teacherTrainingFieldLabelClassName}>参训教师预录扩展信息</span>
                     <textarea

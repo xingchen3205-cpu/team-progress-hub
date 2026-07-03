@@ -121,6 +121,7 @@ import type {
   TeacherTrainingCohortItem,
   TeacherTrainingLeaveFlowStep,
   TeacherTrainingManagerAccountItem,
+  TeacherTrainingParticipantAccountOptionItem,
   TeacherTrainingTaskReleaseMode,
 } from "@/lib/teacher-training";
 import {
@@ -279,7 +280,6 @@ export type TeacherTrainingParticipantDraft = {
   arrivalVehicleNo: string;
   arrivalDeparture: string;
   accountUsername: string;
-  accountPassword: string;
   extraInfo: string;
   note: string;
 };
@@ -2415,6 +2415,9 @@ function useWorkspaceController({
   const [teacherTrainingApproverOptions, setTeacherTrainingApproverOptions] = useState<TeacherTrainingApproverOptionItem[]>([]);
   const [teacherTrainingManagerOptions, setTeacherTrainingManagerOptions] = useState<TeacherTrainingApproverOptionItem[]>([]);
   const [teacherTrainingManagerAccounts, setTeacherTrainingManagerAccounts] = useState<TeacherTrainingManagerAccountItem[]>([]);
+  const [teacherTrainingParticipantAccountOptions, setTeacherTrainingParticipantAccountOptions] = useState<
+    TeacherTrainingParticipantAccountOptionItem[]
+  >([]);
   const [trainingPanel, setTrainingPanel] = useState<"qa" | "pitch">("qa");
   const [documents, setDocuments] = useState<DocumentItem[]>([]);
   const [projectStages, setProjectStages] = useState<ProjectReviewStageItem[]>([]);
@@ -3024,6 +3027,7 @@ function useWorkspaceController({
     setTeacherTrainingApproverOptions([]);
     setTeacherTrainingManagerOptions([]);
     setTeacherTrainingManagerAccounts([]);
+    setTeacherTrainingParticipantAccountOptions([]);
     setDocuments([]);
     setProjectStages([]);
     setProjectMaterials([]);
@@ -3225,11 +3229,13 @@ function useWorkspaceController({
             approverOptions: TeacherTrainingApproverOptionItem[];
             managerOptions: TeacherTrainingApproverOptionItem[];
             managerAccountOptions: TeacherTrainingManagerAccountItem[];
+            participantAccountOptions: TeacherTrainingParticipantAccountOptionItem[];
           }>("/api/teacher-training?mode=summary");
           setTeacherTrainingCohorts(payload.cohorts);
           setTeacherTrainingApproverOptions(payload.approverOptions ?? []);
           setTeacherTrainingManagerOptions(payload.managerOptions ?? []);
           setTeacherTrainingManagerAccounts(payload.managerAccountOptions ?? []);
+          setTeacherTrainingParticipantAccountOptions(payload.participantAccountOptions ?? []);
           const detailCohortId =
             activeTeacherTrainingCohortId && payload.cohorts.some((cohort) => cohort.id === activeTeacherTrainingCohortId)
               ? activeTeacherTrainingCohortId
@@ -5442,13 +5448,16 @@ function useWorkspaceController({
     const cohortId = draft.cohortId.trim();
     const name = draft.name.trim();
     const organization = draft.organization.trim();
+    const phone = draft.phone.trim();
+    const groupName = draft.groupName.trim();
+    const title = draft.title.trim();
+    const professionalTitle = draft.professionalTitle.trim();
 
-    if (!cohortId || !name || !organization) {
-      setLoadError("请先填写班次、姓名和单位");
+    if (!cohortId || !name || !organization || !phone || !groupName || !(title || professionalTitle)) {
+      setLoadError("请先填写班次、姓名、单位、手机号、分组，以及职务或职称");
       return;
     }
 
-    const phone = draft.phone.trim();
     const email = draft.email.trim();
     if (phone && !/^1[3-9]\d{9}$/.test(phone)) {
       setLoadError("手机号格式不正确，请填写 11 位中国大陆手机号");
@@ -5468,21 +5477,20 @@ function useWorkspaceController({
           name,
           organization,
           phone,
-          groupName: draft.groupName.trim(),
-          title: draft.title.trim(),
+          groupName,
+          title,
           email,
           gender: draft.gender.trim(),
           age: draft.age.trim(),
           personnelCategory: draft.personnelCategory.trim(),
           subject: draft.subject.trim(),
-          professionalTitle: draft.professionalTitle.trim(),
+          professionalTitle,
           city: draft.city.trim(),
           arrivalTransportation: draft.arrivalTransportation.trim(),
           arrivalAt: draft.arrivalAt.trim(),
           arrivalVehicleNo: draft.arrivalVehicleNo.trim(),
           arrivalDeparture: draft.arrivalDeparture.trim(),
           accountUsername: draft.accountUsername.trim(),
-          accountPassword: draft.accountPassword.trim(),
           extraInfo: draft.extraInfo.trim(),
           note: draft.note.trim(),
         }),
@@ -8274,6 +8282,8 @@ function useWorkspaceController({
     setTeacherTrainingManagerOptions,
     teacherTrainingManagerAccounts,
     setTeacherTrainingManagerAccounts,
+    teacherTrainingParticipantAccountOptions,
+    setTeacherTrainingParticipantAccountOptions,
     trainingPanel,
     setTrainingPanel,
     documents,
