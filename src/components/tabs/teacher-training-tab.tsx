@@ -2941,10 +2941,18 @@ export default function TeacherTrainingTab() {
     openTeacherTrainingSection(section, { keepDetailViewTitle: true });
   };
 
-  const metricCards: Array<{ label: string; value: number; Icon: typeof Users; onClick: () => void; title: string }> = [
+  const managerOverviewStats: Array<{
+    label: string;
+    value: number;
+    helper: string;
+    Icon: typeof Users;
+    onClick: () => void;
+    title: string;
+  }> = [
     {
       label: "参训教师",
       value: selectedCohort?.stats.participantCount ?? 0,
+      helper: "名单",
       Icon: Users,
       onClick: () => openOverviewMetric({ detailViewTitle: "全部参训教师", section: "participants" }),
       title: "查看参训教师名单",
@@ -2952,6 +2960,7 @@ export default function TeacherTrainingTab() {
     {
       label: "负责人/班主任",
       value: selectedCohort?.stats.managerCount ?? 0,
+      helper: "管理",
       Icon: User,
       onClick: () => openOverviewMetric({ detailViewTitle: "负责人/班主任", section: "cohorts" }),
       title: "查看负责人/班主任设置",
@@ -2959,6 +2968,7 @@ export default function TeacherTrainingTab() {
     {
       label: "课程",
       value: selectedCohort?.stats.courseCount ?? 0,
+      helper: "安排",
       Icon: CalendarDays,
       onClick: () => openOverviewMetric({ detailViewTitle: "课程安排", section: "courses" }),
       title: "查看课程安排",
@@ -2966,6 +2976,7 @@ export default function TeacherTrainingTab() {
     {
       label: "已报到",
       value: selectedCohort?.stats.presentCount ?? 0,
+      helper: "报到",
       Icon: CheckCircle2,
       onClick: () => openOverviewMetric({ attendanceFilter: "registered", detailViewTitle: "已报到教师", section: "attendance" }),
       title: "查看已报到教师",
@@ -2973,6 +2984,7 @@ export default function TeacherTrainingTab() {
     {
       label: "请假",
       value: selectedCohort?.stats.leaveCount ?? 0,
+      helper: "审批",
       Icon: CalendarDays,
       onClick: () => openOverviewMetric({ attendanceFilter: "leave", detailViewTitle: "请假教师", section: "attendance" }),
       title: "查看请假教师",
@@ -2980,6 +2992,7 @@ export default function TeacherTrainingTab() {
     {
       label: "缺勤",
       value: selectedCohort?.stats.absentCount ?? 0,
+      helper: "考勤",
       Icon: FileCheck,
       onClick: () => openOverviewMetric({ attendanceFilter: "absent", detailViewTitle: "缺勤教师", section: "attendance" }),
       title: "查看缺勤教师",
@@ -2987,6 +3000,7 @@ export default function TeacherTrainingTab() {
     {
       label: "课程签到",
       value: selectedCohort?.stats.checkInRecordCount ?? 0,
+      helper: "记录",
       Icon: MapPin,
       onClick: () => openOverviewMetric({ detailViewTitle: "课程签到记录", section: "checkins" }),
       title: "查看课程签到记录",
@@ -2994,6 +3008,7 @@ export default function TeacherTrainingTab() {
     {
       label: "任务",
       value: selectedCohort?.stats.taskCount ?? 0,
+      helper: "发布",
       Icon: FileText,
       onClick: () => openOverviewMetric({ detailViewTitle: "全部任务", section: "tasks", submissionFilter: "all" }),
       title: "查看任务列表",
@@ -3001,30 +3016,8 @@ export default function TeacherTrainingTab() {
     {
       label: "汇报",
       value: selectedCohort?.stats.submissionCount ?? 0,
+      helper: "提交",
       Icon: Send,
-      onClick: () => openOverviewMetric({ detailViewTitle: "已提交汇报", section: "tasks", submissionFilter: "submitted" }),
-      title: "查看已提交汇报",
-    },
-  ];
-  const overviewSummaryCards = [
-    {
-      label: "参训教师",
-      value: selectedCohort?.stats.participantCount ?? 0,
-      helper: "名单档案",
-      onClick: () => openOverviewMetric({ detailViewTitle: "全部参训教师", section: "participants" }),
-      title: "查看参训教师名单",
-    },
-    {
-      label: "课程安排",
-      value: selectedCohort?.stats.courseCount ?? 0,
-      helper: "课程表",
-      onClick: () => openOverviewMetric({ detailViewTitle: "课程安排", section: "courses" }),
-      title: "查看课程安排",
-    },
-    {
-      label: "任务汇报",
-      value: selectedCohort?.stats.submissionCount ?? 0,
-      helper: "已提交",
       onClick: () => openOverviewMetric({ detailViewTitle: "已提交汇报", section: "tasks", submissionFilter: "submitted" }),
       title: "查看已提交汇报",
     },
@@ -3085,14 +3078,12 @@ export default function TeacherTrainingTab() {
     Icon: typeof Users;
     onClick: () => void;
   }> = [
-    { label: "参训教师", helper: "报名档案和预录信息", Icon: Users, onClick: () => openTeacherTrainingSection("participants") },
-    { label: "账号管理", helper: "绑定创赛账号或省培专用账号", Icon: Users, onClick: () => openTeacherTrainingSection("accounts") },
-    { label: "课程安排", helper: "课程表和授课信息", Icon: CalendarDays, onClick: () => openTeacherTrainingSection("courses") },
-    { label: "报到签到", helper: "报到登记和课程签到", Icon: MapPin, onClick: () => openTeacherTrainingSection("attendance") },
-    { label: "请假审批", helper: "待审批和全部申请", Icon: FileCheck, onClick: () => openTeacherTrainingSection("leave") },
-    { label: "任务汇报", helper: "发布任务和查看提交", Icon: Send, onClick: () => openTeacherTrainingSection("tasks") },
-    { label: "导出归档", helper: "名单、签到、汇报导出", Icon: Download, onClick: () => openTeacherTrainingSection("exports") },
+    { label: "参训教师", helper: "名单、账号和资料", Icon: Users, onClick: () => openTeacherTrainingSection("participants") },
+    { label: "课程安排", helper: "课程表和签到任务", Icon: CalendarDays, onClick: () => openTeacherTrainingSection("courses") },
+    { label: "请假审批", helper: "待审申请和流程", Icon: FileCheck, onClick: () => openTeacherTrainingSection("leave") },
+    { label: "任务汇报", helper: "作业发布与评分", Icon: Send, onClick: () => openTeacherTrainingSection("tasks") },
   ];
+  const managerPendingActionCount = managerCommandTodoCards.reduce((total, item) => total + item.value, 0);
   const teacherTrainingSectionCounts: Partial<Record<Workspace.TeacherTrainingSectionKey, number>> = {
     cohorts: selectedCohort?.stats.managerCount ?? 0,
     participants: selectedCohort?.stats.participantCount ?? 0,
@@ -3185,7 +3176,68 @@ export default function TeacherTrainingTab() {
         ]
       : []),
   ];
-  const teacherCommandTodoCards: Array<{
+  const teacherPrimaryAction:
+    | {
+        label: string;
+        value: string;
+        helper: string;
+        actionLabel: string;
+        Icon: typeof Users;
+        section: Workspace.TeacherTrainingSectionKey;
+        tone: "amber" | "blue" | "emerald";
+      }
+    | null = teacherPendingCheckInCount > 0
+    ? {
+        label: "现在处理签到",
+        value: `${teacherPendingCheckInCount} 项待签到`,
+        helper: "到达课程地点后打开定位签到，失败时可联系班主任处理。",
+        actionLabel: "去签到",
+        Icon: MapPin,
+        section: "checkins",
+        tone: "amber",
+      }
+    : teacherPendingTaskCount > 0
+      ? {
+          label: "继续提交汇报",
+          value: `${teacherPendingTaskCount} 项待提交`,
+          helper: "按课程或总任务填写汇报，附件限 Word/PDF。",
+          actionLabel: "去填写",
+          Icon: Send,
+          section: "tasks",
+          tone: "blue",
+        }
+      : teacherProfileNeedsAttention
+        ? {
+            label: "完善个人信息",
+            value: "资料待核对",
+            helper: "邮箱、密码和基本信息完善后，其他省培功能才完整开放。",
+            actionLabel: "去完善",
+            Icon: User,
+            section: "profile",
+            tone: "amber",
+          }
+        : teacherNextCourse
+          ? {
+              label: "查看今日课程",
+              value: "课程已发布",
+              helper: [teacherNextCourse.courseDate, [teacherNextCourse.startTime, teacherNextCourse.endTime].filter(Boolean).join("-")]
+                .filter(Boolean)
+                .join(" · "),
+              actionLabel: "看课程",
+              Icon: CalendarDays,
+              section: "courses",
+              tone: "blue",
+            }
+          : {
+              label: "当前暂无待办",
+              value: "状态正常",
+              helper: "可以查看课程安排、请假记录或个人资料。",
+              actionLabel: "查看课程",
+              Icon: CheckCircle2,
+              section: "courses",
+              tone: "emerald",
+            };
+  const teacherOverviewStatusItems: Array<{
     label: string;
     value: string;
     helper: string;
@@ -3193,18 +3245,6 @@ export default function TeacherTrainingTab() {
     section: Workspace.TeacherTrainingSectionKey;
     tone: "amber" | "blue" | "emerald";
   }> = [
-    {
-      label: "今日课程",
-      value: teacherNextCourse ? "已发布" : "待发布",
-      helper: teacherNextCourse
-        ? [teacherNextCourse.courseDate, [teacherNextCourse.startTime, teacherNextCourse.endTime].filter(Boolean).join("-")]
-            .filter(Boolean)
-            .join(" · ")
-        : "等待管理员发布课程安排",
-      Icon: CalendarDays,
-      section: "courses",
-      tone: teacherNextCourse ? "blue" : "amber",
-    },
     {
       label: "定位签到",
       value: teacherPendingCheckInCount > 0 ? `${teacherPendingCheckInCount} 项` : "已处理",
@@ -3238,6 +3278,13 @@ export default function TeacherTrainingTab() {
       tone: teacherProfileNeedsAttention ? "amber" : "emerald",
     },
   ];
+  const teacherSecondaryActions = [
+    { label: "课程", Icon: CalendarDays, onClick: () => openTeacherTrainingSection("courses") },
+    { label: "签到", Icon: MapPin, onClick: () => openTeacherTrainingSection("checkins") },
+    { label: "汇报", Icon: Send, onClick: () => openTeacherTrainingSection("tasks") },
+    { label: "请假", Icon: FileCheck, onClick: () => openTeacherTrainingSection("leave") },
+    { label: "资料", Icon: User, onClick: () => openTeacherTrainingSection("profile") },
+  ];
   const focusTeacherTaskSubmission = (taskId: string) => {
     const participantId = selectedParticipant?.id ?? submissionDraft.participantId;
     setSubmissionDraft(buildSubmissionDraftForSelection(taskId, participantId));
@@ -3258,43 +3305,6 @@ export default function TeacherTrainingTab() {
       });
     });
   };
-  const teacherHomeQuickActions = [
-    {
-      label: "课程安排",
-      value: courseSessions.length,
-      helper: courseSessions.length > 0 ? "查看课程时间地点" : "等待管理员发布",
-      Icon: CalendarDays,
-      onClick: () => openTeacherTrainingSection("courses"),
-    },
-    {
-      label: "课程签到",
-      value: selectedCohort?.checkInTasks.length ?? 0,
-      helper: canManage ? "查看签到进度" : teacherCheckInQuickActionHelper,
-      Icon: MapPin,
-      onClick: () => openTeacherTrainingSection("checkins"),
-    },
-    {
-      label: "任务汇报",
-      value: selectedCohort?.tasks.length ?? 0,
-      helper: canManage ? "查看提交进度" : teacherTaskQuickActionHelper,
-      Icon: Send,
-      onClick: () => openTeacherTrainingSection("tasks"),
-    },
-    {
-      label: "临时请假",
-      value: selectedParticipant?.leaveRequests.length ?? 0,
-      helper: selectedCohort?.leaveFlow?.isEnabled ? "提交或查看进度" : "等待流程配置",
-      Icon: FileCheck,
-      onClick: () => openTeacherTrainingSection("leave"),
-    },
-    {
-      label: "个人信息",
-      value: hasSelectedParticipant ? "已绑定" : "待确认",
-      helper: hasSelectedParticipant ? "核对资料和预计到达时间" : "联系管理员绑定",
-      Icon: User,
-      onClick: () => openTeacherTrainingSection("profile"),
-    },
-  ];
   const ActiveTeacherTrainingIcon = activeTeacherTrainingSectionMeta?.Icon ?? ClipboardCheck;
   const showTeacherTrainingSection = (...keys: Workspace.TeacherTrainingSectionKey[]) =>
     keys.includes(effectiveTeacherTrainingSection);
@@ -3318,21 +3328,24 @@ export default function TeacherTrainingTab() {
   };
   return (
     <div className="space-y-4">
-      <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <SectionHeader
           description="省培平台独立管理班次、参训教师、课程签到、任务汇报、请假审批和导出归档。"
           title="江苏省职业院校创新创业教育（竞赛）指导能力提升培训"
         />
-        <div className="min-w-[180px] rounded-2xl border border-blue-100 bg-white/80 px-4 py-3 shadow-sm">
-          <p className="text-xs font-semibold text-slate-500">当前模块</p>
-          <p className="mt-1 text-sm font-bold text-slate-950">{activeTeacherTrainingSectionMeta?.label ?? "工作台"}</p>
-          <p className="mt-1 max-w-56 text-xs leading-5 text-slate-500">
-            {activeTeacherTrainingSectionMeta?.description ?? "查看省培平台运行情况。"}
-          </p>
+        <div className="inline-flex w-fit min-w-[180px] items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
+          <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-700">
+            <ActiveTeacherTrainingIcon className="h-4 w-4" />
+          </span>
+          <div>
+            <p className="text-[11px] font-semibold text-slate-500">当前模块</p>
+            <p className="whitespace-nowrap text-sm font-bold text-slate-950">{activeTeacherTrainingSectionMeta?.label ?? "工作台"}</p>
+          </div>
         </div>
       </div>
 
       <div key={effectiveTeacherTrainingSection} className="tt-fade-in space-y-4" id="teacher-training-content">
+          {effectiveTeacherTrainingSection !== "overview" ? (
           <section
             aria-label="省培操作提示"
             className="teacher-training-mobile-guide rounded-2xl border border-blue-100 bg-white/86 p-4 shadow-[0_18px_42px_rgba(26,111,212,0.12)] backdrop-blur transition duration-300 sm:hidden"
@@ -3361,6 +3374,7 @@ export default function TeacherTrainingTab() {
               ))}
             </div>
           </section>
+          ) : null}
 
           {!canManage && teacherMobileNavigationSections.length > 1 ? (
             <nav
@@ -3381,7 +3395,7 @@ export default function TeacherTrainingTab() {
                         className={`inline-flex h-10 items-center gap-1.5 rounded-xl px-3 text-xs font-bold transition duration-200 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200/70 ${
                           isActive
                             ? "bg-blue-600 text-white shadow-lg shadow-blue-600/18"
-                            : "bg-slate-50 text-slate-600 hover:bg-blue-50 hover:text-blue-700"
+                            : "bg-slate-50 text-slate-600 hover:bg-slate-100 hover:text-blue-700"
                         }`}
                         onClick={() => openTeacherTrainingSection(section.key)}
                         title={`进入省培模块：${section.label}`}
@@ -3419,69 +3433,50 @@ export default function TeacherTrainingTab() {
 
           {!canManage && showTeacherTrainingSection("overview") ? (
             <section
-              aria-label="我的省培入口"
-              className="rounded-2xl border border-blue-100 bg-white/90 p-4 shadow-[0_18px_42px_rgba(26,111,212,0.10)] backdrop-blur"
+              aria-label="我的下一步事项"
+              className="tt-card p-4 sm:p-5"
             >
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
+              <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
                 <div>
-                  <p className="text-sm font-bold text-slate-950">我的省培入口</p>
-                  <p className="mt-1 text-xs leading-5 text-slate-500">
-                    先处理下一步事项，再查看课程、请假和个人信息。
-                  </p>
+                  <p className="text-sm font-bold text-slate-950">我的下一步事项</p>
+                  <p className="mt-1 text-xs leading-5 text-slate-500">优先完成当前事项，备用入口在下方保留。</p>
                 </div>
-                <span className="w-fit rounded-full bg-blue-50 px-3 py-1 text-xs font-semibold text-blue-700">
-                  教师端常用操作
+                <span className="tt-pill tt-pill-neutral">
+                  {teacherMobilePriorityItems.length > 0 ? `${teacherMobilePriorityItems.length} 项待处理` : "状态正常"}
                 </span>
               </div>
-              <div
-                aria-label="省培今日待办"
-                className="mt-3 rounded-2xl border border-blue-100 bg-[linear-gradient(135deg,rgba(37,99,235,0.08),rgba(255,255,255,0.92)_46%,rgba(20,184,166,0.08))] p-3 shadow-inner shadow-white/60"
-              >
-                <div className="flex items-center justify-between gap-3">
-                  <p className="text-sm font-bold text-slate-950">我的待办</p>
-                  <span className="rounded-full bg-white/80 px-2.5 py-1 text-xs font-bold text-blue-700">
-                    {teacherMobilePriorityItems.length > 0 ? `${teacherMobilePriorityItems.length} 项待处理` : "状态正常"}
-                  </span>
-                </div>
-                <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
-                  {teacherCommandTodoCards.map((item) => (
-                    <button
-                      key={item.label}
-                      aria-label={`处理省培${item.label}`}
-                      className="tt-action-card group flex min-h-[74px] items-center gap-3 p-3 text-left focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200/70"
-                      onClick={() => openTeacherTrainingSection(item.section)}
-                      title={`处理省培${item.label}`}
-                      type="button"
-                    >
-                      <span
-                        className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition group-hover:scale-105 ${
-                          item.tone === "amber"
-                            ? "bg-amber-50 text-amber-700"
-                            : item.tone === "emerald"
-                              ? "bg-emerald-50 text-emerald-700"
-                              : "bg-blue-50 text-blue-700"
-                        }`}
-                      >
-                        <item.Icon className="h-4 w-4" />
-                      </span>
-                      <span className="min-w-0">
-                        <span className="flex items-center gap-2">
-                          <span className="truncate text-sm font-bold text-slate-950">{item.label}</span>
-                          <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-600">
-                            {item.value}
-                          </span>
-                        </span>
-                        <span className="mt-1 block text-xs leading-5 text-slate-500">{item.helper}</span>
-                      </span>
-                    </button>
-                  ))}
-                </div>
-              </div>
-              <div
-                aria-label="省培下一节课"
-                className="mt-3 rounded-2xl border border-slate-200/80 bg-white/86 p-3 shadow-sm"
-              >
-                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+
+              <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1.18fr)_minmax(280px,0.82fr)]">
+                {teacherPrimaryAction ? (
+                  <button
+                    aria-label={`处理省培事项：${teacherPrimaryAction.label}`}
+                    className={`tt-primary-action group text-left focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200/70 ${
+                      teacherPrimaryAction.tone === "amber"
+                        ? "tt-primary-action-warning"
+                        : teacherPrimaryAction.tone === "emerald"
+                          ? "tt-primary-action-success"
+                          : ""
+                    }`}
+                    onClick={() => openTeacherTrainingSection(teacherPrimaryAction.section)}
+                    title={`处理省培事项：${teacherPrimaryAction.label}`}
+                    type="button"
+                  >
+                    <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white text-blue-700 ring-1 ring-slate-200 transition group-hover:ring-blue-200">
+                      <teacherPrimaryAction.Icon className="h-5 w-5" />
+                    </span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-xs font-semibold text-slate-500">下一步</span>
+                      <span className="mt-1 block text-xl font-black leading-6 text-slate-950">{teacherPrimaryAction.label}</span>
+                      <span className="mt-1 block text-sm font-semibold text-blue-700">{teacherPrimaryAction.value}</span>
+                      <span className="mt-2 block text-xs leading-5 text-slate-500">{teacherPrimaryAction.helper}</span>
+                    </span>
+                    <span className="inline-flex h-9 shrink-0 items-center justify-center rounded-lg bg-slate-950 px-3 text-xs font-bold text-white transition group-hover:bg-blue-700">
+                      {teacherPrimaryAction.actionLabel}
+                    </span>
+                  </button>
+                ) : null}
+
+                <div aria-label="省培今日课程" className="tt-status-panel">
                   <div className="min-w-0">
                     <p className="text-xs font-bold text-blue-700">今日课程</p>
                     {teacherNextCourse ? (
@@ -3504,7 +3499,7 @@ export default function TeacherTrainingTab() {
                   </div>
                   <button
                     aria-label="按时间顺序查看全部课程"
-                    className="inline-flex h-9 shrink-0 items-center justify-center rounded-xl bg-blue-50 px-3 text-xs font-bold text-blue-700 transition hover:bg-blue-100 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200/70"
+                    className="inline-flex h-9 shrink-0 items-center justify-center rounded-lg bg-blue-50 px-3 text-xs font-bold text-blue-700 transition hover:bg-blue-100 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200/70"
                     onClick={() => openTeacherTrainingSection("courses")}
                     title="按时间顺序查看全部课程"
                     type="button"
@@ -3513,28 +3508,45 @@ export default function TeacherTrainingTab() {
                   </button>
                 </div>
               </div>
-              <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-5">
-                {teacherHomeQuickActions.map((item) => (
+
+              <div className="mt-4 grid gap-2 md:grid-cols-4">
+                {teacherOverviewStatusItems.map((item) => (
+                  <button
+                    key={item.label}
+                    aria-label={`查看省培${item.label}`}
+                    className="tt-status-row group text-left focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200/70"
+                    onClick={() => openTeacherTrainingSection(item.section)}
+                    title={`查看省培${item.label}`}
+                    type="button"
+                  >
+                    <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-50 text-slate-700 transition group-hover:bg-slate-100 group-hover:text-blue-700">
+                      <item.Icon className="h-4 w-4" />
+                    </span>
+                    <span className="min-w-0">
+                      <span className="flex items-center gap-2">
+                        <span className="truncate text-sm font-bold text-slate-950">{item.label}</span>
+                        <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-600">
+                          {item.value}
+                        </span>
+                      </span>
+                      <span className="mt-1 block truncate text-xs text-slate-500">{item.helper}</span>
+                    </span>
+                  </button>
+                ))}
+              </div>
+
+              <div className="mt-4 flex flex-wrap gap-2" aria-label="省培教师快捷入口">
+                {teacherSecondaryActions.map((item) => (
                   <button
                     key={item.label}
                     aria-label={`进入省培${item.label}`}
-                    className="tt-action-card group grid min-h-[92px] gap-2 p-3 text-left focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200/70"
+                    className="tt-secondary-link focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200/70"
                     onClick={item.onClick}
                     title={`进入省培${item.label}`}
                     type="button"
                   >
-                    <span className="flex items-start justify-between gap-2">
-                      <span className="inline-flex h-9 w-9 items-center justify-center rounded-xl bg-blue-50 text-blue-700 transition group-hover:bg-[#1a6fd4] group-hover:text-white">
-                        <item.Icon className="h-4 w-4" />
-                      </span>
-                      <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-bold text-slate-600">
-                        {item.value}
-                      </span>
-                    </span>
-                    <span>
-                      <span className="block text-sm font-bold text-slate-950">{item.label}</span>
-                      <span className="mt-1 block text-xs leading-5 text-slate-500">{item.helper}</span>
-                    </span>
+                    <item.Icon className="h-3.5 w-3.5" />
+                    <span>{item.label}</span>
                   </button>
                 ))}
               </div>
@@ -3548,84 +3560,67 @@ export default function TeacherTrainingTab() {
           ) : null}
 
           {canManage && showTeacherTrainingSection("overview") ? (
-            <section className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5" aria-label="省培详细数据">
-              {metricCards.map(({ label, value, Icon, onClick, title }) => (
-                <button
-                  key={label}
-                  aria-label={`查看省培${label}明细`}
-                  className="tt-stat group text-left focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200/70"
-                  onClick={onClick}
-                  title={title}
-                  type="button"
-                >
-                  <div className="flex items-center justify-between gap-3 pl-1.5">
-                    <p className="tt-stat-label">{label}</p>
-                    <span className="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-[#1a6fd4]/10 text-[#1a6fd4] transition group-hover:bg-[#1a6fd4] group-hover:text-white">
-                      <Icon className="h-4 w-4" />
-                    </span>
-                  </div>
-                  <p className="tt-stat-value mt-2 pl-1.5">{value}</p>
-                </button>
-              ))}
-            </section>
-          ) : null}
-
-          {canManage && showTeacherTrainingSection("overview") ? (
-            <section className="grid items-stretch gap-5 xl:grid-cols-[minmax(0,1.08fr)_minmax(320px,0.92fr)]" aria-label="班次指挥台">
+            <section className="grid items-stretch gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(300px,0.34fr)]" aria-label="班次运行总览">
               <div className="tt-card-accent flex flex-col gap-5 p-5">
                 <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
                   <div className="min-w-0">
-                    <p className="text-xs font-bold uppercase tracking-[0.12em] text-[#1a6fd4]">省培Workbench</p>
+                    <p className="text-sm font-bold text-blue-700">班次运行总览</p>
                     <h3 className="mt-2 text-2xl font-bold leading-8 text-slate-950">
                       {selectedCohort?.title ?? "暂无省培班次"}
                     </h3>
                     <p className="mt-2 text-sm leading-6 text-slate-500">
                       {selectedCohort
                         ? `${selectedCohort.startDate} 至 ${selectedCohort.endDate}${selectedCohort.location ? ` · ${selectedCohort.location}` : ""}`
-                        : "系统管理员可先创建班次，再维护名单、课程、签到、汇报和请假流程。"}
+                      : "系统管理员可先创建班次，再维护名单、课程、签到、汇报和请假流程。"}
                     </p>
                   </div>
-                  <span className="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full border border-blue-200/70 bg-white/85 px-4 py-2 text-xs font-bold text-blue-700 shadow-sm">
-                    <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                    {selectedCohort ? "当前班次运行中" : "待建班"}
-                  </span>
+                  <div className="flex shrink-0 flex-wrap gap-2">
+                    <span className="tt-pill tt-pill-success">{selectedCohort ? "运行中" : "待建班"}</span>
+                    <span className="tt-pill tt-pill-neutral">{managerPendingActionCount} 项待处理</span>
+                  </div>
                 </div>
 
-                <div className="grid gap-2.5 sm:grid-cols-3">
-                  {overviewSummaryCards.map((item) => (
+                <div aria-label="省培关键数据" className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
+                  {managerOverviewStats.map((item) => (
                     <button
                       key={item.label}
-                      aria-label={item.title}
-                      className="tt-action-card px-4 py-3.5 text-left focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200/70"
+                      aria-label={`查看省培${item.label}明细`}
+                      className="tt-compact-stat group text-left focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200/70"
                       onClick={item.onClick}
                       title={item.title}
                       type="button"
                     >
-                      <p className="text-xs font-semibold text-slate-500">{item.label}</p>
-                      <p className="mt-1.5 text-[26px] font-extrabold leading-none tracking-tight text-slate-950">{item.value}</p>
-                      <p className="mt-1.5 text-xs leading-4 text-slate-400">{item.helper}</p>
+                      <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-50 text-slate-700 transition group-hover:bg-slate-100 group-hover:text-blue-700">
+                        <item.Icon className="h-4 w-4" />
+                      </span>
+                      <span className="min-w-0">
+                        <span className="block truncate text-xs font-semibold text-slate-500">{item.label}</span>
+                        <span className="mt-0.5 flex items-baseline gap-1.5">
+                          <span className="text-xl font-black leading-none text-slate-950">{item.value}</span>
+                          <span className="text-[11px] font-semibold text-slate-400">{item.helper}</span>
+                        </span>
+                      </span>
                     </button>
                   ))}
                 </div>
 
                 <div>
                   <div className="flex items-center justify-between gap-3">
-                    <p className="tt-block-title">今日待办</p>
-                    <span className="tt-pill tt-pill-neutral">按当前班次统计</span>
+                    <p className="tt-block-title">待处理事项</p>
+                    <span className="tt-pill tt-pill-neutral">按当前班次</span>
                   </div>
-                  <div className="mt-3 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+                  <div className="mt-3 divide-y divide-slate-100 overflow-hidden rounded-xl border border-slate-200 bg-white">
                     {managerCommandTodoCards.map((item) => (
                     <button
                       key={item.label}
                       aria-label={`查看省培${item.label}`}
-                      className="tt-action-card group p-4 text-left focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200/70"
+                      className="group flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200/70"
                       onClick={item.onClick}
                       title={`查看省培${item.label}`}
                       type="button"
                     >
-                      <div className="flex items-start justify-between gap-3">
                         <span
-                          className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl transition group-hover:scale-105 ${
+                          className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${
                             item.tone === "amber"
                               ? "bg-amber-50 text-amber-700"
                               : item.tone === "rose"
@@ -3637,10 +3632,11 @@ export default function TeacherTrainingTab() {
                         >
                           <item.Icon className="h-4 w-4" />
                         </span>
-                        <span className="text-[26px] font-extrabold leading-none tracking-tight text-slate-950">{item.value}</span>
-                      </div>
-                      <p className="mt-3 text-sm font-bold text-slate-950">{item.label}</p>
-                      <p className="mt-1 text-xs leading-5 text-slate-500">{item.helper}</p>
+                        <span className="min-w-0 flex-1">
+                          <span className="block text-sm font-bold text-slate-950">{item.label}</span>
+                          <span className="mt-0.5 block truncate text-xs text-slate-500">{item.helper}</span>
+                        </span>
+                        <span className="text-2xl font-black leading-none text-slate-950">{item.value}</span>
                     </button>
                   ))}
                   </div>
@@ -3650,8 +3646,8 @@ export default function TeacherTrainingTab() {
               <div className="tt-card flex flex-col p-5">
                 <div className="flex items-start justify-between gap-3">
                   <div>
-                    <p className="tt-block-title">快捷入口</p>
-                    <p className="mt-1.5 text-xs leading-5 text-slate-500">常用管理动作集中进入。</p>
+                    <p className="tt-block-title">常用入口</p>
+                    <p className="mt-1.5 text-xs leading-5 text-slate-500">低频功能从上方模块切换。</p>
                   </div>
                   <span className="tt-pill">{managerCommandQuickLinks.length} 项</span>
                 </div>
@@ -3674,7 +3670,7 @@ export default function TeacherTrainingTab() {
                           <span className="mt-0.5 block truncate text-xs text-slate-500">{item.helper}</span>
                         </span>
                       </span>
-                      <span className="shrink-0 text-sm font-bold text-blue-700 transition group-hover:translate-x-0.5">进入 →</span>
+                      <span className="shrink-0 text-sm font-bold text-blue-700">进入</span>
                     </button>
                   ))}
                 </div>
@@ -4479,7 +4475,7 @@ export default function TeacherTrainingTab() {
                           className={`rounded-xl border px-3 py-2 text-left transition ${
                             selected
                               ? "border-blue-200 bg-blue-50 text-blue-700 shadow-sm"
-                              : "border-slate-200 bg-white text-slate-600 hover:border-blue-100 hover:bg-blue-50/40"
+                              : "border-slate-200 bg-white text-slate-600 hover:border-blue-100 hover:bg-slate-50 hover:text-blue-700"
                           }`}
                           onClick={() => setManagerDraft((current) => ({ ...current, title: option.title }))}
                           type="button"
@@ -6432,7 +6428,7 @@ export default function TeacherTrainingTab() {
                               className={`h-9 rounded-xl px-3 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200/70 ${
                                 isActive
                                   ? "bg-blue-600 text-white shadow-sm shadow-blue-900/15"
-                                  : "border border-slate-200 bg-white text-slate-600 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
+                                  : "border border-slate-200 bg-white text-slate-600 hover:border-blue-200 hover:bg-slate-50 hover:text-blue-700"
                               }`}
                               onClick={() => setParticipantAccountFilter(item.key as "all" | "unbound")}
                               type="button"
@@ -6807,7 +6803,7 @@ export default function TeacherTrainingTab() {
                           className={`h-9 rounded-xl px-3 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200/70 ${
                             isActive
                               ? "bg-blue-600 text-white shadow-sm shadow-blue-900/15"
-                              : "border border-slate-200 bg-white text-slate-600 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
+                              : "border border-slate-200 bg-white text-slate-600 hover:border-blue-200 hover:bg-slate-50 hover:text-blue-700"
                           }`}
                           onClick={() => setAttendanceOverviewFilter(item.key)}
                           type="button"
@@ -6868,8 +6864,8 @@ export default function TeacherTrainingTab() {
                         return (
                           <div
                             key={participant.id}
-                            className={`grid gap-3 bg-white/72 p-4 lg:grid-cols-[minmax(0,1.4fr)_120px_120px_120px_auto] lg:items-center ${
-                              attendance ? "border-l-4 border-emerald-400" : "border-l-4 border-amber-300"
+                            className={`grid gap-3 border p-4 lg:grid-cols-[minmax(0,1.4fr)_120px_120px_120px_auto] lg:items-center ${
+                              attendance ? "border-emerald-100 bg-emerald-50/20" : "border-amber-100 bg-amber-50/20"
                             }`}
                           >
                             <div className="min-w-0">
@@ -7575,7 +7571,7 @@ export default function TeacherTrainingTab() {
                               className={`h-9 rounded-xl px-3 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200/70 ${
                                 isActive
                                   ? "bg-blue-600 text-white shadow-sm shadow-blue-900/15"
-                                  : "border border-slate-200 bg-white text-slate-600 hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
+                                  : "border border-slate-200 bg-white text-slate-600 hover:border-blue-200 hover:bg-slate-50 hover:text-blue-700"
                               }`}
                               onClick={() => setSubmissionOverviewFilter(item.key)}
                               type="button"
