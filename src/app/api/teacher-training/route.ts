@@ -526,7 +526,7 @@ export async function GET(request: NextRequest) {
                 },
               },
             ],
-            role: { notIn: ["admin", "expert", "training_teacher"] },
+            role: { notIn: ["admin", "expert"] },
             approvalStatus: "approved",
           },
           orderBy: [{ responsibility: "asc" }, { name: "asc" }],

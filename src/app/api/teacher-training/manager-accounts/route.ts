@@ -181,26 +181,40 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ message: passwordError }, { status: 400 });
   }
 
-  const account = await prisma.user.update({
-    where: { id },
-    data: {
-      name,
-      username,
-      email,
-      phone,
-      responsibility: managerIdentity,
-      ...(password ? { password: await bcrypt.hash(password, 10) } : {}),
-    },
-    select: {
-      id: true,
-      name: true,
-      username: true,
-      email: true,
-      phone: true,
-      role: true,
-      responsibility: true,
-      createdAt: true,
-    },
+  const account = await prisma.$transaction(async (tx) => {
+    const updatedAccount = await tx.user.update({
+      where: { id },
+      data: {
+        name,
+        username,
+        email,
+        phone,
+        responsibility: managerIdentity,
+        ...(password ? { password: await bcrypt.hash(password, 10) } : {}),
+      },
+      select: {
+        id: true,
+        name: true,
+        username: true,
+        email: true,
+        phone: true,
+        role: true,
+        responsibility: true,
+        createdAt: true,
+      },
+    });
+
+    await tx.teacherTrainingCohortManager.updateMany({
+      where: {
+        userId: id,
+        title: { in: [...teacherTrainingManagerIdentities] },
+      },
+      data: {
+        title: managerIdentity,
+      },
+    });
+
+    return updatedAccount;
   });
 
   return NextResponse.json({ account });

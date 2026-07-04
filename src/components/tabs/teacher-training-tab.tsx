@@ -1765,16 +1765,34 @@ export default function TeacherTrainingTab() {
     teacherTrainingManagerRoleOptions.find((option) => option.title === managerDraft.title) ??
     teacherTrainingManagerRoleOptions[0];
   const selectedManagerAccountOptions = teacherTrainingManagerAccounts.filter(
-    (account) => account.responsibility === managerDraft.title,
+    (account) =>
+      account.responsibility === managerDraft.title ||
+      account.managedCohorts.some((manager) => manager.title === managerDraft.title),
   );
   const managerAccountSearchKeyword = normalizeSearchText(managerAccountSearch);
   const filteredManagerAccounts = teacherTrainingManagerAccounts.filter((account) => {
     if (!managerAccountSearchKeyword) return true;
-    return [account.name, account.username, account.phone, account.email, account.responsibility]
+    return [
+      account.name,
+      account.username,
+      account.phone,
+      account.email,
+      account.responsibility,
+      ...account.managedCohorts.flatMap((manager) => [manager.title, manager.cohortTitle]),
+    ]
       .join(" ")
       .toLowerCase()
       .includes(managerAccountSearchKeyword);
   });
+  const managerAccountCounts = useMemo(() => {
+    const hasIdentity = (account: Workspace.TeacherTrainingManagerAccountItem, title: string) =>
+      account.responsibility === title || account.managedCohorts.some((manager) => manager.title === title);
+
+    return {
+      leader: teacherTrainingManagerAccounts.filter((account) => hasIdentity(account, "省培负责人")).length,
+      classTeacher: teacherTrainingManagerAccounts.filter((account) => hasIdentity(account, "班主任")).length,
+    };
+  }, [teacherTrainingManagerAccounts]);
   const toggleSelectedId = (currentIds: string[], id: string) =>
     currentIds.includes(id) ? currentIds.filter((item) => item !== id) : [...currentIds, id];
   const setVisibleSelection = (
@@ -2091,6 +2109,11 @@ export default function TeacherTrainingTab() {
   };
 
   const editManagerAccount = (account: Workspace.TeacherTrainingManagerAccountItem) => {
+    const accountIdentity =
+      account.responsibility === "班主任" || account.managedCohorts.some((manager) => manager.title === "班主任")
+        ? "班主任"
+        : "省培负责人";
+
     setManagerAccountDraft({
       id: account.id,
       name: account.name,
@@ -2098,7 +2121,7 @@ export default function TeacherTrainingTab() {
       phone: account.phone,
       email: account.email,
       password: "",
-      managerIdentity: account.responsibility === "班主任" ? "班主任" : "省培负责人",
+      managerIdentity: accountIdentity,
     });
     window.requestAnimationFrame(() => {
       document.getElementById("tt-manager-account-form")?.scrollIntoView({ behavior: "smooth", block: "center" });
@@ -3879,6 +3902,12 @@ export default function TeacherTrainingTab() {
                     <p className="mt-1.5 text-xs leading-5 text-slate-500">
                       班次管理只能从这里选择对应身份的账号；账号身份在此处统一维护。
                     </p>
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <span className="tt-pill">省培负责人 {managerAccountCounts.leader}</span>
+                      <span className={managerAccountCounts.classTeacher > 0 ? "tt-pill" : "tt-pill border-amber-200 bg-amber-50 text-amber-700"}>
+                        班主任 {managerAccountCounts.classTeacher}
+                      </span>
+                    </div>
                   </div>
                   <button
                     className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-rose-200 bg-rose-50 px-3 text-xs font-semibold text-rose-600 disabled:cursor-not-allowed disabled:opacity-50"
@@ -3926,7 +3955,18 @@ export default function TeacherTrainingTab() {
                       <p className="text-xs text-slate-400">先新增省培负责人或班主任，再到班次管理中选择。</p>
                     </div>
                   ) : (
-                    filteredManagerAccounts.map((account) => (
+                    filteredManagerAccounts.map((account) => {
+                      const accountIdentities = Array.from(
+                        new Set(
+                          [
+                            account.responsibility,
+                            ...account.managedCohorts.map((manager) => manager.title),
+                          ].filter((title) => title === "省培负责人" || title === "班主任"),
+                        ),
+                      );
+                      const visibleIdentities = accountIdentities.length > 0 ? accountIdentities : ["未设置省培身份"];
+
+                      return (
                       <article key={account.id} className="tt-action-card p-4">
                         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
                           <label className="flex min-w-0 items-start gap-3">
@@ -3942,9 +3982,18 @@ export default function TeacherTrainingTab() {
                             <span className="min-w-0">
                               <span className="flex flex-wrap items-center gap-2">
                                 <span className="font-bold text-slate-950">{account.name}</span>
-                                <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-bold text-blue-700">
-                                  {account.responsibility}
-                                </span>
+                                {visibleIdentities.map((identity) => (
+                                  <span
+                                    key={identity}
+                                    className={
+                                      identity === "未设置省培身份"
+                                        ? "rounded-full bg-amber-50 px-2 py-0.5 text-xs font-bold text-amber-700"
+                                        : "rounded-full bg-blue-50 px-2 py-0.5 text-xs font-bold text-blue-700"
+                                    }
+                                  >
+                                    {identity}
+                                  </span>
+                                ))}
                               </span>
                               <span className="mt-1 block text-xs leading-5 text-slate-500">
                                 账号：{account.username}
@@ -3980,7 +4029,8 @@ export default function TeacherTrainingTab() {
                           </div>
                         </div>
                       </article>
-                    ))
+                      );
+                    })
                   )}
                 </div>
               </div>
