@@ -50,8 +50,8 @@ export async function POST(request: NextRequest) {
   const endTime = body?.endTime?.trim() || null;
   const reason = body?.reason?.trim();
 
-  if (!participantId || !startDate || !endDate || !reason) {
-    return NextResponse.json({ message: "请填写请假日期和原因" }, { status: 400 });
+  if (!participantId || !startDate || !endDate || !startTime || !endTime || !reason) {
+    return NextResponse.json({ message: "请填写请假日期、时间和原因" }, { status: 400 });
   }
   const leaveRangeError = validateTeacherTrainingLeaveRange({ startDate, endDate, startTime, endTime });
   if (leaveRangeError) {

@@ -405,6 +405,7 @@ type TeacherTrainingRoleUser = {
   id: string;
   role?: string;
   roleLabel?: string;
+  responsibility?: string;
   hasTeacherTrainingAccess?: boolean;
   hasTeacherTrainingManagerAccess?: boolean;
   teacherTrainingParticipantCount?: number;
@@ -436,6 +437,10 @@ export const getTeacherTrainingEffectiveRoleLabel = ({
     return "省培用户";
   }
 
+  if (user.role === "admin") {
+    return teacherTrainingRoleTitleLabels[user.role] ?? user.roleLabel ?? "系统管理员";
+  }
+
   const orderedCohorts = activeCohortId
     ? [
         ...cohorts.filter((cohort) => cohort.id === activeCohortId),
@@ -451,17 +456,18 @@ export const getTeacherTrainingEffectiveRoleLabel = ({
     return managerTitle;
   }
 
+  const accountResponsibility = user.responsibility?.trim();
+  if (accountResponsibility === "省培负责人" || accountResponsibility === "班主任") {
+    return accountResponsibility;
+  }
+
   if (user.hasTeacherTrainingManagerAccess || (user.teacherTrainingManagedCohortCount ?? 0) > 0) {
-    return "班主任";
+    return "省培管理人员";
   }
 
   const participantProfile = orderedCohorts
     .flatMap((cohort) => cohort.participants ?? [])
     .find((participant) => participant.accountUserId === user.id);
-
-  if (user.role === "admin" || user.role === "school_admin") {
-    return "省培管理员";
-  }
 
   // 普通参训教师统一显示角色“省培教师”，不再用其职务（如“教研室主任”）作为身份标签。
   const isParticipant = Boolean(participantProfile);

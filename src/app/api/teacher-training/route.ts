@@ -479,7 +479,7 @@ export async function GET(request: NextRequest) {
             OR: [
               {
                 role: {
-                  in: ["admin", "school_admin"],
+                  in: ["admin"],
                 },
               },
               {

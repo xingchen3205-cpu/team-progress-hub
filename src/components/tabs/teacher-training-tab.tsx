@@ -535,7 +535,6 @@ const fieldHint = (label: string) => ({
 });
 
 const teacherTrainingFieldShellClassName = "block min-w-0";
-const teacherTrainingFieldShellWideClassName = `${teacherTrainingFieldShellClassName} sm:col-span-2`;
 const teacherTrainingFieldLabelClassName = "block text-xs font-semibold leading-5 text-slate-600";
 const teacherTrainingDisabledHintClassName =
   "rounded-xl border border-amber-100 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-700";
@@ -573,6 +572,39 @@ const formatTeacherTrainingApproverLabel = (title: string, name: string) => {
   }
 
   return `${normalizedTitle} ${normalizedName}`;
+};
+
+const formatTeacherTrainingLeaveDateTime = (date: string, time: string) =>
+  time ? `${date} ${time}` : date;
+
+const getTeacherTrainingLeaveDurationLabel = ({
+  endDate,
+  endTime,
+  startDate,
+  startTime,
+}: {
+  endDate: string;
+  endTime: string;
+  startDate: string;
+  startTime: string;
+}) => {
+  if (!startDate || !endDate || !startTime || !endTime) return "待填写";
+
+  const start = new Date(`${startDate}T${startTime}:00`);
+  const end = new Date(`${endDate}T${endTime}:00`);
+  const durationMinutes = Math.round((end.getTime() - start.getTime()) / 60_000);
+  if (!Number.isFinite(durationMinutes) || durationMinutes <= 0) return "时间待校验";
+
+  const dayCount = Math.floor(durationMinutes / 1_440);
+  const hourCount = Math.floor((durationMinutes % 1_440) / 60);
+  const minuteCount = durationMinutes % 60;
+  const parts = [
+    dayCount ? `${dayCount}天` : "",
+    hourCount ? `${hourCount}小时` : "",
+    minuteCount ? `${minuteCount}分钟` : "",
+  ].filter(Boolean);
+
+  return parts.join("") || "少于1分钟";
 };
 
 const teacherTrainingManagerRoleOptions = [
@@ -675,7 +707,7 @@ const getTeacherTrainingCheckInDisabledReason = (windowState: CheckInWindowState
 const getTeacherTrainingLeaveDisabledReason = (
   hasParticipant: boolean,
   leaveFlow: Workspace.TeacherTrainingLeaveFlowItem | null | undefined,
-  reason: string,
+  draft: Workspace.TeacherTrainingLeaveRequestDraft,
   canManage = false,
 ) => {
   const participantReason = getTeacherTrainingParticipantDisabledReason(hasParticipant, canManage);
@@ -685,7 +717,15 @@ const getTeacherTrainingLeaveDisabledReason = (
     return "管理员尚未配置请假审批流程，请联系省培负责人、班主任或管理员";
   }
 
-  if (!reason.trim()) {
+  if (!draft.startDate.trim() || !draft.endDate.trim() || !draft.startTime.trim() || !draft.endTime.trim()) {
+    return "请填写请假开始和结束时间";
+  }
+
+  if (!draft.sessionLabel.trim()) {
+    return "请选择或填写请假类型";
+  }
+
+  if (!draft.reason.trim()) {
     return "请填写请假原因后再提交";
   }
 
@@ -770,7 +810,6 @@ export default function TeacherTrainingTab() {
     teacherTrainingApproverOptions,
     teacherTrainingManagerAccounts,
     teacherTrainingParticipantAccountOptions,
-    hasGlobalAdminRole,
     canManageTeacherTraining,
     activeTeacherTrainingSection,
     setActiveTeacherTrainingSection,
@@ -847,6 +886,9 @@ export default function TeacherTrainingTab() {
   const teacherTrainingListCardClassName = "tt-card flex min-h-0 flex-col p-5";
   const teacherTrainingFillingListClassName =
     "min-h-0 flex-1 max-h-[min(68vh,760px)] overflow-y-auto pr-1 overscroll-contain";
+  const teacherTrainingRequiredMarkClassName = "ml-1 text-sm font-black leading-none text-rose-500";
+  const teacherTrainingEitherRequiredMarkClassName =
+    "ml-2 rounded-md bg-rose-50 px-1.5 py-0.5 text-[10px] font-bold leading-none text-rose-600 ring-1 ring-rose-100";
 
   const selectedCohortId = activeTeacherTrainingCohortId;
   const setSelectedCohortId = setActiveTeacherTrainingCohortId;
@@ -854,8 +896,9 @@ export default function TeacherTrainingTab() {
   // 班次管理页：新建/修改表单与辅助信息默认折叠，让页面以班次列表为主、更清爽。
   const [cohortFormOpen, setCohortFormOpen] = useState(false);
   const [cohortConfigOpen, setCohortConfigOpen] = useState(false);
-  // 参训教师页：录入表单默认折叠，名单区更宽更清爽。
+  // 参训教师页：名单是主视图，新增和导入只在右侧工作区按需展开。
   const [participantFormOpen, setParticipantFormOpen] = useState(false);
+  const [participantImportOpen, setParticipantImportOpen] = useState(false);
   // 名单条目默认只显示核心信息，到达/交通/账号处理等细节按需展开。
   const [expandedParticipantIds, setExpandedParticipantIds] = useState<Set<string>>(new Set());
   const toggleParticipantExpanded = (id: string) =>
@@ -943,6 +986,7 @@ export default function TeacherTrainingTab() {
   });
   const [leaveReviewComment, setLeaveReviewComment] = useState("");
   const [activeLeavePanel, setActiveLeavePanel] = useState<TeacherTrainingLeavePanelKey>("pending");
+  const [teacherLeaveFormOpen, setTeacherLeaveFormOpen] = useState(false);
   const [profileDraft, setProfileDraft] = useState<Workspace.TeacherTrainingProfileDraft>({
     participantId: "",
     name: "",
@@ -1104,7 +1148,7 @@ export default function TeacherTrainingTab() {
     : "";
   const canManage = canManageTeacherTraining;
   const showTeacherTrainingSubmissionForm = !canManage;
-  const canManageGlobal = hasGlobalAdminRole;
+  const canManageGlobal = currentUser?.role === "admin";
   const canCreateTeacherTrainingCohort = currentUser?.role === "admin";
   const canShowCohortDraftForm = canCreateTeacherTrainingCohort || Boolean(cohortDraft.id);
   const canConfigureTeacherTrainingLeaveFlow = currentUser?.role === "admin";
@@ -1611,7 +1655,7 @@ export default function TeacherTrainingTab() {
   const leaveDisabledReason = getTeacherTrainingLeaveDisabledReason(
     hasSelectedParticipant,
     selectedCohort?.leaveFlow,
-    leaveDraft.reason,
+    leaveDraft,
     canManage,
   );
   const profileDisabledReason = getTeacherTrainingProfileDisabledReason(effectiveProfileDraft, teacherPasswordChangeRequired);
@@ -1703,7 +1747,6 @@ export default function TeacherTrainingTab() {
   const teacherLeaveRequests = [...(selectedParticipant?.leaveRequests ?? [])].sort((first, second) =>
     second.submittedAt.localeCompare(first.submittedAt),
   );
-  const teacherLatestLeaveRequest = teacherLeaveRequests[0] ?? null;
   const approverLabelById = useMemo(() => {
     const labels = new Map(
       teacherTrainingApproverOptions.map((option) => [
@@ -1952,6 +1995,26 @@ export default function TeacherTrainingTab() {
       setSelectedCohortIds([]);
       setSelectedCohortId(teacherTrainingCohorts.find((item) => !selectedCohortIds.includes(item.id))?.id ?? "");
     }
+  };
+
+  const openParticipantFormWorkspace = () => {
+    setParticipantFormOpen(true);
+    setParticipantImportOpen(false);
+    window.requestAnimationFrame(() => {
+      const input = document.getElementById("tt-participant-name-input");
+      document.getElementById("tt-participant-workbench")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      window.setTimeout(() => (input as HTMLInputElement | null)?.focus(), 350);
+    });
+  };
+
+  const openParticipantImportWorkspace = () => {
+    setParticipantImportOpen(true);
+    setParticipantFormOpen(false);
+    window.requestAnimationFrame(() => {
+      const textarea = document.getElementById("tt-participant-import-textarea");
+      document.getElementById("tt-participant-import-workbench")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      window.setTimeout(() => (textarea as HTMLTextAreaElement | null)?.focus(), 350);
+    });
   };
 
   const submitParticipant = async () => {
@@ -3335,7 +3398,7 @@ export default function TeacherTrainingTab() {
     canManage && showTeacherTrainingSection("cohorts")
       ? "items-start xl:grid-cols-1"
       : canManage && showTeacherTrainingSection("participants")
-        ? "items-stretch xl:grid-cols-[420px_minmax(0,1fr)]"
+        ? "items-stretch xl:grid-cols-[360px_minmax(0,1fr)]"
         : "items-start";
   const getCheckInProgress = (task: Workspace.TeacherTrainingCheckInTaskItem) => {
     const total = selectedCohort?.participants.length ?? 0;
@@ -4181,273 +4244,64 @@ export default function TeacherTrainingTab() {
             ) : null}
 
             {canManage && showTeacherTrainingSection("participants") ? (
-              <div className="tt-subcard p-4" id="tt-participant-form">
-                <button
-                  type="button"
-                  className="flex w-full items-center gap-2.5 text-left"
-                  onClick={() => setParticipantFormOpen((v) => !v)}
-                  aria-expanded={participantFormOpen}
-                >
+              <div className="tt-subcard p-4" id="tt-participant-tools">
+                <div className="flex items-start gap-2.5">
                   <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[#1a6fd4]/10 text-[#1a6fd4]">
                     <Users className="h-4 w-4" />
                   </span>
-                  <div className="min-w-0 flex-1">
-                    <p className="text-[15px] font-bold text-slate-950">参训教师中心</p>
-                    <p className="mt-0.5 text-xs leading-5 text-slate-500">新增参训教师档案；登录账号可从已有账号中选择，或保存后在账号管理里用手机号开通。</p>
-                  </div>
-                  <ChevronDown className={`h-4 w-4 shrink-0 text-slate-400 transition ${participantFormOpen ? "rotate-180" : ""}`} />
-                </button>
-                {participantFormOpen ? (
-                <div className="mt-3 space-y-3">
-                  <div className="rounded-xl border border-blue-100 bg-blue-50/45 px-3 py-2">
-                    <p className="text-xs font-bold text-blue-700">档案必填</p>
-                    <p className="mt-1 text-xs leading-5 text-blue-600">姓名、单位、手机号、分组必须填写；职务和职称至少填写一项。</p>
-                  </div>
-                  <label className={teacherTrainingFieldShellClassName}>
-                    <span className={teacherTrainingFieldLabelClassName}>参训教师姓名（必填）</span>
-                    <input
-                      id="tt-participant-name-input"
-                      className={fieldClassName}
-                      {...fieldHint("参训教师姓名")}
-                      onChange={(event) => setParticipantDraft((current) => ({ ...current, name: event.target.value }))}
-                      placeholder="姓名"
-                      value={participantDraft.name}
-                    />
-                  </label>
-                  <label className={teacherTrainingFieldShellClassName}>
-                    <span className={teacherTrainingFieldLabelClassName}>所在单位（必填）</span>
-                    <input
-                      className={fieldClassName}
-                      {...fieldHint("参训教师单位")}
-                      onChange={(event) => setParticipantDraft((current) => ({ ...current, organization: event.target.value }))}
-                      placeholder="单位"
-                      value={participantDraft.organization}
-                    />
-                  </label>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <label className={teacherTrainingFieldShellClassName}>
-                      <span className={teacherTrainingFieldLabelClassName}>报名手机号（必填）</span>
-                      <input
-                        className={fieldClassName}
-                        {...fieldHint("参训教师手机")}
-                        onChange={(event) => setParticipantDraft((current) => ({ ...current, phone: event.target.value }))}
-                        placeholder="手机"
-                        value={participantDraft.phone}
-                      />
-                    </label>
-                    <label className={teacherTrainingFieldShellClassName}>
-                      <span className={teacherTrainingFieldLabelClassName}>参训教师分组（必填）</span>
-                      <input
-                        className={fieldClassName}
-                        {...fieldHint("参训教师分组")}
-                        onChange={(event) => setParticipantDraft((current) => ({ ...current, groupName: event.target.value }))}
-                        placeholder="分组"
-                        value={participantDraft.groupName}
-                      />
-                    </label>
-                  </div>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <label className={teacherTrainingFieldShellClassName}>
-                      <span className={teacherTrainingFieldLabelClassName}>参训教师职务</span>
-                      <input
-                        className={fieldClassName}
-                        {...fieldHint("参训教师职务")}
-                        onChange={(event) => setParticipantDraft((current) => ({ ...current, title: event.target.value }))}
-                        placeholder="职务；职务和职称至少填一项"
-                        value={participantDraft.title}
-                      />
-                    </label>
-                    <label className={teacherTrainingFieldShellClassName}>
-                      <span className={teacherTrainingFieldLabelClassName}>职称</span>
-                      <input
-                        className={fieldClassName}
-                        {...fieldHint("职称")}
-                        onChange={(event) => setParticipantDraft((current) => ({ ...current, professionalTitle: event.target.value }))}
-                        placeholder="职称；职务和职称至少填一项"
-                        value={participantDraft.professionalTitle}
-                      />
-                    </label>
-                  </div>
-                  <div className="pt-1">
-                    <p className="text-xs font-bold text-slate-500">档案选填</p>
-                  </div>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <label className={teacherTrainingFieldShellClassName}>
-                      <span className={teacherTrainingFieldLabelClassName}>性别</span>
-                      <input
-                        className={fieldClassName}
-                        {...fieldHint("性别")}
-                        onChange={(event) => setParticipantDraft((current) => ({ ...current, gender: event.target.value }))}
-                        placeholder="性别"
-                        value={participantDraft.gender}
-                      />
-                    </label>
-                    <label className={teacherTrainingFieldShellClassName}>
-                      <span className={teacherTrainingFieldLabelClassName}>年龄</span>
-                      <input
-                        className={fieldClassName}
-                        {...fieldHint("年龄")}
-                        onChange={(event) => setParticipantDraft((current) => ({ ...current, age: event.target.value }))}
-                        placeholder="年龄"
-                        value={participantDraft.age}
-                      />
-                    </label>
-                  </div>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <label className={teacherTrainingFieldShellClassName}>
-                      <span className={teacherTrainingFieldLabelClassName}>人员类别</span>
-                      <input
-                        className={fieldClassName}
-                        {...fieldHint("人员类别")}
-                        onChange={(event) => setParticipantDraft((current) => ({ ...current, personnelCategory: event.target.value }))}
-                        placeholder="人员类别"
-                        value={participantDraft.personnelCategory}
-                      />
-                    </label>
-                    <label className={teacherTrainingFieldShellClassName}>
-                      <span className={teacherTrainingFieldLabelClassName}>学科</span>
-                      <input
-                        className={fieldClassName}
-                        {...fieldHint("学科")}
-                        onChange={(event) => setParticipantDraft((current) => ({ ...current, subject: event.target.value }))}
-                        placeholder="学科"
-                        value={participantDraft.subject}
-                      />
-                    </label>
-                  </div>
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <label className={teacherTrainingFieldShellClassName}>
-                      <span className={teacherTrainingFieldLabelClassName}>所属市</span>
-                      <input
-                        className={fieldClassName}
-                        {...fieldHint("所属市")}
-                        onChange={(event) => setParticipantDraft((current) => ({ ...current, city: event.target.value }))}
-                        placeholder="所属市"
-                        value={participantDraft.city}
-                      />
-                    </label>
-                    <label className={teacherTrainingFieldShellClassName}>
-                      <span className={teacherTrainingFieldLabelClassName}>参训教师邮箱</span>
-                      <input
-                        className={fieldClassName}
-                        {...fieldHint("参训教师邮箱")}
-                        onChange={(event) => setParticipantDraft((current) => ({ ...current, email: event.target.value }))}
-                        placeholder="邮箱"
-                        value={participantDraft.email}
-                      />
-                    </label>
-                  </div>
-                  <label className={teacherTrainingFieldShellClassName}>
-                    <span className={teacherTrainingFieldLabelClassName}>绑定已有登录账号（选填）</span>
-                    <select
-                      className={fieldClassName}
-                      {...fieldHint("绑定已有登录账号")}
-                      onChange={(event) => setParticipantDraft((current) => ({ ...current, accountUsername: event.target.value }))}
-                      value={participantDraft.accountUsername}
-                    >
-                      <option value="">暂不绑定，保存档案后在账号管理中开通</option>
-                      {availableParticipantAccountOptions.map((account) => (
-                        <option key={account.id} value={account.username}>
-                          {account.name}（{account.username}）
-                          {account.phone ? ` · ${account.phone}` : ""}
-                          {account.role === "training_teacher" ? " · 省培账号" : " · 原平台账号"}
-                        </option>
-                      ))}
-                    </select>
-                  </label>
-                  <p className="text-xs leading-5 text-slate-500">
-                    这里不会新建账号。没有合适账号时请先保存教师档案，再到省培账号管理里用手机号开通，初始密码统一为 123456。
-                  </p>
-                  <label className={teacherTrainingFieldShellClassName}>
-                    <span className={teacherTrainingFieldLabelClassName}>参训教师预录扩展信息</span>
-                    <textarea
-                      className={`${textareaClassName} min-h-20`}
-                      {...fieldHint("参训教师预录扩展信息")}
-                      onChange={(event) => setParticipantDraft((current) => ({ ...current, extraInfo: event.target.value }))}
-                      placeholder="预录扩展信息，例如职务、住宿、发票、培训材料领取情况等；每行一项。"
-                      value={participantDraft.extraInfo}
-                    />
-                  </label>
-                  <label className={teacherTrainingFieldShellClassName}>
-                    <span className={teacherTrainingFieldLabelClassName}>参训教师备注</span>
-                    <input
-                      className={fieldClassName}
-                      {...fieldHint("参训教师备注")}
-                      onChange={(event) => setParticipantDraft((current) => ({ ...current, note: event.target.value }))}
-                      placeholder="备注"
-                      value={participantDraft.note}
-                    />
-                  </label>
-                  <ActionButton
-                    aria-label="将参训教师加入当前省培班次"
-                    className="w-full"
-                    disabled={!selectedCohort}
-                    loading={isSaving}
-                    onClick={() => void submitParticipant()}
-                    title="将参训教师加入当前省培班次"
-                    variant="primary"
-                  >
-                    加入名单
-                  </ActionButton>
-                  <div className="rounded-xl border border-dashed border-blue-200 bg-blue-50/40 p-3">
-                    <div className="flex items-center gap-2">
-                      <Upload className="h-4 w-4 text-blue-700" />
-                      <p className="text-xs font-bold text-blue-700">一键导入参训教师</p>
-                    </div>
-                    <label
-                      className={`mt-3 flex items-center justify-center gap-2 rounded-lg border border-blue-100 bg-white px-3 py-2 text-xs font-semibold text-blue-700 transition hover:border-blue-200 hover:bg-blue-50 ${
-                        participantImportLoading ? "cursor-wait opacity-75" : "cursor-pointer"
-                      }`}
-                    >
-                      {participantImportLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
-                      {participantImportLoading ? "正在识别..." : "上传名单文件"}
-                      <input
-                        accept=".xlsx,.csv,.tsv,.txt,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,text/tab-separated-values,text/plain"
-                        className="sr-only"
-                        disabled={participantImportLoading}
-                        {...fieldHint("上传参训教师名单文件")}
-                        onChange={(event) => {
-                          void handleParticipantImportFile(event.target.files?.[0] ?? null);
-                          event.currentTarget.value = "";
-                        }}
-                        type="file"
-                      />
-                    </label>
-                    {participantImportStatus ? (
-                      <p className="mt-2 rounded-lg border border-blue-100 bg-white/80 px-3 py-2 text-xs leading-5 text-blue-700">
-                        {participantImportStatus}
-                      </p>
-                    ) : null}
-                    {participantImportPreview.totalCount > 0 ? (
-                      <div className={`mt-2 rounded-lg border px-3 py-2 text-xs leading-5 ${getImportPreviewToneClassName(participantImportPreview)}`}>
-                        <p className="font-bold">导入预览：将新增 {participantImportPreview.readyCount} 位参训教师</p>
-                        <p className="mt-1">
-                          共识别 {participantImportPreview.totalCount} 行；缺姓名或单位 {participantImportPreview.missingRequiredCount} 行；名单内重复 {participantImportPreview.duplicateInFileCount} 组；当前班次已存在 {participantImportPreview.existingConflictCount} 行。
-                        </p>
-                      </div>
-                    ) : null}
-                    <TeacherTrainingImportFieldSummary items={participantImportFieldSummary} />
-                    <textarea
-                      className={`${textareaClassName} mt-3 min-h-24 bg-white/90`}
-                      {...fieldHint("一键导入参训教师")}
-                      onChange={(event) => setParticipantImportText(event.target.value)}
-                      placeholder="可上传 Excel 名单自动识别，也可粘贴：姓名，单位，手机，分组，职务，邮箱，预计到达时间，交通方式，车次/航班/车牌，出发地，扩展信息，备注"
-                      value={participantImportText}
-                    />
-                    <ActionButton
-                      aria-label="一键导入参训教师"
-                      className="mt-3 w-full"
-                      disabled={!selectedCohort || !participantImportPreview.canImport || participantImportLoading}
-                      loading={isSaving || participantImportLoading}
-                      onClick={() => void importParticipants()}
-                      title={participantImportPreview.canImport ? "一键导入参训教师" : "请先处理导入预览中的问题"}
-                      variant="secondary"
-                    >
-                      一键导入参训教师
-                    </ActionButton>
+                  <div className="min-w-0">
+                    <p className="text-[15px] font-bold text-slate-950">参训教师工具箱</p>
+                    <p className="mt-0.5 text-xs leading-5 text-slate-500">名单在右侧维护；这里仅保留常用入口。</p>
                   </div>
                 </div>
-                ) : null}
+                <div className="mt-4 grid grid-cols-2 gap-2">
+                  <div className="rounded-xl border border-blue-100 bg-blue-50/60 px-3 py-2">
+                    <p className="text-[11px] font-semibold text-blue-500">当前名单</p>
+                    <p className="mt-1 text-xl font-black leading-none text-blue-900">{selectedCohort?.participants.length ?? 0}</p>
+                  </div>
+                  <div className="rounded-xl border border-slate-100 bg-white/80 px-3 py-2">
+                    <p className="text-[11px] font-semibold text-slate-400">未开通账号</p>
+                    <p className="mt-1 text-xl font-black leading-none text-slate-900">
+                      {selectedCohort?.participants.filter((participant) => !participant.accountUserId).length ?? 0}
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-3 grid gap-2">
+                  <button
+                    type="button"
+                    className={`flex items-center justify-between rounded-xl border px-3 py-2.5 text-left transition ${
+                      participantFormOpen
+                        ? "border-blue-200 bg-blue-50 text-blue-700"
+                        : "border-slate-200 bg-white text-blue-900 hover:border-blue-100 hover:bg-blue-50/50"
+                    }`}
+                    onClick={openParticipantFormWorkspace}
+                  >
+                    <span>
+                      <span className="block text-sm font-bold">录入单个教师</span>
+                      <span className="mt-0.5 block text-xs text-slate-500">适合临时补录或修改前核对</span>
+                    </span>
+                    <Plus className="h-4 w-4 shrink-0" />
+                  </button>
+                  <button
+                    type="button"
+                    className={`flex items-center justify-between rounded-xl border px-3 py-2.5 text-left transition ${
+                      participantImportOpen
+                        ? "border-blue-200 bg-blue-50 text-blue-700"
+                        : "border-slate-200 bg-white text-blue-900 hover:border-blue-100 hover:bg-blue-50/50"
+                    }`}
+                    onClick={openParticipantImportWorkspace}
+                  >
+                    <span>
+                      <span className="block text-sm font-bold">批量导入名单</span>
+                      <span className="mt-0.5 block text-xs text-slate-500">上传 Excel 或粘贴名单文本</span>
+                    </span>
+                    <Upload className="h-4 w-4 shrink-0" />
+                  </button>
+                </div>
+                <div className="mt-3 rounded-xl border border-blue-100 bg-blue-50/45 px-3 py-2 text-xs leading-5 text-blue-700">
+                  <p className="font-bold">档案规则</p>
+                  <p className="mt-1">姓名、单位、手机号、分组必填；职务和职称至少填一项。账号开通使用名单顶部的一键手机号开通账号。</p>
+                </div>
               </div>
             ) : null}
 
@@ -5715,382 +5569,525 @@ export default function TeacherTrainingTab() {
                     ) : null}
 
                     {activeLeavePanel !== "rules" ? (
-                    <div className="rounded-2xl border border-slate-200/75 bg-white/80 p-5 shadow-sm shadow-blue-100/50">
-                      <p className="text-sm font-semibold text-slate-900">
-                        {activeLeavePanel === "pending" ? "待审批申请" : "全部请假申请"}
-                      </p>
-                      <label className={`${teacherTrainingFieldShellClassName} mt-3`}>
-                        <span className={teacherTrainingFieldLabelClassName}>请假审批意见</span>
-                        <textarea
-                          className={`${textareaClassName} min-h-20`}
-                          {...fieldHint("请假审批意见")}
-                          onChange={(event) => setLeaveReviewComment(event.target.value)}
-                          placeholder="审批意见，可选"
-                          value={leaveReviewComment}
+                    <div className="overflow-hidden rounded-2xl border border-slate-200/75 bg-white/92 shadow-sm shadow-blue-100/40">
+                      <div className="flex flex-col gap-3 border-b border-slate-100 px-4 py-4 lg:flex-row lg:items-start lg:justify-between">
+                        <div>
+                          <p className="text-sm font-semibold text-slate-950">
+                            {activeLeavePanel === "pending" ? "待审批申请" : "全部请假申请"}
+                          </p>
+                          <p className="mt-1 text-xs leading-5 text-slate-500">
+                            按请假申请表方式集中查看，全部审批通过后才允许导出 PDF 请假单。
+                          </p>
+                        </div>
+                        <label className={`${teacherTrainingFieldShellClassName} w-full lg:max-w-[360px]`}>
+                          <span className={teacherTrainingFieldLabelClassName}>搜索请假教师</span>
+                          <input
+                            className={fieldClassName}
+                            {...fieldHint("搜索请假教师")}
+                            onChange={(event) => setLeaveSearch(event.target.value)}
+                            placeholder="姓名、单位、原因或审批状态"
+                            value={leaveSearch}
+                          />
+                        </label>
+                      </div>
+                      <div className="space-y-3 border-b border-slate-100 bg-slate-50/70 px-4 py-3">
+                        <label className={teacherTrainingFieldShellClassName}>
+                          <span className={teacherTrainingFieldLabelClassName}>本次审批意见</span>
+                          <textarea
+                            className={`${textareaClassName} min-h-16 bg-white`}
+                            {...fieldHint("请假审批意见")}
+                            onChange={(event) => setLeaveReviewComment(event.target.value)}
+                            placeholder="审批意见可选，点击通过或驳回时会写入当前审批记录"
+                            value={leaveReviewComment}
+                          />
+                        </label>
+                        <TeacherTrainingFilterSummary
+                          items={teacherTrainingFilterSummaries.leave}
+                          onClear={
+                            leaveSearchKeyword || teacherTrainingDetailViewTitle
+                              ? () => {
+                                  setLeaveSearch("");
+                                  setTeacherTrainingDetailViewTitle("");
+                                }
+                              : undefined
+                          }
                         />
-                      </label>
-                      <label className={`${teacherTrainingFieldShellClassName} mt-3`}>
-                        <span className={teacherTrainingFieldLabelClassName}>搜索请假教师</span>
-                        <input
-                          className={fieldClassName}
-                          {...fieldHint("搜索请假教师")}
-                          onChange={(event) => setLeaveSearch(event.target.value)}
-                          placeholder="按教师姓名、单位、请假原因或审批状态搜索"
-                          value={leaveSearch}
-                        />
-                      </label>
-                      <TeacherTrainingFilterSummary
-                        items={teacherTrainingFilterSummaries.leave}
-                        onClear={
-                          leaveSearchKeyword || teacherTrainingDetailViewTitle
-                            ? () => {
-                                setLeaveSearch("");
-                                setTeacherTrainingDetailViewTitle("");
-                              }
-                            : undefined
-                        }
-                      />
-                      {teacherTrainingDownloadStatus ? (
-                        <p className="mt-3 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs leading-5 text-blue-700">
-                          {teacherTrainingDownloadStatus}
-                        </p>
-                      ) : null}
-                      <div className="mt-3 space-y-3">
-                        {displayedManagerLeaveRequests.length === 0 ? (
-                          <EmptyState description="教师提交临时请假后，会进入这里等待审批和导出。" icon={FileCheck} title="暂无请假申请" />
-                        ) : (
-                          displayedManagerLeaveRequests.map((request) => {
-                            const step = request.status === "pending" ? request.approvalSteps[request.currentStepIndex] : null;
-                            const reviewedApproverLabels = request.approvals
-                              .map((approval) => approverLabelById.get(approval.approverId) ?? approval.approverName)
-                              .filter(Boolean);
-                            const currentApproverLabels =
-                              step?.approverIds.map((id) => approverLabelById.get(id) ?? "未配置审批人").filter(Boolean) ?? [];
-                            const approverSummary = reviewedApproverLabels.length
-                              ? `已审批：${reviewedApproverLabels.join("、")}`
-                              : request.status === "pending"
-                                ? `当前审批人：${currentApproverLabels.join("、") || "未配置审批人"}`
-                                : "暂无审批记录";
-                            return (
-                              <div key={request.id} className="rounded-2xl border border-slate-200/70 bg-white px-4 py-4 shadow-sm">
-                                <div className="grid gap-3 xl:grid-cols-[minmax(0,1fr)_auto] xl:items-start">
-                                  <div className="min-w-0">
-                                    <p className="text-sm font-semibold text-slate-900">{request.participantName}</p>
-                                    <div className="mt-2 flex flex-wrap gap-1.5 text-xs text-slate-500">
-                                      <span className="rounded-full bg-slate-100 px-2.5 py-1">
-                                        {request.startDate} 至 {request.endDate}
-                                      </span>
-                                      <span className="rounded-full bg-blue-50 px-2.5 py-1 text-blue-700">
-                                        {request.status === "approved" ? "审批完成" : step?.name ?? request.statusLabel}
-                                      </span>
-                                      {request.status === "pending" && step ? (
-                                        <span className="rounded-full bg-amber-50 px-2.5 py-1 text-amber-700">
-                                          需 {step.requiredCount} 人通过
+                        {teacherTrainingDownloadStatus ? (
+                          <p className="rounded-lg border border-blue-100 bg-white px-3 py-2 text-xs leading-5 text-blue-700">
+                            {teacherTrainingDownloadStatus}
+                          </p>
+                        ) : null}
+                      </div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full min-w-[1120px] text-left text-sm">
+                          <thead className="bg-slate-50 text-xs font-semibold text-slate-500">
+                            <tr className="[&>th]:px-4 [&>th]:py-3">
+                              <th>姓名/单位</th>
+                              <th>申请日期</th>
+                              <th>请假类型</th>
+                              <th>请假开始时间</th>
+                              <th>请假结束时间</th>
+                              <th>请假时长</th>
+                              <th>请假原因</th>
+                              <th>审批状态</th>
+                              <th>审批人</th>
+                              <th className="text-right">操作</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {displayedManagerLeaveRequests.length === 0 ? (
+                              <tr>
+                                <td colSpan={10} className="px-4 py-16">
+                                  <EmptyState description="教师提交请假申请后，会进入这里等待审批。" icon={FileCheck} title="暂无请假申请" />
+                                </td>
+                              </tr>
+                            ) : (
+                              displayedManagerLeaveRequests.map((request) => {
+                                const step = request.status === "pending" ? request.approvalSteps[request.currentStepIndex] : null;
+                                const reviewedApproverLabels = request.approvals
+                                  .map((approval) => approverLabelById.get(approval.approverId) ?? approval.approverName)
+                                  .filter(Boolean);
+                                const currentApproverLabels =
+                                  step?.approverIds.map((id) => approverLabelById.get(id) ?? "未配置审批人").filter(Boolean) ?? [];
+                                const approverSummary = reviewedApproverLabels.length
+                                  ? reviewedApproverLabels.join("、")
+                                  : request.status === "pending"
+                                    ? currentApproverLabels.join("、") || "未配置审批人"
+                                    : "暂无审批记录";
+                                const leaveStatusClassName =
+                                  request.status === "approved"
+                                    ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100"
+                                    : request.status === "rejected"
+                                      ? "bg-rose-50 text-rose-700 ring-1 ring-rose-100"
+                                      : "bg-amber-50 text-amber-700 ring-1 ring-amber-100";
+                                const leaveStageLabel =
+                                  request.status === "approved"
+                                    ? "审批完成"
+                                    : request.status === "rejected"
+                                      ? "已驳回"
+                                      : step
+                                        ? `${step.name}（需${step.requiredCount}人）`
+                                        : "待审批";
+                                const canReviewThisRequest =
+                                  request.status === "pending" && Boolean(step?.approverIds.includes(currentUser?.id ?? ""));
+
+                                return (
+                                  <tr key={request.id} className="align-top text-slate-700 [&>td]:px-4 [&>td]:py-3">
+                                    <td>
+                                      <p className="font-semibold text-slate-950">{request.participantName}</p>
+                                      <p className="mt-1 max-w-[190px] truncate text-xs text-slate-500" title={request.organization}>
+                                        {request.organization}
+                                      </p>
+                                    </td>
+                                    <td className="whitespace-nowrap text-xs text-slate-500">{request.submittedAt}</td>
+                                    <td className="whitespace-nowrap">{request.sessionLabel}</td>
+                                    <td className="whitespace-nowrap">{formatTeacherTrainingLeaveDateTime(request.startDate, request.startTime)}</td>
+                                    <td className="whitespace-nowrap">{formatTeacherTrainingLeaveDateTime(request.endDate, request.endTime)}</td>
+                                    <td className="whitespace-nowrap font-semibold text-slate-900">
+                                      {getTeacherTrainingLeaveDurationLabel(request)}
+                                    </td>
+                                    <td>
+                                      <p className="line-clamp-2 max-w-[220px] text-xs leading-5 text-slate-600" title={request.reason}>
+                                        {request.reason}
+                                      </p>
+                                    </td>
+                                    <td>
+                                      <div className="flex flex-col gap-1">
+                                        <span className={`w-fit rounded-full px-2.5 py-1 text-xs font-bold ${leaveStatusClassName}`}>
+                                          {request.statusLabel}
                                         </span>
-                                      ) : null}
-                                      <span className="rounded-full bg-slate-100 px-2.5 py-1">
-                                        {request.statusLabel}
-                                      </span>
-                                    </div>
-                                    <p className="mt-2 break-words text-xs leading-5 text-slate-500">
-                                      {approverSummary}
-                                    </p>
-                                  </div>
-                                  <div className="flex shrink-0 flex-wrap justify-end gap-2">
-                                    {request.status === "approved" ? (
-                                      <button
-                                        className="inline-flex h-8 items-center rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-600 disabled:cursor-wait disabled:opacity-60"
-                                        aria-label={`导出${request.participantName}的 PDF 请假单`}
-                                        disabled={downloadingTeacherTrainingFile === `/api/teacher-training/leave-requests/${request.id}/pdf`}
-                                        onClick={() =>
-                                          void downloadTeacherTrainingFile({
-                                            url: `/api/teacher-training/leave-requests/${request.id}/pdf`,
-                                            label: "PDF请假单",
-                                            fallbackName: `${selectedCohort.title}-${request.participantName}-请假单.pdf`,
-                                          })
-                                        }
-                                        title={`导出${request.participantName}的 PDF 请假单`}
-                                        type="button"
-                                      >
-                                        导出PDF请假单
-                                      </button>
-                                    ) : (
-                                      <span className="inline-flex h-8 items-center rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs font-semibold text-slate-400">
-                                        审批完成后可导出PDF
-                                      </span>
-                                    )}
-                                    {request.status === "pending" && step?.approverIds.includes(currentUser?.id ?? "") ? (
-                                      <>
-                                        <button
-                                          className="inline-flex h-8 items-center rounded-lg bg-emerald-600 px-3 text-xs font-semibold text-white"
-                                          aria-label={`通过${request.participantName}的请假申请`}
-                                          disabled={isSaving}
-                                          onClick={() => void reviewLeaveRequest(request.id, "approve")}
-                                          title={`通过${request.participantName}的请假申请`}
-                                          type="button"
-                                        >
-                                          通过
-                                        </button>
-                                        <button
-                                          className="inline-flex h-8 items-center rounded-lg border border-rose-200 bg-white px-3 text-xs font-semibold text-rose-600"
-                                          aria-label={`驳回${request.participantName}的请假申请`}
-                                          disabled={isSaving}
-                                          onClick={() => void reviewLeaveRequest(request.id, "reject")}
-                                          title={`驳回${request.participantName}的请假申请`}
-                                          type="button"
-                                        >
-                                          驳回
-                                        </button>
-                                      </>
-                                    ) : null}
-                                  </div>
-                                </div>
-                              </div>
-                            );
-                          })
-                        )}
+                                        <span className="text-xs text-slate-400">{leaveStageLabel}</span>
+                                      </div>
+                                    </td>
+                                    <td>
+                                      <p className="max-w-[180px] text-xs leading-5 text-slate-500" title={approverSummary}>
+                                        {approverSummary}
+                                      </p>
+                                    </td>
+                                    <td>
+                                      <div className="flex flex-wrap justify-end gap-2">
+                                        {request.status === "approved" ? (
+                                          <button
+                                            className="inline-flex h-8 items-center rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-blue-700 disabled:cursor-wait disabled:opacity-60"
+                                            aria-label={`导出${request.participantName}的 PDF 请假单`}
+                                            disabled={downloadingTeacherTrainingFile === `/api/teacher-training/leave-requests/${request.id}/pdf`}
+                                            onClick={() =>
+                                              void downloadTeacherTrainingFile({
+                                                url: `/api/teacher-training/leave-requests/${request.id}/pdf`,
+                                                label: "PDF请假单",
+                                                fallbackName: `${selectedCohort.title}-${request.participantName}-请假单.pdf`,
+                                              })
+                                            }
+                                            title={`导出${request.participantName}的 PDF 请假单`}
+                                            type="button"
+                                          >
+                                            导出PDF
+                                          </button>
+                                        ) : (
+                                          <span className="inline-flex h-8 items-center rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs font-semibold text-slate-400">
+                                            审批后导出
+                                          </span>
+                                        )}
+                                        {canReviewThisRequest ? (
+                                          <>
+                                            <button
+                                              className="inline-flex h-8 items-center rounded-lg bg-emerald-600 px-3 text-xs font-semibold text-white"
+                                              aria-label={`通过${request.participantName}的请假申请`}
+                                              disabled={isSaving}
+                                              onClick={() => void reviewLeaveRequest(request.id, "approve")}
+                                              title={`通过${request.participantName}的请假申请`}
+                                              type="button"
+                                            >
+                                              通过
+                                            </button>
+                                            <button
+                                              className="inline-flex h-8 items-center rounded-lg border border-rose-200 bg-white px-3 text-xs font-semibold text-rose-600"
+                                              aria-label={`驳回${request.participantName}的请假申请`}
+                                              disabled={isSaving}
+                                              onClick={() => void reviewLeaveRequest(request.id, "reject")}
+                                              title={`驳回${request.participantName}的请假申请`}
+                                              type="button"
+                                            >
+                                              驳回
+                                            </button>
+                                          </>
+                                        ) : null}
+                                      </div>
+                                    </td>
+                                  </tr>
+                                );
+                              })
+                            )}
+                          </tbody>
+                        </table>
                       </div>
                     </div>
                     ) : null}
                   </div>
                   </>
                 ) : (
-                  <div className="mt-4 grid items-start gap-4 xl:grid-cols-[420px_minmax(0,1fr)]">
-                    <div className="rounded-xl border border-slate-200/75 bg-white/72 p-4">
-                      <p className="text-sm font-semibold text-slate-900">提交请假</p>
-                      <div className="mt-3 grid gap-3 sm:grid-cols-2">
-                        <label className={teacherTrainingFieldShellClassName}>
-                          <span className={teacherTrainingFieldLabelClassName}>请假开始日期</span>
-                          <input
-                            className={fieldClassName}
-                            {...fieldHint("请假开始日期")}
-                            onChange={(event) => setLeaveDraft((current) => ({ ...current, startDate: event.target.value }))}
-                            type="date"
-                            value={leaveDraft.startDate}
-                          />
-                        </label>
-                        <label className={teacherTrainingFieldShellClassName}>
-                          <span className={teacherTrainingFieldLabelClassName}>请假结束日期</span>
-                          <input
-                            className={fieldClassName}
-                            {...fieldHint("请假结束日期")}
-                            onChange={(event) => setLeaveDraft((current) => ({ ...current, endDate: event.target.value }))}
-                            type="date"
-                            value={leaveDraft.endDate}
-                          />
-                        </label>
-                        <label className={teacherTrainingFieldShellClassName}>
-                          <span className={teacherTrainingFieldLabelClassName}>请假开始时间</span>
-                          <input
-                            className={fieldClassName}
-                            {...fieldHint("请假开始时间")}
-                            onChange={(event) => setLeaveDraft((current) => ({ ...current, startTime: event.target.value }))}
-                            type="time"
-                            value={leaveDraft.startTime}
-                          />
-                        </label>
-                        <label className={teacherTrainingFieldShellClassName}>
-                          <span className={teacherTrainingFieldLabelClassName}>请假结束时间</span>
-                          <input
-                            className={fieldClassName}
-                            {...fieldHint("请假结束时间")}
-                            onChange={(event) => setLeaveDraft((current) => ({ ...current, endTime: event.target.value }))}
-                            type="time"
-                            value={leaveDraft.endTime}
-                          />
-                        </label>
-                        <label className={teacherTrainingFieldShellClassName}>
-                          <span className={teacherTrainingFieldLabelClassName}>请假场次</span>
-                          <input
-                            className={fieldClassName}
-                            {...fieldHint("请假场次")}
-                            onChange={(event) => setLeaveDraft((current) => ({ ...current, sessionLabel: event.target.value }))}
-                            placeholder="请假场次"
-                            value={leaveDraft.sessionLabel}
-                          />
-                        </label>
-                        <label className={teacherTrainingFieldShellClassName}>
-                          <span className={teacherTrainingFieldLabelClassName}>请假人</span>
-                          <input
-                            className={fieldClassName}
-                            {...fieldHint("请假人")}
-                            disabled
-                            value={selectedParticipant?.name ?? "参训教师"}
-                          />
-                        </label>
-                        <label className={teacherTrainingFieldShellWideClassName}>
-                          <span className={teacherTrainingFieldLabelClassName}>请假原因</span>
-                          <textarea
-                            className={`${textareaClassName} min-h-24`}
-                            {...fieldHint("请假原因")}
-                            onChange={(event) => setLeaveDraft((current) => ({ ...current, reason: event.target.value }))}
-                            placeholder="请假原因"
-                            value={leaveDraft.reason}
-                          />
-                        </label>
+                  <div className="mt-4 space-y-4">
+                    <div className="rounded-2xl border border-slate-200 bg-white/92 p-4">
+                      <span className="inline-flex h-9 items-center rounded-b-xl bg-[#4f86e8] px-4 text-sm font-bold text-white">
+                        首页指南
+                      </span>
+                      <div className="mt-4 space-y-2 text-sm leading-7 text-slate-700">
+                        <p>欢迎使用省培请假管理。</p>
+                        <p>请假申请提交后，将按当前班次的审批流程流转；审批通过后，可导出带电子签的 PDF 请假单。</p>
                       </div>
-                      <ActionButton
-                        aria-label="提交省培请假申请"
-                        className="mt-3"
-                        disabled={Boolean(leaveDisabledReason)}
-                        loading={isSaving}
-                        onClick={() => void submitLeaveRequest()}
-                        title={leaveDisabledReason || "提交省培请假申请"}
-                        variant="primary"
-                      >
-                        提交请假
-                      </ActionButton>
-                      {leaveDisabledReason ? (
-                        <p className={`${teacherTrainingDisabledHintClassName} mt-3`}>
-                          {leaveDisabledReason}
-                        </p>
-                      ) : null}
+                      <div className="mt-4 overflow-x-auto">
+                        <table className="min-w-[760px] text-left text-xs">
+                          <thead className="border-y border-slate-200 bg-slate-50 text-slate-600">
+                            <tr className="[&>th]:px-3 [&>th]:py-2">
+                              <th>人员类别</th>
+                              <th>请假类型</th>
+                              <th>时间要求</th>
+                              <th>审批流程</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100 text-slate-600">
+                            <tr className="[&>td]:px-3 [&>td]:py-2">
+                              <td>参训教师</td>
+                              <td>请假</td>
+                              <td>需填写开始和结束日期、时间</td>
+                              <td>
+                                {selectedCohort.leaveFlow?.isEnabled && selectedCohort.leaveFlow.approvalSteps.length
+                                  ? selectedCohort.leaveFlow.approvalSteps.map((step) => step.name).join(" → ")
+                                  : "管理员尚未配置审批流程"}
+                              </td>
+                            </tr>
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
 
-                    <div className="space-y-4">
-                      <div
-                        aria-label="省培请假进度"
-                        className="rounded-2xl border border-blue-100 bg-[linear-gradient(135deg,rgba(37,99,235,0.08),rgba(255,255,255,0.94)_48%,rgba(16,185,129,0.08))] p-4 shadow-sm"
-                      >
-                        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                          <div>
-                            <p className="text-sm font-bold text-slate-950">当前请假进度</p>
-                            <p className="mt-1 text-xs leading-5 text-slate-500">
-                              {teacherLatestLeaveRequest
-                                ? `${teacherLatestLeaveRequest.startDate} 至 ${teacherLatestLeaveRequest.endDate} · ${teacherLatestLeaveRequest.sessionLabel}`
-                                : "提交临时请假后，这里会显示审批步骤和当前状态。"}
-                            </p>
-                          </div>
-                          <span className="w-fit rounded-full bg-white/82 px-3 py-1 text-xs font-bold text-blue-700">
-                            {teacherLatestLeaveRequest?.statusLabel ?? "暂无请假"}
+                    <div className="rounded-2xl border border-slate-200 bg-white/92 p-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <span className="inline-flex h-9 items-center rounded-b-xl bg-[#4f86e8] px-4 text-sm font-bold text-white">
+                          默认分类
+                        </span>
+                        <button
+                          className="inline-flex h-9 items-center gap-1.5 rounded-lg bg-[#1f64f2] px-4 text-xs font-semibold text-white shadow-sm transition hover:bg-[#174ecb]"
+                          onClick={() => setTeacherLeaveFormOpen(true)}
+                          type="button"
+                        >
+                          <Plus className="h-3.5 w-3.5" />
+                          新增请假
+                        </button>
+                      </div>
+                      <div className="mt-4 grid gap-3 md:grid-cols-2">
+                        <button
+                          className="group flex min-h-[96px] items-center justify-between rounded-2xl border border-slate-100 bg-slate-50 px-5 py-4 text-left transition hover:border-blue-200 hover:bg-blue-50/70"
+                          onClick={() => setTeacherLeaveFormOpen(true)}
+                          type="button"
+                        >
+                          <span>
+                            <span className="block text-lg font-semibold text-slate-900">请假申请</span>
+                            <span className="mt-1 block text-sm text-slate-400">点击进入</span>
                           </span>
-                        </div>
-                        {teacherLatestLeaveRequest ? (
-                          <div className="mt-3 grid gap-2">
-                            <p className="text-xs font-bold text-slate-500">审批步骤</p>
-                            {teacherLatestLeaveRequest.approvalSteps.length ? (
-                              <div aria-label="请假审批步骤条" className="flex gap-2 overflow-x-auto pb-1">
-                                {teacherLatestLeaveRequest.approvalSteps.map((step, index) => {
-                                  const approvedCount = teacherLatestLeaveRequest.approvals.filter(
-                                    (approval) => approval.stepKey === step.key && approval.decision === "approve",
-                                  ).length;
-                                  const stepState =
-                                    teacherLatestLeaveRequest.status === "rejected" && index === teacherLatestLeaveRequest.currentStepIndex
-                                      ? "已驳回"
-                                      : approvedCount >= step.requiredCount || index < teacherLatestLeaveRequest.currentStepIndex
-                                        ? "已通过"
-                                        : index === teacherLatestLeaveRequest.currentStepIndex
-                                          ? "等待审批"
-                                          : "未到达";
+                          <span className="grid h-12 w-12 place-items-center rounded-full bg-sky-500 text-white transition group-hover:scale-105">
+                            <FileCheck className="h-5 w-5" />
+                          </span>
+                        </button>
+                        <button
+                          className="group flex min-h-[96px] items-center justify-between rounded-2xl border border-slate-100 bg-slate-50 px-5 py-4 text-left transition hover:border-blue-200 hover:bg-blue-50/70"
+                          onClick={() =>
+                            document.getElementById("tt-teacher-leave-records")?.scrollIntoView({ behavior: "smooth", block: "start" })
+                          }
+                          type="button"
+                        >
+                          <span>
+                            <span className="block text-lg font-semibold text-slate-900">我的请假记录</span>
+                            <span className="mt-1 block text-sm text-slate-400">{teacherLeaveRequests.length} 条记录</span>
+                          </span>
+                          <span className="grid h-12 w-12 place-items-center rounded-full bg-[#f4c20d] text-white transition group-hover:scale-105">
+                            <FileText className="h-5 w-5" />
+                          </span>
+                        </button>
+                      </div>
+                    </div>
 
-                                  return (
-                                    <div
-                                      key={step.key}
-                                      className="min-w-[210px] flex-1 rounded-2xl border border-white/80 bg-white/82 px-3 py-3 shadow-sm"
-                                    >
-                                      <div className="flex items-start justify-between gap-3">
-                                        <div className="min-w-0">
-                                          <div className="flex items-center gap-2">
-                                            <span
-                                              className={`grid h-6 w-6 shrink-0 place-items-center rounded-full text-[11px] font-bold ${
-                                                stepState === "已通过"
-                                                  ? "bg-emerald-600 text-white"
-                                                  : stepState === "等待审批"
-                                                    ? "bg-amber-500 text-white"
-                                                    : stepState === "已驳回"
-                                                      ? "bg-rose-600 text-white"
-                                                      : "bg-slate-200 text-slate-500"
-                                              }`}
-                                            >
-                                              {index + 1}
-                                            </span>
-                                            <p className="truncate text-sm font-semibold text-slate-950">{step.name}</p>
-                                          </div>
-                                          <p className="mt-2 line-clamp-2 text-xs leading-5 text-slate-500">
-                                            {step.approverIds
-                                              .map((approverId) => approverLabelById.get(approverId) ?? "未配置审批人")
-                                              .join("、") || "未配置审批人"}
-                                          </p>
-                                        </div>
-                                        <span
-                                          className={`shrink-0 rounded-full px-2.5 py-1 text-xs font-bold ${
-                                            stepState === "已通过"
-                                              ? "bg-emerald-50 text-emerald-700"
-                                              : stepState === "等待审批"
-                                                ? "bg-amber-50 text-amber-700"
-                                                : stepState === "已驳回"
-                                                  ? "bg-rose-50 text-rose-700"
-                                                  : "bg-slate-100 text-slate-500"
-                                          }`}
-                                        >
-                                          {stepState}
-                                        </span>
-                                      </div>
-                                      <p className="mt-2 text-xs text-slate-400">
-                                        已通过 {approvedCount}/{step.requiredCount}
-                                      </p>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            ) : (
-                              <p className="rounded-xl bg-white/82 px-3 py-2 text-xs text-slate-500">
-                                管理员尚未配置审批步骤。
-                              </p>
-                            )}
+                    {teacherLeaveFormOpen ? (
+                      <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white/95" id="tt-teacher-leave-form">
+                        <div className="border-b border-slate-100 bg-slate-50/80 px-4 py-3">
+                          <span className="inline-flex h-9 items-center rounded-b-xl bg-[#4f86e8] px-4 text-sm font-bold text-white">
+                            基本信息
+                          </span>
+                          <div className="mt-4 grid gap-3 md:grid-cols-3">
+                            {[
+                              ["姓名", selectedParticipant?.name ?? "参训教师"],
+                              ["单位", selectedParticipant?.organization ?? "未绑定单位"],
+                              ["手机号", selectedParticipant?.phone ?? "未填写"],
+                            ].map(([label, value]) => (
+                              <label key={label} className={teacherTrainingFieldShellClassName}>
+                                <span className={teacherTrainingFieldLabelClassName}>{label}</span>
+                                <input aria-label={label} className={fieldClassName} disabled value={value} />
+                              </label>
+                            ))}
                           </div>
+                        </div>
+
+                        <div className="px-4 py-4">
+                          <span className="inline-flex h-9 items-center rounded-b-xl bg-[#4f86e8] px-4 text-sm font-bold text-white">
+                            请假申请信息
+                          </span>
+                          <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+                            <label className={teacherTrainingFieldShellClassName}>
+                              <span className={`${teacherTrainingFieldLabelClassName} inline-flex items-center`}>
+                                申请日期
+                                <span aria-hidden="true" className={teacherTrainingRequiredMarkClassName}>*</span>
+                              </span>
+                              <input aria-label="请假申请日期" className={fieldClassName} disabled value={getDateInputValue(new Date())} />
+                            </label>
+                            <label className={teacherTrainingFieldShellClassName}>
+                              <span className={`${teacherTrainingFieldLabelClassName} inline-flex items-center`}>
+                                请假类型
+                                <span aria-hidden="true" className={teacherTrainingRequiredMarkClassName}>*</span>
+                              </span>
+                              <select
+                                className={fieldClassName}
+                                {...fieldHint("请假类型")}
+                                onChange={(event) => setLeaveDraft((current) => ({ ...current, sessionLabel: event.target.value }))}
+                                value={leaveDraft.sessionLabel}
+                              >
+                                <option value="请假">请假</option>
+                                <option value="事假">事假</option>
+                                <option value="病假">病假</option>
+                                <option value="公假">公假</option>
+                                <option value="其他">其他</option>
+                              </select>
+                            </label>
+                            <label className={teacherTrainingFieldShellClassName}>
+                              <span className={`${teacherTrainingFieldLabelClassName} inline-flex items-center`}>
+                                请假开始日期
+                                <span aria-hidden="true" className={teacherTrainingRequiredMarkClassName}>*</span>
+                              </span>
+                              <input
+                                className={fieldClassName}
+                                {...fieldHint("请假开始日期")}
+                                onChange={(event) => setLeaveDraft((current) => ({ ...current, startDate: event.target.value }))}
+                                type="date"
+                                value={leaveDraft.startDate}
+                              />
+                            </label>
+                            <label className={teacherTrainingFieldShellClassName}>
+                              <span className={`${teacherTrainingFieldLabelClassName} inline-flex items-center`}>
+                                请假开始时间
+                                <span aria-hidden="true" className={teacherTrainingRequiredMarkClassName}>*</span>
+                              </span>
+                              <input
+                                className={fieldClassName}
+                                {...fieldHint("请假开始时间")}
+                                onChange={(event) => setLeaveDraft((current) => ({ ...current, startTime: event.target.value }))}
+                                type="time"
+                                value={leaveDraft.startTime}
+                              />
+                            </label>
+                            <label className={teacherTrainingFieldShellClassName}>
+                              <span className={`${teacherTrainingFieldLabelClassName} inline-flex items-center`}>
+                                请假结束日期
+                                <span aria-hidden="true" className={teacherTrainingRequiredMarkClassName}>*</span>
+                              </span>
+                              <input
+                                className={fieldClassName}
+                                {...fieldHint("请假结束日期")}
+                                onChange={(event) => setLeaveDraft((current) => ({ ...current, endDate: event.target.value }))}
+                                type="date"
+                                value={leaveDraft.endDate}
+                              />
+                            </label>
+                            <label className={teacherTrainingFieldShellClassName}>
+                              <span className={`${teacherTrainingFieldLabelClassName} inline-flex items-center`}>
+                                请假结束时间
+                                <span aria-hidden="true" className={teacherTrainingRequiredMarkClassName}>*</span>
+                              </span>
+                              <input
+                                className={fieldClassName}
+                                {...fieldHint("请假结束时间")}
+                                onChange={(event) => setLeaveDraft((current) => ({ ...current, endTime: event.target.value }))}
+                                type="time"
+                                value={leaveDraft.endTime}
+                              />
+                            </label>
+                            <label className={teacherTrainingFieldShellClassName}>
+                              <span className={teacherTrainingFieldLabelClassName}>请假时长</span>
+                              <input aria-label="请假时长" className={fieldClassName} disabled value={getTeacherTrainingLeaveDurationLabel(leaveDraft)} />
+                            </label>
+                            <label className={`${teacherTrainingFieldShellClassName} md:col-span-2 xl:col-span-3`}>
+                              <span className={`${teacherTrainingFieldLabelClassName} inline-flex items-center`}>
+                                请假原因
+                                <span aria-hidden="true" className={teacherTrainingRequiredMarkClassName}>*</span>
+                              </span>
+                              <textarea
+                                className={`${textareaClassName} min-h-24`}
+                                {...fieldHint("请假原因")}
+                                onChange={(event) => setLeaveDraft((current) => ({ ...current, reason: event.target.value }))}
+                                placeholder="请填写请假原因"
+                                value={leaveDraft.reason}
+                              />
+                            </label>
+                          </div>
+                        </div>
+
+                        <div className="sticky bottom-0 flex flex-col gap-2 border-t border-slate-100 bg-white/95 px-4 py-3 backdrop-blur sm:flex-row sm:items-center sm:justify-between">
+                          <p className="text-xs leading-5 text-slate-500">
+                            提交后进入审批流程，审批完成前不能导出 PDF 请假单。
+                          </p>
+                          <div className="flex gap-2">
+                            <ActionButton onClick={() => setTeacherLeaveFormOpen(false)}>取消</ActionButton>
+                            <ActionButton
+                              aria-label="提交省培请假申请"
+                              disabled={Boolean(leaveDisabledReason)}
+                              loading={isSaving}
+                              onClick={() => void submitLeaveRequest()}
+                              title={leaveDisabledReason || "提交省培请假申请"}
+                              variant="primary"
+                            >
+                              提交请假
+                            </ActionButton>
+                          </div>
+                        </div>
+                        {leaveDisabledReason ? (
+                          <p className={`${teacherTrainingDisabledHintClassName} mx-4 mb-4`}>
+                            {leaveDisabledReason}
+                          </p>
                         ) : null}
                       </div>
+                    ) : null}
 
-                    <div className="rounded-xl border border-slate-200/75 bg-white/72 p-4">
-                      <p className="text-sm font-semibold text-slate-900">我的请假记录</p>
-                      {teacherTrainingDownloadStatus ? (
-                        <p className="mt-3 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs leading-5 text-blue-700">
-                          {teacherTrainingDownloadStatus}
-                        </p>
-                      ) : null}
-                      <div className="mt-3 grid gap-2">
-                        {teacherLeaveRequests.length ? (
-                          teacherLeaveRequests.slice(0, 4).map((request) => (
-                            <div key={request.id} className="rounded-lg bg-slate-50 px-3 py-2">
-                              <div className="flex items-center justify-between gap-3">
-                                <p className="text-sm font-semibold text-slate-900">
-                                  {request.startDate} 至 {request.endDate}
-                                  </p>
-                                  <div className="flex items-center gap-2">
-                                    {request.status === "approved" ? (
-                                      <button
-                                        className="text-xs font-semibold text-blue-700 disabled:cursor-wait disabled:text-blue-300"
-                                        aria-label={`导出${request.startDate}请假 PDF`}
-                                        disabled={downloadingTeacherTrainingFile === `/api/teacher-training/leave-requests/${request.id}/pdf`}
-                                        onClick={() =>
-                                          void downloadTeacherTrainingFile({
-                                            url: `/api/teacher-training/leave-requests/${request.id}/pdf`,
-                                            label: "PDF请假单",
-                                            fallbackName: `${selectedCohort.title}-${request.startDate}-请假单.pdf`,
-                                          })
-                                        }
-                                        title={`导出${request.startDate}请假 PDF`}
-                                        type="button"
-                                      >
-                                        导出PDF请假单
-                                      </button>
-                                    ) : (
-                                      <span className="text-xs font-semibold text-slate-400">审批完成后可导出PDF</span>
-                                    )}
-                                    <span className="rounded-full bg-blue-50 px-2 py-0.5 text-xs font-semibold text-blue-700">
-                                      {request.statusLabel}
-                                    </span>
-                                </div>
-                              </div>
-                              <p className="mt-1 text-xs text-slate-500">{request.reason}</p>
-                            </div>
-                          ))
-                        ) : (
-                          <EmptyState description="临时请假提交后，审批进度会显示在这里。" icon={FileCheck} title="暂无请假记录" />
-                        )}
+                    <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white/92" id="tt-teacher-leave-records">
+                      <div className="flex flex-col gap-2 border-b border-slate-100 px-4 py-4 sm:flex-row sm:items-center sm:justify-between">
+                        <div>
+                          <p className="text-sm font-semibold text-slate-950">我的请假记录</p>
+                          <p className="mt-1 text-xs text-slate-500">请假审批完成后，可在对应记录中导出 PDF 请假单。</p>
+                        </div>
+                        {teacherTrainingDownloadStatus ? (
+                          <p className="rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs leading-5 text-blue-700">
+                            {teacherTrainingDownloadStatus}
+                          </p>
+                        ) : null}
                       </div>
-                    </div>
+                      <div className="overflow-x-auto">
+                        <table className="w-full min-w-[860px] text-left text-sm">
+                          <thead className="bg-slate-50 text-xs font-semibold text-slate-500">
+                            <tr className="[&>th]:px-4 [&>th]:py-3">
+                              <th>申请日期</th>
+                              <th>请假类型</th>
+                              <th>请假开始时间</th>
+                              <th>请假结束时间</th>
+                              <th>请假时长</th>
+                              <th>请假原因</th>
+                              <th>状态</th>
+                              <th className="text-right">操作</th>
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-slate-100">
+                            {teacherLeaveRequests.length ? (
+                              teacherLeaveRequests.map((request) => {
+                                const leaveStatusClassName =
+                                  request.status === "approved"
+                                    ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100"
+                                    : request.status === "rejected"
+                                      ? "bg-rose-50 text-rose-700 ring-1 ring-rose-100"
+                                      : "bg-amber-50 text-amber-700 ring-1 ring-amber-100";
+                                return (
+                                  <tr key={request.id} className="align-top text-slate-700 [&>td]:px-4 [&>td]:py-3">
+                                    <td className="whitespace-nowrap text-xs text-slate-500">{request.submittedAt}</td>
+                                    <td className="whitespace-nowrap">{request.sessionLabel}</td>
+                                    <td className="whitespace-nowrap">{formatTeacherTrainingLeaveDateTime(request.startDate, request.startTime)}</td>
+                                    <td className="whitespace-nowrap">{formatTeacherTrainingLeaveDateTime(request.endDate, request.endTime)}</td>
+                                    <td className="whitespace-nowrap font-semibold text-slate-900">
+                                      {getTeacherTrainingLeaveDurationLabel(request)}
+                                    </td>
+                                    <td>
+                                      <p className="line-clamp-2 max-w-[260px] text-xs leading-5 text-slate-600" title={request.reason}>
+                                        {request.reason}
+                                      </p>
+                                    </td>
+                                    <td>
+                                      <span className={`w-fit rounded-full px-2.5 py-1 text-xs font-bold ${leaveStatusClassName}`}>
+                                        {request.statusLabel}
+                                      </span>
+                                    </td>
+                                    <td>
+                                      <div className="flex justify-end">
+                                        {request.status === "approved" ? (
+                                          <button
+                                            className="inline-flex h-8 items-center rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-blue-700 disabled:cursor-wait disabled:opacity-60"
+                                            aria-label={`导出${request.startDate}请假 PDF`}
+                                            disabled={downloadingTeacherTrainingFile === `/api/teacher-training/leave-requests/${request.id}/pdf`}
+                                            onClick={() =>
+                                              void downloadTeacherTrainingFile({
+                                                url: `/api/teacher-training/leave-requests/${request.id}/pdf`,
+                                                label: "PDF请假单",
+                                                fallbackName: `${selectedCohort.title}-${request.startDate}-请假单.pdf`,
+                                              })
+                                            }
+                                            title={`导出${request.startDate}请假 PDF`}
+                                            type="button"
+                                          >
+                                            导出PDF
+                                          </button>
+                                        ) : (
+                                          <span className="inline-flex h-8 items-center rounded-lg border border-slate-200 bg-slate-50 px-3 text-xs font-semibold text-slate-400">
+                                            审批后导出
+                                          </span>
+                                        )}
+                                      </div>
+                                    </td>
+                                  </tr>
+                                );
+                              })
+                            ) : (
+                              <tr>
+                                <td colSpan={8} className="px-4 py-14">
+                                  <EmptyState description="点击上方请假申请，提交后这里会显示审批进度。" icon={FileCheck} title="暂无请假记录" />
+                                </td>
+                              </tr>
+                            )}
+                          </tbody>
+                        </table>
+                      </div>
                     </div>
                   </div>
                 )}
@@ -6358,6 +6355,30 @@ export default function TeacherTrainingTab() {
                       {filteredParticipants.length}/{selectedCohort.participants.length} 人
                     </span>
                     <button
+                      className={`inline-flex h-9 items-center justify-center gap-2 rounded-lg px-3 text-xs font-semibold transition ${
+                        participantFormOpen
+                          ? "bg-blue-600 text-white shadow-sm shadow-blue-900/15"
+                          : "border border-blue-100 bg-white text-blue-700 hover:border-blue-200 hover:bg-blue-50"
+                      }`}
+                      onClick={openParticipantFormWorkspace}
+                      type="button"
+                    >
+                      <Plus className="h-4 w-4" />
+                      新增教师
+                    </button>
+                    <button
+                      className={`inline-flex h-9 items-center justify-center gap-2 rounded-lg px-3 text-xs font-semibold transition ${
+                        participantImportOpen
+                          ? "bg-blue-600 text-white shadow-sm shadow-blue-900/15"
+                          : "border border-blue-100 bg-white text-blue-700 hover:border-blue-200 hover:bg-blue-50"
+                      }`}
+                      onClick={openParticipantImportWorkspace}
+                      type="button"
+                    >
+                      <Upload className="h-4 w-4" />
+                      导入名单
+                    </button>
+                    <button
                       className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-blue-100 bg-white px-3 text-xs font-semibold text-blue-700 transition hover:border-blue-200 hover:bg-blue-50"
                       aria-label="一键用手机号开通省培账号"
                       disabled={isSaving || !selectedCohort.participants.some((participant) => !participant.accountUserId && getPhoneAccountUsername(participant))}
@@ -6393,6 +6414,301 @@ export default function TeacherTrainingTab() {
                     </button>
                   </div>
                 </div>
+
+                {participantFormOpen ? (
+                  <div
+                    className="mt-4 rounded-2xl border border-blue-100 bg-gradient-to-br from-white via-blue-50/35 to-white p-4 shadow-[0_18px_45px_-34px_rgba(26,111,212,0.45)]"
+                    id="tt-participant-workbench"
+                  >
+                    <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                      <div>
+                        <p className="text-sm font-black text-slate-950">新增参训教师档案</p>
+                        <p className="mt-1 text-xs leading-5 text-slate-500">
+                          先维护报名档案；登录账号可以选择已有账号，也可以保存后到省培账号管理中用手机号开通。
+                        </p>
+                      </div>
+                      <button
+                        className="inline-flex h-8 w-fit items-center rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-slate-500 transition hover:border-slate-300 hover:text-slate-700"
+                        onClick={() => setParticipantFormOpen(false)}
+                        type="button"
+                      >
+                        收起
+                      </button>
+                    </div>
+                    <div className="mt-3 rounded-xl border border-blue-100 bg-white/75 px-3 py-2">
+                      <p className="text-xs font-bold text-blue-700">档案必填</p>
+                      <p className="mt-1 text-xs leading-5 text-blue-600">姓名、单位、手机号、分组必须填写；职务和职称至少填写一项。</p>
+                    </div>
+                    <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+                      <label className={teacherTrainingFieldShellClassName}>
+                        <span className={`${teacherTrainingFieldLabelClassName} inline-flex items-center`}>
+                          参训教师姓名
+                          <span aria-hidden="true" className={teacherTrainingRequiredMarkClassName}>*</span>
+                          <span className="sr-only">必填</span>
+                        </span>
+                        <input
+                          id="tt-participant-name-input"
+                          className={fieldClassName}
+                          {...fieldHint("参训教师姓名")}
+                          onChange={(event) => setParticipantDraft((current) => ({ ...current, name: event.target.value }))}
+                          placeholder="姓名"
+                          value={participantDraft.name}
+                        />
+                      </label>
+                      <label className={`${teacherTrainingFieldShellClassName} md:col-span-2 xl:col-span-2`}>
+                        <span className={`${teacherTrainingFieldLabelClassName} inline-flex items-center`}>
+                          所在单位
+                          <span aria-hidden="true" className={teacherTrainingRequiredMarkClassName}>*</span>
+                          <span className="sr-only">必填</span>
+                        </span>
+                        <input
+                          className={fieldClassName}
+                          {...fieldHint("参训教师单位")}
+                          onChange={(event) => setParticipantDraft((current) => ({ ...current, organization: event.target.value }))}
+                          placeholder="单位"
+                          value={participantDraft.organization}
+                        />
+                      </label>
+                      <label className={teacherTrainingFieldShellClassName}>
+                        <span className={`${teacherTrainingFieldLabelClassName} inline-flex items-center`}>
+                          报名手机号
+                          <span aria-hidden="true" className={teacherTrainingRequiredMarkClassName}>*</span>
+                          <span className="sr-only">必填</span>
+                        </span>
+                        <input
+                          className={fieldClassName}
+                          {...fieldHint("参训教师手机")}
+                          onChange={(event) => setParticipantDraft((current) => ({ ...current, phone: event.target.value }))}
+                          placeholder="11 位手机号"
+                          value={participantDraft.phone}
+                        />
+                      </label>
+                      <label className={teacherTrainingFieldShellClassName}>
+                        <span className={`${teacherTrainingFieldLabelClassName} inline-flex items-center`}>
+                          参训教师分组
+                          <span aria-hidden="true" className={teacherTrainingRequiredMarkClassName}>*</span>
+                          <span className="sr-only">必填</span>
+                        </span>
+                        <input
+                          className={fieldClassName}
+                          {...fieldHint("参训教师分组")}
+                          onChange={(event) => setParticipantDraft((current) => ({ ...current, groupName: event.target.value }))}
+                          placeholder="如一组、二组"
+                          value={participantDraft.groupName}
+                        />
+                      </label>
+                      <label className={teacherTrainingFieldShellClassName}>
+                        <span className={`${teacherTrainingFieldLabelClassName} inline-flex items-center`}>
+                          参训教师职务
+                          <span className={teacherTrainingEitherRequiredMarkClassName}>二选一</span>
+                        </span>
+                        <input
+                          className={fieldClassName}
+                          {...fieldHint("参训教师职务")}
+                          onChange={(event) => setParticipantDraft((current) => ({ ...current, title: event.target.value }))}
+                          placeholder="职务；职务和职称至少填一项"
+                          value={participantDraft.title}
+                        />
+                      </label>
+                      <label className={teacherTrainingFieldShellClassName}>
+                        <span className={`${teacherTrainingFieldLabelClassName} inline-flex items-center`}>
+                          职称
+                          <span className={teacherTrainingEitherRequiredMarkClassName}>二选一</span>
+                        </span>
+                        <input
+                          className={fieldClassName}
+                          {...fieldHint("职称")}
+                          onChange={(event) => setParticipantDraft((current) => ({ ...current, professionalTitle: event.target.value }))}
+                          placeholder="职称；职务和职称至少填一项"
+                          value={participantDraft.professionalTitle}
+                        />
+                      </label>
+                      <label className={teacherTrainingFieldShellClassName}>
+                        <span className={teacherTrainingFieldLabelClassName}>性别</span>
+                        <input
+                          className={fieldClassName}
+                          {...fieldHint("性别")}
+                          onChange={(event) => setParticipantDraft((current) => ({ ...current, gender: event.target.value }))}
+                          placeholder="选填"
+                          value={participantDraft.gender}
+                        />
+                      </label>
+                      <label className={teacherTrainingFieldShellClassName}>
+                        <span className={teacherTrainingFieldLabelClassName}>年龄</span>
+                        <input
+                          className={fieldClassName}
+                          {...fieldHint("年龄")}
+                          onChange={(event) => setParticipantDraft((current) => ({ ...current, age: event.target.value }))}
+                          placeholder="选填"
+                          value={participantDraft.age}
+                        />
+                      </label>
+                      <label className={teacherTrainingFieldShellClassName}>
+                        <span className={teacherTrainingFieldLabelClassName}>人员类别</span>
+                        <input
+                          className={fieldClassName}
+                          {...fieldHint("人员类别")}
+                          onChange={(event) => setParticipantDraft((current) => ({ ...current, personnelCategory: event.target.value }))}
+                          placeholder="如专任教师"
+                          value={participantDraft.personnelCategory}
+                        />
+                      </label>
+                      <label className={teacherTrainingFieldShellClassName}>
+                        <span className={teacherTrainingFieldLabelClassName}>学科</span>
+                        <input
+                          className={fieldClassName}
+                          {...fieldHint("学科")}
+                          onChange={(event) => setParticipantDraft((current) => ({ ...current, subject: event.target.value }))}
+                          placeholder="学科"
+                          value={participantDraft.subject}
+                        />
+                      </label>
+                      <label className={teacherTrainingFieldShellClassName}>
+                        <span className={teacherTrainingFieldLabelClassName}>所属市</span>
+                        <input
+                          className={fieldClassName}
+                          {...fieldHint("所属市")}
+                          onChange={(event) => setParticipantDraft((current) => ({ ...current, city: event.target.value }))}
+                          placeholder="所属市"
+                          value={participantDraft.city}
+                        />
+                      </label>
+                      <label className={teacherTrainingFieldShellClassName}>
+                        <span className={teacherTrainingFieldLabelClassName}>参训教师邮箱</span>
+                        <input
+                          className={fieldClassName}
+                          {...fieldHint("参训教师邮箱")}
+                          onChange={(event) => setParticipantDraft((current) => ({ ...current, email: event.target.value }))}
+                          placeholder="选填，教师首次登录可补填"
+                          value={participantDraft.email}
+                        />
+                      </label>
+                      <label className={`${teacherTrainingFieldShellClassName} md:col-span-2`}>
+                        <span className={teacherTrainingFieldLabelClassName}>绑定已有登录账号（选填）</span>
+                        <select
+                          className={fieldClassName}
+                          {...fieldHint("绑定已有登录账号")}
+                          onChange={(event) => setParticipantDraft((current) => ({ ...current, accountUsername: event.target.value }))}
+                          value={participantDraft.accountUsername}
+                        >
+                          <option value="">暂不绑定，保存档案后用名单顶部按钮开通</option>
+                          {availableParticipantAccountOptions.map((account) => (
+                            <option key={account.id} value={account.username}>
+                              {account.name}（{account.username}）
+                              {account.phone ? ` · ${account.phone}` : ""}
+                              {account.role === "training_teacher" ? " · 省培账号" : " · 原平台账号"}
+                            </option>
+                          ))}
+                        </select>
+                      </label>
+                      <label className={`${teacherTrainingFieldShellClassName} md:col-span-2`}>
+                        <span className={teacherTrainingFieldLabelClassName}>参训教师备注</span>
+                        <input
+                          className={fieldClassName}
+                          {...fieldHint("参训教师备注")}
+                          onChange={(event) => setParticipantDraft((current) => ({ ...current, note: event.target.value }))}
+                          placeholder="备注"
+                          value={participantDraft.note}
+                        />
+                      </label>
+                      <label className={`${teacherTrainingFieldShellClassName} md:col-span-2 xl:col-span-4`}>
+                        <span className={teacherTrainingFieldLabelClassName}>参训教师预录扩展信息</span>
+                        <textarea
+                          className={`${textareaClassName} min-h-20`}
+                          {...fieldHint("参训教师预录扩展信息")}
+                          onChange={(event) => setParticipantDraft((current) => ({ ...current, extraInfo: event.target.value }))}
+                          placeholder="预录扩展信息，例如住宿、发票、培训材料领取情况等；每行一项。"
+                          value={participantDraft.extraInfo}
+                        />
+                      </label>
+                    </div>
+                    <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <p className="text-xs leading-5 text-slate-500">
+                        这里不会新建账号。没有合适账号时请先保存教师档案，再使用名单顶部的一键手机号开通账号，初始密码统一为 123456。
+                      </p>
+                      <ActionButton
+                        aria-label="将参训教师加入当前省培班次"
+                        className="w-full sm:w-auto"
+                        disabled={!selectedCohort}
+                        loading={isSaving}
+                        onClick={() => void submitParticipant()}
+                        title="将参训教师加入当前省培班次"
+                        variant="primary"
+                      >
+                        加入名单
+                      </ActionButton>
+                    </div>
+                  </div>
+                ) : null}
+
+                {participantImportOpen ? (
+                  <div
+                    className="mt-4 rounded-2xl border border-dashed border-blue-200 bg-blue-50/35 p-4"
+                    id="tt-participant-import-workbench"
+                  >
+                    <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+                      <div>
+                        <p className="text-sm font-black text-slate-950">批量导入参训教师</p>
+                        <p className="mt-1 text-xs leading-5 text-slate-500">上传 Excel 名单自动识别，也可以直接粘贴名单文本后预览导入。</p>
+                      </div>
+                      <label
+                        className={`inline-flex h-9 w-fit items-center justify-center gap-2 rounded-lg border border-blue-100 bg-white px-3 text-xs font-semibold text-blue-700 transition hover:border-blue-200 hover:bg-blue-50 ${
+                          participantImportLoading ? "cursor-wait opacity-75" : "cursor-pointer"
+                        }`}
+                      >
+                        {participantImportLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+                        {participantImportLoading ? "正在识别..." : "上传名单文件"}
+                        <input
+                          accept=".xlsx,.csv,.tsv,.txt,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,text/tab-separated-values,text/plain"
+                          className="sr-only"
+                          disabled={participantImportLoading}
+                          {...fieldHint("上传参训教师名单文件")}
+                          onChange={(event) => {
+                            void handleParticipantImportFile(event.target.files?.[0] ?? null);
+                            event.currentTarget.value = "";
+                          }}
+                          type="file"
+                        />
+                      </label>
+                    </div>
+                    {participantImportStatus ? (
+                      <p className="mt-3 rounded-lg border border-blue-100 bg-white/80 px-3 py-2 text-xs leading-5 text-blue-700">
+                        {participantImportStatus}
+                      </p>
+                    ) : null}
+                    {participantImportPreview.totalCount > 0 ? (
+                      <div className={`mt-3 rounded-lg border px-3 py-2 text-xs leading-5 ${getImportPreviewToneClassName(participantImportPreview)}`}>
+                        <p className="font-bold">导入预览：将新增 {participantImportPreview.readyCount} 位参训教师</p>
+                        <p className="mt-1">
+                          共识别 {participantImportPreview.totalCount} 行；缺必填信息 {participantImportPreview.missingRequiredCount} 行；名单内重复 {participantImportPreview.duplicateInFileCount} 组；当前班次已存在 {participantImportPreview.existingConflictCount} 行。
+                        </p>
+                      </div>
+                    ) : null}
+                    <TeacherTrainingImportFieldSummary items={participantImportFieldSummary} />
+                    <textarea
+                      id="tt-participant-import-textarea"
+                      className={`${textareaClassName} mt-3 min-h-28 bg-white/90`}
+                      {...fieldHint("一键导入参训教师")}
+                      onChange={(event) => setParticipantImportText(event.target.value)}
+                      placeholder="可上传 Excel 名单自动识别，也可粘贴：姓名，单位，手机，分组，职务，邮箱，预计到达时间，交通方式，车次/航班/车牌，出发地，扩展信息，备注"
+                      value={participantImportText}
+                    />
+                    <div className="mt-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                      <p className="text-xs leading-5 text-slate-500">导入前请先看预览，系统会跳过缺必填、重复或已存在的行。</p>
+                      <ActionButton
+                        aria-label="一键导入参训教师"
+                        className="w-full sm:w-auto"
+                        disabled={!selectedCohort || !participantImportPreview.canImport || participantImportLoading}
+                        loading={isSaving || participantImportLoading}
+                        onClick={() => void importParticipants()}
+                        title={participantImportPreview.canImport ? "一键导入参训教师" : "请先处理导入预览中的问题"}
+                        variant="secondary"
+                      >
+                        一键导入参训教师
+                      </ActionButton>
+                    </div>
+                  </div>
+                ) : null}
 
                 {isAccountManagementSection ? (
                   <div className="mt-4 grid gap-3 lg:grid-cols-3">
@@ -6509,7 +6825,7 @@ export default function TeacherTrainingTab() {
                       <p className="max-w-[260px] text-xs leading-5 text-slate-400">
                         {isAccountManagementSection
                           ? "请先到参训教师页录入名单，再回到这里处理账号绑定。"
-                          : "在左侧录入参训教师后，这里会显示报名档案和预录信息。"}
+                          : "点击上方新增教师或导入名单后，这里会显示报名档案和预录信息。"}
                       </p>
                       <button
                         type="button"
@@ -6518,12 +6834,7 @@ export default function TeacherTrainingTab() {
                           if (isAccountManagementSection) {
                             openTeacherTrainingSection("participants");
                           }
-                          setParticipantFormOpen(true);
-                          window.requestAnimationFrame(() => {
-                            const input = document.getElementById("tt-participant-name-input");
-                            input?.scrollIntoView({ behavior: "smooth", block: "center" });
-                            window.setTimeout(() => (input as HTMLInputElement | null)?.focus(), 350);
-                          });
+                          openParticipantFormWorkspace();
                         }}
                       >
                         <Plus className="h-3.5 w-3.5" />

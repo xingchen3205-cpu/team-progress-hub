@@ -1476,7 +1476,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
               />
             </label>
             {!editingTaskId ? (
-              <label className="flex items-start gap-3 rounded-lg border border-blue-100 bg-blue-50/60 px-4 py-3 text-sm text-slate-600">
+              <label className="flex items-start gap-3 rounded-lg border border-blue-100 bg-blue-50/60 px-4 py-3 text-sm text-blue-900">
                 <input
                   checked={taskDraft.notifyAssignee}
                   className="mt-1 h-4 w-4 rounded border-blue-200 text-blue-600"
@@ -1487,7 +1487,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                 />
                 <span>
                   <span className="font-medium text-slate-900">创建后发送提醒</span>
-                  <span className="mt-1 block text-xs leading-5 text-slate-500">
+                  <span className="mt-1 block text-xs leading-5 text-blue-800/80">
                     已分配时提醒处理人；暂不分配时提醒本队项目负责人来分配。
                   </span>
                 </span>
@@ -1687,7 +1687,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                 }
               />
             </label>
-            <label className="flex items-start gap-3 rounded-lg border border-blue-100 bg-blue-50/60 px-4 py-3 text-sm text-slate-600">
+            <label className="flex items-start gap-3 rounded-lg border border-blue-100 bg-blue-50/60 px-4 py-3 text-sm text-blue-900">
               <input
                 checked={announcementDraft.notifyTeam}
                 className="mt-1 h-4 w-4 rounded border-blue-200 text-blue-600"
@@ -1698,7 +1698,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
               />
               <span>
                 <span className="font-medium text-slate-900">发布后同步提醒团队</span>
-                <span className="mt-1 block text-xs leading-5 text-slate-500">
+                <span className="mt-1 block text-xs leading-5 text-blue-800/80">
                   勾选后会向相关成员发送站内通知，并在符合条件时同步发送邮件提醒。
                 </span>
               </span>
@@ -2249,7 +2249,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                           type="file"
                         />
                         <button
-                          className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-600 transition hover:border-blue-200 hover:bg-blue-50 hover:text-blue-700"
+                          className="rounded-xl border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-blue-800 transition hover:border-blue-200 hover:bg-blue-50"
                           onClick={() => customRoadshowProjectFileInputRef.current?.click()}
                           type="button"
                         >

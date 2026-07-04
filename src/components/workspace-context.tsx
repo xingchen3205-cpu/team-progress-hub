@@ -6125,8 +6125,8 @@ function useWorkspaceController({
     const endTime = draft.endTime.trim();
     const reason = draft.reason.trim();
 
-    if (!participantId || !startDate || !endDate || !reason) {
-      setLoadError("请先填写请假日期和原因");
+    if (!participantId || !startDate || !endDate || !startTime || !endTime || !reason) {
+      setLoadError("请先填写请假日期、时间和原因");
       return;
     }
 
