@@ -1032,7 +1032,7 @@ test("teacher training manager forms keep visible field labels on mobile", () =>
     "有效签到范围米数",
     "请假审批步骤名称",
     "请假审批每步通过人数",
-    "本次审批意见",
+    "审批意见（可选）",
     "酒店房号",
     "报到材料是否齐全",
     "报到备注",
@@ -1133,6 +1133,9 @@ test("teacher training leave approval panel keeps desktop review cards readable"
   assert.match(tabSource, /<th>请假结束时间<\/th>/);
   assert.match(tabSource, /<th>请假时长<\/th>/);
   assert.match(tabSource, /getTeacherTrainingLeaveDurationLabel\(request\)/);
+  assert.match(tabSource, /leaveReviewCommentsById\[request\.id\]/);
+  assert.match(tabSource, /canReviewThisRequest \? \(/);
+  assert.doesNotMatch(tabSource, /本次审批意见/);
 });
 
 test("teacher training leave flow avoids fake default steps and blocks incomplete approval setup", () => {

@@ -984,7 +984,7 @@ export default function TeacherTrainingTab() {
     sessionLabel: "请假",
     reason: "",
   });
-  const [leaveReviewComment, setLeaveReviewComment] = useState("");
+  const [leaveReviewCommentsById, setLeaveReviewCommentsById] = useState<Record<string, string>>({});
   const [activeLeavePanel, setActiveLeavePanel] = useState<TeacherTrainingLeavePanelKey>("pending");
   const [teacherLeaveFormOpen, setTeacherLeaveFormOpen] = useState(false);
   const [profileDraft, setProfileDraft] = useState<Workspace.TeacherTrainingProfileDraft>({
@@ -2971,9 +2971,13 @@ export default function TeacherTrainingTab() {
     await reviewTeacherTrainingLeaveRequest({
       leaveRequestId,
       decision,
-      comment: leaveReviewComment,
+      comment: leaveReviewCommentsById[leaveRequestId] ?? "",
     });
-    setLeaveReviewComment("");
+    setLeaveReviewCommentsById((current) => {
+      const nextComments = { ...current };
+      delete nextComments[leaveRequestId];
+      return nextComments;
+    });
   };
 
   const openTeacherTrainingSection = (
@@ -5591,16 +5595,6 @@ export default function TeacherTrainingTab() {
                         </label>
                       </div>
                       <div className="space-y-3 border-b border-slate-100 bg-slate-50/70 px-4 py-3">
-                        <label className={teacherTrainingFieldShellClassName}>
-                          <span className={teacherTrainingFieldLabelClassName}>本次审批意见</span>
-                          <textarea
-                            className={`${textareaClassName} min-h-16 bg-white`}
-                            {...fieldHint("请假审批意见")}
-                            onChange={(event) => setLeaveReviewComment(event.target.value)}
-                            placeholder="审批意见可选，点击通过或驳回时会写入当前审批记录"
-                            value={leaveReviewComment}
-                          />
-                        </label>
                         <TeacherTrainingFilterSummary
                           items={teacherTrainingFilterSummaries.leave}
                           onClear={
@@ -5705,7 +5699,25 @@ export default function TeacherTrainingTab() {
                                       </p>
                                     </td>
                                     <td>
-                                      <div className="flex flex-wrap justify-end gap-2">
+                                      <div className="flex flex-col items-end gap-2">
+                                        {canReviewThisRequest ? (
+                                          <label className={`${teacherTrainingFieldShellClassName} w-full min-w-[220px] max-w-[280px]`}>
+                                            <span className={teacherTrainingFieldLabelClassName}>审批意见（可选）</span>
+                                            <textarea
+                                              className={`${textareaClassName} min-h-16 bg-white text-xs`}
+                                              {...fieldHint(`${request.participantName}请假审批意见`)}
+                                              onChange={(event) =>
+                                                setLeaveReviewCommentsById((current) => ({
+                                                  ...current,
+                                                  [request.id]: event.target.value,
+                                                }))
+                                              }
+                                              placeholder="填写后点击通过或驳回"
+                                              value={leaveReviewCommentsById[request.id] ?? ""}
+                                            />
+                                          </label>
+                                        ) : null}
+                                        <div className="flex flex-wrap justify-end gap-2">
                                         {request.status === "approved" ? (
                                           <button
                                             className="inline-flex h-8 items-center rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-blue-700 disabled:cursor-wait disabled:opacity-60"
@@ -5748,10 +5760,11 @@ export default function TeacherTrainingTab() {
                                               title={`驳回${request.participantName}的请假申请`}
                                               type="button"
                                             >
-                                              驳回
-                                            </button>
+                                            驳回
+                                          </button>
                                           </>
                                         ) : null}
+                                        </div>
                                       </div>
                                     </td>
                                   </tr>
