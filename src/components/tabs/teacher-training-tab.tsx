@@ -82,7 +82,7 @@ const TEACHER_TRAINING_UPLOAD_URL_TIMEOUT_MS = 20_000;
 const TEACHER_TRAINING_DOWNLOAD_TIMEOUT_MS = 60_000;
 const teacherTrainingDefaultInitialPassword = "123456";
 
-type TeacherTrainingExportType = "participants" | "arrivals" | "attendance" | "checkIns" | "submissions";
+type TeacherTrainingExportType = "participants" | "arrivals" | "attendance" | "checkIns" | "leaves" | "submissions";
 
 const teacherTrainingExportItems: Array<{
   label: string;
@@ -93,7 +93,8 @@ const teacherTrainingExportItems: Array<{
   { label: "导出到达信息", type: "arrivals", description: "预计到达时间、交通方式和车次信息" },
   { label: "导出报到信息", type: "attendance", description: "报到状态、时间、房号和材料情况" },
   { label: "导出课程签到", type: "checkIns", description: "定位签到任务和签到明细" },
-  { label: "导出汇报", type: "submissions", description: "任务完成情况和汇报内容" },
+  { label: "导出请假审批", type: "leaves", description: "请假时间、原因、状态和审批记录" },
+  { label: "导出汇报归档", type: "submissions", description: "每位教师一个 Word 汇报归档，附件打包进 ZIP" },
 ];
 
 const getFileNameFromContentDisposition = (contentDisposition: string | null, fallbackName: string) => {
@@ -612,12 +613,12 @@ const teacherTrainingManagerRoleOptions = [
     title: "省培负责人",
     accountLabel: "选择省培负责人账号",
     buttonLabel: "设置省培负责人",
-    description: "班次统筹人员，列表中显示在班主任前面。",
+    description: "班次统筹人员，列表中显示在省培班主任前面。",
   },
   {
-    title: "班主任",
-    accountLabel: "选择班主任账号",
-    buttonLabel: "设置班主任",
+    title: "省培班主任",
+    accountLabel: "选择省培班主任账号",
+    buttonLabel: "设置省培班主任",
     description: "班级日常管理人员，和负责人拥有相同省培管理权限。",
   },
 ];
@@ -626,6 +627,13 @@ const getTeacherTrainingManagerRoleRank = (title: string) => {
   if (title.includes("负责人")) return 0;
   if (title.includes("班主任")) return 1;
   return 2;
+};
+
+const normalizeTeacherTrainingManagerIdentity = (title?: string | null) => {
+  const value = title?.trim() ?? "";
+  if (value.includes("负责人")) return "省培负责人";
+  if (value.includes("班主任")) return "省培班主任";
+  return "";
 };
 
 const getTeacherTrainingLeaveFlowStepName = (stepIndex: number) =>
@@ -645,7 +653,7 @@ const teacherTrainingActionHints: Partial<Record<Workspace.TeacherTrainingSectio
   },
   cohorts: {
     title: "班次设置",
-    steps: ["建立班次和地点", "设置负责人和班主任", "两者权限一致"],
+    steps: ["建立班次和地点", "设置省培负责人和省培班主任", "两者权限一致"],
   },
   participants: {
     title: "参训教师",
@@ -714,7 +722,7 @@ const getTeacherTrainingLeaveDisabledReason = (
   if (participantReason) return participantReason;
 
   if (!leaveFlow?.isEnabled || leaveFlow.approvalSteps.length === 0) {
-    return "管理员尚未配置请假审批流程，请联系省培负责人、班主任或管理员";
+    return "管理员尚未配置请假审批流程，请联系省培负责人、省培班主任或管理员";
   }
 
   if (!draft.startDate.trim() || !draft.endDate.trim() || !draft.startTime.trim() || !draft.endTime.trim()) {
@@ -1018,6 +1026,7 @@ export default function TeacherTrainingTab() {
   const [submissionReviewDrafts, setSubmissionReviewDrafts] = useState<
     Record<string, { finalScore: string; finalComment: string }>
   >({});
+  const [previewTeacherTrainingSubmissionId, setPreviewTeacherTrainingSubmissionId] = useState("");
   const [courseImportText, setCourseImportText] = useState("");
   const [courseImportStatus, setCourseImportStatus] = useState("");
   const [courseImportLoading, setCourseImportLoading] = useState(false);
@@ -1756,7 +1765,7 @@ export default function TeacherTrainingTab() {
     );
 
     selectedCohort?.managers.forEach((manager) => {
-      labels.set(manager.userId, formatTeacherTrainingApproverLabel(manager.title || "班主任", manager.name));
+      labels.set(manager.userId, formatTeacherTrainingApproverLabel(manager.title || "省培班主任", manager.name));
     });
 
     return labels;
@@ -1766,8 +1775,8 @@ export default function TeacherTrainingTab() {
     teacherTrainingManagerRoleOptions[0];
   const selectedManagerAccountOptions = teacherTrainingManagerAccounts.filter(
     (account) =>
-      account.responsibility === managerDraft.title ||
-      account.managedCohorts.some((manager) => manager.title === managerDraft.title),
+      normalizeTeacherTrainingManagerIdentity(account.responsibility) === managerDraft.title ||
+      account.managedCohorts.some((manager) => normalizeTeacherTrainingManagerIdentity(manager.title) === managerDraft.title),
   );
   const managerAccountSearchKeyword = normalizeSearchText(managerAccountSearch);
   const filteredManagerAccounts = teacherTrainingManagerAccounts.filter((account) => {
@@ -1778,6 +1787,7 @@ export default function TeacherTrainingTab() {
       account.phone,
       account.email,
       account.responsibility,
+      normalizeTeacherTrainingManagerIdentity(account.responsibility),
       ...account.managedCohorts.flatMap((manager) => [manager.title, manager.cohortTitle]),
     ]
       .join(" ")
@@ -1786,11 +1796,12 @@ export default function TeacherTrainingTab() {
   });
   const managerAccountCounts = useMemo(() => {
     const hasIdentity = (account: Workspace.TeacherTrainingManagerAccountItem, title: string) =>
-      account.responsibility === title || account.managedCohorts.some((manager) => manager.title === title);
+      normalizeTeacherTrainingManagerIdentity(account.responsibility) === title ||
+      account.managedCohorts.some((manager) => normalizeTeacherTrainingManagerIdentity(manager.title) === title);
 
     return {
       leader: teacherTrainingManagerAccounts.filter((account) => hasIdentity(account, "省培负责人")).length,
-      classTeacher: teacherTrainingManagerAccounts.filter((account) => hasIdentity(account, "班主任")).length,
+      classTeacher: teacherTrainingManagerAccounts.filter((account) => hasIdentity(account, "省培班主任")).length,
     };
   }, [teacherTrainingManagerAccounts]);
   const toggleSelectedId = (currentIds: string[], id: string) =>
@@ -1815,7 +1826,7 @@ export default function TeacherTrainingTab() {
         items: managers.filter((manager) => getTeacherTrainingManagerRoleRank(manager.title) === 0),
       },
       {
-        title: "班主任",
+        title: "省培班主任",
         items: managers.filter((manager) => getTeacherTrainingManagerRoleRank(manager.title) === 1),
       },
       {
@@ -1839,7 +1850,7 @@ export default function TeacherTrainingTab() {
         detail: leaders.map((manager) => manager.name).join("、") || "未设置",
       },
       {
-        label: "班主任",
+        label: "省培班主任",
         done: classTeachers.length > 0,
         detail: classTeachers.map((manager) => manager.name).join("、") || "未设置",
       },
@@ -1885,10 +1896,10 @@ export default function TeacherTrainingTab() {
         detail: leaders.map((manager) => manager.name).join("、") || "建议至少设置一名省培负责人",
       },
       {
-        label: "班主任",
+        label: "省培班主任",
         done: classTeachers.length > 0,
         severity: "required",
-        detail: classTeachers.map((manager) => manager.name).join("、") || "班主任未设置，日常管理责任不清楚",
+        detail: classTeachers.map((manager) => manager.name).join("、") || "省培班主任未设置，日常管理责任不清楚",
       },
       {
         label: "请假流程",
@@ -2110,8 +2121,9 @@ export default function TeacherTrainingTab() {
 
   const editManagerAccount = (account: Workspace.TeacherTrainingManagerAccountItem) => {
     const accountIdentity =
-      account.responsibility === "班主任" || account.managedCohorts.some((manager) => manager.title === "班主任")
-        ? "班主任"
+      normalizeTeacherTrainingManagerIdentity(account.responsibility) === "省培班主任" ||
+      account.managedCohorts.some((manager) => normalizeTeacherTrainingManagerIdentity(manager.title) === "省培班主任")
+        ? "省培班主任"
         : "省培负责人";
 
     setManagerAccountDraft({
@@ -2133,8 +2145,8 @@ export default function TeacherTrainingTab() {
     if (
       !confirmTeacherTrainingPermanentDelete({
         title: `${ids.length} 个省培管理账号`,
-        firstMessage: `确认删除 ${ids.length} 个省培负责人/班主任账号？\n\n删除后这些账号将无法登录，也不能再被班次选择。`,
-        secondMessage: "这只删除省培管理账号池里的负责人/班主任账号，不删除参训教师名单。",
+        firstMessage: `确认删除 ${ids.length} 个省培负责人/省培班主任账号？\n\n删除后这些账号将无法登录，也不能再被班次选择。`,
+        secondMessage: "这只删除省培管理账号池里的负责人/省培班主任账号，不删除参训教师名单。",
       })
     ) {
       return;
@@ -3071,12 +3083,12 @@ export default function TeacherTrainingTab() {
       title: "查看参训教师名单",
     },
     {
-      label: "负责人/班主任",
+      label: "省培管理",
       value: selectedCohort?.stats.managerCount ?? 0,
       helper: "管理",
       Icon: User,
-      onClick: () => openOverviewMetric({ detailViewTitle: "负责人/班主任", section: "cohorts" }),
-      title: "查看负责人/班主任设置",
+      onClick: () => openOverviewMetric({ detailViewTitle: "省培负责人/省培班主任", section: "cohorts" }),
+      title: "查看省培负责人/省培班主任设置",
     },
     {
       label: "课程",
@@ -3303,7 +3315,7 @@ export default function TeacherTrainingTab() {
     ? {
         label: "现在处理签到",
         value: `${teacherPendingCheckInCount} 项待签到`,
-        helper: "到达课程地点后打开定位签到，失败时可联系班主任处理。",
+        helper: "到达课程地点后打开定位签到，失败时可联系省培班主任处理。",
         actionLabel: "去签到",
         Icon: MapPin,
         section: "checkins",
@@ -3792,13 +3804,13 @@ export default function TeacherTrainingTab() {
           ) : null}
 
           {canManageGlobal && showTeacherTrainingSection("accounts") ? (
-            <section className="grid gap-5 xl:grid-cols-[minmax(320px,0.42fr)_minmax(0,0.58fr)]" aria-label="省培系统账号管理">
-              <div className="tt-card p-5" id="tt-manager-account-form">
+            <section className="grid items-stretch gap-5 xl:grid-cols-[minmax(320px,0.42fr)_minmax(0,0.58fr)]" aria-label="省培系统账号管理">
+              <div className="tt-card flex flex-col p-5" id="tt-manager-account-form">
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="tt-block-title">省培系统账号管理</p>
                     <p className="mt-1.5 text-xs leading-5 text-slate-500">
-                      这里只维护省培负责人和班主任账号池；参训教师名单和学员账号在“参训教师”里处理。
+                      这里只维护省培负责人和省培班主任账号池；参训教师名单和学员账号在“参训教师”里处理。
                     </p>
                   </div>
                   <span className="tt-pill">{teacherTrainingManagerAccounts.length} 个</span>
@@ -3810,7 +3822,7 @@ export default function TeacherTrainingTab() {
                       className={fieldClassName}
                       {...fieldHint("省培管理账号姓名")}
                       onChange={(event) => setManagerAccountDraft((current) => ({ ...current, name: event.target.value }))}
-                      placeholder="负责人或班主任姓名"
+                      placeholder="省培负责人或省培班主任姓名"
                       value={managerAccountDraft.name}
                     />
                   </label>
@@ -3852,13 +3864,13 @@ export default function TeacherTrainingTab() {
                       onChange={(event) =>
                         setManagerAccountDraft((current) => ({
                           ...current,
-                          managerIdentity: event.target.value === "班主任" ? "班主任" : "省培负责人",
+                          managerIdentity: event.target.value === "省培班主任" ? "省培班主任" : "省培负责人",
                         }))
                       }
                       value={managerAccountDraft.managerIdentity}
                     >
                       <option value="省培负责人">省培负责人</option>
-                      <option value="班主任">班主任</option>
+                      <option value="省培班主任">省培班主任</option>
                     </select>
                   </label>
                   <label className={teacherTrainingFieldShellClassName}>
@@ -3895,17 +3907,17 @@ export default function TeacherTrainingTab() {
                 </div>
               </div>
 
-              <div className="tt-card p-5">
+              <div className="tt-card flex min-h-0 flex-col p-5">
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                   <div>
-                    <p className="tt-block-title">负责人/班主任账号池</p>
+                    <p className="tt-block-title">省培负责人/省培班主任账号池</p>
                     <p className="mt-1.5 text-xs leading-5 text-slate-500">
                       班次管理只能从这里选择对应身份的账号；账号身份在此处统一维护。
                     </p>
                     <div className="mt-3 flex flex-wrap gap-2">
                       <span className="tt-pill">省培负责人 {managerAccountCounts.leader}</span>
                       <span className={managerAccountCounts.classTeacher > 0 ? "tt-pill" : "tt-pill border-amber-200 bg-amber-50 text-amber-700"}>
-                        班主任 {managerAccountCounts.classTeacher}
+                        省培班主任 {managerAccountCounts.classTeacher}
                       </span>
                     </div>
                   </div>
@@ -3952,16 +3964,16 @@ export default function TeacherTrainingTab() {
                     <div className="tt-empty-fill">
                       <Users className="h-6 w-6 text-blue-600" />
                       <p className="text-sm font-semibold text-slate-700">暂无省培管理账号</p>
-                      <p className="text-xs text-slate-400">先新增省培负责人或班主任，再到班次管理中选择。</p>
+                      <p className="text-xs text-slate-400">先新增省培负责人或省培班主任，再到班次管理中选择。</p>
                     </div>
                   ) : (
                     filteredManagerAccounts.map((account) => {
                       const accountIdentities = Array.from(
                         new Set(
                           [
-                            account.responsibility,
-                            ...account.managedCohorts.map((manager) => manager.title),
-                          ].filter((title) => title === "省培负责人" || title === "班主任"),
+                            normalizeTeacherTrainingManagerIdentity(account.responsibility),
+                            ...account.managedCohorts.map((manager) => normalizeTeacherTrainingManagerIdentity(manager.title)),
+                          ].filter(Boolean),
                         ),
                       );
                       const visibleIdentities = accountIdentities.length > 0 ? accountIdentities : ["未设置省培身份"];
@@ -4039,7 +4051,13 @@ export default function TeacherTrainingTab() {
 
           <div className={`grid gap-4 ${teacherTrainingManagementGridClassName}`}>
         {canManage && showTeacherTrainingSection("cohorts", "participants") ? (
-          <aside className="tt-card space-y-5 self-start p-5">
+          <aside
+            className={`tt-card p-5 ${
+              showTeacherTrainingSection("participants")
+                ? "flex h-full min-h-[min(68vh,760px)] flex-col gap-5 self-stretch"
+                : "space-y-5 self-start"
+            }`}
+          >
             <div>
               <p className="tt-block-title">班次</p>
               <p className="mt-1.5 text-xs leading-5 text-slate-500">按账号权限切换可管理或可参与的省培班次。</p>
@@ -4298,7 +4316,7 @@ export default function TeacherTrainingTab() {
             ) : null}
 
             {canManage && showTeacherTrainingSection("participants") ? (
-              <div className="tt-subcard p-4" id="tt-participant-tools">
+              <div className="tt-subcard flex flex-1 flex-col p-4" id="tt-participant-tools">
                 <div className="flex items-start gap-2.5">
                   <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-[#1a6fd4]/10 text-[#1a6fd4]">
                     <Users className="h-4 w-4" />
@@ -4352,7 +4370,7 @@ export default function TeacherTrainingTab() {
                     <Upload className="h-4 w-4 shrink-0" />
                   </button>
                 </div>
-                <div className="mt-3 rounded-xl border border-blue-100 bg-blue-50/45 px-3 py-2 text-xs leading-5 text-blue-700">
+                <div className="mt-auto rounded-xl border border-blue-100 bg-blue-50/45 px-3 py-2 text-xs leading-5 text-blue-700">
                   <p className="font-bold">档案规则</p>
                   <p className="mt-1">姓名、单位、手机号、分组必填；职务和职称至少填一项。账号开通使用名单顶部的一键手机号开通账号。</p>
                 </div>
@@ -4371,9 +4389,9 @@ export default function TeacherTrainingTab() {
                     <User className="h-4 w-4" />
                   </span>
                   <div className="min-w-0 flex-1">
-                    <p className="text-[15px] font-bold text-slate-950">班次负责人/班主任设置</p>
+                    <p className="text-[15px] font-bold text-slate-950">班次省培负责人/省培班主任设置</p>
                     <p className="mt-1 text-xs leading-5 text-slate-500">
-                      负责人显示在班主任前面；两者省培管理权限一致，请假审批顺序以请假审批模块配置为准。
+                      省培负责人显示在省培班主任前面；两者省培管理权限一致，请假审批顺序以请假审批模块配置为准。
                     </p>
                   </div>
                   <ChevronDown className={`h-4 w-4 shrink-0 text-slate-400 transition ${cohortConfigOpen ? "rotate-180" : ""}`} />
@@ -4457,7 +4475,7 @@ export default function TeacherTrainingTab() {
                 </div>
                 <div className="mt-4 space-y-2">
                   {selectedCohort.managers.length === 0 ? (
-                    <p className="text-xs text-slate-400">暂未设置省培负责人或班主任。</p>
+                    <p className="text-xs text-slate-400">暂未设置省培负责人或省培班主任。</p>
                   ) : (
                     groupedCohortManagers.map((group) => (
                       <div key={group.title} className="rounded-xl border border-slate-100 bg-white/80 p-2">
@@ -8178,6 +8196,7 @@ export default function TeacherTrainingTab() {
                               const attachmentFile = submission.attachmentFile;
                               const reviewDraft = getSubmissionReviewDraft(submission);
                               const participant = participantById.get(submission.participantId);
+                              const previewOpen = previewTeacherTrainingSubmissionId === submission.id;
 
                               return (
                                 <div key={submission.id} className="rounded-xl border border-slate-100 bg-slate-50/80 p-3 text-sm text-slate-600">
@@ -8202,6 +8221,18 @@ export default function TeacherTrainingTab() {
                                       </p>
                                     </div>
                                     <div className="flex shrink-0 flex-wrap gap-2">
+                                      <button
+                                        className="inline-flex h-8 w-fit items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-700"
+                                        onClick={() =>
+                                          setPreviewTeacherTrainingSubmissionId((current) =>
+                                            current === submission.id ? "" : submission.id,
+                                          )
+                                        }
+                                        type="button"
+                                      >
+                                        <FileText className="h-3 w-3" />
+                                        {previewOpen ? "收起预览" : "在线预览"}
+                                      </button>
                                       {attachmentFile ? (
                                         <button
                                           className="inline-flex h-8 w-fit items-center gap-1 rounded-md border border-blue-100 bg-white px-2 py-1 text-xs font-semibold text-blue-700"
@@ -8225,6 +8256,52 @@ export default function TeacherTrainingTab() {
                                       ) : null}
                                     </div>
                                   </div>
+                                  {previewOpen ? (
+                                    <div className="mt-3 rounded-xl border border-blue-100 bg-white p-3">
+                                      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                                        <div>
+                                          <p className="text-xs font-bold text-blue-700">汇报在线预览</p>
+                                          <p className="mt-1 text-xs leading-5 text-slate-500">
+                                            {submission.participantName}
+                                            {participant?.organization ? ` · ${participant.organization}` : ""} · {submission.submittedAt}
+                                          </p>
+                                        </div>
+                                        <span className="tt-pill">{submission.reviewStatusLabel}</span>
+                                      </div>
+                                      <div className="mt-3 grid gap-3 lg:grid-cols-[minmax(0,1fr)_240px]">
+                                        <div className="rounded-lg border border-slate-100 bg-slate-50/75 p-3">
+                                          <p className="text-xs font-bold text-slate-700">汇报内容</p>
+                                          <p className="mt-2 max-h-64 overflow-y-auto whitespace-pre-wrap text-sm leading-6 text-slate-700">
+                                            {submission.content || "未填写文字汇报"}
+                                          </p>
+                                        </div>
+                                        <div className="grid gap-2 text-xs leading-5">
+                                          <div className="rounded-lg border border-slate-100 bg-slate-50/75 p-3">
+                                            <p className="font-bold text-slate-700">附件</p>
+                                            <p className="mt-1 text-slate-500">
+                                              {attachmentFile
+                                                ? `${attachmentFile.fileName} · ${Workspace.formatFileSize(attachmentFile.fileSize)}`
+                                                : submission.attachmentLabel || "未上传附件"}
+                                            </p>
+                                          </div>
+                                          <div className="rounded-lg border border-indigo-100 bg-indigo-50/75 p-3 text-indigo-700">
+                                            <p className="font-bold">AI 初评</p>
+                                            <p className="mt-1">
+                                              {submission.aiScore === null ? "尚未评分" : `${submission.aiScore} 分`}
+                                            </p>
+                                            {submission.aiComment ? <p className="mt-1 text-indigo-600">{submission.aiComment}</p> : null}
+                                          </div>
+                                          <div className="rounded-lg border border-emerald-100 bg-emerald-50/75 p-3 text-emerald-700">
+                                            <p className="font-bold">人工终评</p>
+                                            <p className="mt-1">
+                                              {submission.finalScore === null ? "待确认" : `${submission.finalScore} 分`}
+                                            </p>
+                                            {submission.finalComment ? <p className="mt-1 text-emerald-600">{submission.finalComment}</p> : null}
+                                          </div>
+                                        </div>
+                                      </div>
+                                    </div>
+                                  ) : null}
                                   {canManage ? (
                                     <div className="mt-3 grid gap-2 rounded-lg border border-white bg-white/70 p-3 lg:grid-cols-[120px_minmax(0,1fr)_auto] lg:items-end">
                                       {task.enableAiReview ? (
@@ -8303,7 +8380,7 @@ export default function TeacherTrainingTab() {
                     <div>
                       <p className="tt-block-title">导出归档</p>
                       <p className="mt-1.5 text-xs leading-5 text-slate-500">
-                        导出名单、报到信息、课程签到和任务汇报，按当前班次生成归档材料。
+                        按当前班次分别导出名单、到达、报到、课程签到、请假审批和汇报归档。
                       </p>
                       <p className="mt-1 text-xs leading-5 text-slate-400">
                         导出可能需要几十秒，按钮转圈时请不要重复点击。
@@ -8326,7 +8403,7 @@ export default function TeacherTrainingTab() {
                       ) : null}
                     </div>
                   ) : null}
-                  <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+                  <div className="mt-5 grid gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
                     {teacherTrainingExportItems.map((item) => {
                       const isExporting = exportingTeacherTrainingType === item.type;
                       return (

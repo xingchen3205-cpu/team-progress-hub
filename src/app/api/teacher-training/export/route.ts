@@ -13,7 +13,7 @@ import { decodeTeacherTrainingSubmissionAttachmentFile } from "@/lib/teacher-tra
 import { readStoredFile } from "@/lib/uploads";
 import { createZipArchive, type ZipArchiveEntry } from "@/lib/zip";
 
-const exportTypeSet = new Set(["participants", "attendance", "checkIns", "submissions", "arrivals"]);
+const exportTypeSet = new Set(["participants", "attendance", "checkIns", "leaves", "submissions", "arrivals"]);
 
 export async function GET(request: NextRequest) {
   const user = await getSessionUser(request);
@@ -67,6 +67,18 @@ export async function GET(request: NextRequest) {
             orderBy: [{ signedAt: "asc" }],
             include: {
               participant: { select: { name: true } },
+            },
+          },
+        },
+      },
+      leaveRequests: {
+        orderBy: [{ submittedAt: "asc" }],
+        include: {
+          participant: { select: { name: true, organization: true } },
+          approvals: {
+            orderBy: [{ stepIndex: "asc" }, { reviewedAt: "asc" }],
+            include: {
+              approver: { select: { name: true } },
             },
           },
         },
@@ -157,12 +169,13 @@ export async function GET(request: NextRequest) {
 
   const csv = `\uFEFF${buildTeacherTrainingCsv({
     cohort: serialized,
-    type: type as "participants" | "attendance" | "checkIns" | "submissions" | "arrivals",
+    type: type as "participants" | "attendance" | "checkIns" | "leaves" | "submissions" | "arrivals",
   })}`;
   const labelMap = {
     participants: "参训名单",
     attendance: "报到信息",
     checkIns: "课程签到",
+    leaves: "请假审批",
     submissions: "任务汇报",
     arrivals: "预计到达信息",
   } as const;

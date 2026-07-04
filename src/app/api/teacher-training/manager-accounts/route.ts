@@ -1,17 +1,29 @@
 import bcrypt from "bcryptjs";
 import { NextRequest, NextResponse } from "next/server";
+import type { Prisma } from "@prisma/client";
 
 import { getSessionUser } from "@/lib/auth";
 import { validatePasswordPolicy, validateUsername } from "@/lib/account-policy";
 import { assertRole } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
-const teacherTrainingManagerIdentities = ["省培负责人", "班主任"] as const;
+const teacherTrainingManagerIdentities = ["省培负责人", "省培班主任"] as const;
+const teacherTrainingManagerIdentityValues = [...teacherTrainingManagerIdentities, "班主任"] as const;
 const defaultTeacherTrainingManagerPassword = "123456";
+
+const teacherTrainingManagerTitleWhere: Prisma.TeacherTrainingCohortManagerWhereInput = {
+  OR: [{ title: { contains: "负责人" } }, { title: { contains: "班主任" } }],
+};
 
 const parseManagerIdentity = (value?: string | null) => {
   const managerIdentity = value?.trim() || "";
-  if (managerIdentity !== "省培负责人" && managerIdentity !== "班主任") {
+  if (managerIdentity.includes("负责人")) {
+    return "省培负责人";
+  }
+  if (managerIdentity.includes("班主任")) {
+    return "省培班主任";
+  }
+  if (managerIdentity !== "省培负责人" && managerIdentity !== "省培班主任") {
     return null;
   }
   return managerIdentity;
@@ -207,7 +219,7 @@ export async function PATCH(request: NextRequest) {
     await tx.teacherTrainingCohortManager.updateMany({
       where: {
         userId: id,
-        title: { in: [...teacherTrainingManagerIdentities] },
+        ...teacherTrainingManagerTitleWhere,
       },
       data: {
         title: managerIdentity,
@@ -235,12 +247,12 @@ export async function DELETE(request: NextRequest) {
       id: { in: ids },
       OR: [
         {
-          responsibility: { in: [...teacherTrainingManagerIdentities] },
+          responsibility: { in: [...teacherTrainingManagerIdentityValues] },
         },
         {
           teacherTrainingManagedCohorts: {
             some: {
-              title: { in: [...teacherTrainingManagerIdentities] },
+              ...teacherTrainingManagerTitleWhere,
               cohort: {
                 deletedAt: null,
               },
@@ -267,12 +279,12 @@ export async function DELETE(request: NextRequest) {
       role: { not: "admin" },
       OR: [
         {
-          responsibility: { in: [...teacherTrainingManagerIdentities] },
+          responsibility: { in: [...teacherTrainingManagerIdentityValues] },
         },
         {
           teacherTrainingManagedCohorts: {
             some: {
-              title: { in: [...teacherTrainingManagerIdentities] },
+              ...teacherTrainingManagerTitleWhere,
               cohort: {
                 deletedAt: null,
               },

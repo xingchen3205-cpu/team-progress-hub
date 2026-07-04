@@ -453,12 +453,12 @@ export const getTeacherTrainingEffectiveRoleLabel = ({
     ?.title?.trim();
 
   if (managerTitle) {
-    return managerTitle;
+    return managerTitle.includes("班主任") ? "省培班主任" : managerTitle;
   }
 
   const accountResponsibility = user.responsibility?.trim();
-  if (accountResponsibility === "省培负责人" || accountResponsibility === "班主任") {
-    return accountResponsibility;
+  if (accountResponsibility === "省培负责人" || accountResponsibility === "省培班主任" || accountResponsibility === "班主任") {
+    return accountResponsibility === "班主任" ? "省培班主任" : accountResponsibility;
   }
 
   if (user.hasTeacherTrainingManagerAccess || (user.teacherTrainingManagedCohortCount ?? 0) > 0) {
@@ -1505,7 +1505,7 @@ export const serializeTeacherTrainingCohort = (
     name: manager.user?.name ?? "工作人员",
     username: manager.user?.username ?? "",
     role: manager.user?.role ?? "",
-    title: manager.title || "班主任",
+    title: manager.title || "省培班主任",
     createdAt: toDateTimeLabel(manager.createdAt),
   }));
   const checkInTasks = (cohort.checkInTasks ?? []).map((task) => ({
@@ -1889,7 +1889,7 @@ export const buildTeacherTrainingCsv = ({
   type,
 }: {
   cohort: TeacherTrainingCohortItem;
-  type: "participants" | "attendance" | "checkIns" | "submissions" | "arrivals";
+  type: "participants" | "attendance" | "checkIns" | "leaves" | "submissions" | "arrivals";
 }) => {
   if (type === "arrivals") {
     return toCsv([
@@ -1979,6 +1979,47 @@ export const buildTeacherTrainingCsv = ({
           attendance?.registrationNote ?? "",
         ];
       }),
+    ]);
+  }
+
+  if (type === "leaves") {
+    return toCsv([
+      [
+        "班次",
+        "姓名",
+        "单位",
+        "请假类型",
+        "请假开始",
+        "请假结束",
+        "请假原因",
+        "审批状态",
+        "提交时间",
+        "完成时间",
+        "审批记录",
+      ],
+      ...cohort.leaveRequests.map((request) => [
+        cohort.title,
+        request.participantName,
+        request.organization,
+        request.sessionLabel,
+        [request.startDate, request.startTime].filter(Boolean).join(" "),
+        [request.endDate, request.endTime].filter(Boolean).join(" "),
+        request.reason,
+        request.statusLabel,
+        request.submittedAt,
+        request.completedAt,
+        request.approvals.length
+          ? request.approvals
+              .map((approval) =>
+                `${approval.stepName || `第${approval.stepIndex + 1}步`}：${approval.approverName} ${
+                  approval.decision === "approve" ? "同意" : approval.decision === "reject" ? "驳回" : approval.decision
+                }${
+                  approval.comment ? `（${approval.comment}）` : ""
+                } ${approval.reviewedAt}`,
+              )
+              .join("；")
+          : "暂无审批记录",
+      ]),
     ]);
   }
 

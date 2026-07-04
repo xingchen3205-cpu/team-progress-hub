@@ -4,7 +4,14 @@ import { getSessionUser } from "@/lib/auth";
 import { assertRole } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
-const teacherTrainingManagerResponsibilities = ["省培负责人", "班主任"] as const;
+const teacherTrainingManagerResponsibilities = ["省培负责人", "省培班主任"] as const;
+
+const normalizeTeacherTrainingManagerResponsibility = (value?: string | null) => {
+  const title = value?.trim() ?? "";
+  if (title.includes("负责人")) return "省培负责人";
+  if (title.includes("班主任")) return "省培班主任";
+  return "";
+};
 
 export async function POST(request: NextRequest) {
   const user = await getSessionUser(request);
@@ -15,7 +22,7 @@ export async function POST(request: NextRequest) {
   try {
     assertRole(user.role, ["admin"]);
   } catch {
-    return NextResponse.json({ message: "无权限设置省培负责人或班主任" }, { status: 403 });
+    return NextResponse.json({ message: "无权限设置省培负责人或省培班主任" }, { status: 403 });
   }
 
   const body = (await request.json().catch(() => null)) as
@@ -27,7 +34,7 @@ export async function POST(request: NextRequest) {
     | null;
   const cohortId = body?.cohortId?.trim();
   const userId = body?.userId?.trim();
-  const title = body?.title?.trim() || "班主任";
+  const title = normalizeTeacherTrainingManagerResponsibility(body?.title) || "省培班主任";
 
   if (!cohortId || !userId) {
     return NextResponse.json({ message: "请选择省培班次和工作人员账号" }, { status: 400 });
@@ -45,7 +52,7 @@ export async function POST(request: NextRequest) {
       where: {
         id: userId,
         approvalStatus: "approved",
-        role: { notIn: ["admin", "expert", "training_teacher"] },
+        role: { notIn: ["admin", "expert"] },
       },
       select: {
         id: true,
@@ -58,17 +65,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: "省培班次不存在" }, { status: 404 });
   }
   if (!targetUser) {
-    return NextResponse.json({ message: "只能选择已审核通过的非系统管理员、非专家、非参训教师账号作为省培负责人或班主任" }, { status: 404 });
+    return NextResponse.json({ message: "只能选择已审核通过的非系统管理员、非专家账号作为省培负责人或省培班主任" }, { status: 404 });
   }
-  if (targetUser.responsibility && targetUser.responsibility !== title) {
+  const targetUserTeacherTrainingResponsibility = normalizeTeacherTrainingManagerResponsibility(targetUser.responsibility);
+  if (targetUserTeacherTrainingResponsibility && targetUserTeacherTrainingResponsibility !== title) {
     return NextResponse.json({ message: `该账号未在省培账号管理中设置为${title}` }, { status: 400 });
-  }
-  if (!targetUser.responsibility) {
-    await prisma.user.update({
-      where: { id: userId },
-      data: { responsibility: title },
-      select: { id: true },
-    });
   }
 
   const manager = await prisma.teacherTrainingCohortManager.upsert({
@@ -112,7 +113,7 @@ export async function DELETE(request: NextRequest) {
   try {
     assertRole(user.role, ["admin"]);
   } catch {
-    return NextResponse.json({ message: "无权限移除省培负责人或班主任" }, { status: 403 });
+    return NextResponse.json({ message: "无权限移除省培负责人或省培班主任" }, { status: 403 });
   }
 
   const body = (await request.json().catch(() => null)) as

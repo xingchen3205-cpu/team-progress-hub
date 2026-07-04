@@ -85,7 +85,7 @@ export async function POST(request: NextRequest) {
     },
   });
   if (approverCount !== approverIds.length) {
-    return NextResponse.json({ message: "审批人必须是系统管理员、当前班次省培负责人或班主任" }, { status: 400 });
+    return NextResponse.json({ message: "审批人必须是系统管理员、当前班次省培负责人或省培班主任" }, { status: 400 });
   }
 
   const leaveFlow = await prisma.teacherTrainingLeaveFlow.upsert({

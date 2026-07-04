@@ -17,7 +17,19 @@ import {
 import { decodeTeacherTrainingSubmissionAttachmentFile } from "@/lib/teacher-training-submission-attachments";
 import { deleteStoredFile } from "@/lib/uploads";
 
-const teacherTrainingManagerResponsibilities = ["省培负责人", "班主任"] as const;
+const teacherTrainingManagerResponsibilities = ["省培负责人", "省培班主任"] as const;
+const teacherTrainingManagerResponsibilityValues = [...teacherTrainingManagerResponsibilities, "班主任"] as const;
+
+const normalizeTeacherTrainingManagerResponsibility = (value?: string | null) => {
+  const title = value?.trim() ?? "";
+  if (title.includes("负责人")) return "省培负责人";
+  if (title.includes("班主任")) return "省培班主任";
+  return "";
+};
+
+const teacherTrainingManagerTitleWhere: Prisma.TeacherTrainingCohortManagerWhereInput = {
+  OR: [{ title: { contains: "负责人" } }, { title: { contains: "班主任" } }],
+};
 
 const buildTeacherTrainingInclude = (options: { participantAccountUserId?: string } = {}) => {
   const participantWhere = options.participantAccountUserId
@@ -339,7 +351,7 @@ const serializeTeacherTrainingCohortSummary = (
       name: manager.user?.name ?? "工作人员",
       username: manager.user?.username ?? "",
       role: manager.user?.role ?? "",
-      title: manager.title || "班主任",
+      title: manager.title || "省培班主任",
       createdAt: toSummaryDateTimeLabel(manager.createdAt),
     })),
     tasks: [],
@@ -510,18 +522,20 @@ export async function GET(request: NextRequest) {
             OR: [
               {
                 responsibility: {
-                  in: [...teacherTrainingManagerResponsibilities],
+                  in: [...teacherTrainingManagerResponsibilityValues],
                 },
               },
               {
                 teacherTrainingManagedCohorts: {
                   some: {
-                    title: {
-                      in: [...teacherTrainingManagerResponsibilities],
-                    },
-                    cohort: {
-                      deletedAt: null,
-                    },
+                    AND: [
+                      teacherTrainingManagerTitleWhere,
+                      {
+                        cohort: {
+                          deletedAt: null,
+                        },
+                      },
+                    ],
                   },
                 },
               },
@@ -609,10 +623,8 @@ export async function GET(request: NextRequest) {
         title: manager.title,
       }));
       const derivedResponsibility =
-        teacherTrainingManagerResponsibilities.find((responsibility) => responsibility === account.responsibility) ??
-        managedCohorts.find((manager) =>
-          teacherTrainingManagerResponsibilities.some((responsibility) => responsibility === manager.title),
-        )?.title ??
+        normalizeTeacherTrainingManagerResponsibility(account.responsibility) ||
+        managedCohorts.map((manager) => normalizeTeacherTrainingManagerResponsibility(manager.title)).find(Boolean) ||
         "";
 
       return {

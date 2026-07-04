@@ -331,7 +331,7 @@ export type TeacherTrainingManagerAccountDraft = {
   phone: string;
   email: string;
   password: string;
-  managerIdentity: "省培负责人" | "班主任";
+  managerIdentity: "省培负责人" | "省培班主任";
 };
 
 export type TeacherTrainingLeaveFlowDraft = {
@@ -903,7 +903,7 @@ export const teacherTrainingSectionTabs: TeacherTrainingSectionItem[] = [
   {
     key: "cohorts",
     label: "班次管理",
-    description: "班次、地点和班主任",
+    description: "班次、地点和省培管理人员",
     icon: User,
     managerOnly: true,
   },
@@ -917,7 +917,7 @@ export const teacherTrainingSectionTabs: TeacherTrainingSectionItem[] = [
   {
     key: "accounts",
     label: "省培账号管理",
-    description: "负责人和班主任账号池",
+    description: "省培负责人和省培班主任账号池",
     icon: KeyRound,
     globalOnly: true,
   },
@@ -6018,7 +6018,7 @@ function useWorkspaceController({
         method: "DELETE",
         body: JSON.stringify({ ids }),
       });
-      showSuccessToast("省培管理账号已删除", `已删除 ${ids.length} 个省培负责人/班主任账号。`);
+      showSuccessToast("省培管理账号已删除", `已删除 ${ids.length} 个省培负责人/省培班主任账号。`);
       refreshWorkspace("teacherTraining");
       return true;
     } catch (error) {
@@ -6032,10 +6032,10 @@ function useWorkspaceController({
   const assignTeacherTrainingCohortManager = async (draft: TeacherTrainingCohortManagerDraft) => {
     const cohortId = draft.cohortId.trim();
     const userId = draft.userId.trim();
-    const title = draft.title.trim() || "班主任";
+    const title = draft.title.trim() || "省培班主任";
 
     if (!cohortId || !userId) {
-      setLoadError("请先选择班次和班主任账号");
+      setLoadError("请先选择班次和省培管理账号");
       return;
     }
 
@@ -6049,10 +6049,10 @@ function useWorkspaceController({
           title,
         }),
       });
-      showSuccessToast("省培班主任已设置", "该账号可切换进入省培系统管理所带班次。");
+      showSuccessToast(`${title}已设置`, "该账号可切换进入省培系统管理所带班次。");
       refreshWorkspace("teacherTraining");
     } catch (error) {
-      setLoadError(error instanceof Error ? error.message : "班主任设置失败");
+      setLoadError(error instanceof Error ? error.message : "省培管理人员设置失败");
     } finally {
       setIsSaving(false);
     }
@@ -6063,7 +6063,7 @@ function useWorkspaceController({
     const userId = draft.userId.trim();
 
     if (!cohortId || !userId) {
-      setLoadError("请先选择要移除的班主任");
+      setLoadError("请先选择要移除的省培管理人员");
       return;
     }
 
@@ -6076,10 +6076,10 @@ function useWorkspaceController({
           userId,
         }),
       });
-      showSuccessToast("省培班主任已移除", "该账号不再管理这个省培班次。");
+      showSuccessToast("省培管理人员已移除", "该账号不再管理这个省培班次。");
       refreshWorkspace("teacherTraining");
     } catch (error) {
-      setLoadError(error instanceof Error ? error.message : "班主任移除失败");
+      setLoadError(error instanceof Error ? error.message : "省培管理人员移除失败");
     } finally {
       setIsSaving(false);
     }
