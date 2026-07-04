@@ -4,6 +4,8 @@ import { getSessionUser } from "@/lib/auth";
 import { assertRole } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
+const teacherTrainingManagerResponsibilities = ["省培负责人", "班主任"] as const;
+
 export async function POST(request: NextRequest) {
   const user = await getSessionUser(request);
   if (!user) {
@@ -30,6 +32,9 @@ export async function POST(request: NextRequest) {
   if (!cohortId || !userId) {
     return NextResponse.json({ message: "请选择省培班次和工作人员账号" }, { status: 400 });
   }
+  if (!teacherTrainingManagerResponsibilities.some((responsibility) => responsibility === title)) {
+    return NextResponse.json({ message: "省培管理身份不正确" }, { status: 400 });
+  }
 
   const [cohort, targetUser] = await Promise.all([
     prisma.teacherTrainingCohort.findFirst({
@@ -40,7 +45,7 @@ export async function POST(request: NextRequest) {
       where: {
         id: userId,
         approvalStatus: "approved",
-        role: { notIn: ["expert", "training_teacher"] },
+        role: { notIn: ["admin", "expert", "training_teacher"] },
       },
       select: {
         id: true,
@@ -53,10 +58,17 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: "省培班次不存在" }, { status: 404 });
   }
   if (!targetUser) {
-    return NextResponse.json({ message: "只能选择已审核通过的非专家账号作为省培负责人或班主任" }, { status: 404 });
+    return NextResponse.json({ message: "只能选择已审核通过的非系统管理员、非专家、非参训教师账号作为省培负责人或班主任" }, { status: 404 });
   }
-  if (targetUser.responsibility !== title) {
+  if (targetUser.responsibility && targetUser.responsibility !== title) {
     return NextResponse.json({ message: `该账号未在省培账号管理中设置为${title}` }, { status: 400 });
+  }
+  if (!targetUser.responsibility) {
+    await prisma.user.update({
+      where: { id: userId },
+      data: { responsibility: title },
+      select: { id: true },
+    });
   }
 
   const manager = await prisma.teacherTrainingCohortManager.upsert({

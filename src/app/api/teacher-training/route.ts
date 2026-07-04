@@ -17,6 +17,8 @@ import {
 import { decodeTeacherTrainingSubmissionAttachmentFile } from "@/lib/teacher-training-submission-attachments";
 import { deleteStoredFile } from "@/lib/uploads";
 
+const teacherTrainingManagerResponsibilities = ["省培负责人", "班主任"] as const;
+
 const buildTeacherTrainingInclude = (options: { participantAccountUserId?: string } = {}) => {
   const participantWhere = options.participantAccountUserId
     ? { accountUserId: options.participantAccountUserId }
@@ -505,10 +507,26 @@ export async function GET(request: NextRequest) {
     isManager
       ? prisma.user.findMany({
           where: {
-            responsibility: {
-              in: ["省培负责人", "班主任"],
-            },
-            role: { notIn: ["expert", "training_teacher"] },
+            OR: [
+              {
+                responsibility: {
+                  in: [...teacherTrainingManagerResponsibilities],
+                },
+              },
+              {
+                teacherTrainingManagedCohorts: {
+                  some: {
+                    title: {
+                      in: [...teacherTrainingManagerResponsibilities],
+                    },
+                    cohort: {
+                      deletedAt: null,
+                    },
+                  },
+                },
+              },
+            ],
+            role: { notIn: ["admin", "expert", "training_teacher"] },
             approvalStatus: "approved",
           },
           orderBy: [{ responsibility: "asc" }, { name: "asc" }],
@@ -584,21 +602,31 @@ export async function GET(request: NextRequest) {
       : (visibleCohorts as TeacherTrainingCohortWithRelations[]).map(serializeTeacherTrainingCohort),
     approverOptions,
     managerOptions,
-    managerAccountOptions: managerAccountOptions.map((account) => ({
-      id: account.id,
-      name: account.name,
-      username: account.username,
-      email: account.email ?? "",
-      phone: account.phone ?? "",
-      role: account.role,
-      responsibility: account.responsibility ?? "",
-      createdAt: account.createdAt.toISOString(),
-      managedCohorts: account.teacherTrainingManagedCohorts.map((manager) => ({
+    managerAccountOptions: managerAccountOptions.map((account) => {
+      const managedCohorts = account.teacherTrainingManagedCohorts.map((manager) => ({
         cohortId: manager.cohortId,
         cohortTitle: manager.cohort.title,
         title: manager.title,
-      })),
-    })),
+      }));
+      const derivedResponsibility =
+        teacherTrainingManagerResponsibilities.find((responsibility) => responsibility === account.responsibility) ??
+        managedCohorts.find((manager) =>
+          teacherTrainingManagerResponsibilities.some((responsibility) => responsibility === manager.title),
+        )?.title ??
+        "";
+
+      return {
+        id: account.id,
+        name: account.name,
+        username: account.username,
+        email: account.email ?? "",
+        phone: account.phone ?? "",
+        role: account.role,
+        responsibility: derivedResponsibility,
+        createdAt: account.createdAt.toISOString(),
+        managedCohorts,
+      };
+    }),
     participantAccountOptions: participantAccountOptions.map((account) => ({
       id: account.id,
       name: account.name,

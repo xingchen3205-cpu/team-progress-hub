@@ -219,7 +219,21 @@ export async function DELETE(request: NextRequest) {
   const accounts = await prisma.user.findMany({
     where: {
       id: { in: ids },
-      responsibility: { in: [...teacherTrainingManagerIdentities] },
+      OR: [
+        {
+          responsibility: { in: [...teacherTrainingManagerIdentities] },
+        },
+        {
+          teacherTrainingManagedCohorts: {
+            some: {
+              title: { in: [...teacherTrainingManagerIdentities] },
+              cohort: {
+                deletedAt: null,
+              },
+            },
+          },
+        },
+      ],
     },
     select: {
       id: true,
@@ -237,7 +251,21 @@ export async function DELETE(request: NextRequest) {
     where: {
       id: { in: ids },
       role: { not: "admin" },
-      responsibility: { in: [...teacherTrainingManagerIdentities] },
+      OR: [
+        {
+          responsibility: { in: [...teacherTrainingManagerIdentities] },
+        },
+        {
+          teacherTrainingManagedCohorts: {
+            some: {
+              title: { in: [...teacherTrainingManagerIdentities] },
+              cohort: {
+                deletedAt: null,
+              },
+            },
+          },
+        },
+      ],
     },
   });
 

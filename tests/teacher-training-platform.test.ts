@@ -141,7 +141,7 @@ test("teacher training APIs support admin-managed courses, check-in, tasks, subm
   assert.doesNotMatch(managerRoute, /assertRole\(user\.role,\s*\["admin",\s*"school_admin"\]\)/);
   assert.match(managerRoute, /teacherTrainingCohortManager\.upsert/);
   assert.match(managerRoute, /teacherTrainingCohortManager\.deleteMany/);
-  assert.match(managerRoute, /role:\s*\{\s*notIn:\s*\["expert",\s*"training_teacher"\]\s*\}/);
+  assert.match(managerRoute, /role:\s*\{\s*notIn:\s*\["admin",\s*"expert",\s*"training_teacher"\]\s*\}/);
   assert.doesNotMatch(checkInSignRoute, /assertRole\(user\.role,\s*\["training_teacher"\]\)/);
   assert.doesNotMatch(leaveRequestRoute, /assertRole\(user\.role,\s*\["training_teacher"\]\)/);
   assert.doesNotMatch(leaveReviewRoute, /assertRole\(user\.role,\s*\["admin",\s*"school_admin"\]\)/);
@@ -1061,7 +1061,9 @@ test("teacher training cohort lead is configured above class teachers without ch
   const managerRoute = read("src/app/api/teacher-training/cohort-managers/route.ts");
 
   assert.match(managerRoute, /无权限设置省培负责人或班主任/);
-  assert.match(managerRoute, /只能选择已审核通过的非专家账号作为省培负责人或班主任/);
+  assert.match(managerRoute, /只能选择已审核通过的非系统管理员、非专家、非参训教师账号作为省培负责人或班主任/);
+  assert.match(managerRoute, /teacherTrainingManagerResponsibilities/);
+  assert.match(managerRoute, /role:\s*\{\s*notIn:\s*\["admin",\s*"expert",\s*"training_teacher"\]\s*\}/);
   assert.match(tabSource, /teacherTrainingManagerRoleOptions/);
   assert.match(tabSource, /title:\s*"省培负责人"/);
   assert.match(tabSource, /title:\s*"班主任"/);
@@ -1615,7 +1617,12 @@ test("teacher training account management is a manager account pool, not another
   assert.match(accountRoute, /responsibility:\s*managerIdentity/);
   assert.match(accountRoute, /managerIdentity !== "省培负责人" && managerIdentity !== "班主任"/);
   assert.match(cohortManagerRoute, /targetUser\.responsibility/);
-  assert.match(cohortManagerRoute, /targetUser\.responsibility !== title/);
+  assert.match(cohortManagerRoute, /targetUser\.responsibility && targetUser\.responsibility !== title/);
+  assert.match(cohortManagerRoute, /data:\s*\{\s*responsibility:\s*title\s*\}/);
+  assert.match(mainRoute, /teacherTrainingManagerResponsibilities/);
+  assert.match(mainRoute, /teacherTrainingManagedCohorts:\s*\{\s*some:\s*\{/);
+  assert.match(mainRoute, /derivedResponsibility/);
+  assert.match(mainRoute, /role:\s*\{\s*notIn:\s*\["admin",\s*"expert",\s*"training_teacher"\]\s*\}/);
   assert.match(tabSource, /省培系统账号管理/);
   assert.match(tabSource, /参训教师工具箱/);
   assert.match(tabSource, /名单在右侧维护；这里仅保留常用入口/);
