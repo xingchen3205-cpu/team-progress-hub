@@ -82,7 +82,14 @@ const TEACHER_TRAINING_UPLOAD_URL_TIMEOUT_MS = 20_000;
 const TEACHER_TRAINING_DOWNLOAD_TIMEOUT_MS = 60_000;
 const teacherTrainingDefaultInitialPassword = "123456";
 
-type TeacherTrainingExportType = "participants" | "arrivals" | "attendance" | "checkIns" | "leaves" | "submissions";
+type TeacherTrainingExportType =
+  | "participants"
+  | "arrivals"
+  | "attendance"
+  | "checkIns"
+  | "leaves"
+  | "submissions"
+  | "submissionScores";
 
 const teacherTrainingExportItems: Array<{
   label: string;
@@ -95,6 +102,7 @@ const teacherTrainingExportItems: Array<{
   { label: "导出课程签到", type: "checkIns", description: "定位签到任务和签到明细" },
   { label: "导出请假审批", type: "leaves", description: "请假时间、原因、状态和审批记录" },
   { label: "导出汇报归档", type: "submissions", description: "每位教师一个 Word 汇报归档，附件打包进 ZIP" },
+  { label: "导出汇报评分表", type: "submissionScores", description: "任务提交、AI 初评、人工终评和评语 CSV" },
 ];
 
 const getFileNameFromContentDisposition = (contentDisposition: string | null, fallbackName: string) => {
@@ -689,7 +697,7 @@ const teacherTrainingActionHints: Partial<Record<Workspace.TeacherTrainingSectio
   },
   exports: {
     title: "导出归档",
-    steps: ["选择当前班次", "按名单/签到/汇报导出", "下载后可直接归档"],
+    steps: ["选择当前班次", "导出名单、报到信息、课程签到和任务汇报", "下载后可直接归档"],
   },
 };
 
@@ -891,12 +899,22 @@ export default function TeacherTrainingTab() {
     "max-h-[min(68vh,760px)] overflow-y-auto pr-1 overscroll-contain";
   // 列表卡片在两栏布局里随对侧表单拉伸到等高，内部列表区填满剩余高度并自行滚动，
   // 避免短列表在表单旁留下大块空白。
-  const teacherTrainingListCardClassName = "tt-card flex min-h-0 flex-col p-5";
+  const teacherTrainingListCardClassName = "tt-card flex min-h-0 flex-col self-stretch p-5";
   const teacherTrainingFillingListClassName =
     "min-h-0 flex-1 max-h-[min(68vh,760px)] overflow-y-auto pr-1 overscroll-contain";
   const teacherTrainingRequiredMarkClassName = "ml-1 text-sm font-black leading-none text-rose-500";
   const teacherTrainingEitherRequiredMarkClassName =
     "ml-2 rounded-md bg-rose-50 px-1.5 py-0.5 text-[10px] font-bold leading-none text-rose-600 ring-1 ring-rose-100";
+  const RequiredFieldLabel = ({ children, either }: { children: string; either?: boolean }) => (
+    <span className={teacherTrainingFieldLabelClassName}>
+      {children}
+      {either ? (
+        <span className={teacherTrainingEitherRequiredMarkClassName}>至少一项</span>
+      ) : (
+        <span aria-hidden="true" className={teacherTrainingRequiredMarkClassName}>*</span>
+      )}
+    </span>
+  );
 
   const selectedCohortId = activeTeacherTrainingCohortId;
   const setSelectedCohortId = setActiveTeacherTrainingCohortId;
@@ -2145,8 +2163,8 @@ export default function TeacherTrainingTab() {
     if (
       !confirmTeacherTrainingPermanentDelete({
         title: `${ids.length} 个省培管理账号`,
-        firstMessage: `确认删除 ${ids.length} 个省培负责人/省培班主任账号？\n\n删除后这些账号将无法登录，也不能再被班次选择。`,
-        secondMessage: "这只删除省培管理账号池里的负责人/省培班主任账号，不删除参训教师名单。",
+        firstMessage: `确认将 ${ids.length} 个账号移出省培账号池？\n\n移出后这些账号不再拥有省培负责人/省培班主任身份，也不能再被班次选择。`,
+        secondMessage: "这里只解除省培管理身份并保留原账号和历史记录，不删除参训教师名单。",
       })
     ) {
       return;
@@ -3817,7 +3835,7 @@ export default function TeacherTrainingTab() {
                 </div>
                 <div className="mt-4 grid gap-3 sm:grid-cols-2">
                   <label className={teacherTrainingFieldShellClassName}>
-                    <span className={teacherTrainingFieldLabelClassName}>姓名</span>
+                    <RequiredFieldLabel>姓名</RequiredFieldLabel>
                     <input
                       className={fieldClassName}
                       {...fieldHint("省培管理账号姓名")}
@@ -3827,7 +3845,7 @@ export default function TeacherTrainingTab() {
                     />
                   </label>
                   <label className={teacherTrainingFieldShellClassName}>
-                    <span className={teacherTrainingFieldLabelClassName}>登录账号</span>
+                    <RequiredFieldLabel>登录账号</RequiredFieldLabel>
                     <input
                       className={fieldClassName}
                       {...fieldHint("省培管理登录账号")}
@@ -3857,7 +3875,7 @@ export default function TeacherTrainingTab() {
                     />
                   </label>
                   <label className={teacherTrainingFieldShellClassName}>
-                    <span className={teacherTrainingFieldLabelClassName}>省培身份</span>
+                    <RequiredFieldLabel>省培身份</RequiredFieldLabel>
                     <select
                       className={fieldClassName}
                       {...fieldHint("省培身份")}
@@ -3928,7 +3946,7 @@ export default function TeacherTrainingTab() {
                     type="button"
                   >
                     <Trash2 className="h-4 w-4" />
-                    批量删除账号
+                    批量移出账号池
                   </button>
                 </div>
                 <label className={`${teacherTrainingFieldShellClassName} mt-4`}>
@@ -4036,7 +4054,7 @@ export default function TeacherTrainingTab() {
                               type="button"
                             >
                               <Trash2 className="h-3.5 w-3.5" />
-                              删除
+                              移出
                             </button>
                           </div>
                         </div>
@@ -5378,6 +5396,11 @@ export default function TeacherTrainingTab() {
                         const isSigningThisTask = checkInSigningId === task.id;
                         const checkInDisabledReason = getTeacherTrainingCheckInDisabledReason(windowState, hasSelectedParticipant);
                         const signedRecordStatus = signedRecord ? getTeacherTrainingCheckInRecordStatusMeta(signedRecord.status) : null;
+                        const alreadySignedReason = signedRecord
+                          ? signedRecord.status === "manual"
+                            ? "管理员已补签，无需重复定位"
+                            : "已完成签到，无需重复提交"
+                          : "";
                         return (
                           <div
                             id={`teacher-training-checkin-${task.id}`}
@@ -5419,9 +5442,9 @@ export default function TeacherTrainingTab() {
                             <button
                               className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-[#1f64f2] px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-[#174ecb] disabled:cursor-not-allowed disabled:bg-slate-300"
                               aria-label="定位签到，浏览器会请求当前位置权限"
-                              disabled={Boolean(checkInDisabledReason) || isSaving || isSigningThisTask}
+                              disabled={Boolean(checkInDisabledReason || alreadySignedReason) || isSaving || isSigningThisTask}
                               onClick={() => signWithCurrentLocation(task.id)}
-                              title={checkInDisabledReason || "定位签到，浏览器会请求当前位置权限"}
+                              title={checkInDisabledReason || alreadySignedReason || "定位签到，浏览器会请求当前位置权限"}
                               type="button"
                             >
                               {isSigningThisTask ? <Loader2 className="h-4 w-4 animate-spin" /> : <MapPin className="h-4 w-4" />}
@@ -5429,13 +5452,20 @@ export default function TeacherTrainingTab() {
                                 ? "定位中"
                                 : isWindowOpen
                                   ? signedRecord
-                                    ? "重新定位签到"
+                                    ? signedRecord.status === "manual"
+                                      ? "已补签"
+                                      : "已签到"
                                     : "定位签到"
                                   : Workspace.getTeacherTrainingCheckInWindowLabel(windowState)}
                             </button>
                             {checkInDisabledReason ? (
                               <p className={`${teacherTrainingDisabledHintClassName} lg:col-start-2 lg:max-w-56`}>
                                 {checkInDisabledReason}
+                              </p>
+                            ) : null}
+                            {!checkInDisabledReason && alreadySignedReason ? (
+                              <p className={`${teacherTrainingDisabledHintClassName} lg:col-start-2 lg:max-w-56`}>
+                                {alreadySignedReason}
                               </p>
                             ) : null}
                           </div>
@@ -6236,7 +6266,7 @@ export default function TeacherTrainingTab() {
                 </div>
                 <div className="mt-4 grid gap-3 md:grid-cols-2">
                   <label className={teacherTrainingFieldShellClassName}>
-                    <span className={teacherTrainingFieldLabelClassName}>个人姓名</span>
+                    <RequiredFieldLabel>个人姓名</RequiredFieldLabel>
                     <input
                       className={fieldClassName}
                       {...fieldHint("个人姓名")}
@@ -6247,7 +6277,7 @@ export default function TeacherTrainingTab() {
                     />
                   </label>
                   <label className={teacherTrainingFieldShellClassName}>
-                    <span className={teacherTrainingFieldLabelClassName}>个人单位</span>
+                    <RequiredFieldLabel>个人单位</RequiredFieldLabel>
                     <input
                       className={fieldClassName}
                       {...fieldHint("个人单位")}
@@ -6258,7 +6288,7 @@ export default function TeacherTrainingTab() {
                     />
                   </label>
                   <label className={teacherTrainingFieldShellClassName}>
-                    <span className={teacherTrainingFieldLabelClassName}>个人手机</span>
+                    <RequiredFieldLabel>个人手机</RequiredFieldLabel>
                     <input
                       className={fieldClassName}
                       {...fieldHint("个人手机")}
@@ -6269,7 +6299,7 @@ export default function TeacherTrainingTab() {
                     />
                   </label>
                   <label className={teacherTrainingFieldShellClassName}>
-                    <span className={teacherTrainingFieldLabelClassName}>个人分组</span>
+                    <RequiredFieldLabel>个人分组</RequiredFieldLabel>
                     <input
                       className={fieldClassName}
                       {...fieldHint("个人分组")}
@@ -6280,7 +6310,7 @@ export default function TeacherTrainingTab() {
                     />
                   </label>
                   <label className={teacherTrainingFieldShellClassName}>
-                    <span className={teacherTrainingFieldLabelClassName}>个人职务</span>
+                    <RequiredFieldLabel>个人职务</RequiredFieldLabel>
                     <input
                       className={fieldClassName}
                       {...fieldHint("个人职务")}
@@ -6291,7 +6321,7 @@ export default function TeacherTrainingTab() {
                     />
                   </label>
                   <label className={teacherTrainingFieldShellClassName}>
-                    <span className={teacherTrainingFieldLabelClassName}>个人邮箱</span>
+                    <RequiredFieldLabel>个人邮箱</RequiredFieldLabel>
                     <input
                       className={fieldClassName}
                       {...fieldHint("个人邮箱")}
@@ -6305,7 +6335,7 @@ export default function TeacherTrainingTab() {
                     <div className="md:col-span-2 rounded-2xl border border-amber-100 bg-amber-50/70 p-3">
                       <div className="grid gap-3 md:grid-cols-2">
                         <label className={teacherTrainingFieldShellClassName}>
-                          <span className={teacherTrainingFieldLabelClassName}>设置新密码</span>
+                          <RequiredFieldLabel>设置新密码</RequiredFieldLabel>
                           <input
                             className={fieldClassName}
                             {...fieldHint("设置新密码")}
@@ -6316,7 +6346,7 @@ export default function TeacherTrainingTab() {
                           />
                         </label>
                         <label className={teacherTrainingFieldShellClassName}>
-                          <span className={teacherTrainingFieldLabelClassName}>再次输入新密码</span>
+                          <RequiredFieldLabel>再次输入新密码</RequiredFieldLabel>
                           <input
                             className={fieldClassName}
                             {...fieldHint("再次输入新密码")}
@@ -6522,11 +6552,7 @@ export default function TeacherTrainingTab() {
                     </div>
                     <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                       <label className={teacherTrainingFieldShellClassName}>
-                        <span className={`${teacherTrainingFieldLabelClassName} inline-flex items-center`}>
-                          参训教师姓名
-                          <span aria-hidden="true" className={teacherTrainingRequiredMarkClassName}>*</span>
-                          <span className="sr-only">必填</span>
-                        </span>
+                        <RequiredFieldLabel>参训教师姓名</RequiredFieldLabel>
                         <input
                           id="tt-participant-name-input"
                           className={fieldClassName}
@@ -6537,11 +6563,7 @@ export default function TeacherTrainingTab() {
                         />
                       </label>
                       <label className={`${teacherTrainingFieldShellClassName} md:col-span-2 xl:col-span-2`}>
-                        <span className={`${teacherTrainingFieldLabelClassName} inline-flex items-center`}>
-                          所在单位
-                          <span aria-hidden="true" className={teacherTrainingRequiredMarkClassName}>*</span>
-                          <span className="sr-only">必填</span>
-                        </span>
+                        <RequiredFieldLabel>所在单位</RequiredFieldLabel>
                         <input
                           className={fieldClassName}
                           {...fieldHint("参训教师单位")}
@@ -6551,11 +6573,7 @@ export default function TeacherTrainingTab() {
                         />
                       </label>
                       <label className={teacherTrainingFieldShellClassName}>
-                        <span className={`${teacherTrainingFieldLabelClassName} inline-flex items-center`}>
-                          报名手机号
-                          <span aria-hidden="true" className={teacherTrainingRequiredMarkClassName}>*</span>
-                          <span className="sr-only">必填</span>
-                        </span>
+                        <RequiredFieldLabel>报名手机号</RequiredFieldLabel>
                         <input
                           className={fieldClassName}
                           {...fieldHint("参训教师手机")}
@@ -6565,11 +6583,7 @@ export default function TeacherTrainingTab() {
                         />
                       </label>
                       <label className={teacherTrainingFieldShellClassName}>
-                        <span className={`${teacherTrainingFieldLabelClassName} inline-flex items-center`}>
-                          参训教师分组
-                          <span aria-hidden="true" className={teacherTrainingRequiredMarkClassName}>*</span>
-                          <span className="sr-only">必填</span>
-                        </span>
+                        <RequiredFieldLabel>参训教师分组</RequiredFieldLabel>
                         <input
                           className={fieldClassName}
                           {...fieldHint("参训教师分组")}
@@ -6579,10 +6593,7 @@ export default function TeacherTrainingTab() {
                         />
                       </label>
                       <label className={teacherTrainingFieldShellClassName}>
-                        <span className={`${teacherTrainingFieldLabelClassName} inline-flex items-center`}>
-                          参训教师职务
-                          <span className={teacherTrainingEitherRequiredMarkClassName}>二选一</span>
-                        </span>
+                        <RequiredFieldLabel either>参训教师职务</RequiredFieldLabel>
                         <input
                           className={fieldClassName}
                           {...fieldHint("参训教师职务")}
@@ -6592,10 +6603,7 @@ export default function TeacherTrainingTab() {
                         />
                       </label>
                       <label className={teacherTrainingFieldShellClassName}>
-                        <span className={`${teacherTrainingFieldLabelClassName} inline-flex items-center`}>
-                          职称
-                          <span className={teacherTrainingEitherRequiredMarkClassName}>二选一</span>
-                        </span>
+                        <RequiredFieldLabel either>职称</RequiredFieldLabel>
                         <input
                           className={fieldClassName}
                           {...fieldHint("职称")}
@@ -7201,7 +7209,7 @@ export default function TeacherTrainingTab() {
               <section className="tt-card p-5">
                 <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
                   <div>
-                    <p className="tt-block-title">参训教师报到</p>
+                    <p className="tt-block-title">报到登记</p>
                     <p className="mt-1.5 text-xs leading-5 text-slate-500">
                       所有人默认待报到；点击报到后确认酒店房号和材料情况，系统自动记录报到时间。
                     </p>
@@ -7492,7 +7500,7 @@ export default function TeacherTrainingTab() {
                   </div>
                   <div className="mt-4 grid gap-3 lg:grid-cols-2">
                     <label className={teacherTrainingFieldShellClassName}>
-                      <span className={teacherTrainingFieldLabelClassName}>省培任务名称</span>
+                      <RequiredFieldLabel>省培任务名称</RequiredFieldLabel>
                       <input
                         className={fieldClassName}
                         {...fieldHint("省培任务名称")}
@@ -7512,7 +7520,7 @@ export default function TeacherTrainingTab() {
                       />
                     </label>
                     <label className={teacherTrainingFieldShellClassName}>
-                      <span className={teacherTrainingFieldLabelClassName}>任务类型</span>
+                      <RequiredFieldLabel>任务类型</RequiredFieldLabel>
                       <select
                         className={fieldClassName}
                         {...fieldHint("省培任务类型")}
@@ -7553,7 +7561,7 @@ export default function TeacherTrainingTab() {
                       </label>
                     ) : null}
                     <label className={teacherTrainingFieldShellClassName}>
-                      <span className={teacherTrainingFieldLabelClassName}>开放时间</span>
+                      <RequiredFieldLabel>开放时间</RequiredFieldLabel>
                       <select
                         className={fieldClassName}
                         {...fieldHint("省培任务开放时间")}
@@ -7585,7 +7593,7 @@ export default function TeacherTrainingTab() {
                       </label>
                     ) : null}
                     <label className={`${teacherTrainingFieldShellClassName} lg:col-span-2`}>
-                      <span className={teacherTrainingFieldLabelClassName}>省培任务说明</span>
+                      <RequiredFieldLabel>省培任务说明</RequiredFieldLabel>
                       <textarea
                         className={textareaClassName}
                         {...fieldHint("省培任务说明")}
@@ -8118,14 +8126,14 @@ export default function TeacherTrainingTab() {
                                     onClick={() => {
                                       if (
                                         !window.confirm(
-                                          `确认对“${task.title}”的 ${task.submissions.length} 份汇报生成 AI 初评？\n\nAI 初评只供管理端参考，不会覆盖人工最终得分。`,
+                                          `确认对“${task.title}”的 ${task.submissions.length} 份汇报生成 AI 初评？\n\n系统会自动分批处理。AI 主要读取文字汇报，附件正文需人工打开查看；AI 初评不会覆盖人工最终得分。`,
                                         )
                                       ) {
                                         return;
                                       }
                                       void runTeacherTrainingTaskAiReview(task.id);
                                     }}
-                                    title={task.submissions.length === 0 ? "暂无已提交汇报" : "生成 AI 初评"}
+                                    title={task.submissions.length === 0 ? "暂无已提交汇报" : "生成 AI 初评；超过 60 份会自动分批"}
                                     type="button"
                                   >
                                     <Bot className="h-3.5 w-3.5" />
@@ -8307,7 +8315,9 @@ export default function TeacherTrainingTab() {
                                       {task.enableAiReview ? (
                                         <div className="lg:col-span-3 rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-2 text-xs leading-5 text-indigo-700">
                                           AI 初评：{submission.aiScore === null ? "尚未评分" : `${submission.aiScore} 分`}
-                                          {submission.aiComment ? ` · ${submission.aiComment}` : "。AI 结果仅供管理端参考，最终以人工确认分为准。"}
+                                          {submission.aiComment
+                                            ? ` · ${submission.aiComment}`
+                                            : "。AI 主要读取文字汇报，附件需人工查看；最终以人工确认分为准。"}
                                         </div>
                                       ) : null}
                                       <label className={teacherTrainingFieldShellClassName}>

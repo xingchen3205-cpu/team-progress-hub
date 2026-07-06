@@ -52,11 +52,34 @@ export async function POST(request: NextRequest) {
       where: {
         id: userId,
         approvalStatus: "approved",
-        role: { notIn: ["admin", "expert"] },
+        role: { notIn: ["admin", "expert", "training_teacher"] },
+        OR: [
+          { responsibility: { in: ["省培负责人", "省培班主任", "班主任"] } },
+          {
+            teacherTrainingManagedCohorts: {
+              some: {
+                OR: [{ title: { contains: "负责人" } }, { title: { contains: "班主任" } }],
+                cohort: {
+                  deletedAt: null,
+                },
+              },
+            },
+          },
+        ],
       },
       select: {
         id: true,
         responsibility: true,
+        teacherTrainingManagedCohorts: {
+          where: {
+            cohort: {
+              deletedAt: null,
+            },
+          },
+          select: {
+            title: true,
+          },
+        },
       },
     }),
   ]);
@@ -65,10 +88,18 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: "省培班次不存在" }, { status: 404 });
   }
   if (!targetUser) {
-    return NextResponse.json({ message: "只能选择已审核通过的非系统管理员、非专家账号作为省培负责人或省培班主任" }, { status: 404 });
+    return NextResponse.json({ message: "只能选择省培账号管理中已设置身份的账号作为省培负责人或省培班主任" }, { status: 404 });
   }
-  const targetUserTeacherTrainingResponsibility = normalizeTeacherTrainingManagerResponsibility(targetUser.responsibility);
-  if (targetUserTeacherTrainingResponsibility && targetUserTeacherTrainingResponsibility !== title) {
+  const targetUserTeacherTrainingResponsibility =
+    normalizeTeacherTrainingManagerResponsibility(targetUser.responsibility) ||
+    targetUser.teacherTrainingManagedCohorts
+      .map((manager) => normalizeTeacherTrainingManagerResponsibility(manager.title))
+      .find(Boolean) ||
+    "";
+  if (!targetUserTeacherTrainingResponsibility) {
+    return NextResponse.json({ message: "请先在省培账号管理中设置该账号身份" }, { status: 400 });
+  }
+  if (targetUserTeacherTrainingResponsibility !== title) {
     return NextResponse.json({ message: `该账号未在省培账号管理中设置为${title}` }, { status: 400 });
   }
 

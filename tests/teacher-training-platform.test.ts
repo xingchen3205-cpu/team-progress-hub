@@ -93,7 +93,7 @@ test("teacher training management layout keeps cards aligned without oversized e
   assert.match(tabSource, /teacherTrainingScrollableListClassName/);
   assert.match(tabSource, /max-h-\[min\(68vh,760px\)\] overflow-y-auto/);
   assert.match(tabSource, /teacherTrainingManagementGridClassName[\s\S]*items-stretch xl:grid-cols-\[360px_minmax\(0,1fr\)\]/);
-  assert.match(tabSource, /grid gap-5 xl:grid-cols-\[minmax\(320px,0\.42fr\)_minmax\(0,0\.58fr\)\]/);
+  assert.match(tabSource, /grid items-stretch gap-5 xl:grid-cols-\[minmax\(320px,0\.42fr\)_minmax\(0,0\.58fr\)\]/);
   assert.match(tabSource, /grid items-stretch gap-4 xl:grid-cols-2/);
 });
 
@@ -180,7 +180,8 @@ test("teacher training APIs support admin-managed courses, check-in, tasks, subm
   assert.match(checkInSignRoute, /getTeacherTrainingCheckInWindowState/);
   assert.match(checkInSignRoute, /teacherTrainingCheckInWindowMessages/);
   assert.match(checkInSignRoute, /定位坐标不正确/);
-  assert.match(checkInSignRoute, /upsert/);
+  assert.match(checkInSignRoute, /existingRecord/);
+  assert.match(checkInSignRoute, /teacherTrainingCheckInRecord\.create/);
   assert.match(checkInManualRoute, /hasTeacherTrainingCohortManageAccess/);
   assert.match(checkInManualRoute, /人工补签原因/);
   assert.match(checkInManualRoute, /status:\s*"manual"/);
@@ -230,6 +231,34 @@ test("teacher training APIs support admin-managed courses, check-in, tasks, subm
   assert.match(exportRoute, /text\/csv/);
   assert.match(exportRoute, /buildTeacherTrainingCsv/);
   assert.match(exportRoute, /checkIns/);
+  assert.match(exportRoute, /submissionScores/);
+});
+
+test("teacher training risky operations preserve audit state and avoid confusing labels", () => {
+  const contextSource = read("src/components/workspace-context.tsx");
+  const tabSource = read("src/components/tabs/teacher-training-tab.tsx");
+  const managerAccountRoute = read("src/app/api/teacher-training/manager-accounts/route.ts");
+  const checkInSignRoute = read("src/app/api/teacher-training/check-ins/sign/route.ts");
+  const taskAiReviewRoute = read("src/app/api/teacher-training/tasks/[taskId]/ai-review/route.ts");
+
+  assert.match(contextSource, /label:\s*"课程签到"/);
+  assert.match(contextSource, /label:\s*"报到登记"/);
+  assert.doesNotMatch(contextSource, /label:\s*"报到签到"/);
+
+  assert.match(tabSource, /RequiredFieldLabel/);
+  assert.match(tabSource, /teacherTrainingRequiredMarkClassName/);
+
+  assert.doesNotMatch(managerAccountRoute, /prisma\.user\.delete(?:Many)?\(/);
+  assert.match(managerAccountRoute, /teacherTrainingCohortManager\.deleteMany/);
+  assert.match(managerAccountRoute, /responsibility:\s*null/);
+
+  assert.match(checkInSignRoute, /existingRecord/);
+  assert.match(checkInSignRoute, /已由管理员补签|已完成签到，无需重复提交/);
+  assert.doesNotMatch(checkInSignRoute, /upsert\(\{[\s\S]*signedAt:\s*new Date\(\)[\s\S]*status:\s*"valid"[\s\S]*\}\)/);
+
+  assert.doesNotMatch(taskAiReviewRoute, /task\.submissions\.length\s*>\s*maxAiReviewSubmissionsPerBatch/);
+  assert.match(taskAiReviewRoute, /chunkTeacherTrainingSubmissions/);
+  assert.match(taskAiReviewRoute, /for \(const submissionChunk of submissionChunks\)/);
 });
 
 test("teacher training task release timing follows course end and scheduled windows", () => {
@@ -341,7 +370,7 @@ test("teacher training search, import, profile title/email, leave approvers, and
 
   assert.match(mainRoute, /teacherTrainingManagedCohorts/);
   assert.match(leaveFlowRoute, /teacherTrainingManagedCohorts/);
-  assert.match(leaveFlowRoute, /审批人必须是系统管理员、当前班次省培负责人或班主任/);
+  assert.match(leaveFlowRoute, /审批人必须是系统管理员、当前班次省培负责人或省培班主任/);
   assert.match(leaveReviewRoute, /currentStep\.approverIds\.includes\(user\.id\)/);
   assert.match(leaveRequestRoute, /startTime/);
   assert.match(leaveRequestRoute, /endTime/);
@@ -465,7 +494,7 @@ test("teacher training shows province-specific account titles instead of competi
         },
       ],
     }),
-    "班主任",
+    "省培班主任",
   );
   assert.equal(
     getTeacherTrainingEffectiveRoleLabel({
@@ -719,10 +748,10 @@ test("teacher training tab uses staff-side manual check-in controls", () => {
   assert.doesNotMatch(shellSource, /teacher-training-top-nav/);
   assert.doesNotMatch(tabSource, /省培模块导航/);
   assert.doesNotMatch(tabSource, /分区处理，不再堆叠/);
-  for (const label of ["工作台", "班次管理", "参训教师", "课程安排", "报到签到", "任务汇报", "请假审批", "导出归档"]) {
+  for (const label of ["工作台", "班次管理", "参训教师", "课程安排", "课程签到", "报到登记", "任务汇报", "请假审批", "导出归档"]) {
     assert.match(contextSource, new RegExp(label));
   }
-  assert.match(contextSource, /参训教师报到/);
+  assert.doesNotMatch(contextSource, /报到签到/);
   assert.match(shellSource, /openTeacherTrainingSection/);
   assert.match(tabSource, /teacher-training-content/);
   assert.doesNotMatch(tabSource, /快速进入/);
@@ -831,7 +860,7 @@ test("teacher training interactions expose clear hints for mobile web users", ()
   assert.match(tabSource, /aria-label="发布课程定位签到任务"/);
   assert.match(tabSource, /title="发布课程定位签到任务"/);
   assert.match(tabSource, /aria-label="定位签到，浏览器会请求当前位置权限"/);
-  assert.match(tabSource, /title=\{checkInDisabledReason \|\| "定位签到，浏览器会请求当前位置权限"\}/);
+  assert.match(tabSource, /title=\{checkInDisabledReason \|\| alreadySignedReason \|\| "定位签到，浏览器会请求当前位置权限"\}/);
   assert.match(tabSource, /getTeacherTrainingCheckInDisabledReason/);
   assert.match(tabSource, /teacherTrainingCheckInWindowMessages\[windowState\]/);
   assert.match(tabSource, /未绑定参训教师，请联系管理员确认省培账号/);
@@ -887,10 +916,6 @@ test("teacher training teacher-facing forms keep visible field labels on mobile"
   }
   for (const label of [
     "选择我的省培班次",
-    "个人姓名",
-    "个人单位",
-    "个人手机",
-    "个人分组",
     "个人备注或培训需求",
     "选择省培汇报任务",
     "我的汇报身份",
@@ -902,6 +927,9 @@ test("teacher training teacher-facing forms keep visible field labels on mobile"
   for (const label of ["请假类型", "请假开始日期", "请假结束日期", "请假原因"]) {
     assert.match(tabSource, new RegExp(`${label}[\\s\\S]{0,220}teacherTrainingRequiredMarkClassName`));
     assert.match(tabSource, new RegExp(`fieldHint\\("${label}"\\)`));
+  }
+  for (const label of ["个人姓名", "个人单位", "个人手机", "个人分组", "个人职务", "个人邮箱", "设置新密码", "再次输入新密码"]) {
+    assert.match(tabSource, new RegExp(`<RequiredFieldLabel>${label}<\\/RequiredFieldLabel>`));
   }
   assert.match(tabSource, /<span className=\{teacherTrainingFieldLabelClassName\}>请假时长<\/span>/);
   assert.match(tabSource, /aria-label="请假时长"/);
@@ -990,7 +1018,7 @@ test("teacher training teacher-facing forms keep visible field labels on mobile"
   assert.match(tabSource, /getTeacherTrainingParticipantDisabledReason/);
   assert.match(tabSource, /getTeacherTrainingLeaveDisabledReason/);
   assert.match(tabSource, /getTeacherTrainingSubmissionDisabledReason/);
-  assert.match(tabSource, /管理员尚未配置请假审批流程，请联系省培负责人、班主任或管理员/);
+  assert.match(tabSource, /管理员尚未配置请假审批流程，请联系省培负责人、省培班主任或管理员/);
   assert.match(tabSource, /请填写请假原因后再提交/);
   assert.match(tabSource, /请填写请假开始和结束时间/);
   assert.match(tabSource, /暂无省培任务，请等待管理员发布任务/);
@@ -1036,8 +1064,6 @@ test("teacher training manager forms keep visible field labels on mobile", () =>
     "酒店房号",
     "报到材料是否齐全",
     "报到备注",
-    "省培任务名称",
-    "省培任务说明",
     "省培任务截止日期",
     "省培任务附件要求",
   ]) {
@@ -1046,13 +1072,16 @@ test("teacher training manager forms keep visible field labels on mobile", () =>
   assert.match(tabSource, /teacherTrainingRequiredMarkClassName/);
   assert.match(tabSource, /teacherTrainingEitherRequiredMarkClassName/);
   for (const label of ["参训教师姓名", "所在单位", "报名手机号", "参训教师分组"]) {
-    assert.match(tabSource, new RegExp(`${label}[\\s\\S]{0,220}teacherTrainingRequiredMarkClassName`));
+    assert.match(tabSource, new RegExp(`<RequiredFieldLabel>${label}<\\/RequiredFieldLabel>`));
+  }
+  for (const label of ["省培任务名称", "任务类型", "开放时间", "省培任务说明"]) {
+    assert.match(tabSource, new RegExp(`<RequiredFieldLabel>${label}<\\/RequiredFieldLabel>`));
   }
   for (const label of ["参训教师职务", "职称"]) {
-    assert.match(tabSource, new RegExp(`${label}[\\s\\S]{0,220}teacherTrainingEitherRequiredMarkClassName`));
+    assert.match(tabSource, new RegExp(`<RequiredFieldLabel either>${label}<\\/RequiredFieldLabel>`));
   }
   assert.match(tabSource, /accountLabel: "选择省培负责人账号"/);
-  assert.match(tabSource, /accountLabel: "选择班主任账号"/);
+  assert.match(tabSource, /accountLabel: "选择省培班主任账号"/);
   assert.match(tabSource, /<span className=\{teacherTrainingFieldLabelClassName\}>\{selectedManagerRoleOption\.accountLabel\}<\/span>/);
 });
 
@@ -1060,18 +1089,18 @@ test("teacher training cohort lead is configured above class teachers without ch
   const tabSource = read("src/components/tabs/teacher-training-tab.tsx");
   const managerRoute = read("src/app/api/teacher-training/cohort-managers/route.ts");
 
-  assert.match(managerRoute, /无权限设置省培负责人或班主任/);
-  assert.match(managerRoute, /只能选择已审核通过的非系统管理员、非专家、非参训教师账号作为省培负责人或班主任/);
+  assert.match(managerRoute, /无权限设置省培负责人或省培班主任/);
+  assert.match(managerRoute, /只能选择省培账号管理中已设置身份的账号作为省培负责人或省培班主任/);
   assert.match(managerRoute, /teacherTrainingManagerResponsibilities/);
   assert.match(managerRoute, /role:\s*\{\s*notIn:\s*\["admin",\s*"expert",\s*"training_teacher"\]\s*\}/);
   assert.match(tabSource, /teacherTrainingManagerRoleOptions/);
   assert.match(tabSource, /title:\s*"省培负责人"/);
-  assert.match(tabSource, /title:\s*"班主任"/);
-  assert.match(tabSource, /班次负责人\/班主任设置/);
+  assert.match(tabSource, /title:\s*"省培班主任"/);
+  assert.match(tabSource, /班次省培负责人\/省培班主任设置/);
   assert.match(tabSource, /选择省培负责人账号/);
-  assert.match(tabSource, /选择班主任账号/);
+  assert.match(tabSource, /选择省培班主任账号/);
   assert.match(tabSource, /设置省培负责人/);
-  assert.match(tabSource, /设置班主任/);
+  assert.match(tabSource, /设置省培班主任/);
   assert.match(tabSource, /getTeacherTrainingManagerRoleRank/);
   assert.match(tabSource, /两者省培管理权限一致/);
   assert.match(tabSource, /请假审批顺序以请假审批模块配置为准/);
@@ -1615,10 +1644,11 @@ test("teacher training account management is a manager account pool, not another
   assert.match(accountRoute, /export async function PATCH/);
   assert.match(accountRoute, /export async function DELETE/);
   assert.match(accountRoute, /responsibility:\s*managerIdentity/);
-  assert.match(accountRoute, /managerIdentity !== "省培负责人" && managerIdentity !== "班主任"/);
+  assert.match(accountRoute, /managerIdentity !== "省培负责人" && managerIdentity !== "省培班主任"/);
   assert.match(cohortManagerRoute, /targetUser\.responsibility/);
-  assert.match(cohortManagerRoute, /targetUser\.responsibility && targetUser\.responsibility !== title/);
-  assert.match(cohortManagerRoute, /data:\s*\{\s*responsibility:\s*title\s*\}/);
+  assert.match(cohortManagerRoute, /teacherTrainingManagedCohorts/);
+  assert.match(cohortManagerRoute, /请先在省培账号管理中设置该账号身份/);
+  assert.doesNotMatch(cohortManagerRoute, /data:\s*\{\s*responsibility:\s*title\s*\}/);
   assert.match(mainRoute, /teacherTrainingManagerResponsibilities/);
   assert.match(mainRoute, /teacherTrainingManagedCohorts:\s*\{\s*some:\s*\{/);
   assert.match(mainRoute, /derivedResponsibility/);
@@ -1633,7 +1663,7 @@ test("teacher training account management is a manager account pool, not another
   assert.match(participantsRoute, /导入名单需包含姓名、单位、手机号、分组，以及职务或职称/);
   assert.doesNotMatch(tabSource, /省培初始密码/);
   assert.doesNotMatch(tabSource, /填已有创赛账号则绑定/);
-  assert.match(tabSource, /批量删除账号/);
+  assert.match(tabSource, /批量移出账号池/);
   assert.match(tabSource, /setSelectedManagerAccountIds/);
   assert.doesNotMatch(tabSource, /isAccountManagementSection && participantAccountFilter === "unbound"/);
   assert.doesNotMatch(tabSource, /一键手机号开通账号[\s\S]{0,400}isAccountManagementSection/);

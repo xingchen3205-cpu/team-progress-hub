@@ -114,23 +114,33 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: `不在签到范围内，当前距离约 ${distanceMeters} 米` }, { status: 400 });
   }
 
-  const record = await prisma.teacherTrainingCheckInRecord.upsert({
+  const existingRecord = await prisma.teacherTrainingCheckInRecord.findUnique({
     where: {
       checkInTaskId_participantId: {
         checkInTaskId,
         participantId,
       },
     },
-    update: {
-      latitude,
-      longitude,
-      accuracy,
-      distanceMeters,
-      status: "valid",
-      note: body?.note?.trim() || null,
-      signedAt: new Date(),
-    },
-    create: {
+  });
+
+  if (existingRecord?.status === "manual") {
+    return NextResponse.json({
+      record: existingRecord,
+      alreadySigned: true,
+      message: "该签到已由管理员补签，无需重复定位签到",
+    });
+  }
+
+  if (existingRecord) {
+    return NextResponse.json({
+      record: existingRecord,
+      alreadySigned: true,
+      message: "已完成签到，无需重复提交",
+    });
+  }
+
+  const record = await prisma.teacherTrainingCheckInRecord.create({
+    data: {
       checkInTaskId,
       participantId,
       latitude,

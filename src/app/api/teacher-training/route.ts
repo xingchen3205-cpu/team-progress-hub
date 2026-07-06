@@ -540,7 +540,7 @@ export async function GET(request: NextRequest) {
                 },
               },
             ],
-            role: { notIn: ["admin", "expert"] },
+            role: { notIn: ["admin", "expert", "training_teacher"] },
             approvalStatus: "approved",
           },
           orderBy: [{ responsibility: "asc" }, { name: "asc" }],

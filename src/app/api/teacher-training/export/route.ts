@@ -13,7 +13,15 @@ import { decodeTeacherTrainingSubmissionAttachmentFile } from "@/lib/teacher-tra
 import { readStoredFile } from "@/lib/uploads";
 import { createZipArchive, type ZipArchiveEntry } from "@/lib/zip";
 
-const exportTypeSet = new Set(["participants", "attendance", "checkIns", "leaves", "submissions", "arrivals"]);
+const exportTypeSet = new Set([
+  "participants",
+  "attendance",
+  "checkIns",
+  "leaves",
+  "submissions",
+  "submissionScores",
+  "arrivals",
+]);
 
 export async function GET(request: NextRequest) {
   const user = await getSessionUser(request);
@@ -167,9 +175,10 @@ export async function GET(request: NextRequest) {
     });
   }
 
+  const csvType = type === "submissionScores" ? "submissions" : type;
   const csv = `\uFEFF${buildTeacherTrainingCsv({
     cohort: serialized,
-    type: type as "participants" | "attendance" | "checkIns" | "leaves" | "submissions" | "arrivals",
+    type: csvType as "participants" | "attendance" | "checkIns" | "leaves" | "submissions" | "arrivals",
   })}`;
   const labelMap = {
     participants: "参训名单",
@@ -177,6 +186,7 @@ export async function GET(request: NextRequest) {
     checkIns: "课程签到",
     leaves: "请假审批",
     submissions: "任务汇报",
+    submissionScores: "任务汇报评分表",
     arrivals: "预计到达信息",
   } as const;
   const fileName = `${serialized.title}-${labelMap[type as keyof typeof labelMap]}.csv`;

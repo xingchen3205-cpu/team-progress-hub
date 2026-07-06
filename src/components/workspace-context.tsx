@@ -929,13 +929,13 @@ export const teacherTrainingSectionTabs: TeacherTrainingSectionItem[] = [
   },
   {
     key: "checkins",
-    label: "报到签到",
+    label: "课程签到",
     description: "课程定位签到任务",
     icon: MapPin,
   },
   {
     key: "attendance",
-    label: "参训教师报到",
+    label: "报到登记",
     description: "房号和材料情况",
     icon: CheckCircle2,
     managerOnly: true,
@@ -5736,11 +5736,14 @@ function useWorkspaceController({
 
     setIsSaving(true);
     try {
-      await requestJson("/api/teacher-training/check-ins/sign", {
+      const payload = await requestJson<{ message?: string; alreadySigned?: boolean }>("/api/teacher-training/check-ins/sign", {
         method: "POST",
         body: JSON.stringify(draft),
       });
-      showSuccessToast("定位签到成功", "管理员导出的课程签到名单会同步更新。");
+      showSuccessToast(
+        payload.alreadySigned ? "签到记录已存在" : "定位签到成功",
+        payload.message || "管理员导出的课程签到名单会同步更新。",
+      );
       refreshWorkspace("teacherTraining");
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "定位签到失败");
@@ -6008,7 +6011,7 @@ function useWorkspaceController({
   const deleteTeacherTrainingManagerAccounts = async (accountIds: string[]) => {
     const ids = Array.from(new Set(accountIds.map((id) => id.trim()).filter(Boolean)));
     if (ids.length === 0) {
-      setLoadError("请先勾选要删除的省培管理账号");
+      setLoadError("请先勾选要移出省培账号池的账号");
       return false;
     }
 
@@ -6018,11 +6021,11 @@ function useWorkspaceController({
         method: "DELETE",
         body: JSON.stringify({ ids }),
       });
-      showSuccessToast("省培管理账号已删除", `已删除 ${ids.length} 个省培负责人/省培班主任账号。`);
+      showSuccessToast("已移出省培账号池", `已解除 ${ids.length} 个账号的省培负责人/省培班主任身份。`);
       refreshWorkspace("teacherTraining");
       return true;
     } catch (error) {
-      setLoadError(error instanceof Error ? error.message : "省培管理账号删除失败");
+      setLoadError(error instanceof Error ? error.message : "移出省培账号池失败");
       return false;
     } finally {
       setIsSaving(false);

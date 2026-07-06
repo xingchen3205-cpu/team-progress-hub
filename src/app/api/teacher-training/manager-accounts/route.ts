@@ -239,7 +239,7 @@ export async function DELETE(request: NextRequest) {
   const body = (await request.json().catch(() => null)) as { ids?: string[] } | null;
   const ids = Array.from(new Set((body?.ids ?? []).map((id) => id.trim()).filter(Boolean)));
   if (ids.length === 0) {
-    return NextResponse.json({ message: "请选择要删除的省培管理账号" }, { status: 400 });
+    return NextResponse.json({ message: "请选择要移出省培账号池的账号" }, { status: 400 });
   }
 
   const accounts = await prisma.user.findMany({
@@ -267,33 +267,31 @@ export async function DELETE(request: NextRequest) {
     },
   });
   if (accounts.length !== ids.length) {
-    return NextResponse.json({ message: "只能删除省培管理账号池中的账号" }, { status: 400 });
+    return NextResponse.json({ message: "只能移出省培管理账号池中的账号" }, { status: 400 });
   }
   if (accounts.some((account) => account.role === "admin")) {
-    return NextResponse.json({ message: "系统管理员账号不能删除" }, { status: 400 });
+    return NextResponse.json({ message: "系统管理员账号不能移出省培账号池" }, { status: 400 });
   }
 
-  await prisma.user.deleteMany({
-    where: {
-      id: { in: ids },
-      role: { not: "admin" },
-      OR: [
-        {
-          responsibility: { in: [...teacherTrainingManagerIdentityValues] },
-        },
-        {
-          teacherTrainingManagedCohorts: {
-            some: {
-              ...teacherTrainingManagerTitleWhere,
-              cohort: {
-                deletedAt: null,
-              },
-            },
-          },
-        },
-      ],
-    },
+  await prisma.$transaction(async (tx) => {
+    await tx.teacherTrainingCohortManager.deleteMany({
+      where: {
+        userId: { in: ids },
+        ...teacherTrainingManagerTitleWhere,
+      },
+    });
+
+    await tx.user.updateMany({
+      where: {
+        id: { in: ids },
+        role: { not: "admin" },
+        responsibility: { in: [...teacherTrainingManagerIdentityValues] },
+      },
+      data: {
+        responsibility: null,
+      },
+    });
   });
 
-  return NextResponse.json({ ok: true, deletedCount: ids.length });
+  return NextResponse.json({ ok: true, removedCount: ids.length });
 }
