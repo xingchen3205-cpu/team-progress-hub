@@ -30,11 +30,10 @@ export async function POST(request: NextRequest) {
     | null;
   const taskId = body?.taskId?.trim();
   const participantId = body?.participantId?.trim();
-  const content = body?.content?.trim();
   const attachment = body?.attachment?.trim() || "";
 
-  if (!taskId || !participantId || !content) {
-    return NextResponse.json({ message: "请填写任务、参训教师和汇报内容" }, { status: 400 });
+  if (!taskId || !participantId) {
+    return NextResponse.json({ message: "请选择任务和参训教师" }, { status: 400 });
   }
 
   const task = await prisma.teacherTrainingTask.findFirst({
@@ -83,56 +82,52 @@ export async function POST(request: NextRequest) {
   }
 
   const attachmentFile = attachment ? decodeTeacherTrainingSubmissionAttachmentFile(attachment) : null;
-  if (attachment) {
-    if (!attachmentFile) {
-      return NextResponse.json({ message: "请通过上传控件上传 Word 或 PDF 附件" }, { status: 400 });
-    }
-
-    const expectedObjectKeyPrefix = getTeacherTrainingSubmissionAttachmentObjectKeyPrefix({
-      cohortId: task.cohortId,
-      participantId,
-      taskId,
-    });
-    if (!attachmentFile.filePath.startsWith(expectedObjectKeyPrefix)) {
-      return NextResponse.json({ message: "附件路径与当前任务不匹配，请重新上传附件" }, { status: 400 });
-    }
-
-    const validationError = validateTeacherTrainingSubmissionAttachmentMeta({
-      fileName: attachmentFile.fileName,
-      fileSize: attachmentFile.fileSize,
-      mimeType: attachmentFile.mimeType,
-    });
-    if (validationError) {
-      return NextResponse.json({ message: validationError }, { status: 400 });
-    }
-
-    let actualFileSize = 0;
-    try {
-      const head = await r2Client.send(
-        new HeadObjectCommand({
-          Bucket: R2_BUCKET,
-          Key: attachmentFile.filePath,
-        }),
-      );
-      actualFileSize = Number(head.ContentLength ?? 0);
-    } catch {
-      return NextResponse.json({ message: "附件文件不存在或已丢失，请重新上传" }, { status: 400 });
-    }
-
-    if (!actualFileSize) {
-      await deleteStoredFile(attachmentFile.filePath).catch(() => undefined);
-      return NextResponse.json({ message: "附件文件为空，请重新上传" }, { status: 400 });
-    }
-
-    if (actualFileSize > teacherTrainingSubmissionAttachmentMaxSize) {
-      await deleteStoredFile(attachmentFile.filePath).catch(() => undefined);
-      return NextResponse.json({ message: "真实附件大小不能超过 20MB，请重新上传" }, { status: 400 });
-    }
-  }
-  if (task.requireAttachment && !attachmentFile) {
-    return NextResponse.json({ message: "该任务要求上传 Word/PDF 附件，请先选择并上传附件" }, { status: 400 });
+  if (!attachmentFile) {
+    return NextResponse.json({ message: "请上传 PDF 汇报附件" }, { status: 400 });
   }
 
+  const expectedObjectKeyPrefix = getTeacherTrainingSubmissionAttachmentObjectKeyPrefix({
+    cohortId: task.cohortId,
+    participantId,
+    taskId,
+  });
+  if (!attachmentFile.filePath.startsWith(expectedObjectKeyPrefix)) {
+    return NextResponse.json({ message: "附件路径与当前任务不匹配，请重新上传附件" }, { status: 400 });
+  }
+
+  const validationError = validateTeacherTrainingSubmissionAttachmentMeta({
+    fileName: attachmentFile.fileName,
+    fileSize: attachmentFile.fileSize,
+    mimeType: attachmentFile.mimeType,
+  });
+  if (validationError) {
+    return NextResponse.json({ message: validationError }, { status: 400 });
+  }
+
+  let actualFileSize = 0;
+  try {
+    const head = await r2Client.send(
+      new HeadObjectCommand({
+        Bucket: R2_BUCKET,
+        Key: attachmentFile.filePath,
+      }),
+    );
+    actualFileSize = Number(head.ContentLength ?? 0);
+  } catch {
+    return NextResponse.json({ message: "附件文件不存在或已丢失，请重新上传" }, { status: 400 });
+  }
+
+  if (!actualFileSize) {
+    await deleteStoredFile(attachmentFile.filePath).catch(() => undefined);
+    return NextResponse.json({ message: "附件文件为空，请重新上传" }, { status: 400 });
+  }
+
+  if (actualFileSize > teacherTrainingSubmissionAttachmentMaxSize) {
+    await deleteStoredFile(attachmentFile.filePath).catch(() => undefined);
+    return NextResponse.json({ message: "真实附件大小不能超过 20MB，请重新上传" }, { status: 400 });
+  }
+
+  const content = `PDF附件：${attachmentFile.fileName}`;
   let previousAttachmentFilePath: string | null = null;
   let submission;
   try {

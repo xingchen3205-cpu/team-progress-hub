@@ -16,10 +16,10 @@ export type TeacherTrainingSubmissionAttachmentItem = {
 
 export const teacherTrainingSubmissionAttachmentMaxSize = MAX_UPLOAD_SIZE;
 export const teacherTrainingSubmissionAttachmentMaxSizeLabel = "20MB";
-export const teacherTrainingSubmissionAttachmentAcceptAttribute = ".doc,.docx,.pdf";
+export const teacherTrainingSubmissionAttachmentAcceptAttribute = ".pdf";
 
 const teacherTrainingSubmissionAttachmentPrefix = "__teacher_training_submission_file_v1__:";
-const teacherTrainingSubmissionAttachmentExtensions = new Set([".doc", ".docx", ".pdf"]);
+const teacherTrainingSubmissionAttachmentExtensions = new Set([".pdf"]);
 
 export const getTeacherTrainingSubmissionAttachmentObjectKeyPrefix = ({
   cohortId,
@@ -42,11 +42,11 @@ export const validateTeacherTrainingSubmissionAttachmentMeta = ({
 }) => {
   const extension = getFileExtension(fileName);
   if (!teacherTrainingSubmissionAttachmentExtensions.has(extension)) {
-    return "任务汇报附件仅支持 Word 或 PDF 文件";
+    return "任务汇报附件仅支持 PDF 文件";
   }
 
   if (!isMimeTypeAllowedForFileName(fileName, mimeType)) {
-    return "文件类型与扩展名不匹配，请上传真实的 Word 或 PDF 文件";
+    return "文件类型与扩展名不匹配，请上传真实的 PDF 文件";
   }
 
   if (!fileSize || fileSize <= 0) {

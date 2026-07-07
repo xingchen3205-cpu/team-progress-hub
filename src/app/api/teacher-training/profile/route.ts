@@ -51,12 +51,11 @@ export async function PATCH(request: NextRequest) {
     !name ||
     !organization ||
     !phone ||
-    !groupName ||
     !title ||
     !email
   ) {
     return NextResponse.json(
-      { message: "请填写姓名、单位、手机、分组、职务和邮箱" },
+      { message: "请填写姓名、单位、手机、职务和邮箱" },
       { status: 400 },
     );
   }
@@ -141,7 +140,7 @@ export async function PATCH(request: NextRequest) {
   let emailStatus: "unchanged" | "not_configured" | "sent" | "failed" = emailChanged ? "not_configured" : "unchanged";
   const passwordHash = password ? await bcrypt.hash(password, 10) : undefined;
 
-  await prisma.$transaction([
+  const [, updatedUser] = await prisma.$transaction([
     prisma.teacherTrainingParticipant.update({
       where: { id: participant.id },
       data: {
@@ -169,6 +168,14 @@ export async function PATCH(request: NextRequest) {
         email,
         password: passwordHash,
         avatar: name.slice(0, 1),
+      },
+      select: {
+        id: true,
+        name: true,
+        username: true,
+        email: true,
+        phone: true,
+        avatar: true,
       },
     }),
   ]);
@@ -204,5 +211,9 @@ export async function PATCH(request: NextRequest) {
     }
   }
 
-  return NextResponse.json({ ok: true, emailStatus });
+  return NextResponse.json({
+    ok: true,
+    emailStatus,
+    user: updatedUser,
+  });
 }

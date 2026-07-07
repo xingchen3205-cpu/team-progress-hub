@@ -94,7 +94,8 @@ test("teacher training management layout keeps cards aligned without oversized e
   assert.match(tabSource, /max-h-\[min\(68vh,760px\)\] overflow-y-auto/);
   assert.match(tabSource, /teacherTrainingManagementGridClassName[\s\S]*items-stretch xl:grid-cols-\[360px_minmax\(0,1fr\)\]/);
   assert.match(tabSource, /grid items-stretch gap-5 xl:grid-cols-\[minmax\(320px,0\.42fr\)_minmax\(0,0\.58fr\)\]/);
-  assert.match(tabSource, /grid items-stretch gap-4 xl:grid-cols-2/);
+  assert.match(tabSource, /teacherTaskWorkbenchClassName/);
+  assert.match(tabSource, /grid items-stretch gap-4 xl:grid-cols-\[minmax\(300px,0\.38fr\)_minmax\(0,0\.62fr\)\]/);
 });
 
 test("teacher training APIs support admin-managed courses, check-in, tasks, submissions, profile, and export", () => {
@@ -182,6 +183,8 @@ test("teacher training APIs support admin-managed courses, check-in, tasks, subm
   assert.match(checkInSignRoute, /定位坐标不正确/);
   assert.match(checkInSignRoute, /existingRecord/);
   assert.match(checkInSignRoute, /teacherTrainingCheckInRecord\.create/);
+  assert.match(checkInSignRoute, /请允许浏览器定位后再签到/);
+  assert.doesNotMatch(checkInSignRoute, /checkInTask\.latitude !== null \|\| checkInTask\.longitude !== null/);
   assert.match(checkInManualRoute, /hasTeacherTrainingCohortManageAccess/);
   assert.match(checkInManualRoute, /人工补签原因/);
   assert.match(checkInManualRoute, /status:\s*"manual"/);
@@ -220,7 +223,8 @@ test("teacher training APIs support admin-managed courses, check-in, tasks, subm
   assert.match(submissionRoute, /isTeacherTrainingTaskReleased/);
   assert.match(submissionUploadRoute, /isTeacherTrainingTaskReleased/);
   assert.match(submissionRoute, /requireAttachment/);
-  assert.match(submissionRoute, /该任务要求上传 Word\/PDF 附件/);
+  assert.match(submissionRoute, /请上传 PDF 汇报附件/);
+  assert.doesNotMatch(submissionRoute, /请填写任务、参训教师和汇报内容/);
   assert.match(submissionRoute, /getTeacherTrainingSubmissionAttachmentObjectKeyPrefix/);
   assert.match(submissionRoute, /附件路径与当前任务不匹配/);
   assert.match(submissionReviewRoute, /hasTeacherTrainingCohortManageAccess/);
@@ -228,6 +232,9 @@ test("teacher training APIs support admin-managed courses, check-in, tasks, subm
   assert.match(taskAiReviewRoute, /hasTeacherTrainingCohortManageAccess/);
   assert.match(taskAiReviewRoute, /DIFY_API_KEY/);
   assert.match(taskAiReviewRoute, /enableAiReview/);
+  assert.match(taskAiReviewRoute, /extractPdfText/);
+  assert.match(taskAiReviewRoute, /pdfContent/);
+  assert.doesNotMatch(taskAiReviewRoute, /不能直接读取 Word\/PDF 附件正文/);
   assert.match(exportRoute, /text\/csv/);
   assert.match(exportRoute, /buildTeacherTrainingCsv/);
   assert.match(exportRoute, /checkIns/);
@@ -896,7 +903,7 @@ test("teacher training form controls expose stable field hints after mobile inpu
   assert.match(tabSource, /\.\.\.fieldHint\("参训教师姓名"\)/);
   assert.match(tabSource, /\.\.\.fieldHint\("签到地点"\)/);
   assert.match(tabSource, /\.\.\.fieldHint\("请假原因"\)/);
-  assert.match(tabSource, /\.\.\.fieldHint\("省培任务汇报内容"\)/);
+  assert.match(tabSource, /\.\.\.fieldHint\("省培任务汇报附件"\)/);
 });
 
 test("teacher training teacher-facing forms keep visible field labels on mobile", () => {
@@ -919,7 +926,6 @@ test("teacher training teacher-facing forms keep visible field labels on mobile"
     "个人备注或培训需求",
     "选择省培汇报任务",
     "我的汇报身份",
-    "省培任务汇报内容",
     "省培任务汇报附件",
   ]) {
     assert.match(tabSource, new RegExp(`<span className=\\{teacherTrainingFieldLabelClassName\\}>${label}<\\/span>`));
@@ -928,21 +934,22 @@ test("teacher training teacher-facing forms keep visible field labels on mobile"
     assert.match(tabSource, new RegExp(`${label}[\\s\\S]{0,220}teacherTrainingRequiredMarkClassName`));
     assert.match(tabSource, new RegExp(`fieldHint\\("${label}"\\)`));
   }
-  for (const label of ["个人姓名", "个人单位", "个人手机", "个人分组", "个人职务", "个人邮箱", "设置新密码", "再次输入新密码"]) {
+  for (const label of ["个人姓名", "个人单位", "个人手机", "个人职务", "个人邮箱", "设置新密码", "再次输入新密码"]) {
     assert.match(tabSource, new RegExp(`<RequiredFieldLabel>${label}<\\/RequiredFieldLabel>`));
   }
+  assert.doesNotMatch(tabSource, /<RequiredFieldLabel>个人分组<\/RequiredFieldLabel>/);
   assert.match(tabSource, /<span className=\{teacherTrainingFieldLabelClassName\}>请假时长<\/span>/);
   assert.match(tabSource, /aria-label="请假时长"/);
   assert.match(tabSource, /teacherTrainingSubmissionAttachmentAcceptAttribute/);
   assert.match(tabSource, /submissionAttachmentProgress/);
   assert.match(tabSource, /uploadFileDirectly/);
   assert.match(tabSource, /type="file"/);
-  assert.match(tabSource, /仅支持 Word\/PDF，单个/);
+  assert.match(tabSource, /仅支持 PDF，单个/);
   assert.match(tabSource, /上传进度/);
   assert.match(tabSource, /附件：/);
   assert.match(tabSource, /已按当前省培账号锁定/);
   assert.match(tabSource, /canManage \? \([\s\S]*选择省培汇报教师[\s\S]*\) : \([\s\S]*我的汇报身份/);
-  assert.match(tabSource, /canManage \? "管理员可按班次导出全部任务完成情况。" : "查看我的任务提交记录和完成情况。"/);
+  assert.match(tabSource, /提交汇报/);
   assert.match(tabSource, /teacherTaskActionHint/);
   assert.match(tabSource, /确认我的汇报身份/);
   assert.match(tabSource, /填写后保存汇报/);
@@ -1008,7 +1015,7 @@ test("teacher training teacher-facing forms keep visible field labels on mobile"
   assert.match(tabSource, /focusTeacherTaskSubmission/);
   assert.match(tabSource, /待提交/);
   assert.match(tabSource, /已提交/);
-  assert.match(tabSource, /我的汇报进度/);
+  assert.match(tabSource, /我的任务/);
   assert.match(tabSource, /任务已提交/);
   assert.match(tabSource, /任务待提交/);
   assert.match(tabSource, /暂无任务发布/);
@@ -1022,7 +1029,7 @@ test("teacher training teacher-facing forms keep visible field labels on mobile"
   assert.match(tabSource, /请填写请假原因后再提交/);
   assert.match(tabSource, /请填写请假开始和结束时间/);
   assert.match(tabSource, /暂无省培任务，请等待管理员发布任务/);
-  assert.match(tabSource, /请填写汇报内容后再保存/);
+  assert.match(tabSource, /请上传 PDF 汇报附件/);
   assert.match(tabSource, /leaveDisabledReason \? \(/);
   assert.match(tabSource, /profileDisabledReason \? \(/);
   assert.match(tabSource, /submissionDisabledReason \? \(/);
@@ -1060,7 +1067,6 @@ test("teacher training manager forms keep visible field labels on mobile", () =>
     "有效签到范围米数",
     "请假审批步骤名称",
     "请假审批每步通过人数",
-    "审批意见（可选）",
     "酒店房号",
     "报到材料是否齐全",
     "报到备注",
@@ -1157,17 +1163,23 @@ test("teacher training deletes managed records directly after two explicit confi
 
 test("teacher training leave approval panel keeps desktop review cards readable", () => {
   const tabSource = read("src/components/tabs/teacher-training-tab.tsx");
+  const contextSource = read("src/components/workspace-context.tsx");
 
   assert.match(tabSource, /displayedManagerLeaveRequests/);
   assert.match(tabSource, /activeLeavePanel === "pending"/);
-  assert.match(tabSource, /<th>姓名\/单位<\/th>/);
-  assert.match(tabSource, /<th>请假开始时间<\/th>/);
-  assert.match(tabSource, /<th>请假结束时间<\/th>/);
-  assert.match(tabSource, /<th>请假时长<\/th>/);
+  assert.match(tabSource, /activeLeaveReviewAction/);
+  assert.match(tabSource, /xl:grid-cols-\[minmax\(0,1\.45fr\)_minmax\(220px,0\.7fr\)_minmax\(260px,0\.8fr\)\]/);
+  assert.match(tabSource, /确认通过/);
+  assert.match(tabSource, /确认驳回/);
+  assert.match(tabSource, /activeReviewAction === "approve" \? "通过意见（可选）" : "驳回意见（建议填写）"/);
   assert.match(tabSource, /getTeacherTrainingLeaveDurationLabel\(request\)/);
   assert.match(tabSource, /leaveReviewCommentsById\[request\.id\]/);
-  assert.match(tabSource, /canReviewThisRequest \? \(/);
+  assert.match(tabSource, /setTeacherLeaveFormOpen\(false\)/);
+  assert.match(tabSource, /tt-teacher-leave-records/);
+  assert.match(contextSource, /return true/);
+  assert.match(contextSource, /return false/);
   assert.doesNotMatch(tabSource, /本次审批意见/);
+  assert.doesNotMatch(tabSource, /min-w-\[1120px\]/);
 });
 
 test("teacher training leave flow avoids fake default steps and blocks incomplete approval setup", () => {
@@ -1257,14 +1269,14 @@ test("teacher training submission archive exports laid out A4 DOCX reports", () 
   assert.match(libSource, /application\/vnd\.openxmlformats-officedocument\.wordprocessingml\.document\.main\+xml/);
   assert.match(libSource, /w:pgSz w:w="11906" w:h="16838"/);
   assert.match(libSource, /w:pgMar/);
-  assert.match(libSource, /汇报内容/);
+  assert.match(libSource, /附件/);
   assert.match(libSource, /attachmentLabel/);
   assert.match(libSource, /attachmentFile/);
   assert.match(libSource, /buildTeacherTrainingSubmissionAttachmentDownloadUrl/);
   assert.doesNotMatch(libSource, /<!doctype html/);
 });
 
-test("teacher training task reports support one Word or PDF attachment with upload progress", () => {
+test("teacher training task reports require one PDF attachment with upload progress", () => {
   const attachmentSource = read("src/lib/teacher-training-submission-attachments.ts");
   const uploadRouteSource = read("src/app/api/teacher-training/submissions/upload-url/route.ts");
   const downloadRouteSource = read("src/app/api/teacher-training/submissions/[submissionId]/attachment/route.ts");
@@ -1273,10 +1285,10 @@ test("teacher training task reports support one Word or PDF attachment with uplo
   const contextSource = read("src/components/workspace-context.tsx");
   const exportRouteSource = read("src/app/api/teacher-training/export/route.ts");
 
-  assert.match(attachmentSource, /teacherTrainingSubmissionAttachmentAcceptAttribute = "\.doc,\.docx,\.pdf"/);
+  assert.match(attachmentSource, /teacherTrainingSubmissionAttachmentAcceptAttribute = "\.pdf"/);
   assert.match(attachmentSource, /teacherTrainingSubmissionAttachmentMaxSizeLabel = "20MB"/);
   assert.match(attachmentSource, /validateTeacherTrainingSubmissionAttachmentMeta/);
-  assert.match(attachmentSource, /任务汇报附件仅支持 Word 或 PDF 文件/);
+  assert.match(attachmentSource, /任务汇报附件仅支持 PDF 文件/);
   assert.match(uploadRouteSource, /getSignedUrl/);
   assert.match(uploadRouteSource, /validateTeacherTrainingSubmissionAttachmentMeta/);
   assert.match(uploadRouteSource, /ContentLength:\s*fileSize/);
@@ -1288,7 +1300,7 @@ test("teacher training task reports support one Word or PDF attachment with uplo
   assert.match(downloadRouteSource, /hasTeacherTrainingCohortManageAccess/);
   assert.match(downloadRouteSource, /附件文件不存在或已丢失/);
   assert.match(submissionsRouteSource, /decodeTeacherTrainingSubmissionAttachmentFile/);
-  assert.match(submissionsRouteSource, /请通过上传控件上传 Word 或 PDF 附件/);
+  assert.match(submissionsRouteSource, /请上传 PDF 汇报附件/);
   assert.match(submissionsRouteSource, /getTeacherTrainingSubmissionAttachmentObjectKeyPrefix/);
   assert.match(submissionsRouteSource, /HeadObjectCommand/);
   assert.match(submissionsRouteSource, /真实附件大小不能超过 20MB/);
@@ -1310,10 +1322,10 @@ test("teacher training task reports support one Word or PDF attachment with uplo
   assert.match(tabSource, /汇报已保存，附件已入库/);
   assert.match(tabSource, /汇报已保存，原附件已替换/);
   assert.match(tabSource, /汇报已保存，原附件已删除/);
-  assert.match(tabSource, /selectedTask\?\.requireAttachment/);
+  assert.doesNotMatch(tabSource, /selectedTask\?\.requireAttachment/);
   assert.match(tabSource, /Workspace\.uploadFileDirectly/);
   assert.match(tabSource, /teacherTrainingSubmissionAttachmentAcceptAttribute/);
-  assert.match(tabSource, /任务汇报附件仅支持/);
+  assert.match(tabSource, /任务汇报附件仅支持 PDF/);
   assert.match(contextSource, /export \* from "@\/lib\/teacher-training-submission-attachments"/);
   assert.match(contextSource, /return true/);
   assert.match(exportRouteSource, /任务附件/);
@@ -1410,6 +1422,18 @@ test("teacher training manager task page keeps one publish entry and hides repor
   assert.match(tabSource, /showTeacherTrainingSubmissionForm \? \(/);
   assert.doesNotMatch(tabSource, />登记汇报</);
   assert.match(tabSource, /管理者只发布任务，参训教师登录后自行填写汇报/);
+});
+
+test("teacher training teacher task report page uses a horizontal workbench without redundant intro copy", () => {
+  const tabSource = read("src/components/tabs/teacher-training-tab.tsx");
+
+  assert.match(tabSource, /teacherTaskWorkbenchClassName/);
+  assert.match(tabSource, /!canManage && showTeacherTrainingSubmissionForm/);
+  assert.match(tabSource, /xl:grid-cols-\[minmax\(300px,0\.38fr\)_minmax\(0,0\.62fr\)\]/);
+  assert.match(tabSource, /我的任务/);
+  assert.match(tabSource, /提交汇报/);
+  assert.doesNotMatch(tabSource, /省培平台独立管理班次、参训教师、课程签到、任务汇报、请假审批和导出归档/);
+  assert.doesNotMatch(tabSource, /查看我的任务提交记录和完成情况/);
 });
 
 test("teacher training course editor keeps date field readable in the side panel", () => {
@@ -1543,7 +1567,7 @@ test("teacher training arrival reporting is optional at first login and exportab
   assert.match(libSource, /预计到达时间/);
   assert.match(libSource, /交通方式/);
   assert.match(libSource, /车次\/航班\/车牌/);
-  assert.match(profileRoute, /请填写姓名、单位、手机、分组、职务和邮箱/);
+  assert.match(profileRoute, /请填写姓名、单位、手机、职务和邮箱/);
   assert.match(profileRoute, /emailChanged/);
   assert.match(profileRoute, /emailStatus/);
   assert.match(tabSource, /profileSaveStatus/);
@@ -1631,20 +1655,63 @@ test("teacher training password policy requires 8 to 16 mixed alphanumeric chara
 test("teacher training first-login profile requires contact and password but keeps arrival info optional", () => {
   const profileRoute = read("src/app/api/teacher-training/profile/route.ts");
   const tabSource = read("src/components/tabs/teacher-training-tab.tsx");
+  const contextSource = read("src/components/workspace-context.tsx");
 
-  assert.match(profileRoute, /请填写姓名、单位、手机、分组、职务和邮箱/);
+  assert.match(profileRoute, /请填写姓名、单位、手机、职务和邮箱/);
   assert.match(profileRoute, /手机号格式不正确，请填写 11 位中国大陆手机号/);
   assert.match(profileRoute, /shouldSyncPhoneUsername/);
   assert.match(profileRoute, /username: phone/);
+  const updateTeacherTrainingProfileSource = contextSource.match(
+    /const updateTeacherTrainingProfile = async[\s\S]*?const publishAnnouncement = async/,
+  )?.[0] ?? "";
+
+  assert.match(contextSource, /setCurrentUser\(\(current\) =>/);
+  assert.match(contextSource, /email:\s*payload\.user\?\.email\s*\?\?\s*draft\.email\.trim\(\)/);
+  assert.match(contextSource, /username:\s*payload\.user\?\.username\s*\?\?\s*current\.username/);
+  assert.doesNotMatch(updateTeacherTrainingProfileSource, /refreshWorkspace\("team"\)/);
+  assert.match(tabSource, /setProfileDraft\(\(current\) =>/);
+  assert.match(tabSource, /setActiveTeacherTrainingSection\("overview"\)/);
   assert.match(profileRoute, /if \(arrivalAt && !isTeacherTrainingArrivalAtValue\(arrivalAt\)\)/);
   assert.doesNotMatch(profileRoute, /!arrivalAt\s*\|\|/);
   assert.doesNotMatch(profileRoute, /!arrivalTransportation\s*\|\|/);
   assert.doesNotMatch(profileRoute, /!arrivalVehicleNo\s*\|\|/);
   assert.doesNotMatch(profileRoute, /!arrivalDeparture/);
-  assert.match(tabSource, /姓名、单位、手机号、分组和职务已从导入名单带入/);
+  assert.match(tabSource, /姓名、单位、手机号和职务已从导入名单带入/);
   assert.match(tabSource, /保存后会同步到管理端参训教师列表/);
   assert.match(tabSource, /到达信息可稍后补充/);
+  assert.doesNotMatch(tabSource, /<RequiredFieldLabel>个人分组<\/RequiredFieldLabel>/);
+  assert.doesNotMatch(tabSource, /fieldHint\("个人分组"\)/);
   assert.doesNotMatch(tabSource, /以下到达信息均为必填/);
+});
+
+test("teacher training check-in and PDF submissions avoid misleading fallback copy", () => {
+  const tabSource = read("src/components/tabs/teacher-training-tab.tsx");
+  const attachmentPolicySource = read("src/lib/teacher-training-submission-attachments.ts");
+  const contextSource = read("src/components/workspace-context.tsx");
+
+  assert.match(tabSource, /教师仍需授权定位；系统记录教师当前位置/);
+  assert.match(tabSource, /定位失败时可由管理端人工补签/);
+  assert.doesNotMatch(tabSource, /无坐标签到/);
+  assert.doesNotMatch(tabSource, /省培平台独立管理班次、参训教师、课程签到、任务汇报、请假审批和导出归档/);
+
+  assert.match(attachmentPolicySource, /teacherTrainingSubmissionAttachmentAcceptAttribute = "\.pdf"/);
+  assert.match(attachmentPolicySource, /new Set\(\["\.pdf"\]\)/);
+  assert.match(contextSource, /请先选择任务、参训教师并上传 PDF 汇报附件/);
+  assert.doesNotMatch(tabSource, /省培任务汇报内容/);
+  assert.doesNotMatch(tabSource, /placeholder="汇报内容"/);
+  assert.match(tabSource, /选择 PDF 文件/);
+});
+
+test("teacher training stays current with quiet visible-page refreshes", () => {
+  const contextSource = read("src/components/workspace-context.tsx");
+
+  assert.match(contextSource, /refreshTeacherTrainingIfVisible/);
+  assert.match(contextSource, /safeActiveTab !== "teacherTraining"/);
+  assert.match(contextSource, /document\.visibilityState !== "visible"/);
+  assert.match(contextSource, /window\.setInterval\(refreshTeacherTrainingIfVisible,\s*30 \* 1000\)/);
+  assert.match(contextSource, /document\.addEventListener\("visibilitychange", handleTeacherTrainingVisibilityChange\)/);
+  assert.match(contextSource, /window\.addEventListener\("focus", refreshTeacherTrainingIfVisible\)/);
+  assert.match(contextSource, /loadWorkspaceResources\(\["teacherTraining"\], currentUserRole, \{ force: true \}\)/);
 });
 
 test("teacher training account management is a manager account pool, not another participant roster", () => {

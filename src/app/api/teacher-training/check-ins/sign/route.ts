@@ -40,15 +40,14 @@ export async function POST(request: NextRequest) {
   const latitude = parseRequiredNumber(body?.latitude);
   const longitude = parseRequiredNumber(body?.longitude);
   const accuracy = parseRequiredNumber(body?.accuracy);
-  const hasCoordinateInput = body?.latitude !== undefined || body?.longitude !== undefined;
 
   if (!checkInTaskId || !participantId) {
     return NextResponse.json({ message: "签到信息不完整" }, { status: 400 });
   }
-  if (
-    hasCoordinateInput &&
-    (latitude === null || longitude === null || !areValidTeacherTrainingCoordinates(latitude, longitude))
-  ) {
+  if (latitude === null || longitude === null) {
+    return NextResponse.json({ message: "请允许浏览器定位后再签到" }, { status: 400 });
+  }
+  if (!areValidTeacherTrainingCoordinates(latitude, longitude)) {
     return NextResponse.json({ message: "定位坐标不正确" }, { status: 400 });
   }
 
@@ -99,12 +98,8 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  if ((checkInTask.latitude !== null || checkInTask.longitude !== null) && (latitude === null || longitude === null)) {
-    return NextResponse.json({ message: "请允许浏览器定位后再签到" }, { status: 400 });
-  }
-
   const distanceMeters =
-    checkInTask.latitude !== null && checkInTask.longitude !== null && latitude !== null && longitude !== null
+    checkInTask.latitude !== null && checkInTask.longitude !== null
       ? calculateDistanceMeters(checkInTask.latitude, checkInTask.longitude, latitude, longitude)
       : null;
 

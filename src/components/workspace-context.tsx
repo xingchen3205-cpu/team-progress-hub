@@ -3517,6 +3517,54 @@ function useWorkspaceController({
   }, [currentUser?.role, notificationsOpen, refreshNotificationsSilently]);
 
   useEffect(() => {
+    const currentUserRole = currentUser?.role;
+    if (safeActiveTab !== "teacherTraining" || !currentUserRole || hasBlockingOverlay || requiresEmailCompletion) {
+      return undefined;
+    }
+
+    let refreshInFlight = false;
+    const refreshTeacherTrainingIfVisible = async () => {
+      if (document.visibilityState !== "visible" || refreshInFlight) {
+        return;
+      }
+
+      refreshInFlight = true;
+      try {
+        await loadWorkspaceResources(["teacherTraining"], currentUserRole, { force: true });
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "";
+        if (message === "未登录") {
+          window.location.replace("/login");
+        }
+      } finally {
+        refreshInFlight = false;
+      }
+    };
+
+    const interval = window.setInterval(refreshTeacherTrainingIfVisible, 30 * 1000);
+    const handleTeacherTrainingVisibilityChange = () => {
+      if (document.visibilityState === "visible") {
+        void refreshTeacherTrainingIfVisible();
+      }
+    };
+
+    document.addEventListener("visibilitychange", handleTeacherTrainingVisibilityChange);
+    window.addEventListener("focus", refreshTeacherTrainingIfVisible);
+
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", handleTeacherTrainingVisibilityChange);
+      window.removeEventListener("focus", refreshTeacherTrainingIfVisible);
+    };
+  }, [
+    currentUser?.role,
+    hasBlockingOverlay,
+    loadWorkspaceResources,
+    requiresEmailCompletion,
+    safeActiveTab,
+  ]);
+
+  useEffect(() => {
     if (!currentMemberId || requiresEmailCompletion || hasBlockingOverlay) {
       return undefined;
     }
@@ -6130,7 +6178,7 @@ function useWorkspaceController({
 
     if (!participantId || !startDate || !endDate || !startTime || !endTime || !reason) {
       setLoadError("请先填写请假日期、时间和原因");
-      return;
+      return false;
     }
 
     setIsSaving(true);
@@ -6149,8 +6197,10 @@ function useWorkspaceController({
       });
       showSuccessToast("请假申请已提交", "审批人处理后会同步更新签到记录。");
       refreshWorkspace("teacherTraining");
+      return true;
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "请假申请提交失败");
+      return false;
     } finally {
       setIsSaving(false);
     }
@@ -6208,7 +6258,7 @@ function useWorkspaceController({
           taskType: draft.taskType,
           releaseMode: draft.releaseMode,
           releaseAt: draft.releaseAt.trim(),
-          requireAttachment: draft.requireAttachment,
+          requireAttachment: true,
           enableAiReview: draft.enableAiReview,
           scoringRubric: draft.scoringRubric.trim(),
         }),
@@ -6274,10 +6324,10 @@ function useWorkspaceController({
   const saveTeacherTrainingSubmission = async (draft: TeacherTrainingSubmissionDraft) => {
     const taskId = draft.taskId.trim();
     const participantId = draft.participantId.trim();
-    const content = draft.content.trim();
+    const attachment = draft.attachment.trim();
 
-    if (!taskId || !participantId || !content) {
-      setLoadError("请先选择任务、参训教师并填写汇报内容");
+    if (!taskId || !participantId || !attachment) {
+      setLoadError("请先选择任务、参训教师并上传 PDF 汇报附件");
       return false;
     }
 
@@ -6288,8 +6338,7 @@ function useWorkspaceController({
         body: JSON.stringify({
           taskId,
           participantId,
-          content,
-          attachment: draft.attachment.trim(),
+          attachment,
         }),
       });
       showSuccessToast("任务汇报已登记", "汇报记录已经进入导出表。");
@@ -6368,30 +6417,54 @@ function useWorkspaceController({
 
     setIsSaving(true);
     try {
-      const payload = await requestJson<{ emailStatus?: "unchanged" | "not_configured" | "sent" | "failed" }>(
+      const payload = await requestJson<{
+        emailStatus?: "unchanged" | "not_configured" | "sent" | "failed";
+        user?: {
+          name?: string | null;
+          username?: string | null;
+          email?: string | null;
+          phone?: string | null;
+          avatar?: string | null;
+        };
+      }>(
         "/api/teacher-training/profile",
         {
-        method: "PATCH",
-        body: JSON.stringify({
-          participantId,
-          name,
-          organization,
-          phone: draft.phone.trim(),
-          groupName: draft.groupName.trim(),
-          title: draft.title.trim(),
-          email: draft.email.trim(),
-          arrivalTransportation: draft.arrivalTransportation.trim(),
-          arrivalAt: draft.arrivalAt.trim(),
-          arrivalVehicleNo: draft.arrivalVehicleNo.trim(),
-          arrivalDeparture: draft.arrivalDeparture.trim(),
-          password: draft.password.trim(),
-          note: draft.note.trim(),
-        }),
+          method: "PATCH",
+          body: JSON.stringify({
+            participantId,
+            name,
+            organization,
+            phone: draft.phone.trim(),
+            groupName: draft.groupName.trim(),
+            title: draft.title.trim(),
+            email: draft.email.trim(),
+            arrivalTransportation: draft.arrivalTransportation.trim(),
+            arrivalAt: draft.arrivalAt.trim(),
+            arrivalVehicleNo: draft.arrivalVehicleNo.trim(),
+            arrivalDeparture: draft.arrivalDeparture.trim(),
+            password: draft.password.trim(),
+            note: draft.note.trim(),
+          }),
         },
+      );
+      setCurrentUser((current) =>
+        current
+          ? {
+              ...current,
+              name: payload.user?.name ?? name,
+              username: payload.user?.username ?? current.username,
+              email: payload.user?.email ?? draft.email.trim(),
+              avatar: payload.user?.avatar ?? current.avatar,
+              profile: {
+                ...current.profile,
+                name: payload.user?.name ?? name,
+                avatar: payload.user?.avatar ?? current.profile.avatar,
+              },
+            }
+          : current,
       );
       showSuccessToast("个人信息已保存", "省培档案已经同步更新。");
       refreshWorkspace("teacherTraining");
-      refreshWorkspace("team");
       return { ok: true, emailStatus: payload.emailStatus ?? "unchanged" };
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "个人信息保存失败");

@@ -3,7 +3,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hasTeacherTrainingCohortManageAccess } from "@/lib/teacher-training-access";
-import { getTeacherTrainingSubmissionAttachmentLabel } from "@/lib/teacher-training-submission-attachments";
+import {
+  decodeTeacherTrainingSubmissionAttachmentFile,
+  getTeacherTrainingSubmissionAttachmentLabel,
+} from "@/lib/teacher-training-submission-attachments";
+import { readStoredFile } from "@/lib/uploads";
 
 type RouteContext = {
   params: Promise<{ taskId: string }>;
@@ -22,7 +26,119 @@ type AiScoreResult = {
 
 const DEFAULT_DIFY_BASE_URL = "https://api.dify.ai/v1";
 const maxAiReviewSubmissionsPerBatch = 60;
-const maxSubmissionContentLength = 1_000;
+const maxSubmissionPdfContentLength = 4_000;
+
+class PdfJsNodeDOMMatrix {
+  a = 1;
+  b = 0;
+  c = 0;
+  d = 1;
+  e = 0;
+  f = 0;
+  is2D = true;
+  isIdentity = true;
+
+  constructor(init?: number[] | PdfJsNodeDOMMatrix) {
+    if (Array.isArray(init) && init.length >= 6) {
+      [this.a, this.b, this.c, this.d, this.e, this.f] = init;
+      this.isIdentity = this.a === 1 && this.b === 0 && this.c === 0 && this.d === 1 && this.e === 0 && this.f === 0;
+    } else if (init instanceof PdfJsNodeDOMMatrix) {
+      this.a = init.a;
+      this.b = init.b;
+      this.c = init.c;
+      this.d = init.d;
+      this.e = init.e;
+      this.f = init.f;
+      this.isIdentity = init.isIdentity;
+    }
+  }
+
+  multiplySelf() {
+    return this;
+  }
+
+  preMultiplySelf() {
+    return this;
+  }
+
+  translateSelf(x = 0, y = 0) {
+    this.e += x;
+    this.f += y;
+    this.isIdentity = false;
+    return this;
+  }
+
+  scaleSelf(scaleX = 1, scaleY = scaleX) {
+    this.a *= scaleX;
+    this.d *= scaleY;
+    this.isIdentity = false;
+    return this;
+  }
+
+  rotateSelf() {
+    return this;
+  }
+
+  invertSelf() {
+    return this;
+  }
+
+  transformPoint(point: { x?: number; y?: number; z?: number; w?: number } = {}) {
+    return {
+      x: point.x ?? 0,
+      y: point.y ?? 0,
+      z: point.z ?? 0,
+      w: point.w ?? 1,
+    };
+  }
+}
+
+class PdfJsNodeImageData {
+  constructor(
+    public data: Uint8ClampedArray,
+    public width: number,
+    public height: number,
+  ) {}
+}
+
+class PdfJsNodePath2D {}
+
+const ensurePdfJsNodePolyfills = async () => {
+  const globalWithPdfPolyfills = globalThis as unknown as Record<string, unknown>;
+
+  globalWithPdfPolyfills.DOMMatrix ??= PdfJsNodeDOMMatrix;
+  globalWithPdfPolyfills.ImageData ??= PdfJsNodeImageData;
+  globalWithPdfPolyfills.Path2D ??= PdfJsNodePath2D;
+  globalWithPdfPolyfills.pdfjsWorker ??= await import("pdfjs-dist/legacy/build/pdf.worker.mjs");
+};
+
+const extractPdfText = async (buffer: Buffer) => {
+  await ensurePdfJsNodePolyfills();
+  const pdfjs = await import("pdfjs-dist/legacy/build/pdf.mjs");
+  const loadingTask = pdfjs.getDocument({
+    data: new Uint8Array(buffer),
+  });
+  const document = await loadingTask.promise;
+  const pageTexts: string[] = [];
+
+  try {
+    for (let pageNumber = 1; pageNumber <= document.numPages; pageNumber += 1) {
+      const page = await document.getPage(pageNumber);
+      const content = await page.getTextContent();
+      pageTexts.push(
+        content.items
+          .map((item) => ("str" in item ? item.str : ""))
+          .join(" ")
+          .replace(/\s+/g, " ")
+          .trim(),
+      );
+    }
+  } finally {
+    await document.destroy().catch(() => undefined);
+  }
+
+  return pageTexts.join("\n").trim();
+};
 
 const getDifyConfig = () => {
   const apiKey = process.env.DIFY_API_KEY?.trim();
@@ -139,20 +255,34 @@ export async function POST(request: NextRequest, context: RouteContext) {
   const parsedResults: AiScoreResult[] = [];
 
   for (const submissionChunk of submissionChunks) {
-    const submissionPayload = submissionChunk.map((submission) => ({
-      submissionId: submission.id,
-      teacher: submission.participant?.name ?? "参训教师",
-      organization: submission.participant?.organization ?? "",
-      content: submission.content.slice(0, maxSubmissionContentLength),
-      attachment: getTeacherTrainingSubmissionAttachmentLabel(submission.attachment) || "",
-    }));
+    const submissionPayload = [];
+    for (const submission of submissionChunk) {
+      const attachmentFile = decodeTeacherTrainingSubmissionAttachmentFile(submission.attachment);
+      let pdfContent = "";
+      if (attachmentFile) {
+        try {
+          const fileData = await readStoredFile(attachmentFile.filePath);
+          pdfContent = (await extractPdfText(fileData.buffer)).slice(0, maxSubmissionPdfContentLength);
+        } catch {
+          pdfContent = "";
+        }
+      }
+
+      submissionPayload.push({
+        submissionId: submission.id,
+        teacher: submission.participant?.name ?? "参训教师",
+        organization: submission.participant?.organization ?? "",
+        attachment: getTeacherTrainingSubmissionAttachmentLabel(submission.attachment) || "",
+        pdfContent,
+      });
+    }
 
     const query = [
-      "你是省培任务汇报的辅助评分员。请根据评分细则对每份汇报给出初评分。",
+      "你是省培任务汇报的辅助评分员。请根据 PDF 汇报正文和评分细则对每份汇报给出初评分。",
       "要求：只返回 JSON 数组，不要 Markdown，不要解释。",
       "数组元素格式：{\"submissionId\":\"原ID\",\"score\":0-100整数,\"comment\":\"80字以内中文短评\"}。",
       "AI 初评仅供管理端参考，最终成绩由人工确认，所以请保守、客观，不要输出排名。",
-      "注意：当前只能读取文字汇报和附件文件名，不能直接读取 Word/PDF 附件正文；如果文字内容明显不足但有附件，请在短评中提示管理者人工查看附件。",
+      "注意：pdfContent 为空时，说明 PDF 文本抽取失败或文件内容不可复制，请给出偏低的规范分并提示管理者人工查看附件。",
       `培训班次：${task.cohort.title}`,
       `关联课程：${courseLabel}`,
       `任务名称：${task.title}`,

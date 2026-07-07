@@ -499,7 +499,7 @@ const createDefaultTaskDraft = (): Workspace.TeacherTrainingTaskDraft => ({
   taskType: "cohort",
   releaseMode: "immediate",
   releaseAt: "",
-  requireAttachment: false,
+  requireAttachment: true,
   enableAiReview: false,
   scoringRubric: "",
 });
@@ -685,7 +685,7 @@ const teacherTrainingActionHints: Partial<Record<Workspace.TeacherTrainingSectio
   },
   tasks: {
     title: "任务汇报",
-    steps: ["教师选择任务", "填写汇报内容", "管理员统一导出汇总"],
+    steps: ["教师选择任务", "上传 PDF 汇报", "管理员统一评分归档"],
   },
   leave: {
     title: "请假审批",
@@ -751,9 +751,7 @@ const getTeacherTrainingLeaveDisabledReason = (
 const getTeacherTrainingSubmissionDisabledReason = (
   hasTask: boolean,
   hasParticipant: boolean,
-  content: string,
   canManage = false,
-  requiresAttachment = false,
   hasAttachment = false,
 ) => {
   const participantReason = getTeacherTrainingParticipantDisabledReason(hasParticipant, canManage);
@@ -763,12 +761,8 @@ const getTeacherTrainingSubmissionDisabledReason = (
     return "暂无省培任务，请等待管理员发布任务";
   }
 
-  if (!content.trim()) {
-    return "请填写汇报内容后再保存";
-  }
-
-  if (requiresAttachment && !hasAttachment) {
-    return "该任务要求上传 Word/PDF 附件，请先选择附件";
+  if (!hasAttachment) {
+    return "请上传 PDF 汇报附件";
   }
 
   return "";
@@ -785,7 +779,6 @@ const getTeacherTrainingProfileDisabledReason = (
     draft.name,
     draft.organization,
     draft.phone,
-    draft.groupName,
     draft.title,
     draft.email,
   ];
@@ -1011,6 +1004,10 @@ export default function TeacherTrainingTab() {
     reason: "",
   });
   const [leaveReviewCommentsById, setLeaveReviewCommentsById] = useState<Record<string, string>>({});
+  const [activeLeaveReviewAction, setActiveLeaveReviewAction] = useState<{
+    leaveRequestId: string;
+    decision: "approve" | "reject";
+  } | null>(null);
   const [activeLeavePanel, setActiveLeavePanel] = useState<TeacherTrainingLeavePanelKey>("pending");
   const [teacherLeaveFormOpen, setTeacherLeaveFormOpen] = useState(false);
   const [profileDraft, setProfileDraft] = useState<Workspace.TeacherTrainingProfileDraft>({
@@ -1689,9 +1686,7 @@ export default function TeacherTrainingTab() {
   const submissionDisabledReason = getTeacherTrainingSubmissionDisabledReason(
     Boolean(selectedTask),
     hasSelectedParticipant,
-    submissionDraft.content,
     canManage,
-    Boolean(selectedTask?.requireAttachment),
     Boolean(submissionAttachmentFile || currentSubmissionAttachmentFile),
   );
   const defaultLeaveFlowSteps = useMemo<Workspace.TeacherTrainingLeaveFlowStep[]>(
@@ -2392,7 +2387,7 @@ export default function TeacherTrainingTab() {
       taskType: task.taskType,
       releaseMode: task.releaseMode,
       releaseAt: task.releaseAt,
-      requireAttachment: task.requireAttachment,
+      requireAttachment: true,
       enableAiReview: task.enableAiReview,
       scoringRubric: task.scoringRubric,
     });
@@ -2779,7 +2774,7 @@ export default function TeacherTrainingTab() {
 
   const useCurrentLocationForCheckInTask = () => {
     if (!navigator.geolocation) {
-      setLocationMessage("当前浏览器不支持定位，可手动填写经纬度。");
+      setLocationMessage("当前浏览器不支持读取发布位置；可先不填经纬度发布，教师签到时仍需授权定位。");
       return;
     }
 
@@ -2796,8 +2791,8 @@ export default function TeacherTrainingTab() {
       (error) =>
         setLocationMessage(
           error.code === error.PERMISSION_DENIED
-            ? "定位权限被拒绝，请在浏览器地址栏允许本网站使用位置，或手动填写经纬度。"
-            : "定位失败，请检查网络和设备定位后重试，或手动填写经纬度。",
+            ? "定位权限被拒绝；可先不填经纬度发布，教师签到时仍需授权定位。"
+            : "定位失败；可先不填经纬度发布，教师签到时仍需授权定位。",
         ),
       { enableHighAccuracy: true, timeout: 10000 },
     );
@@ -2806,7 +2801,7 @@ export default function TeacherTrainingTab() {
   const signWithCurrentLocation = (checkInTaskId: string) => {
     if (!selectedParticipant) return;
     if (!navigator.geolocation) {
-      setLocationMessage("当前浏览器不支持定位签到。");
+      setLocationMessage("当前浏览器不支持定位签到，请更换浏览器或联系管理端人工补签。");
       return;
     }
 
@@ -2829,8 +2824,8 @@ export default function TeacherTrainingTab() {
         setCheckInSigningId("");
         setLocationMessage(
           error.code === error.PERMISSION_DENIED
-            ? "定位权限被拒绝，请在浏览器地址栏允许本网站使用位置后重试。"
-            : "定位失败，请检查网络和设备定位后重试。",
+            ? "定位权限被拒绝，请在浏览器地址栏允许本网站使用位置后重试；仍失败时联系管理端人工补签。"
+            : "定位失败，请检查网络和设备定位后重试；仍失败时联系管理端人工补签。",
         );
       },
       { enableHighAccuracy: true, timeout: 12000 },
@@ -3008,14 +3003,34 @@ export default function TeacherTrainingTab() {
   };
 
   const submitLeaveRequest = async () => {
-    await submitTeacherTrainingLeaveRequest({
+    const ok = await submitTeacherTrainingLeaveRequest({
       ...leaveDraft,
       participantId: selectedParticipant?.id ?? leaveDraft.participantId,
     });
+    if (ok) {
+      setTeacherLeaveFormOpen(false);
+      setLeaveDraft((current) => ({
+        ...current,
+        startDate: getDateInputValue(new Date()),
+        endDate: getDateInputValue(new Date()),
+        startTime: "",
+        endTime: "",
+        sessionLabel: "请假",
+        reason: "",
+      }));
+      window.requestAnimationFrame(() => {
+        document.getElementById("tt-teacher-leave-records")?.scrollIntoView({ behavior: "smooth", block: "start" });
+      });
+    }
   };
 
   const reviewLeaveRequest = async (leaveRequestId: string, decision: "approve" | "reject") => {
     const targetRequest = selectedCohort?.leaveRequests.find((request) => request.id === leaveRequestId);
+    if (activeLeaveReviewAction?.leaveRequestId !== leaveRequestId || activeLeaveReviewAction.decision !== decision) {
+      setActiveLeaveReviewAction({ leaveRequestId, decision });
+      return;
+    }
+
     if (!window.confirm(`确认${decision === "approve" ? "通过" : "驳回"}${targetRequest?.participantName ?? "该教师"}的请假申请？`)) {
       return;
     }
@@ -3030,6 +3045,7 @@ export default function TeacherTrainingTab() {
       delete nextComments[leaveRequestId];
       return nextComments;
     });
+    setActiveLeaveReviewAction(null);
   };
 
   const openTeacherTrainingSection = (
@@ -3342,7 +3358,7 @@ export default function TeacherTrainingTab() {
       ? {
           label: "继续提交汇报",
           value: `${teacherPendingTaskCount} 项待提交`,
-          helper: "按课程或总任务填写汇报，附件限 Word/PDF。",
+          helper: "按课程或总任务上传 PDF 汇报。",
           actionLabel: "去填写",
           Icon: Send,
           section: "tasks",
@@ -3456,6 +3472,10 @@ export default function TeacherTrainingTab() {
       : canManage && showTeacherTrainingSection("participants")
         ? "items-stretch xl:grid-cols-[360px_minmax(0,1fr)]"
         : "items-start";
+  const teacherTaskWorkbenchClassName =
+    !canManage && showTeacherTrainingSubmissionForm
+      ? "grid items-stretch gap-4 xl:grid-cols-[minmax(300px,0.38fr)_minmax(0,0.62fr)]"
+      : "grid items-start gap-4";
   const getCheckInProgress = (task: Workspace.TeacherTrainingCheckInTaskItem) => {
     const total = selectedCohort?.participants.length ?? 0;
     const signed = task.records.length;
@@ -3472,7 +3492,6 @@ export default function TeacherTrainingTab() {
     <div className="space-y-4">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
         <SectionHeader
-          description="省培平台独立管理班次、参训教师、课程签到、任务汇报、请假审批和导出归档。"
           title="江苏省职业院校创新创业教育（竞赛）指导能力提升培训"
         />
         <div className="inline-flex w-fit min-w-[180px] items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
@@ -5076,6 +5095,9 @@ export default function TeacherTrainingTab() {
                           />
                         </label>
                       </div>
+                      <p className="rounded-xl border border-blue-100 bg-blue-50/75 px-3 py-2 text-xs leading-5 text-blue-700 md:col-span-2">
+                        未填写经纬度时，教师仍需授权定位；系统记录教师当前位置但不做距离校验。定位失败时可由管理端人工补签。
+                      </p>
                       <div className="flex flex-wrap gap-2 md:col-span-2">
                         <button
                           className="depth-button-secondary inline-flex h-10 items-center gap-2 rounded-lg px-4 text-sm font-semibold"
@@ -5709,31 +5731,13 @@ export default function TeacherTrainingTab() {
                           </p>
                         ) : null}
                       </div>
-                      <div className="overflow-x-auto">
-                        <table className="w-full min-w-[1120px] text-left text-sm">
-                          <thead className="bg-slate-50 text-xs font-semibold text-slate-500">
-                            <tr className="[&>th]:px-4 [&>th]:py-3">
-                              <th>姓名/单位</th>
-                              <th>申请日期</th>
-                              <th>请假类型</th>
-                              <th>请假开始时间</th>
-                              <th>请假结束时间</th>
-                              <th>请假时长</th>
-                              <th>请假原因</th>
-                              <th>审批状态</th>
-                              <th>审批人</th>
-                              <th className="text-right">操作</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-slate-100">
-                            {displayedManagerLeaveRequests.length === 0 ? (
-                              <tr>
-                                <td colSpan={10} className="px-4 py-16">
-                                  <EmptyState description="教师提交请假申请后，会进入这里等待审批。" icon={FileCheck} title="暂无请假申请" />
-                                </td>
-                              </tr>
-                            ) : (
-                              displayedManagerLeaveRequests.map((request) => {
+                      <div className="grid gap-3 p-4">
+                        {displayedManagerLeaveRequests.length === 0 ? (
+                          <div className="py-12">
+                            <EmptyState description="教师提交请假申请后，会进入这里等待审批。" icon={FileCheck} title="暂无请假申请" />
+                          </div>
+                        ) : (
+                          displayedManagerLeaveRequests.map((request) => {
                                 const step = request.status === "pending" ? request.approvalSteps[request.currentStepIndex] : null;
                                 const reviewedApproverLabels = request.approvals
                                   .map((approval) => approverLabelById.get(approval.approverId) ?? approval.approverName)
@@ -5761,60 +5765,61 @@ export default function TeacherTrainingTab() {
                                         : "待审批";
                                 const canReviewThisRequest =
                                   request.status === "pending" && Boolean(step?.approverIds.includes(currentUser?.id ?? ""));
+                                const activeReviewAction =
+                                  activeLeaveReviewAction?.leaveRequestId === request.id ? activeLeaveReviewAction.decision : null;
 
                                 return (
-                                  <tr key={request.id} className="align-top text-slate-700 [&>td]:px-4 [&>td]:py-3">
-                                    <td>
-                                      <p className="font-semibold text-slate-950">{request.participantName}</p>
-                                      <p className="mt-1 max-w-[190px] truncate text-xs text-slate-500" title={request.organization}>
-                                        {request.organization}
-                                      </p>
-                                    </td>
-                                    <td className="whitespace-nowrap text-xs text-slate-500">{request.submittedAt}</td>
-                                    <td className="whitespace-nowrap">{request.sessionLabel}</td>
-                                    <td className="whitespace-nowrap">{formatTeacherTrainingLeaveDateTime(request.startDate, request.startTime)}</td>
-                                    <td className="whitespace-nowrap">{formatTeacherTrainingLeaveDateTime(request.endDate, request.endTime)}</td>
-                                    <td className="whitespace-nowrap font-semibold text-slate-900">
-                                      {getTeacherTrainingLeaveDurationLabel(request)}
-                                    </td>
-                                    <td>
-                                      <p className="line-clamp-2 max-w-[220px] text-xs leading-5 text-slate-600" title={request.reason}>
-                                        {request.reason}
-                                      </p>
-                                    </td>
-                                    <td>
-                                      <div className="flex flex-col gap-1">
-                                        <span className={`w-fit rounded-full px-2.5 py-1 text-xs font-bold ${leaveStatusClassName}`}>
-                                          {request.statusLabel}
-                                        </span>
-                                        <span className="text-xs text-slate-400">{leaveStageLabel}</span>
+                                  <article
+                                    key={request.id}
+                                    className="rounded-2xl border border-slate-200/75 bg-white p-4 shadow-sm transition hover:border-blue-200 hover:shadow-md hover:shadow-blue-950/5"
+                                  >
+                                    <div className="grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(220px,0.7fr)_minmax(260px,0.8fr)]">
+                                      <div className="min-w-0">
+                                        <div className="flex flex-wrap items-center gap-2">
+                                          <p className="text-base font-bold text-slate-950">{request.participantName}</p>
+                                          <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-semibold text-slate-600">
+                                            {request.sessionLabel}
+                                          </span>
+                                          <span className={`rounded-full px-2.5 py-1 text-xs font-bold ${leaveStatusClassName}`}>
+                                            {request.statusLabel}
+                                          </span>
+                                        </div>
+                                        <p className="mt-1 truncate text-xs text-slate-500" title={request.organization}>
+                                          {request.organization}
+                                        </p>
+                                        <div className="mt-3 grid gap-2 text-sm text-slate-700 sm:grid-cols-2">
+                                          <div className="rounded-xl bg-slate-50 px-3 py-2">
+                                            <p className="text-[11px] font-semibold text-slate-400">请假开始</p>
+                                            <p className="mt-0.5 font-semibold">{formatTeacherTrainingLeaveDateTime(request.startDate, request.startTime)}</p>
+                                          </div>
+                                          <div className="rounded-xl bg-slate-50 px-3 py-2">
+                                            <p className="text-[11px] font-semibold text-slate-400">请假结束</p>
+                                            <p className="mt-0.5 font-semibold">{formatTeacherTrainingLeaveDateTime(request.endDate, request.endTime)}</p>
+                                          </div>
+                                          <div className="rounded-xl bg-slate-50 px-3 py-2">
+                                            <p className="text-[11px] font-semibold text-slate-400">请假时长</p>
+                                            <p className="mt-0.5 font-bold text-slate-950">{getTeacherTrainingLeaveDurationLabel(request)}</p>
+                                          </div>
+                                          <div className="rounded-xl bg-slate-50 px-3 py-2">
+                                            <p className="text-[11px] font-semibold text-slate-400">申请时间</p>
+                                            <p className="mt-0.5 font-semibold">{request.submittedAt}</p>
+                                          </div>
+                                        </div>
+                                        <div className="mt-3 rounded-xl border border-slate-100 bg-slate-50/70 px-3 py-2">
+                                          <p className="text-[11px] font-semibold text-slate-400">请假原因</p>
+                                          <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-slate-700">{request.reason}</p>
+                                        </div>
                                       </div>
-                                    </td>
-                                    <td>
-                                      <p className="max-w-[180px] text-xs leading-5 text-slate-500" title={approverSummary}>
-                                        {approverSummary}
-                                      </p>
-                                    </td>
-                                    <td>
-                                      <div className="flex flex-col items-end gap-2">
-                                        {canReviewThisRequest ? (
-                                          <label className={`${teacherTrainingFieldShellClassName} w-full min-w-[220px] max-w-[280px]`}>
-                                            <span className={teacherTrainingFieldLabelClassName}>审批意见（可选）</span>
-                                            <textarea
-                                              className={`${textareaClassName} min-h-16 bg-white text-xs`}
-                                              {...fieldHint(`${request.participantName}请假审批意见`)}
-                                              onChange={(event) =>
-                                                setLeaveReviewCommentsById((current) => ({
-                                                  ...current,
-                                                  [request.id]: event.target.value,
-                                                }))
-                                              }
-                                              placeholder="填写后点击通过或驳回"
-                                              value={leaveReviewCommentsById[request.id] ?? ""}
-                                            />
-                                          </label>
-                                        ) : null}
-                                        <div className="flex flex-wrap justify-end gap-2">
+
+                                      <div className="rounded-2xl border border-slate-100 bg-slate-50/70 p-3">
+                                        <p className="text-xs font-bold text-slate-500">审批状态</p>
+                                        <p className="mt-2 text-sm font-bold text-slate-950">{leaveStageLabel}</p>
+                                        <p className="mt-2 text-xs leading-5 text-slate-500" title={approverSummary}>
+                                          {approverSummary}
+                                        </p>
+                                      </div>
+
+                                      <div className="flex flex-col gap-3">
                                         {request.status === "approved" ? (
                                           <button
                                             className="inline-flex h-8 items-center rounded-lg border border-slate-200 bg-white px-3 text-xs font-semibold text-blue-700 disabled:cursor-wait disabled:opacity-60"
@@ -5838,7 +5843,7 @@ export default function TeacherTrainingTab() {
                                           </span>
                                         )}
                                         {canReviewThisRequest ? (
-                                          <>
+                                          <div className="flex flex-wrap gap-2">
                                             <button
                                               className="inline-flex h-8 items-center rounded-lg bg-emerald-600 px-3 text-xs font-semibold text-white"
                                               aria-label={`通过${request.participantName}的请假申请`}
@@ -5847,7 +5852,7 @@ export default function TeacherTrainingTab() {
                                               title={`通过${request.participantName}的请假申请`}
                                               type="button"
                                             >
-                                              通过
+                                              {activeReviewAction === "approve" ? "确认通过" : "通过"}
                                             </button>
                                             <button
                                               className="inline-flex h-8 items-center rounded-lg border border-rose-200 bg-white px-3 text-xs font-semibold text-rose-600"
@@ -5857,19 +5862,35 @@ export default function TeacherTrainingTab() {
                                               title={`驳回${request.participantName}的请假申请`}
                                               type="button"
                                             >
-                                            驳回
-                                          </button>
-                                          </>
+                                              {activeReviewAction === "reject" ? "确认驳回" : "驳回"}
+                                            </button>
+                                          </div>
                                         ) : null}
-                                        </div>
+                                        {canReviewThisRequest && activeReviewAction ? (
+                                          <label className={teacherTrainingFieldShellClassName}>
+                                            <span className={teacherTrainingFieldLabelClassName}>
+                                              {activeReviewAction === "approve" ? "通过意见（可选）" : "驳回意见（建议填写）"}
+                                            </span>
+                                            <textarea
+                                              className={`${textareaClassName} min-h-24 bg-white text-sm`}
+                                              {...fieldHint(`${request.participantName}请假审批意见`)}
+                                              onChange={(event) =>
+                                                setLeaveReviewCommentsById((current) => ({
+                                                  ...current,
+                                                  [request.id]: event.target.value,
+                                                }))
+                                              }
+                                              placeholder="可填写审批意见"
+                                              value={leaveReviewCommentsById[request.id] ?? ""}
+                                            />
+                                          </label>
+                                        ) : null}
                                       </div>
-                                    </td>
-                                  </tr>
+                                    </div>
+                                  </article>
                                 );
                               })
                             )}
-                          </tbody>
-                        </table>
                       </div>
                     </div>
                     ) : null}
@@ -6261,7 +6282,7 @@ export default function TeacherTrainingTab() {
                   </div>
                 ) : null}
                 <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50/70 px-3 py-2 text-xs leading-5 text-blue-700">
-                  姓名、单位、手机号、分组和职务已从导入名单带入，可按实际情况修改；保存后会同步到管理端参训教师列表。
+                  姓名、单位、手机号和职务已从导入名单带入，可按实际情况修改；保存后会同步到管理端参训教师列表。
                 </div>
                 <div className="mt-4 grid gap-3 md:grid-cols-2">
                   <label className={teacherTrainingFieldShellClassName}>
@@ -6295,17 +6316,6 @@ export default function TeacherTrainingTab() {
                       placeholder="手机"
                       required
                       value={effectiveProfileDraft.phone}
-                    />
-                  </label>
-                  <label className={teacherTrainingFieldShellClassName}>
-                    <RequiredFieldLabel>个人分组</RequiredFieldLabel>
-                    <input
-                      className={fieldClassName}
-                      {...fieldHint("个人分组")}
-                      onChange={(event) => updateProfileDraftField("groupName", event.target.value)}
-                      placeholder="分组"
-                      required
-                      value={effectiveProfileDraft.groupName}
                     />
                   </label>
                   <label className={teacherTrainingFieldShellClassName}>
@@ -7531,7 +7541,7 @@ export default function TeacherTrainingTab() {
               ) : null}
 
               {showTeacherTrainingSection("tasks") ? (
-              <section className={showTeacherTrainingSubmissionForm ? "grid items-stretch gap-4 xl:grid-cols-2" : "grid items-start gap-4"}>
+              <section className={teacherTaskWorkbenchClassName}>
                 {canManage ? (
                 <div className="tt-card p-5">
                   <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
@@ -7656,15 +7666,10 @@ export default function TeacherTrainingTab() {
                       <div className="grid gap-3 sm:grid-cols-2">
                       <div className={teacherTrainingFieldShellClassName}>
                         <span className={teacherTrainingFieldLabelClassName}>省培任务附件要求</span>
-                        <label className="mt-1.5 inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-600">
-                          <input
-                            checked={taskDraft.requireAttachment}
-                            {...fieldHint("省培任务是否需要附件")}
-                            onChange={(event) => setTaskDraft((current) => ({ ...current, requireAttachment: event.target.checked }))}
-                            type="checkbox"
-                          />
-                          需要附件
-                        </label>
+                        <div className="mt-1.5 inline-flex h-10 items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 text-sm font-semibold text-blue-700">
+                          <FileText className="h-4 w-4" />
+                          PDF 附件必交
+                        </div>
                       </div>
                       <div className={teacherTrainingFieldShellClassName}>
                         <span className={teacherTrainingFieldLabelClassName}>AI 辅助评分</span>
@@ -7719,79 +7724,83 @@ export default function TeacherTrainingTab() {
                 </div>
                 ) : null}
 
+                {!canManage && showTeacherTrainingSubmissionForm ? (
+                  <aside
+                    aria-label="省培任务汇报进度"
+                    className="tt-card p-5"
+                  >
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between xl:flex-col">
+                      <div className="flex items-center gap-2.5">
+                        <span className="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-[#1a6fd4]/10 text-[#1a6fd4]">
+                          <FileText className="h-4 w-4" />
+                        </span>
+                        <div>
+                          <p className="text-[15px] font-bold text-slate-950">我的任务</p>
+                          <p className="mt-0.5 text-xs font-semibold text-slate-500">
+                            已提交 {teacherTaskCompletedCount}/{teacherTaskProgressItems.length}
+                          </p>
+                        </div>
+                      </div>
+                      <span className={`w-fit rounded-full px-3 py-1 text-xs font-bold ${teacherTaskSummaryToneClassName}`}>
+                        {teacherTaskSummaryText}
+                      </span>
+                    </div>
+                    <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-100">
+                      <div
+                        className="h-full rounded-full bg-gradient-to-r from-blue-600 to-cyan-500 transition-all duration-500"
+                        style={{ width: `${teacherTaskCompletionPercent}%` }}
+                      />
+                    </div>
+                    <div className="mt-4 grid gap-2">
+                      {teacherTaskProgressItems.length === 0 ? (
+                        <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-3 text-sm font-semibold text-slate-500">
+                          暂无任务
+                        </div>
+                      ) : (
+                        teacherTaskProgressItems.map((item) => (
+                          <button
+                            key={item.id}
+                            className={`rounded-xl border px-3 py-3 text-left transition hover:-translate-y-0.5 ${
+                              item.isComplete
+                                ? "border-emerald-100 bg-emerald-50 text-emerald-700"
+                                : "border-amber-100 bg-amber-50 text-amber-700"
+                            }`}
+                            onClick={() => focusTeacherTaskSubmission(item.id)}
+                            title={`${item.title}：${item.statusLabel}`}
+                            type="button"
+                          >
+                            <span className="block truncate text-sm font-bold text-slate-950">{item.title}</span>
+                            <span className="mt-1 block text-xs font-semibold">{item.statusLabel}</span>
+                            {item.submittedAt ? (
+                              <span className="mt-1 block text-[11px] font-medium text-slate-500">{item.submittedAt}</span>
+                            ) : item.dueDate ? (
+                              <span className="mt-1 block text-[11px] font-medium text-slate-500">截止 {item.dueDate}</span>
+                            ) : null}
+                          </button>
+                        ))
+                      )}
+                      {teacherWaitingReleaseTasks.map((task) => (
+                        <div
+                          key={task.id}
+                          className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-3 text-sm"
+                          title={`${task.title}：${task.releaseStatusLabel}`}
+                        >
+                          <span className="block truncate font-bold text-slate-950">{task.title}</span>
+                          <span className="mt-1 block text-xs font-semibold text-slate-500">{task.releaseStatusLabel}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </aside>
+                ) : null}
+
                 {showTeacherTrainingSubmissionForm ? (
                 <div className="tt-card p-5" id="teacher-training-submission-form">
                   <div className="flex items-center gap-2.5">
                     <span className="inline-flex h-8 w-8 items-center justify-center rounded-xl bg-[#1a6fd4]/10 text-[#1a6fd4]">
                       <Send className="h-4 w-4" />
                     </span>
-                    <p className="text-[15px] font-bold text-slate-950">填写汇报</p>
+                    <p className="text-[15px] font-bold text-slate-950">提交汇报</p>
                   </div>
-                  {!canManage ? (
-                    <div
-                      aria-label="省培任务汇报进度"
-                      className="mt-4 rounded-2xl border border-blue-100 bg-[linear-gradient(135deg,rgba(37,99,235,0.08),rgba(255,255,255,0.96)_48%,rgba(20,184,166,0.08))] p-4 shadow-sm"
-                    >
-                      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-                        <div>
-                          <p className="text-sm font-bold text-slate-950">我的汇报进度</p>
-                          <p className="mt-1 text-xs leading-5 text-slate-500">
-                            {teacherTaskSummaryText} · 已提交 {teacherTaskCompletedCount}/{teacherTaskProgressItems.length}
-                          </p>
-                        </div>
-                        <span
-                          className={`w-fit rounded-full px-3 py-1 text-xs font-bold ${teacherTaskSummaryToneClassName}`}
-                        >
-                          {teacherTaskSummaryText}
-                        </span>
-                      </div>
-                      <div className="mt-3 h-2 overflow-hidden rounded-full bg-white/80">
-                        <div
-                          className="h-full rounded-full bg-gradient-to-r from-blue-600 to-cyan-500 transition-all duration-500"
-                          style={{ width: `${teacherTaskCompletionPercent}%` }}
-                        />
-                      </div>
-                      <div className="mt-3 grid gap-2 sm:grid-cols-2">
-                        {teacherTaskProgressItems.length === 0 ? (
-                          <div className="rounded-xl border border-slate-100 bg-white/76 px-3 py-2 text-xs font-semibold text-slate-500">
-                            暂无任务发布
-                          </div>
-                        ) : (
-                          teacherTaskProgressItems.map((item) => (
-                            <button
-                              key={item.id}
-                              className={`rounded-xl border px-3 py-2 text-left text-xs font-semibold transition hover:-translate-y-0.5 ${
-                                item.isComplete
-                                  ? "border-emerald-100 bg-emerald-50 text-emerald-700"
-                                  : "border-amber-100 bg-amber-50 text-amber-700"
-                              }`}
-                              onClick={() => focusTeacherTaskSubmission(item.id)}
-                              title={`${item.title}：${item.statusLabel}`}
-                              type="button"
-                            >
-                              <span className="block truncate text-slate-900">{item.title}</span>
-                              <span className="mt-1 block">{item.statusLabel}</span>
-                              {item.submittedAt ? (
-                                <span className="mt-1 block text-[11px] font-medium text-slate-500">{item.submittedAt}</span>
-                              ) : item.dueDate ? (
-                                <span className="mt-1 block text-[11px] font-medium text-slate-500">截止 {item.dueDate}</span>
-                              ) : null}
-                            </button>
-                          ))
-                        )}
-                        {teacherWaitingReleaseTasks.map((task) => (
-                          <div
-                            key={task.id}
-                            className="rounded-xl border border-slate-100 bg-white/76 px-3 py-2 text-xs font-semibold text-slate-500"
-                            title={`${task.title}：${task.releaseStatusLabel}`}
-                          >
-                            <span className="block truncate text-slate-900">{task.title}</span>
-                            <span className="mt-1 block">{task.releaseStatusLabel}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  ) : null}
                   <div className="mt-4 space-y-3">
                     <label className={teacherTrainingFieldShellClassName}>
                       <span className={teacherTrainingFieldLabelClassName}>选择省培汇报任务</span>
@@ -7837,23 +7846,13 @@ export default function TeacherTrainingTab() {
                         </div>
                       </div>
                     )}
-                    <label className={teacherTrainingFieldShellClassName}>
-                      <span className={teacherTrainingFieldLabelClassName}>省培任务汇报内容</span>
-                      <textarea
-                        className={textareaClassName}
-                        {...fieldHint("省培任务汇报内容")}
-                        onChange={(event) => setSubmissionDraft((current) => ({ ...current, content: event.target.value }))}
-                        placeholder="汇报内容"
-                        value={submissionDraft.content}
-                      />
-                    </label>
                     <div className={teacherTrainingFieldShellClassName}>
                       <span className={teacherTrainingFieldLabelClassName}>省培任务汇报附件</span>
                       <label className="mt-1.5 flex min-h-[112px] cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-blue-200 bg-blue-50/35 px-4 py-4 text-center transition hover:border-blue-300 hover:bg-blue-50/70">
                         <Upload className="h-5 w-5 text-blue-600" />
-                        <span className="mt-2 text-sm font-semibold text-slate-900">选择 Word 或 PDF 文件</span>
+                        <span className="mt-2 text-sm font-semibold text-slate-900">选择 PDF 文件</span>
                         <span className="mt-1 text-xs leading-5 text-slate-500">
-                          任务汇报附件仅支持 Word/PDF，单个 {Workspace.teacherTrainingSubmissionAttachmentMaxSizeLabel} 以内
+                          任务汇报附件仅支持 PDF，单个 {Workspace.teacherTrainingSubmissionAttachmentMaxSizeLabel} 以内
                         </span>
                         <input
                           {...fieldHint("省培任务汇报附件")}
@@ -7927,11 +7926,7 @@ export default function TeacherTrainingTab() {
                         ) : currentSubmissionAttachmentLabel ? (
                           <p className="text-xs leading-5 text-slate-500">已保留旧附件说明：{currentSubmissionAttachmentLabel}</p>
                         ) : (
-                          <p className="text-xs leading-5 text-slate-500">
-                            {selectedTask?.requireAttachment
-                              ? "该任务要求上传 Word/PDF 附件。"
-                              : "未上传附件，可直接保存文字汇报或先选择附件。"}
-                          </p>
+                          <p className="text-xs leading-5 text-slate-500">请上传 PDF 汇报附件后保存。</p>
                         )}
                         {submissionAttachmentProgress !== null ? (
                           <div className="mt-3">
@@ -7995,14 +7990,11 @@ export default function TeacherTrainingTab() {
               </section>
               ) : null}
 
-              {showTeacherTrainingSection("tasks") ? (
+              {canManage && showTeacherTrainingSection("tasks") ? (
               <section className="tt-card p-5">
                 <div className="flex items-center justify-between gap-3">
                   <div>
                     <p className="tt-block-title">任务汇报概览</p>
-                    <p className="mt-1.5 text-xs text-slate-500">
-                      {canManage ? "管理员可按班次导出全部任务完成情况。" : "查看我的任务提交记录和完成情况。"}
-                    </p>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="tt-pill tt-pill-neutral">{selectedCohort.tasks.length} 项任务</span>
@@ -8067,7 +8059,7 @@ export default function TeacherTrainingTab() {
                         className={fieldClassName}
                         {...fieldHint("搜索汇报教师")}
                         onChange={(event) => setSubmissionSearch(event.target.value)}
-                        placeholder="按教师姓名、单位、分组、任务或汇报内容搜索"
+                        placeholder="按教师姓名、单位、分组或任务搜索"
                         value={submissionSearch}
                       />
                     </label>
@@ -8176,7 +8168,7 @@ export default function TeacherTrainingTab() {
                                     onClick={() => {
                                       if (
                                         !window.confirm(
-                                          `确认对“${task.title}”的 ${task.submissions.length} 份汇报生成 AI 初评？\n\n系统会自动分批处理。AI 主要读取文字汇报，附件正文需人工打开查看；AI 初评不会覆盖人工最终得分。`,
+                                          `确认对“${task.title}”的 ${task.submissions.length} 份 PDF 汇报生成 AI 初评？\n\n系统会自动分批处理并读取 PDF 文本；AI 初评不会覆盖人工最终得分。`,
                                         )
                                       ) {
                                         return;
@@ -8216,7 +8208,7 @@ export default function TeacherTrainingTab() {
                               <p className="text-xs leading-5 text-slate-600">
                                 {teacherSubmission
                                   ? `已提交：${teacherSubmission.submittedAt}`
-                                  : "这项任务还没有提交，请填写汇报后保存。"}
+                                  : "这项任务还没有提交，请上传 PDF 汇报后保存。"}
                               </p>
                               <button
                                 aria-label={`${teacherSubmission ? "更新" : "继续填写"}${task.title}省培任务汇报`}
@@ -8274,8 +8266,8 @@ export default function TeacherTrainingTab() {
                                         ) : null}
                                       </div>
                                       <p className="mt-1 text-xs text-slate-500">提交时间：{submission.submittedAt}</p>
-                                      <p className="mt-2 line-clamp-3 whitespace-pre-wrap text-xs leading-5 text-slate-600">
-                                        {submission.content}
+                                      <p className="mt-2 text-xs leading-5 text-slate-500">
+                                        {attachmentFile?.fileName ?? submission.attachmentLabel ?? "未上传附件"}
                                       </p>
                                     </div>
                                     <div className="flex shrink-0 flex-wrap gap-2">
@@ -8327,11 +8319,18 @@ export default function TeacherTrainingTab() {
                                         <span className="tt-pill">{submission.reviewStatusLabel}</span>
                                       </div>
                                       <div className="mt-3 grid gap-3 lg:grid-cols-[minmax(0,1fr)_240px]">
-                                        <div className="rounded-lg border border-slate-100 bg-slate-50/75 p-3">
-                                          <p className="text-xs font-bold text-slate-700">汇报内容</p>
-                                          <p className="mt-2 max-h-64 overflow-y-auto whitespace-pre-wrap text-sm leading-6 text-slate-700">
-                                            {submission.content || "未填写文字汇报"}
-                                          </p>
+                                        <div className="min-h-[420px] overflow-hidden rounded-lg border border-slate-100 bg-slate-50/75">
+                                          {attachmentFile ? (
+                                            <iframe
+                                              className="h-[420px] w-full bg-white"
+                                              src={attachmentFile.downloadUrl}
+                                              title={`${submission.participantName} PDF 汇报预览`}
+                                            />
+                                          ) : (
+                                            <div className="flex h-[420px] items-center justify-center px-4 text-center text-sm text-slate-500">
+                                              暂无可预览的 PDF 附件
+                                            </div>
+                                          )}
                                         </div>
                                         <div className="grid gap-2 text-xs leading-5">
                                           <div className="rounded-lg border border-slate-100 bg-slate-50/75 p-3">
@@ -8367,7 +8366,7 @@ export default function TeacherTrainingTab() {
                                           AI 初评：{submission.aiScore === null ? "尚未评分" : `${submission.aiScore} 分`}
                                           {submission.aiComment
                                             ? ` · ${submission.aiComment}`
-                                            : "。AI 主要读取文字汇报，附件需人工查看；最终以人工确认分为准。"}
+                                            : "。AI 读取 PDF 文本生成初评；最终以人工确认分为准。"}
                                         </div>
                                       ) : null}
                                       <label className={teacherTrainingFieldShellClassName}>
