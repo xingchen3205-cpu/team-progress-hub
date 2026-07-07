@@ -271,7 +271,7 @@ const buildParticipantImportPreview = (
   existingParticipants: Workspace.TeacherTrainingParticipantItem[],
 ): TeacherTrainingImportPreview<TeacherTrainingParticipantImportRow> => {
   const hasRequiredParticipantRosterFields = (row: TeacherTrainingParticipantImportRow) =>
-    Boolean(row.name.trim() && row.organization.trim() && row.phone.trim() && row.groupName.trim() && (row.title.trim() || row.professionalTitle.trim()));
+    Boolean(row.name.trim() && row.organization.trim() && row.phone.trim() && (row.title.trim() || row.professionalTitle.trim()));
   const missingRequiredCount = rows.filter((row) => !hasRequiredParticipantRosterFields(row)).length;
   const identityKeys = rows
     .filter((row) => row.name.trim() && row.organization.trim())
@@ -2070,10 +2070,9 @@ export default function TeacherTrainingTab() {
       !participantDraft.name.trim() ||
       !participantDraft.organization.trim() ||
       !participantDraft.phone.trim() ||
-      !participantDraft.groupName.trim() ||
       !(participantDraft.title.trim() || participantDraft.professionalTitle.trim())
     ) {
-      alert("请先补全参训教师档案必填项：姓名、单位、手机号、分组，以及职务或职称。");
+      alert("请先补全参训教师档案必填项：姓名、单位、手机号，以及职务或职称。");
       return;
     }
     await addTeacherTrainingParticipant({
@@ -4390,7 +4389,7 @@ export default function TeacherTrainingTab() {
                 </div>
                 <div className="mt-auto rounded-xl border border-blue-100 bg-blue-50/45 px-3 py-2 text-xs leading-5 text-blue-700">
                   <p className="font-bold">档案规则</p>
-                  <p className="mt-1">姓名、单位、手机号、分组必填；职务和职称至少填一项。账号开通使用名单顶部的一键手机号开通账号。</p>
+                  <p className="mt-1">姓名、单位、手机号必填；职务和职称至少填一项；分组可后续补充。账号可批量开通，也可在教师条目里单独开通。</p>
                 </div>
               </div>
             ) : null}
@@ -6548,7 +6547,7 @@ export default function TeacherTrainingTab() {
                     </div>
                     <div className="mt-3 rounded-xl border border-blue-100 bg-white/75 px-3 py-2">
                       <p className="text-xs font-bold text-blue-700">档案必填</p>
-                      <p className="mt-1 text-xs leading-5 text-blue-600">姓名、单位、手机号、分组必须填写；职务和职称至少填写一项。</p>
+                      <p className="mt-1 text-xs leading-5 text-blue-600">姓名、单位、手机号必须填写；职务和职称至少填写一项；分组可后续补充。</p>
                     </div>
                     <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
                       <label className={teacherTrainingFieldShellClassName}>
@@ -6583,7 +6582,7 @@ export default function TeacherTrainingTab() {
                         />
                       </label>
                       <label className={teacherTrainingFieldShellClassName}>
-                        <RequiredFieldLabel>参训教师分组</RequiredFieldLabel>
+                        <span className={teacherTrainingFieldLabelClassName}>参训教师分组</span>
                         <input
                           className={fieldClassName}
                           {...fieldHint("参训教师分组")}
@@ -6713,7 +6712,7 @@ export default function TeacherTrainingTab() {
                     </div>
                     <div className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                       <p className="text-xs leading-5 text-slate-500">
-                        这里不会新建账号。没有合适账号时请先保存教师档案，再使用名单顶部的一键手机号开通账号，初始密码统一为 123456。
+                        这里先保存教师档案。没有合适账号时，保存后可在该教师条目里单独开通账号，也可用名单顶部批量开通；初始密码统一为 123456。
                       </p>
                       <ActionButton
                         aria-label="将参训教师加入当前省培班次"
@@ -6987,6 +6986,57 @@ export default function TeacherTrainingTab() {
                               {getParticipantAccountBoundaryText(participant)}
                             </p>
                           ) : null}
+                          {canManage ? (
+                            <div className="mt-3 rounded-xl border border-blue-100 bg-blue-50/35 p-3">
+                              <div className="flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
+                                <div className="min-w-0">
+                                  <p className="text-[11px] font-bold tracking-wide text-blue-600">省培账号</p>
+                                  {participant.accountUsername ? (
+                                    <div className="mt-1 space-y-0.5 text-xs leading-5 text-slate-600">
+                                      <p className="font-semibold text-slate-800">账号：{participant.accountUsername}</p>
+                                      <p>
+                                        {participant.accountRole === "training_teacher"
+                                          ? "初始密码：123456；如已重置，以最新通知为准。"
+                                          : "绑定创赛原平台账号，密码由原平台账号管理维护。"}
+                                      </p>
+                                    </div>
+                                  ) : (
+                                    <p className="mt-1 text-xs leading-5 text-slate-500">
+                                      尚未开通省培账号。可用报名手机号单独开通，初始密码统一为 123456。
+                                    </p>
+                                  )}
+                                </div>
+                                <div className="flex shrink-0 flex-wrap gap-2">
+                                  <button
+                                    className="inline-flex h-9 max-w-full items-center justify-center gap-2 rounded-lg border border-blue-100 bg-white px-3 text-sm font-semibold text-blue-700 transition hover:border-blue-200 hover:bg-blue-50"
+                                    aria-label={participant.accountUsername ? "复制省培账号通知消息" : "单独开通省培账号"}
+                                    disabled={isSaving}
+                                    onClick={() => void copyAccountMessage(participant.id)}
+                                    title={participant.accountUsername ? "复制省培账号通知消息" : "单独开通省培账号"}
+                                    type="button"
+                                  >
+                                    <Copy className="h-4 w-4 shrink-0" />
+                                    <span className="truncate whitespace-nowrap">
+                                      {participant.accountUsername ? "复制账号消息" : "单独开通账号"}
+                                    </span>
+                                  </button>
+                                  {participant.accountUsername && participant.accountRole === "training_teacher" ? (
+                                    <button
+                                      className="inline-flex h-9 max-w-full items-center justify-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm font-semibold text-slate-700 transition hover:bg-slate-50"
+                                      aria-label="帮教师重置密码"
+                                      disabled={isSaving}
+                                      onClick={() => editParticipantAccount(participant)}
+                                      title="帮教师重置密码"
+                                      type="button"
+                                    >
+                                      <Pencil className="h-4 w-4 shrink-0" />
+                                      <span className="truncate whitespace-nowrap">帮教师重置密码</span>
+                                    </button>
+                                  ) : null}
+                                </div>
+                              </div>
+                            </div>
+                          ) : null}
                           <button
                             type="button"
                             className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-[#1a6fd4] transition hover:text-[#155bb0]"
@@ -7138,7 +7188,7 @@ export default function TeacherTrainingTab() {
                             </div>
                           </div>
                         ) : null}
-                        {isAccountManagementSection && accountEditParticipantId === participant.id ? (
+                        {canManage && accountEditParticipantId === participant.id ? (
                           <div className="lg:col-span-2 grid gap-3 rounded-xl border border-blue-100 bg-blue-50/50 p-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] sm:items-end">
                             <label className={teacherTrainingFieldShellClassName}>
                               <span className={teacherTrainingFieldLabelClassName}>省培专用登录账号</span>
@@ -7185,7 +7235,7 @@ export default function TeacherTrainingTab() {
                             </div>
                           </div>
                         ) : null}
-                        {isAccountManagementSection && accountMessagesByParticipantId[participant.id] ? (
+                        {canManage && accountMessagesByParticipantId[participant.id] ? (
                           <textarea
                             className={`${textareaClassName} lg:col-span-2 min-h-28 bg-blue-50/40`}
                             {...fieldHint(`${participant.name}省培账号通知消息`)}

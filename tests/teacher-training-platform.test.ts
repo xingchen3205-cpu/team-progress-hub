@@ -1071,9 +1071,10 @@ test("teacher training manager forms keep visible field labels on mobile", () =>
   }
   assert.match(tabSource, /teacherTrainingRequiredMarkClassName/);
   assert.match(tabSource, /teacherTrainingEitherRequiredMarkClassName/);
-  for (const label of ["参训教师姓名", "所在单位", "报名手机号", "参训教师分组"]) {
+  for (const label of ["参训教师姓名", "所在单位", "报名手机号"]) {
     assert.match(tabSource, new RegExp(`<RequiredFieldLabel>${label}<\\/RequiredFieldLabel>`));
   }
+  assert.match(tabSource, /<span className=\{teacherTrainingFieldLabelClassName\}>参训教师分组<\/span>/);
   for (const label of ["省培任务名称", "任务类型", "开放时间", "省培任务说明"]) {
     assert.match(tabSource, new RegExp(`<RequiredFieldLabel>${label}<\\/RequiredFieldLabel>`));
   }
@@ -1563,6 +1564,28 @@ test("teacher training managers can reset participant account and password in pr
   assert.match(accountRoute, /hasTeacherTrainingCohortManageAccess/);
 });
 
+test("teacher training participant account actions are visible per teacher and group is optional", () => {
+  const tabSource = read("src/components/tabs/teacher-training-tab.tsx");
+  const contextSource = read("src/components/workspace-context.tsx");
+  const participantsRoute = read("src/app/api/teacher-training/participants/route.ts");
+
+  assert.doesNotMatch(tabSource, /<RequiredFieldLabel>参训教师分组<\/RequiredFieldLabel>/);
+  assert.match(tabSource, /<span className=\{teacherTrainingFieldLabelClassName\}>参训教师分组<\/span>/);
+  assert.match(tabSource, /姓名、单位、手机号必须填写；职务和职称至少填写一项；分组可后续补充。/);
+  assert.doesNotMatch(tabSource, /姓名、单位、手机号、分组必须填写/);
+  assert.doesNotMatch(tabSource, /!participantDraft\.groupName\.trim\(\)/);
+
+  assert.doesNotMatch(contextSource, /!groupName\s*\|\|/);
+  assert.doesNotMatch(participantsRoute, /!body\?\.groupName\?\.trim\(\)/);
+  assert.match(participantsRoute, /请填写班次、姓名、单位、手机号，以及职务或职称/);
+
+  assert.match(tabSource, /单独开通账号/);
+  assert.match(tabSource, /账号：\{participant\.accountUsername\}/);
+  assert.match(tabSource, /初始密码：123456/);
+  assert.match(tabSource, /帮教师重置密码/);
+  assert.match(tabSource, /一键手机号开通账号/);
+});
+
 test("teacher training imports roster demographics and opens phone accounts with a forced password change", () => {
   const importSource = read("src/lib/teacher-training-participant-import.ts");
   const participantsRoute = read("src/app/api/teacher-training/participants/route.ts");
@@ -1657,10 +1680,10 @@ test("teacher training account management is a manager account pool, not another
   assert.match(tabSource, /参训教师工具箱/);
   assert.match(tabSource, /名单在右侧维护；这里仅保留常用入口/);
   assert.match(tabSource, /档案必填/);
-  assert.match(tabSource, /姓名、单位、手机号、分组必须填写；职务和职称至少填写一项/);
+  assert.match(tabSource, /姓名、单位、手机号必须填写；职务和职称至少填写一项；分组可后续补充。/);
   assert.match(tabSource, /绑定已有登录账号（选填）/);
   assert.match(tabSource, /availableParticipantAccountOptions\.map/);
-  assert.match(participantsRoute, /导入名单需包含姓名、单位、手机号、分组，以及职务或职称/);
+  assert.match(participantsRoute, /导入名单需包含姓名、单位、手机号，以及职务或职称/);
   assert.doesNotMatch(tabSource, /省培初始密码/);
   assert.doesNotMatch(tabSource, /填已有创赛账号则绑定/);
   assert.match(tabSource, /批量移出账号池/);

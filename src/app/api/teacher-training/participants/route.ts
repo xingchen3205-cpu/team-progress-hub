@@ -38,7 +38,6 @@ const hasRequiredParticipantRosterFields = (participant: TeacherTrainingParticip
     participant.name?.trim() &&
       participant.organization?.trim() &&
       participant.phone?.trim() &&
-      participant.groupName?.trim() &&
       (participant.title?.trim() || participant.professionalTitle?.trim()),
   );
 
@@ -92,7 +91,7 @@ export async function POST(request: NextRequest) {
       note: participant.note?.trim() || null,
     }));
     if (body.participants.length === 0 || body.participants.some((participant) => !hasRequiredParticipantRosterFields(participant))) {
-      return NextResponse.json({ message: "导入名单需包含姓名、单位、手机号、分组，以及职务或职称" }, { status: 400 });
+      return NextResponse.json({ message: "导入名单需包含姓名、单位、手机号，以及职务或职称" }, { status: 400 });
     }
     const importedParticipantKeys = rows.map(getParticipantIdentityKey);
     const duplicatedImportedParticipantKeys = importedParticipantKeys.filter(
@@ -139,8 +138,8 @@ export async function POST(request: NextRequest) {
   const name = body?.name?.trim();
   const organization = body?.organization?.trim();
 
-  if (!cohortId || !name || !organization || !body?.phone?.trim() || !body?.groupName?.trim() || !(body?.title?.trim() || body?.professionalTitle?.trim())) {
-    return NextResponse.json({ message: "请填写班次、姓名、单位、手机号、分组，以及职务或职称" }, { status: 400 });
+  if (!cohortId || !name || !organization || !body?.phone?.trim() || !(body?.title?.trim() || body?.professionalTitle?.trim())) {
+    return NextResponse.json({ message: "请填写班次、姓名、单位、手机号，以及职务或职称" }, { status: 400 });
   }
 
   const cohort = await prisma.teacherTrainingCohort.findFirst({

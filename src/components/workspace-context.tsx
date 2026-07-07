@@ -5453,8 +5453,8 @@ function useWorkspaceController({
     const title = draft.title.trim();
     const professionalTitle = draft.professionalTitle.trim();
 
-    if (!cohortId || !name || !organization || !phone || !groupName || !(title || professionalTitle)) {
-      setLoadError("请先填写班次、姓名、单位、手机号、分组，以及职务或职称");
+    if (!cohortId || !name || !organization || !phone || !(title || professionalTitle)) {
+      setLoadError("请先填写班次、姓名、单位、手机号，以及职务或职称");
       return;
     }
 
