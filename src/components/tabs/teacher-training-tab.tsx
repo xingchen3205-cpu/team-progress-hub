@@ -3684,13 +3684,17 @@ export default function TeacherTrainingTab() {
             <section aria-label="省培教师首页" className="space-y-4">
               <div className="tt-portal-hero">
                 <div className="tt-portal-hero-copy">
-                  <span className="tt-portal-kicker">当前班次</span>
-                  <h3>{selectedCohort?.title ?? "暂无省培班次"}</h3>
-                  <p>
-                    {selectedCohort
-                      ? `${selectedCohort.startDate} 至 ${selectedCohort.endDate}${selectedCohort.location ? ` · ${selectedCohort.location}` : ""}`
-                      : "班次发布后，这里会显示课程、签到、汇报和请假入口。"}
-                  </p>
+                  <span className="tt-portal-kicker">江苏省职业院校教师培训服务系统</span>
+                  <h3>省培服务平台</h3>
+                  <div className="tt-portal-cohort-card">
+                    <span className="tt-portal-cohort-label">当前培训班</span>
+                    <strong>{selectedCohort?.title ?? "暂无省培班次"}</strong>
+                    <span>
+                      {selectedCohort
+                        ? `${selectedCohort.startDate} 至 ${selectedCohort.endDate}${selectedCohort.location ? ` · ${selectedCohort.location}` : ""}`
+                        : "班次发布后显示课程、签到、汇报和请假入口。"}
+                    </span>
+                  </div>
                 </div>
                 <div className="tt-portal-hero-actions">
                   <span className="tt-pill tt-pill-neutral">
@@ -3877,13 +3881,17 @@ export default function TeacherTrainingTab() {
             <section aria-label="省培管理端首页" className="space-y-4">
               <div className="tt-portal-hero tt-portal-hero-manager">
                 <div className="tt-portal-hero-copy">
-                  <span className="tt-portal-kicker">班次运行总览</span>
-                  <h3>{selectedCohort?.title ?? "暂无省培班次"}</h3>
-                  <p>
-                    {selectedCohort
-                      ? `${selectedCohort.startDate} 至 ${selectedCohort.endDate}${selectedCohort.location ? ` · ${selectedCohort.location}` : ""}`
-                      : "先创建班次，再维护名单、课程、签到、汇报和请假流程。"}
-                  </p>
+                  <span className="tt-portal-kicker">江苏省职业院校教师培训管理系统</span>
+                  <h3>省培管理平台</h3>
+                  <div className="tt-portal-cohort-card">
+                    <span className="tt-portal-cohort-label">当前培训班</span>
+                    <strong>{selectedCohort?.title ?? "暂无省培班次"}</strong>
+                    <span>
+                      {selectedCohort
+                        ? `${selectedCohort.startDate} 至 ${selectedCohort.endDate}${selectedCohort.location ? ` · ${selectedCohort.location}` : ""}`
+                        : "创建班次后维护名单、课程、签到、汇报和请假流程。"}
+                    </span>
+                  </div>
                 </div>
                 <div className="tt-portal-hero-actions">
                   <span className="tt-pill tt-pill-success">{selectedCohort ? "运行中" : "待建班"}</span>

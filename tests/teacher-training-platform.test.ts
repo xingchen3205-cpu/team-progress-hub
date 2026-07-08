@@ -764,7 +764,7 @@ test("teacher training tab uses staff-side manual check-in controls", () => {
   assert.match(shellSource, /openTeacherTrainingSection/);
   assert.match(tabSource, /teacher-training-content/);
   assert.doesNotMatch(tabSource, /快速进入/);
-  assert.match(tabSource, /班次运行总览/);
+  assert.match(tabSource, /省培管理平台/);
   assert.match(tabSource, /课程签到/);
   assert.match(tabSource, /课程安排/);
   assert.match(tabSource, /createTeacherTrainingCourseSession/);
@@ -1498,6 +1498,10 @@ test("teacher training overview works as a role-specific command desk", () => {
   assert.match(tabSource, /managerPortalServiceLinks/);
   assert.match(tabSource, /teacherPortalServiceLinks/);
   assert.match(tabSource, /tt-portal-hero/);
+  assert.match(tabSource, /省培服务平台/);
+  assert.match(tabSource, /省培管理平台/);
+  assert.match(tabSource, /当前培训班/);
+  assert.match(tabSource, /tt-portal-cohort-card/);
   assert.match(tabSource, /省培服务/);
   assert.match(tabSource, /培训通知/);
   assert.match(tabSource, /班次数据|个人数据/);
@@ -1519,7 +1523,9 @@ test("teacher training overview works as a role-specific command desk", () => {
   assert.match(tabSource, /个人信息/);
   assert.match(tabSource, /teacherPortalDataItems/);
   assert.match(globalStyles, /\.tt-portal-hero/);
-  assert.match(globalStyles, /minmax\(0, 1\.04fr\) minmax\(320px, 0\.96fr\)/);
+  assert.match(globalStyles, /url\("\/teacher-training-campus-hero\.png"\)/);
+  assert.match(globalStyles, /minmax\(0, 1\.08fr\) minmax\(330px, 0\.92fr\)/);
+  assert.match(globalStyles, /\.tt-portal-cohort-card/);
   assert.match(globalStyles, /@media \(max-width: 900px\)/);
   assert.doesNotMatch(tabSource, /快去|赶紧|马上弄|搞一下/);
 });
@@ -1792,7 +1798,7 @@ test("teacher training manager pages support batch selection and a compact workb
   assert.match(tabSource, /批量删除签到任务/);
   assert.match(tabSource, /批量删除汇报任务/);
   assert.match(tabSource, /待处理事项/);
-  assert.match(tabSource, /班次运行总览/);
+  assert.match(tabSource, /省培管理平台/);
   assert.doesNotMatch(tabSource, /省培Workbench/);
   assert.doesNotMatch(tabSource, /今日运行[\s\S]{0,1200}省培运行总览/);
 });
