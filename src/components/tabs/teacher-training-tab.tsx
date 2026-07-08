@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useEffect, useMemo, useState } from "react";
 
 import * as Workspace from "@/components/workspace-context";
@@ -860,12 +861,15 @@ export default function TeacherTrainingTab() {
     runTeacherTrainingTaskAiReview,
     updateTeacherTrainingProfile,
     loadTeacherTrainingCohortDetails,
+    handleLogout,
     setLoadError,
   } = Workspace.useWorkspaceContext();
   const {
     ActionButton,
+    Award,
     BarChart3,
     Bell,
+    BookOpen,
     Bot,
     CalendarDays,
     ChevronDown,
@@ -877,9 +881,11 @@ export default function TeacherTrainingTab() {
     FileCheck,
     FileText,
     FolderOpen,
+    GraduationCap,
     HelpCircle,
     Home,
     Loader2,
+    LogOut,
     MapPin,
     Navigation,
     Pencil,
@@ -893,6 +899,7 @@ export default function TeacherTrainingTab() {
     fieldClassName,
     textareaClassName,
   } = Workspace;
+  const [teacherTrainingPortalUserMenuOpen, setTeacherTrainingPortalUserMenuOpen] = useState(false);
   const teacherTrainingScrollableListClassName =
     "max-h-[min(68vh,760px)] overflow-y-auto pr-1 overscroll-contain";
   // 列表卡片在两栏布局里随对侧表单拉伸到等高，内部列表区填满剩余高度并自行滚动，
@@ -3384,17 +3391,41 @@ export default function TeacherTrainingTab() {
     { label: "课程签到", helper: "定位记录", Icon: MapPin, onClick: () => openOverviewMetric({ detailViewTitle: "课程签到记录", section: "checkins" }) },
     { label: "导出归档", helper: "材料下载", Icon: Download, onClick: () => openTeacherTrainingSection("exports") },
   ];
-  const teacherPortalDataItems = [
-    { label: "签到状态", value: teacherPendingCheckInCount > 0 ? `待 ${teacherPendingCheckInCount}` : "已处理", helper: "课程签到" },
-    { label: "汇报任务", value: teacherPendingTaskCount > 0 ? `待 ${teacherPendingTaskCount}` : "已提交", helper: "PDF 汇报" },
-    { label: "请假记录", value: `${selectedParticipant?.leaveRequests.length ?? 0}`, helper: "申请次数" },
-    { label: "报到状态", value: selectedParticipantAttendanceLabel, helper: "当前状态" },
+  const selectedParticipantId = selectedParticipant?.id ?? "";
+  const teacherCourseCount = selectedCohort?.stats.courseCount ?? 0;
+  const teacherSignedCheckInCount = selectedParticipantId
+    ? selectedCohort?.checkInTasks.filter((task) =>
+        task.records.some((record) => record.participantId === selectedParticipantId),
+      ).length ?? 0
+    : 0;
+  const teacherSubmittedTaskCount = selectedParticipantId
+    ? selectedCohort?.tasks.filter((task) =>
+        task.submissions.some((submission) => submission.participantId === selectedParticipantId),
+      ).length ?? 0
+    : 0;
+  const teacherPortalDataItems: Array<{
+    label: string;
+    value: string;
+    helper: string;
+    Icon: typeof Users;
+    tone: "blue" | "emerald" | "amber" | "violet";
+  }> = [
+    { label: "课程安排", value: `${teacherCourseCount}`, helper: "课程（门）", Icon: BookOpen, tone: "blue" },
+    { label: "已签到", value: `${teacherSignedCheckInCount}`, helper: "签到记录", Icon: GraduationCap, tone: "emerald" },
+    { label: "待提交任务", value: `${teacherPendingTaskCount}`, helper: `已提交 ${teacherSubmittedTaskCount} 项`, Icon: FileText, tone: "amber" },
+    { label: "请假记录", value: `${selectedParticipant?.leaveRequests.length ?? 0}`, helper: "申请次数", Icon: FileCheck, tone: "violet" },
   ];
-  const managerPortalDataItems = [
-    { label: "参训教师", value: `${selectedCohort?.stats.participantCount ?? 0}`, helper: "名单人数" },
-    { label: "已报到", value: `${selectedCohort?.stats.presentCount ?? 0}`, helper: "报到完成" },
-    { label: "今日签到", value: `${selectedCohort?.stats.checkInRecordCount ?? 0}`, helper: "签到记录" },
-    { label: "汇报提交", value: `${selectedCohort?.stats.submissionCount ?? 0}`, helper: "任务汇报" },
+  const managerPortalDataItems: Array<{
+    label: string;
+    value: string;
+    helper: string;
+    Icon: typeof Users;
+    tone: "blue" | "emerald" | "amber" | "violet";
+  }> = [
+    { label: "参训教师", value: `${selectedCohort?.stats.participantCount ?? 0}`, helper: "名单人数", Icon: Users, tone: "blue" },
+    { label: "已报到", value: `${selectedCohort?.stats.presentCount ?? 0}`, helper: "报到完成", Icon: CheckCircle2, tone: "emerald" },
+    { label: "今日签到", value: `${selectedCohort?.stats.checkInRecordCount ?? 0}`, helper: "签到记录", Icon: MapPin, tone: "amber" },
+    { label: "汇报提交", value: `${selectedCohort?.stats.submissionCount ?? 0}`, helper: "任务汇报", Icon: Award, tone: "violet" },
   ];
   const teacherMobilePriorityItems = [
     ...(teacherPendingCheckInCount > 0
@@ -3572,6 +3603,111 @@ export default function TeacherTrainingTab() {
         { label: "请假申请", section: "leave", Icon: FileCheck },
         { label: "个人信息", section: "profile", Icon: User },
       ];
+  const openTeacherTrainingPortalSection = (section: Workspace.TeacherTrainingSectionKey) => {
+    setTeacherTrainingPortalUserMenuOpen(false);
+    openTeacherTrainingSection(section);
+  };
+  const renderTeacherTrainingPortalTopbar = (navLabel: string) => (
+    <header className="tt-portal-topbar" aria-label="省培门户导航">
+      <div className="tt-portal-topbar-inner">
+        <div className="tt-portal-brand">
+          <span className="tt-portal-brand-mark">
+            <Image
+              alt="南京铁道职业技术学院校徽"
+              className="h-full w-full object-contain"
+              height={44}
+              priority
+              src="/brand/njrts-logo.png"
+              width={44}
+            />
+          </span>
+          <span className="min-w-0">
+            <strong>省培管理平台</strong>
+            <small>南京铁道职业技术学院教师培训管理系统</small>
+          </span>
+        </div>
+        <nav className="tt-portal-topnav" aria-label={navLabel}>
+          {teacherTrainingPortalNavItems.map((item) => {
+            const isHomeActive = item.section === "overview" && item.label === "首页";
+            return (
+              <button
+                key={item.label}
+                aria-label={`进入${item.label}`}
+                className={`tt-portal-nav-item ${isHomeActive ? "is-active" : ""}`}
+                onClick={() => openTeacherTrainingPortalSection(item.section)}
+                title={`进入${item.label}`}
+                type="button"
+              >
+                <item.Icon className="h-4 w-4" />
+                <span>{item.label}</span>
+                {item.caret ? <ChevronDown className="h-3.5 w-3.5 opacity-80" /> : null}
+              </button>
+            );
+          })}
+        </nav>
+        <div className="tt-portal-topuser">
+          <button
+            aria-label={canManage ? "查看待办" : "查看通知"}
+            className="tt-portal-icon-button"
+            onClick={() => openTeacherTrainingPortalSection("overview")}
+            title={canManage ? "查看待办" : "查看通知"}
+            type="button"
+          >
+            <Bell className="h-4 w-4" />
+            {teacherTrainingPortalNotificationCount > 0 ? (
+              <span>{teacherTrainingPortalNotificationCount}</span>
+            ) : null}
+          </button>
+          <button aria-label="帮助" className="tt-portal-icon-button" title="帮助" type="button">
+            <HelpCircle className="h-4 w-4" />
+          </button>
+          <div className="tt-portal-user-menu-wrap">
+            <button
+              aria-expanded={teacherTrainingPortalUserMenuOpen}
+              aria-label={`打开个人菜单：${teacherTrainingPortalUserName}`}
+              className="tt-portal-user-button"
+              onClick={() => setTeacherTrainingPortalUserMenuOpen((open) => !open)}
+              title={`打开个人菜单：${teacherTrainingPortalUserName}`}
+              type="button"
+            >
+              <span className="tt-portal-avatar">{teacherTrainingPortalUserName.slice(0, 1)}</span>
+              <span className="min-w-0">
+                <strong>{teacherTrainingPortalUserName}</strong>
+                <small>{teacherTrainingPortalRoleLabel}</small>
+              </span>
+              <ChevronDown className={`h-3.5 w-3.5 opacity-80 transition ${teacherTrainingPortalUserMenuOpen ? "rotate-180" : ""}`} />
+            </button>
+            {teacherTrainingPortalUserMenuOpen ? (
+              <div className="tt-portal-user-menu">
+                <button
+                  aria-label="进入个人信息"
+                  onClick={() => openTeacherTrainingPortalSection("profile")}
+                  title="进入个人信息"
+                  type="button"
+                >
+                  <User className="h-4 w-4" />
+                  <span>个人信息</span>
+                </button>
+                <button
+                  aria-label="退出登录"
+                  className="danger"
+                  onClick={() => {
+                    setTeacherTrainingPortalUserMenuOpen(false);
+                    void handleLogout();
+                  }}
+                  title="退出登录"
+                  type="button"
+                >
+                  <LogOut className="h-4 w-4" />
+                  <span>退出登录</span>
+                </button>
+              </div>
+            ) : null}
+          </div>
+        </div>
+      </div>
+    </header>
+  );
 
   return (
     <div className={isTeacherTrainingOverview ? "tt-portal-overview-host" : "space-y-4"}>
@@ -3685,62 +3821,7 @@ export default function TeacherTrainingTab() {
 
           {!canManage && showTeacherTrainingSection("overview") ? (
             <section aria-label="省培教师首页" className="tt-portal-page-shell">
-              <header className="tt-portal-topbar" aria-label="省培门户导航">
-                <div className="tt-portal-topbar-inner">
-                  <div className="tt-portal-brand">
-                    <span className="tt-portal-brand-mark">
-                      <ClipboardCheck className="h-6 w-6" />
-                    </span>
-                    <span className="min-w-0">
-                      <strong>省培管理平台</strong>
-                      <small>江苏省职业院校教师培训管理系统</small>
-                    </span>
-                  </div>
-                  <nav className="tt-portal-topnav" aria-label="省培首页导航">
-                    {teacherTrainingPortalNavItems.map((item) => {
-                      const isHomeActive = item.section === "overview" && item.label === "首页";
-                      return (
-                        <button
-                          key={item.label}
-                          aria-label={`进入${item.label}`}
-                          className={`tt-portal-nav-item ${isHomeActive ? "is-active" : ""}`}
-                          onClick={() => openTeacherTrainingSection(item.section)}
-                          title={`进入${item.label}`}
-                          type="button"
-                        >
-                          <item.Icon className="h-4 w-4" />
-                          <span>{item.label}</span>
-                          {item.caret ? <ChevronDown className="h-3.5 w-3.5 opacity-80" /> : null}
-                        </button>
-                      );
-                    })}
-                  </nav>
-                  <div className="tt-portal-topuser">
-                    <button aria-label="查看通知" className="tt-portal-icon-button" type="button">
-                      <Bell className="h-4 w-4" />
-                      {teacherTrainingPortalNotificationCount > 0 ? (
-                        <span>{teacherTrainingPortalNotificationCount}</span>
-                      ) : null}
-                    </button>
-                    <button aria-label="帮助" className="tt-portal-icon-button" type="button">
-                      <HelpCircle className="h-4 w-4" />
-                    </button>
-                    <button
-                      aria-label="个人信息"
-                      className="tt-portal-user-button"
-                      onClick={() => openTeacherTrainingSection("profile")}
-                      type="button"
-                    >
-                      <span className="tt-portal-avatar">{teacherTrainingPortalUserName.slice(0, 1)}</span>
-                      <span className="min-w-0">
-                        <strong>{teacherTrainingPortalUserName}</strong>
-                        <small>{teacherTrainingPortalRoleLabel}</small>
-                      </span>
-                      <ChevronDown className="h-3.5 w-3.5 opacity-80" />
-                    </button>
-                  </div>
-                </div>
-              </header>
+              {renderTeacherTrainingPortalTopbar("省培首页导航")}
 
               <main className="tt-portal-page-main">
                 <section className="tt-portal-hero" aria-label="当前培训班">
@@ -3780,6 +3861,16 @@ export default function TeacherTrainingTab() {
                       <div>
                         <p className="tt-block-title">省培服务</p>
                       </div>
+                      <button
+                        aria-label="查看更多省培服务"
+                        className="tt-portal-link"
+                        onClick={() => openTeacherTrainingPortalSection("courses")}
+                        title="查看更多省培服务"
+                        type="button"
+                      >
+                        查看更多
+                        <ChevronDown className="h-3.5 w-3.5 -rotate-90" />
+                      </button>
                     </div>
                     <div className="tt-portal-service-grid">
                       {teacherPortalServiceLinks.map((item) => (
@@ -3843,6 +3934,16 @@ export default function TeacherTrainingTab() {
                   <section className="tt-portal-panel">
                     <div className="tt-portal-panel-header">
                       <p className="tt-block-title">我的待办</p>
+                      <button
+                        aria-label="查看全部待办"
+                        className="tt-portal-link"
+                        onClick={() => openTeacherTrainingPortalSection(teacherPrimaryAction?.section ?? "tasks")}
+                        title="查看全部待办"
+                        type="button"
+                      >
+                        全部待办
+                        <ChevronDown className="h-3.5 w-3.5 -rotate-90" />
+                      </button>
                     </div>
                     <div className="tt-portal-list">
                       {teacherMobilePriorityItems.length > 0 ? (
@@ -3872,6 +3973,16 @@ export default function TeacherTrainingTab() {
                   <section className="tt-portal-panel">
                     <div className="tt-portal-panel-header">
                       <p className="tt-block-title">培训通知</p>
+                      <button
+                        aria-label="查看更多培训通知"
+                        className="tt-portal-link"
+                        onClick={() => openTeacherTrainingPortalSection("overview")}
+                        title="查看更多培训通知"
+                        type="button"
+                      >
+                        查看更多
+                        <ChevronDown className="h-3.5 w-3.5 -rotate-90" />
+                      </button>
                     </div>
                     <div className="tt-portal-notice-list">
                       <div className="tt-portal-notice-item">
@@ -3899,8 +4010,11 @@ export default function TeacherTrainingTab() {
                     <div className="tt-portal-data-grid">
                       {teacherPortalDataItems.map((item) => (
                         <div key={item.label} className="tt-portal-data-tile">
-                          <p>{item.label}</p>
+                          <span className={`tt-portal-data-icon tt-portal-data-icon-${item.tone}`}>
+                            <item.Icon className="h-7 w-7" />
+                          </span>
                           <strong>{item.value}</strong>
+                          <p>{item.label}</p>
                           <span>{item.helper}</span>
                         </div>
                       ))}
@@ -3934,57 +4048,7 @@ export default function TeacherTrainingTab() {
 
           {canManage && showTeacherTrainingSection("overview") ? (
             <section aria-label="省培管理端首页" className="tt-portal-page-shell">
-              <header className="tt-portal-topbar" aria-label="省培门户导航">
-                <div className="tt-portal-topbar-inner">
-                  <div className="tt-portal-brand">
-                    <span className="tt-portal-brand-mark">
-                      <ClipboardCheck className="h-6 w-6" />
-                    </span>
-                    <span className="min-w-0">
-                      <strong>省培管理平台</strong>
-                      <small>江苏省职业院校教师培训管理系统</small>
-                    </span>
-                  </div>
-                  <nav className="tt-portal-topnav" aria-label="省培管理首页导航">
-                    {teacherTrainingPortalNavItems.map((item) => {
-                      const isHomeActive = item.section === "overview" && item.label === "首页";
-                      return (
-                        <button
-                          key={item.label}
-                          aria-label={`进入${item.label}`}
-                          className={`tt-portal-nav-item ${isHomeActive ? "is-active" : ""}`}
-                          onClick={() => openTeacherTrainingSection(item.section)}
-                          title={`进入${item.label}`}
-                          type="button"
-                        >
-                          <item.Icon className="h-4 w-4" />
-                          <span>{item.label}</span>
-                          {item.caret ? <ChevronDown className="h-3.5 w-3.5 opacity-80" /> : null}
-                        </button>
-                      );
-                    })}
-                  </nav>
-                  <div className="tt-portal-topuser">
-                    <button aria-label="查看待办" className="tt-portal-icon-button" type="button">
-                      <Bell className="h-4 w-4" />
-                      {teacherTrainingPortalNotificationCount > 0 ? (
-                        <span>{teacherTrainingPortalNotificationCount}</span>
-                      ) : null}
-                    </button>
-                    <button aria-label="帮助" className="tt-portal-icon-button" type="button">
-                      <HelpCircle className="h-4 w-4" />
-                    </button>
-                    <button className="tt-portal-user-button" type="button">
-                      <span className="tt-portal-avatar">{teacherTrainingPortalUserName.slice(0, 1)}</span>
-                      <span className="min-w-0">
-                        <strong>{teacherTrainingPortalUserName}</strong>
-                        <small>{teacherTrainingPortalRoleLabel}</small>
-                      </span>
-                      <ChevronDown className="h-3.5 w-3.5 opacity-80" />
-                    </button>
-                  </div>
-                </div>
-              </header>
+              {renderTeacherTrainingPortalTopbar("省培管理首页导航")}
 
               <main className="tt-portal-page-main">
                 <section className="tt-portal-hero tt-portal-hero-manager" aria-label="当前培训班">
@@ -4022,7 +4086,16 @@ export default function TeacherTrainingTab() {
                   <section aria-label="省培服务" className="tt-portal-panel">
                     <div className="tt-portal-panel-header">
                       <p className="tt-block-title">省培服务</p>
-                      <span className="tt-pill">{managerPortalServiceLinks.length} 项</span>
+                      <button
+                        aria-label="查看更多省培服务"
+                        className="tt-portal-link"
+                        onClick={() => openTeacherTrainingPortalSection("cohorts")}
+                        title="查看更多省培服务"
+                        type="button"
+                      >
+                        查看更多
+                        <ChevronDown className="h-3.5 w-3.5 -rotate-90" />
+                      </button>
                     </div>
                     <div className="tt-portal-service-grid">
                       {managerPortalServiceLinks.map((item) => (
@@ -4088,7 +4161,16 @@ export default function TeacherTrainingTab() {
                   <section className="tt-portal-panel">
                     <div className="tt-portal-panel-header">
                       <p className="tt-block-title">待处理事项</p>
-                      <span className="tt-pill tt-pill-neutral">当前班次</span>
+                      <button
+                        aria-label="查看全部待办"
+                        className="tt-portal-link"
+                        onClick={() => openTeacherTrainingPortalSection("leave")}
+                        title="查看全部待办"
+                        type="button"
+                      >
+                        全部待办
+                        <ChevronDown className="h-3.5 w-3.5 -rotate-90" />
+                      </button>
                     </div>
                     <div className="tt-portal-list">
                       {managerCommandTodoCards.map((item) => (
@@ -4126,6 +4208,16 @@ export default function TeacherTrainingTab() {
                   <section className="tt-portal-panel">
                     <div className="tt-portal-panel-header">
                       <p className="tt-block-title">培训通知</p>
+                      <button
+                        aria-label="查看更多培训通知"
+                        className="tt-portal-link"
+                        onClick={() => openTeacherTrainingPortalSection("overview")}
+                        title="查看更多培训通知"
+                        type="button"
+                      >
+                        查看更多
+                        <ChevronDown className="h-3.5 w-3.5 -rotate-90" />
+                      </button>
                     </div>
                     <div className="tt-portal-notice-list">
                       <div className="tt-portal-notice-item">
@@ -4155,7 +4247,7 @@ export default function TeacherTrainingTab() {
                         <button
                           key={item.label}
                           aria-label={`查看${item.label}`}
-                          className="tt-portal-data-tile text-left"
+                          className="tt-portal-data-tile"
                           onClick={() => {
                             if (item.label === "参训教师") openTeacherTrainingSection("participants");
                             if (item.label === "已报到") {
@@ -4171,8 +4263,11 @@ export default function TeacherTrainingTab() {
                           title={`查看${item.label}`}
                           type="button"
                         >
-                          <p>{item.label}</p>
+                          <span className={`tt-portal-data-icon tt-portal-data-icon-${item.tone}`}>
+                            <item.Icon className="h-7 w-7" />
+                          </span>
                           <strong>{item.value}</strong>
+                          <p>{item.label}</p>
                           <span>{item.helper}</span>
                         </button>
                       ))}
