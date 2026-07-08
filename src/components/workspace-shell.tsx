@@ -506,6 +506,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
     teacherTrainingSidebarSections.find((item) => item.key === activeTeacherTrainingSection) ??
     teacherTrainingSidebarSections[0] ??
     null;
+  const isTeacherTrainingPortalOverview = isTeacherTrainingPlatform && activeTeacherTrainingSection === "overview";
   const topbarPageTitle = isTeacherTrainingPlatform
     ? activeTeacherTrainingSidebarItem?.label ?? "省培管理"
     : safeActiveTab === "overview"
@@ -545,9 +546,17 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
   const [bugFeedbackError, setBugFeedbackError] = useState<string | null>(null);
   const [bugFeedbackSuccess, setBugFeedbackSuccess] = useState<string | null>(null);
   const [bugFeedbackSubmitting, setBugFeedbackSubmitting] = useState(false);
-  const workspaceMainClassName = isTeacherTrainingPlatform
-    ? "workspace-depth-bg workspace-shell-fade-in overflow-x-hidden px-4 pt-4 pb-8 md:px-6 md:pt-6 md:pb-8"
-    : "workspace-depth-bg workspace-shell-fade-in min-h-screen overflow-x-hidden p-4 pb-14 md:p-6 md:pb-14";
+  const workspaceMainClassName = isTeacherTrainingPortalOverview
+    ? "workspace-shell-fade-in min-h-screen overflow-x-hidden bg-white"
+    : isTeacherTrainingPlatform
+      ? "workspace-depth-bg workspace-shell-fade-in overflow-x-hidden px-4 pt-4 pb-8 md:px-6 md:pt-6 md:pb-8"
+      : "workspace-depth-bg workspace-shell-fade-in min-h-screen overflow-x-hidden p-4 pb-14 md:p-6 md:pb-14";
+  const workspaceContentFrameClassName = isTeacherTrainingPortalOverview
+    ? "relative z-[1] flex w-full flex-col overflow-x-hidden"
+    : "relative z-[1] mx-auto flex max-w-[1500px] flex-col gap-4 overflow-x-hidden xl:flex-row";
+  const workspaceTabContentClassName = isTeacherTrainingPortalOverview
+    ? "mx-0 mt-0 flex max-w-none flex-col gap-0"
+    : "mx-auto mt-4 flex max-w-[1200px] flex-col gap-4";
 
   const submitBugFeedback = async () => {
     const title = bugFeedbackDraft.title.trim();
@@ -814,8 +823,8 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
     <>
       <div className="flex min-h-screen flex-col">
       <main className={`${workspaceMainClassName} flex-1`}>
-        <div aria-hidden className="workspace-orb-field" />
-        <div className="relative z-[1] mx-auto flex max-w-[1500px] flex-col gap-4 overflow-x-hidden xl:flex-row">
+        {!isTeacherTrainingPortalOverview ? <div aria-hidden className="workspace-orb-field" /> : null}
+        <div className={workspaceContentFrameClassName}>
           {mobileSidebarOpen && !isTeacherTrainingPlatform ? (
             <div
               className="fixed inset-0 z-40 bg-slate-950/40 xl:hidden"
@@ -968,6 +977,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
           ) : null}
 
           <section className="min-w-0 flex-1 overflow-visible">
+            {!isTeacherTrainingPortalOverview ? (
             <header className="topbar-enhanced relative z-50 mx-auto max-w-[1200px] overflow-visible">
               <div className="topbar-left">
                 <div className="flex shrink-0 items-center gap-3">
@@ -1136,8 +1146,9 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
                 </div>
               </div>
             </header>
+            ) : null}
 
-            {isTeacherTrainingPlatform ? (
+            {isTeacherTrainingPlatform && !isTeacherTrainingPortalOverview ? (
               <nav aria-label="省培顶部模块" className="teacher-training-module-nav mx-auto mt-4 max-w-[1200px]">
                 {teacherTrainingSidebarSections.map((item) => {
                   const Icon = item.icon;
@@ -1162,7 +1173,7 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
               </nav>
             ) : null}
 
-            <div className="mx-auto mt-4 flex max-w-[1200px] flex-col gap-4">
+            <div className={workspaceTabContentClassName}>
               {tabContent}
             </div>
           </section>

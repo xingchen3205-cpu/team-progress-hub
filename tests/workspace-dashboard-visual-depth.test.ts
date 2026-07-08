@@ -77,7 +77,7 @@ test("workspace and login expose user and support organization footer", () => {
     assert.match(source, /用户单位：南京铁道职业技术学院/);
     assert.match(source, /支持单位：南京君如玉科技有限公司/);
   }
-  assert.match(shellSource, /<footer className="pointer-events-none mt-8 hidden/);
+  assert.match(shellSource, /<footer className="pointer-events-none hidden/);
   assert.doesNotMatch(shellSource.match(/function WorkspaceUnitFooter\(\) \{[\s\S]*?<\/footer>/)?.[0] ?? "", /\bfixed\b/);
 });
 
@@ -186,7 +186,7 @@ test("workspace topbar matches the requested home layout with live weather", () 
   );
 
   const topbarStart = source.indexOf('<header className="topbar-enhanced relative z-50 mx-auto max-w-[1200px]');
-  const contentStart = source.indexOf('<div className="mx-auto mt-4 flex max-w-[1200px] flex-col gap-4">', topbarStart);
+  const contentStart = source.indexOf('<div className={workspaceTabContentClassName}>', topbarStart);
   const topbarBlock = source.slice(topbarStart, contentStart);
   const css = readFileSync(path.join(process.cwd(), "src/app/globals.css"), "utf8");
   const pageStackCss = css.slice(

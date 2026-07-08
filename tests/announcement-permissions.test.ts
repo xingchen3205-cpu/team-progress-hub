@@ -26,7 +26,7 @@ test("announcement publishing is limited to global administrator roles", () => {
 test("topbar hides the publish announcement action for roles without permission", () => {
   const shellSource = readSource("src/components/workspace-shell.tsx");
   const topbarStart = shellSource.indexOf('<header className="topbar-enhanced relative z-50 mx-auto max-w-[1200px]');
-  const contentStart = shellSource.indexOf('<div className="mx-auto mt-4 flex max-w-[1200px] flex-col gap-4">', topbarStart);
+  const contentStart = shellSource.indexOf('<div className={workspaceTabContentClassName}>', topbarStart);
   const topbarBlock = shellSource.slice(topbarStart, contentStart);
 
   assert.match(topbarBlock, /\{permissions\.canPublishAnnouncement \? \(/);

@@ -4430,130 +4430,266 @@ a:hover {
   color: #047857;
 }
 
-/* 省培门户首页：参考校内门户的横幅 + 服务入口 + 通知数据布局 */
-.tt-portal-hero {
+/* 省培门户首页：对齐校内服务门户的深蓝顶栏、横幅、两栏业务入口 */
+.tt-portal-overview-host {
   position: relative;
-  display: grid;
-  min-height: clamp(220px, 18vw, 286px);
-  grid-template-columns: minmax(0, 1fr) auto;
-  align-items: end;
-  gap: 20px;
+}
+.tt-portal-page-shell {
+  position: relative;
+  left: 50%;
+  width: 100vw;
+  margin-left: -50vw;
   overflow: hidden;
-  border: 1px solid rgba(191, 219, 254, 0.82);
-  border-radius: 10px;
   background:
-    linear-gradient(90deg, rgba(5, 39, 93, 0.88) 0%, rgba(12, 63, 137, 0.72) 38%, rgba(15, 88, 160, 0.2) 72%, rgba(255, 255, 255, 0.06) 100%),
-    url("/teacher-training-campus-hero.png") center / cover no-repeat;
-  padding: clamp(22px, 3vw, 38px);
-  box-shadow: 0 18px 46px rgba(15, 71, 137, 0.16);
+    linear-gradient(180deg, rgba(255, 255, 255, 0.68), rgba(246, 249, 253, 0.96) 44%, #ffffff 100%),
+    radial-gradient(circle at 88% 28%, rgba(147, 197, 253, 0.22), transparent 34%),
+    #f5f7fb;
+  color: #17233a;
 }
-.tt-portal-hero::before {
-  content: "";
-  position: absolute;
-  inset: 0;
-  background:
-    linear-gradient(180deg, rgba(2, 6, 23, 0.1), rgba(2, 6, 23, 0.32)),
-    linear-gradient(90deg, rgba(5, 26, 67, 0.58), transparent 58%);
-  pointer-events: none;
-}
-.tt-portal-hero-manager {
-  min-height: clamp(220px, 18vw, 286px);
-}
-.tt-portal-hero-copy {
+.tt-portal-topbar {
   position: relative;
-  z-index: 1;
-  max-width: 820px;
+  z-index: 5;
+  min-height: 72px;
+  background: linear-gradient(90deg, #0b3776 0%, #0d4388 52%, #0a3474 100%);
+  color: #ffffff;
+  box-shadow: 0 6px 18px rgba(8, 38, 82, 0.2);
 }
-.tt-portal-kicker {
+.tt-portal-topbar-inner {
+  display: flex;
+  min-height: 72px;
+  max-width: 1392px;
+  align-items: stretch;
+  gap: 16px;
+  margin: 0 auto;
+  padding: 0 28px;
+}
+.tt-portal-brand {
+  display: flex;
+  min-width: 300px;
+  align-items: center;
+  gap: 12px;
+}
+.tt-portal-brand-mark {
+  display: inline-flex;
+  height: 44px;
+  width: 44px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(219, 234, 254, 0.46);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+}
+.tt-portal-brand strong,
+.tt-portal-user-button strong {
+  display: block;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 850;
+  letter-spacing: 0;
+}
+.tt-portal-brand strong {
+  font-size: 24px;
+  line-height: 1.1;
+}
+.tt-portal-brand small,
+.tt-portal-user-button small {
+  display: block;
+  overflow: hidden;
+  color: rgba(219, 234, 254, 0.82);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 650;
+  line-height: 1.4;
+}
+.tt-portal-topnav {
+  display: flex;
+  min-width: 0;
+  flex: 1;
+  align-items: stretch;
+  justify-content: center;
+  gap: 2px;
+}
+.tt-portal-nav-item {
   display: inline-flex;
   align-items: center;
-  border-left: 4px solid rgba(255, 255, 255, 0.92);
-  background: rgba(15, 23, 42, 0.28);
-  padding: 5px 12px;
-  font-size: 13px;
-  font-weight: 750;
-  color: rgba(255, 255, 255, 0.94);
-  text-shadow: 0 1px 2px rgba(15, 23, 42, 0.36);
+  justify-content: center;
+  gap: 7px;
+  border-bottom: 3px solid transparent;
+  padding: 0 16px;
+  color: rgba(255, 255, 255, 0.9);
+  font-size: 15px;
+  font-weight: 760;
+  transition:
+    background-color 180ms ease,
+    color 180ms ease;
 }
-.tt-portal-hero h3 {
-  margin-top: 14px;
+.tt-portal-nav-item:hover,
+.tt-portal-nav-item.is-active {
+  background: rgba(255, 255, 255, 0.1);
+  border-bottom-color: rgba(255, 255, 255, 0.88);
   color: #ffffff;
-  font-size: clamp(34px, 4.2vw, 56px);
-  font-weight: 900;
-  line-height: 1.05;
-  letter-spacing: 0;
-  text-shadow: 0 3px 14px rgba(15, 23, 42, 0.36);
 }
-.tt-portal-cohort-card {
-  display: grid;
-  max-width: min(760px, 100%);
-  gap: 6px;
-  margin-top: 16px;
-  border: 1px solid rgba(255, 255, 255, 0.2);
-  border-radius: 10px;
-  background: rgba(6, 29, 75, 0.46);
-  padding: 12px 14px;
-  color: #ffffff;
-  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.16);
-  backdrop-filter: blur(8px);
-}
-.tt-portal-cohort-label {
-  color: rgba(219, 234, 254, 0.92);
-  font-size: 12px;
-  font-weight: 850;
-}
-.tt-portal-cohort-card strong {
-  color: #ffffff;
-  font-size: clamp(16px, 1.7vw, 22px);
-  font-weight: 850;
-  line-height: 1.35;
-}
-.tt-portal-cohort-card span:last-child {
-  color: rgba(255, 255, 255, 0.82);
-  font-size: 13px;
-  font-weight: 650;
-  line-height: 1.45;
-}
-.tt-portal-hero-actions {
-  position: relative;
-  z-index: 1;
+.tt-portal-topuser {
   display: flex;
-  flex-wrap: wrap;
+  min-width: 250px;
   align-items: center;
   justify-content: flex-end;
   gap: 10px;
 }
-.tt-portal-primary-button {
+.tt-portal-icon-button {
+  position: relative;
   display: inline-flex;
-  height: 40px;
+  height: 38px;
+  width: 38px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  color: rgba(255, 255, 255, 0.92);
+}
+.tt-portal-icon-button:hover,
+.tt-portal-user-button:hover {
+  background: rgba(255, 255, 255, 0.11);
+}
+.tt-portal-icon-button span {
+  position: absolute;
+  top: 1px;
+  right: 0;
+  min-width: 18px;
+  border-radius: 999px;
+  background: #ef4444;
+  padding: 1px 5px;
+  color: #ffffff;
+  font-size: 11px;
+  font-weight: 850;
+  line-height: 16px;
+  text-align: center;
+}
+.tt-portal-user-button {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 9px;
+  border-radius: 999px;
+  padding: 6px 9px 6px 6px;
+  color: #ffffff;
+  text-align: left;
+  transition: background-color 180ms ease;
+}
+.tt-portal-avatar {
+  display: inline-flex;
+  height: 38px;
+  width: 38px;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  background: #2563eb;
+  color: #ffffff;
+  font-size: 17px;
+  font-weight: 900;
+}
+.tt-portal-page-main {
+  max-width: 1392px;
+  margin: 0 auto;
+  padding: 0 28px 34px;
+}
+.tt-portal-hero {
+  position: relative;
+  display: grid;
+  min-height: 248px;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 24px;
+  overflow: hidden;
+  border-radius: 0;
+  background:
+    linear-gradient(90deg, rgba(5, 30, 77, 0.88) 0%, rgba(8, 58, 126, 0.68) 39%, rgba(5, 73, 133, 0.18) 76%),
+    url("/teacher-training-campus-hero.png") center / cover no-repeat;
+  padding: 38px 56px;
+}
+.tt-portal-hero::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0 0;
+  height: 42px;
+  background: linear-gradient(180deg, transparent, rgba(245, 247, 251, 0.18));
+  pointer-events: none;
+}
+.tt-portal-hero-copy {
+  position: relative;
+  z-index: 1;
+  max-width: 920px;
+}
+.tt-portal-kicker {
+  display: inline-flex;
+  align-items: center;
+  border-left: 4px solid rgba(255, 255, 255, 0.96);
+  background: rgba(7, 25, 59, 0.44);
+  padding: 6px 13px;
+  color: rgba(255, 255, 255, 0.94);
+  font-size: 14px;
+  font-weight: 760;
+}
+.tt-portal-hero h3 {
+  max-width: 980px;
+  margin-top: 15px;
+  color: #ffffff;
+  font-size: clamp(26px, 2.6vw, 42px);
+  font-weight: 900;
+  letter-spacing: 0;
+  line-height: 1.22;
+  text-shadow: 0 3px 13px rgba(8, 22, 51, 0.38);
+}
+.tt-portal-hero-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px;
+  margin-top: 15px;
+  color: rgba(239, 246, 255, 0.96);
+  font-size: 14px;
+  font-weight: 800;
+}
+.tt-portal-hero-meta span {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+.tt-portal-primary-button {
+  position: relative;
+  z-index: 1;
+  display: inline-flex;
+  height: 44px;
   align-items: center;
   justify-content: center;
   gap: 8px;
-  border-radius: 10px;
+  border-radius: 4px;
   background: #ffffff;
-  padding: 0 14px;
-  color: #155bb0;
-  font-size: 13px;
-  font-weight: 800;
-  box-shadow: 0 12px 28px rgba(15, 23, 42, 0.16);
+  padding: 0 18px;
+  color: #0b55b7;
+  font-size: 14px;
+  font-weight: 850;
+  box-shadow: 0 10px 24px rgba(8, 22, 51, 0.2);
   transition:
     transform 180ms ease,
-    background-color 180ms ease,
-    color 180ms ease;
+    background-color 180ms ease;
 }
 .tt-portal-primary-button:hover {
   transform: translateY(-1px);
   background: #eff6ff;
-  color: #0f4fa8;
 }
 .tt-portal-primary-button:active {
   transform: translateY(0);
 }
 .tt-portal-grid {
   display: grid;
-  grid-template-columns: minmax(0, 1.08fr) minmax(330px, 0.92fr);
+  grid-template-columns: minmax(0, 1.06fr) minmax(360px, 0.94fr);
   gap: 16px;
   align-items: start;
+  padding-top: 16px;
 }
 .tt-portal-main,
 .tt-portal-side {
@@ -4564,11 +4700,11 @@ a:hover {
 .tt-portal-panel {
   min-width: 0;
   overflow: hidden;
-  border: 1px solid rgba(203, 213, 225, 0.82);
-  border-radius: 14px;
-  background: rgba(255, 255, 255, 0.95);
-  padding: 16px;
-  box-shadow: 0 16px 42px rgba(26, 111, 212, 0.1);
+  border: 1px solid #dbe5f2;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.98);
+  padding: 18px 20px;
+  box-shadow: 0 8px 24px rgba(24, 63, 111, 0.08);
 }
 .tt-portal-panel-header {
   display: flex;
@@ -4576,7 +4712,13 @@ a:hover {
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  margin-bottom: 14px;
+  margin-bottom: 15px;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #e2ebf6;
+}
+.tt-portal-panel .tt-block-title {
+  color: #10234d;
+  font-size: 17px;
 }
 .tt-portal-service-grid {
   display: grid;
@@ -4584,7 +4726,6 @@ a:hover {
   gap: 12px;
 }
 .tt-portal-service-card,
-.tt-portal-mini-card,
 .tt-portal-run-card,
 .tt-portal-list-item,
 .tt-portal-data-tile {
@@ -4596,97 +4737,85 @@ a:hover {
 .tt-portal-service-card {
   position: relative;
   display: grid;
-  grid-template-columns: 46px minmax(0, 1fr);
+  grid-template-columns: 54px minmax(0, 1fr);
   min-width: 0;
-  min-height: 92px;
+  min-height: 94px;
   align-items: center;
   gap: 14px;
-  border: 1px solid rgba(226, 232, 240, 0.95);
-  border-radius: 12px;
-  background: linear-gradient(180deg, #ffffff, rgba(248, 250, 252, 0.92));
-  padding: 14px;
+  border: 1px solid #dfe8f4;
+  border-radius: 4px;
+  background: #ffffff;
+  padding: 14px 16px;
   text-align: left;
 }
 .tt-portal-service-card:hover,
-.tt-portal-mini-card:hover,
 .tt-portal-run-card:hover,
 .tt-portal-list-item:hover,
 .tt-portal-data-tile:hover {
   transform: translateY(-1px);
-  border-color: rgba(37, 99, 235, 0.34);
-  background: rgba(239, 246, 255, 0.66);
+  border-color: #93b9ee;
+  background: #f7fbff;
 }
 .tt-portal-service-icon,
 .tt-portal-run-icon,
 .tt-portal-list-icon {
   display: inline-flex;
-  height: 42px;
-  width: 42px;
+  height: 48px;
+  width: 48px;
   align-items: center;
   justify-content: center;
-  border-radius: 10px;
-  background: rgba(239, 246, 255, 0.9);
-  color: #1d4ed8;
+  border-radius: 4px;
+  background: #edf5ff;
+  color: #1f64c8;
 }
 .tt-portal-count {
   position: absolute;
-  top: 10px;
+  top: 9px;
   right: 10px;
+  min-width: 22px;
   border-radius: 999px;
-  background: rgba(37, 99, 235, 0.1);
+  background: #1f6de0;
   padding: 2px 7px;
-  color: #1d4ed8;
+  color: #ffffff;
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 850;
+  line-height: 16px;
+  text-align: center;
 }
 .tt-portal-link {
   display: inline-flex;
   height: 30px;
   align-items: center;
-  border-radius: 8px;
-  background: rgba(239, 246, 255, 0.9);
+  border-radius: 4px;
+  background: #eef5ff;
   padding: 0 10px;
-  color: #1d4ed8;
+  color: #1d5ebd;
   font-size: 12px;
-  font-weight: 800;
+  font-weight: 820;
 }
 .tt-portal-link:hover {
-  background: rgba(219, 234, 254, 0.96);
+  background: #dbeafe;
 }
 .tt-portal-course-row {
   display: grid;
-  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-columns: 126px minmax(0, 1fr);
   align-items: center;
-  gap: 12px;
-  border: 1px solid rgba(226, 232, 240, 0.95);
-  border-radius: 12px;
+  gap: 16px;
+  border: 1px solid #dfe8f4;
+  border-radius: 4px;
   background: #ffffff;
-  padding: 12px;
+  padding: 14px 16px;
 }
 .tt-portal-course-date {
   display: inline-flex;
-  min-width: 86px;
+  min-width: 104px;
   justify-content: center;
-  border-radius: 10px;
-  background: rgba(239, 246, 255, 0.9);
+  border-radius: 4px;
+  background: #eef5ff;
   padding: 9px 10px;
-  color: #1d4ed8;
+  color: #184f9d;
   font-size: 12px;
-  font-weight: 800;
-}
-.tt-portal-status-grid {
-  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
-}
-.tt-portal-mini-card {
-  display: flex;
-  min-width: 0;
-  align-items: center;
-  gap: 10px;
-  border: 1px solid rgba(226, 232, 240, 0.95);
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.98);
-  padding: 11px 12px;
-  text-align: left;
+  font-weight: 850;
 }
 .tt-portal-run-grid {
   display: grid;
@@ -4698,8 +4827,8 @@ a:hover {
   min-width: 0;
   align-items: center;
   gap: 11px;
-  border: 1px solid rgba(226, 232, 240, 0.95);
-  border-radius: 12px;
+  border: 1px solid #dfe8f4;
+  border-radius: 4px;
   background: #ffffff;
   padding: 12px;
   text-align: left;
@@ -4716,100 +4845,163 @@ a:hover {
   min-width: 0;
   align-items: center;
   gap: 10px;
-  border: 1px solid rgba(226, 232, 240, 0.9);
-  border-radius: 12px;
+  border: 1px solid #e1e9f4;
+  border-radius: 4px;
   background: #ffffff;
   padding: 10px 11px;
   text-align: left;
 }
 .tt-portal-list-icon-warning {
-  background: rgba(254, 243, 199, 0.9);
+  background: #fff7e6;
   color: #b45309;
 }
 .tt-portal-list-icon-danger {
-  background: rgba(255, 228, 230, 0.9);
+  background: #fff1f2;
   color: #be123c;
 }
 .tt-portal-list-icon-success {
-  background: rgba(209, 250, 229, 0.9);
+  background: #ecfdf5;
   color: #047857;
 }
 .tt-portal-notice-list {
   display: grid;
   gap: 0;
-  border-top: 1px solid rgba(226, 232, 240, 0.9);
 }
 .tt-portal-notice-item {
   display: grid;
-  gap: 4px;
-  border-bottom: 1px solid rgba(226, 232, 240, 0.9);
+  grid-template-columns: 10px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid #e2ebf6;
   padding: 10px 0;
+}
+.tt-portal-notice-item:last-child {
+  border-bottom: 0;
+}
+.tt-portal-notice-dot {
+  display: inline-block;
+  height: 6px;
+  width: 6px;
+  border-radius: 999px;
+  background: #1f6de0;
 }
 .tt-portal-notice-item p {
   margin: 0;
-  color: #0f172a;
-  font-size: 13px;
-  font-weight: 750;
-  line-height: 1.5;
+  overflow: hidden;
+  color: #1f2937;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 14px;
+  font-weight: 760;
+  line-height: 1.45;
 }
-.tt-portal-notice-item span {
-  color: #64748b;
+.tt-portal-notice-item time {
+  color: #8a9bb3;
   font-size: 12px;
-  line-height: 1.5;
+  font-weight: 700;
+  white-space: nowrap;
 }
 .tt-portal-data-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 8px;
+  gap: 10px;
 }
 .tt-portal-data-tile {
   display: grid;
-  min-height: 82px;
+  min-height: 92px;
   gap: 4px;
-  border: 1px solid rgba(226, 232, 240, 0.9);
-  border-radius: 12px;
-  background: linear-gradient(180deg, rgba(248, 250, 252, 0.96), #ffffff);
-  padding: 11px;
+  border: 1px solid #dfe8f4;
+  border-radius: 4px;
+  background: linear-gradient(180deg, #f8fbff, #ffffff);
+  padding: 13px;
 }
 .tt-portal-data-tile p {
   margin: 0;
-  color: #64748b;
+  color: #66758b;
   font-size: 12px;
-  font-weight: 700;
+  font-weight: 720;
 }
 .tt-portal-data-tile strong {
-  color: #0f172a;
-  font-size: 20px;
-  font-weight: 850;
-  line-height: 1.1;
+  color: #10203d;
+  font-size: 28px;
+  font-weight: 900;
+  line-height: 1.05;
 }
 .tt-portal-data-tile span {
-  color: #94a3b8;
-  font-size: 11px;
-  font-weight: 650;
+  color: #8b9bb0;
+  font-size: 12px;
+  font-weight: 680;
 }
 .tt-portal-empty {
   display: flex;
   min-height: 74px;
   align-items: center;
   justify-content: center;
-  border: 1px dashed rgba(203, 213, 225, 0.9);
-  border-radius: 12px;
-  background: rgba(248, 250, 252, 0.74);
+  border: 1px dashed #cbd8e8;
+  border-radius: 4px;
+  background: #fbfdff;
   color: #64748b;
   font-size: 13px;
-  font-weight: 700;
+  font-weight: 720;
+}
+.tt-portal-floating-tools {
+  position: fixed;
+  top: 238px;
+  right: 18px;
+  z-index: 8;
+  display: grid;
+  gap: 1px;
+  border: 1px solid #e2ebf6;
+  background: #ffffff;
+  box-shadow: 0 8px 24px rgba(24, 63, 111, 0.12);
+}
+.tt-portal-floating-tools button {
+  display: grid;
+  width: 72px;
+  min-height: 58px;
+  place-items: center;
+  gap: 4px;
+  padding: 8px 6px;
+  color: #34516f;
+  font-size: 12px;
+  font-weight: 760;
+}
+.tt-portal-floating-tools button:hover {
+  background: #eef5ff;
+  color: #1d5ebd;
+}
+
+@media (max-width: 1180px) {
+  .tt-portal-topbar-inner {
+    flex-wrap: wrap;
+    min-height: auto;
+    padding: 10px 18px;
+  }
+  .tt-portal-brand,
+  .tt-portal-topuser {
+    min-width: 0;
+  }
+  .tt-portal-topnav {
+    order: 3;
+    width: 100%;
+    justify-content: flex-start;
+    overflow-x: auto;
+  }
+  .tt-portal-nav-item {
+    height: 44px;
+    flex: 0 0 auto;
+  }
 }
 
 @media (max-width: 900px) {
-  .tt-portal-hero {
-    min-height: 220px;
-    grid-template-columns: 1fr;
-    align-items: start;
-    border-radius: 12px;
+  .tt-portal-page-main {
+    padding: 0 14px 24px;
   }
-  .tt-portal-hero-actions {
-    justify-content: flex-start;
+  .tt-portal-hero {
+    min-height: 232px;
+    grid-template-columns: 1fr;
+    align-items: end;
+    padding: 24px 20px;
   }
   .tt-portal-grid {
     grid-template-columns: 1fr;
@@ -4818,21 +5010,34 @@ a:hover {
   .tt-portal-run-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+  .tt-portal-floating-tools {
+    display: none;
+  }
 }
 
 @media (max-width: 560px) {
-  .tt-portal-hero {
-    padding: 16px;
+  .tt-portal-topbar-inner {
+    padding: 10px 12px;
+  }
+  .tt-portal-brand strong {
+    font-size: 20px;
+  }
+  .tt-portal-topuser {
+    width: 100%;
+    justify-content: flex-start;
   }
   .tt-portal-hero h3 {
-    font-size: 30px;
-  }
-  .tt-portal-panel {
-    padding: 13px;
+    font-size: 24px;
   }
   .tt-portal-service-grid,
   .tt-portal-run-grid,
   .tt-portal-data-grid {
+    grid-template-columns: 1fr;
+  }
+  .tt-portal-panel {
+    padding: 14px;
+  }
+  .tt-portal-course-row {
     grid-template-columns: 1fr;
   }
 }

@@ -86,9 +86,15 @@ test("teacher training management layout keeps cards aligned without oversized e
   const shellSource = read("src/components/workspace-shell.tsx");
   const tabSource = read("src/components/tabs/teacher-training-tab.tsx");
 
-  assert.match(shellSource, /const workspaceMainClassName = isTeacherTrainingPlatform/);
+  assert.match(shellSource, /const isTeacherTrainingPortalOverview = isTeacherTrainingPlatform && activeTeacherTrainingSection === "overview"/);
+  assert.match(shellSource, /const workspaceMainClassName = isTeacherTrainingPortalOverview/);
+  assert.match(shellSource, /workspace-shell-fade-in min-h-screen overflow-x-hidden bg-white/);
   assert.match(shellSource, /workspace-depth-bg workspace-shell-fade-in overflow-x-hidden px-4 pt-4 pb-8/);
   assert.match(shellSource, /workspace-depth-bg workspace-shell-fade-in min-h-screen overflow-x-hidden p-4 pb-14/);
+  assert.match(shellSource, /workspaceContentFrameClassName/);
+  assert.match(shellSource, /workspaceTabContentClassName/);
+  assert.match(shellSource, /!isTeacherTrainingPortalOverview \? <div aria-hidden className="workspace-orb-field" \/> : null/);
+  assert.match(shellSource, /isTeacherTrainingPlatform && !isTeacherTrainingPortalOverview/);
   assert.match(shellSource, /<main className=\{`\$\{workspaceMainClassName\} flex-1`\}>/);
   assert.match(tabSource, /teacherTrainingScrollableListClassName/);
   assert.match(tabSource, /max-h-\[min\(68vh,760px\)\] overflow-y-auto/);
@@ -1497,11 +1503,13 @@ test("teacher training overview works as a role-specific command desk", () => {
   assert.match(tabSource, /managerCommandTodoCards/);
   assert.match(tabSource, /managerPortalServiceLinks/);
   assert.match(tabSource, /teacherPortalServiceLinks/);
+  assert.match(tabSource, /tt-portal-page-shell/);
+  assert.match(tabSource, /tt-portal-topbar/);
   assert.match(tabSource, /tt-portal-hero/);
-  assert.match(tabSource, /省培服务平台/);
   assert.match(tabSource, /省培管理平台/);
-  assert.match(tabSource, /当前培训班/);
-  assert.match(tabSource, /tt-portal-cohort-card/);
+  assert.match(tabSource, /培训时间：/);
+  assert.match(tabSource, /tt-portal-hero-meta/);
+  assert.match(tabSource, /tt-portal-floating-tools/);
   assert.match(tabSource, /省培服务/);
   assert.match(tabSource, /培训通知/);
   assert.match(tabSource, /班次数据|个人数据/);
@@ -1515,7 +1523,6 @@ test("teacher training overview works as a role-specific command desk", () => {
   assert.match(tabSource, /openTeacherTrainingSection\("tasks"\)/);
 
   assert.match(tabSource, /teacherPrimaryAction/);
-  assert.match(tabSource, /teacherOverviewStatusItems/);
   assert.match(tabSource, /今日课程/);
   assert.match(tabSource, /定位签到/);
   assert.match(tabSource, /任务汇报/);
@@ -1523,9 +1530,11 @@ test("teacher training overview works as a role-specific command desk", () => {
   assert.match(tabSource, /个人信息/);
   assert.match(tabSource, /teacherPortalDataItems/);
   assert.match(globalStyles, /\.tt-portal-hero/);
+  assert.match(globalStyles, /\.tt-portal-topbar/);
+  assert.match(globalStyles, /\.tt-portal-page-shell/);
   assert.match(globalStyles, /url\("\/teacher-training-campus-hero\.png"\)/);
-  assert.match(globalStyles, /minmax\(0, 1\.08fr\) minmax\(330px, 0\.92fr\)/);
-  assert.match(globalStyles, /\.tt-portal-cohort-card/);
+  assert.match(globalStyles, /minmax\(0, 1\.06fr\) minmax\(360px, 0\.94fr\)/);
+  assert.match(globalStyles, /\.tt-portal-floating-tools/);
   assert.match(globalStyles, /@media \(max-width: 900px\)/);
   assert.doesNotMatch(tabSource, /快去|赶紧|马上弄|搞一下/);
 });
