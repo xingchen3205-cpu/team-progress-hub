@@ -3143,6 +3143,33 @@ function useWorkspaceController({
     [],
   );
 
+  const mergeTeacherTrainingCohortSummaries = useCallback(
+    (currentCohorts: TeacherTrainingCohortItem[], summaryCohorts: TeacherTrainingCohortItem[]) => {
+      const currentById = new Map(currentCohorts.map((cohort) => [cohort.id, cohort]));
+      return summaryCohorts.map((summaryCohort) => {
+        const current = currentById.get(summaryCohort.id);
+        if (!current?.includeDetails) {
+          return summaryCohort;
+        }
+
+        return {
+          ...current,
+          title: summaryCohort.title,
+          location: summaryCohort.location,
+          startDate: summaryCohort.startDate,
+          endDate: summaryCohort.endDate,
+          description: summaryCohort.description,
+          createdAt: summaryCohort.createdAt,
+          createdByName: summaryCohort.createdByName,
+          stats: summaryCohort.stats,
+          managers: summaryCohort.managers,
+          includeDetails: true,
+        };
+      });
+    },
+    [],
+  );
+
   const loadTeacherTrainingCohortDetails = useCallback(
     async (cohortId: string) => {
       if (!cohortId) return;
@@ -3245,7 +3272,7 @@ function useWorkspaceController({
             managerAccountOptions: TeacherTrainingManagerAccountItem[];
             participantAccountOptions: TeacherTrainingParticipantAccountOptionItem[];
           }>("/api/teacher-training?mode=summary");
-          setTeacherTrainingCohorts(payload.cohorts);
+          setTeacherTrainingCohorts((current) => mergeTeacherTrainingCohortSummaries(current, payload.cohorts));
           setTeacherTrainingApproverOptions(payload.approverOptions ?? []);
           setTeacherTrainingManagerOptions(payload.managerOptions ?? []);
           setTeacherTrainingManagerAccounts(payload.managerAccountOptions ?? []);
@@ -3299,6 +3326,7 @@ function useWorkspaceController({
       buildReportsRequestUrl,
       loadTeacherTrainingAnnouncements,
       loadTeacherTrainingCohortDetails,
+      mergeTeacherTrainingCohortSummaries,
     ],
   );
 

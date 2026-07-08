@@ -4461,20 +4461,21 @@ a:hover {
   min-height: 76px;
   max-width: 1536px;
   align-items: stretch;
-  gap: 16px;
+  gap: 12px;
   margin: 0 auto;
-  padding: 0 28px;
+  padding: 0 22px;
 }
 .tt-portal-brand {
   display: flex;
-  min-width: 430px;
+  flex: 0 1 438px;
+  min-width: 360px;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
 }
 .tt-portal-brand-logo {
   display: inline-flex;
   height: 42px;
-  width: 234px;
+  width: 224px;
   flex: 0 0 auto;
   align-items: center;
   justify-content: flex-start;
@@ -4512,24 +4513,36 @@ a:hover {
 .tt-portal-topnav {
   display: flex;
   min-width: 0;
-  flex: 1;
+  flex: 1 1 auto;
   align-items: stretch;
   justify-content: center;
   gap: 2px;
+  overflow: visible;
 }
 .tt-portal-nav-item {
   display: inline-flex;
+  min-width: max-content;
   align-items: center;
   justify-content: center;
   gap: 7px;
   border-bottom: 3px solid transparent;
-  padding: 0 16px;
+  padding: 0 13px;
   color: rgba(255, 255, 255, 0.9);
   font-size: 15px;
   font-weight: 760;
+  line-height: 1;
+  white-space: nowrap;
   transition:
     background-color 180ms ease,
     color 180ms ease;
+}
+.tt-portal-nav-item span {
+  display: inline-block;
+  white-space: nowrap;
+  word-break: keep-all;
+}
+.tt-portal-nav-item svg {
+  flex: 0 0 auto;
 }
 .tt-portal-nav-item:hover,
 .tt-portal-nav-item.is-active {
@@ -4539,7 +4552,8 @@ a:hover {
 }
 .tt-portal-topuser {
   display: flex;
-  min-width: 285px;
+  flex: 0 0 270px;
+  min-width: 270px;
   align-items: center;
   justify-content: flex-end;
   gap: 10px;
@@ -5188,11 +5202,11 @@ a:hover {
 
 @media (pointer: fine) {
   .tt-portal-page-shell {
-    min-width: 1180px;
+    min-width: 1360px;
   }
   .tt-portal-topbar-inner,
   .tt-portal-grid {
-    min-width: 1120px;
+    min-width: 1280px;
   }
 }
 

@@ -1732,6 +1732,9 @@ test("teacher training check-in and PDF submissions avoid misleading fallback co
 test("teacher training stays current with quiet visible-page refreshes", () => {
   const contextSource = read("src/components/workspace-context.tsx");
 
+  assert.match(contextSource, /mergeTeacherTrainingCohortSummaries/);
+  assert.match(contextSource, /current\?\.includeDetails/);
+  assert.match(contextSource, /setTeacherTrainingCohorts\(\(current\) => mergeTeacherTrainingCohortSummaries\(current, payload\.cohorts\)\)/);
   assert.match(contextSource, /refreshTeacherTrainingIfVisible/);
   assert.match(contextSource, /safeActiveTab !== "teacherTraining"/);
   assert.match(contextSource, /document\.visibilityState !== "visible"/);
