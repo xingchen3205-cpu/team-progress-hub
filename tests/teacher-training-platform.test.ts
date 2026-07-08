@@ -745,14 +745,16 @@ test("teacher training tab uses staff-side manual check-in controls", () => {
   assert.match(contextSource, /teacherTrainingSectionTabs/);
   assert.match(contextSource, /activeTeacherTrainingSection/);
   assert.match(shellSource, /teacherTrainingSidebarSections/);
-  assert.match(shellSource, /teacher-training-side-nav/);
-  assert.match(shellSource, /aria-label="省培左侧模块"/);
-  assert.match(shellSource, /省培管理平台/);
+  assert.match(shellSource, /teacher-training-module-nav/);
+  assert.match(shellSource, /aria-label="省培顶部模块"/);
   assert.match(shellSource, /sidebarRoleLabel/);
+  assert.match(shellSource, /topbar-user-role-inline/);
   assert.match(shellSource, /data-section-key/);
   assert.match(shellSource, /!isTeacherTrainingPlatform/);
-  assert.doesNotMatch(shellSource, /aria-label="省培顶部模块"/);
-  assert.doesNotMatch(shellSource, /teacher-training-top-nav/);
+  assert.doesNotMatch(shellSource, /aria-label="省培左侧模块"/);
+  assert.doesNotMatch(shellSource, /teacher-training-side-nav/);
+  assert.match(shellSource, /isTeacherTrainingPlatform \? \(/);
+  assert.match(shellSource, /当前身份/);
   assert.doesNotMatch(tabSource, /省培模块导航/);
   assert.doesNotMatch(tabSource, /分区处理，不再堆叠/);
   for (const label of ["工作台", "班次管理", "参训教师", "课程安排", "课程签到", "报到登记", "任务汇报", "请假审批", "导出归档"]) {
@@ -911,9 +913,11 @@ test("teacher training teacher-facing forms keep visible field labels on mobile"
 
   assert.match(tabSource, /teacherTrainingFieldShellClassName/);
   assert.match(tabSource, /teacherTrainingFieldLabelClassName/);
-  assert.match(tabSource, /我的下一步事项/);
+  assert.match(tabSource, /省培教师首页/);
   assert.match(tabSource, /!canManage && showTeacherTrainingSection\("overview"\)/);
-  assert.match(tabSource, /优先完成当前事项，备用入口在下方保留/);
+  assert.match(tabSource, /省培服务/);
+  assert.match(tabSource, /培训通知/);
+  assert.match(tabSource, /个人数据/);
   assert.match(tabSource, /teacherMobileNavigationSections/);
   assert.match(tabSource, /aria-label="老师端省培快捷导航"/);
   assert.match(tabSource, /返回工作台/);
@@ -974,17 +978,17 @@ test("teacher training teacher-facing forms keep visible field labels on mobile"
   assert.match(tabSource, /teacherProfileCompletionItems/);
   assert.match(tabSource, /teacherProfileCompletedCount/);
   assert.match(tabSource, /teacherProfileStatusText/);
-  assert.match(tabSource, /aria-label="我的下一步事项"/);
-  assert.match(tabSource, />我的下一步事项</);
-  assert.match(tabSource, /aria-label="省培今日课程"/);
-  assert.match(tabSource, /首页指南/);
-  assert.match(tabSource, /默认分类/);
+  assert.match(tabSource, /aria-label="省培教师首页"/);
+  assert.match(tabSource, />我的待办</);
+  assert.match(tabSource, /aria-label="今日课程"/);
+  assert.match(tabSource, /省培服务/);
+  assert.match(tabSource, /个人数据/);
   assert.match(tabSource, /请假申请信息/);
   assert.match(tabSource, /我的请假记录/);
   assert.match(tabSource, /aria-label="省培个人资料状态"/);
   assert.match(tabSource, /aria-label="省培任务汇报进度"/);
   assert.match(tabSource, /aria-label="省培定位签到状态"/);
-  assert.match(tabSource, /下一步/);
+  assert.match(tabSource, /我的待办/);
   assert.match(tabSource, /今日课程/);
   assert.match(tabSource, /按时间顺序查看全部课程/);
   assert.match(tabSource, /后续课程待发布/);
@@ -1323,6 +1327,11 @@ test("teacher training task reports require one PDF attachment with upload progr
   assert.match(tabSource, /汇报已保存，原附件已替换/);
   assert.match(tabSource, /汇报已保存，原附件已删除/);
   assert.doesNotMatch(tabSource, /selectedTask\?\.requireAttachment/);
+  assert.match(tabSource, /submissionAttachmentPreviewUrl/);
+  assert.match(tabSource, /URL\.createObjectURL\(file\)/);
+  assert.match(tabSource, /URL\.revokeObjectURL/);
+  assert.match(tabSource, /PDF 预览/);
+  assert.match(tabSource, /src=\{submissionAttachmentPreviewUrl \|\| currentSubmissionAttachmentFile!\.downloadUrl\}/);
   assert.match(tabSource, /Workspace\.uploadFileDirectly/);
   assert.match(tabSource, /teacherTrainingSubmissionAttachmentAcceptAttribute/);
   assert.match(tabSource, /任务汇报附件仅支持 PDF/);
@@ -1483,31 +1492,35 @@ test("teacher training overview metric cards jump to filtered detail lists", () 
 
 test("teacher training overview works as a role-specific command desk", () => {
   const tabSource = read("src/components/tabs/teacher-training-tab.tsx");
+  const globalStyles = read("src/app/globals.css");
 
   assert.match(tabSource, /managerCommandTodoCards/);
-  assert.match(tabSource, /managerCommandQuickLinks/);
-  assert.match(tabSource, /班次运行总览/);
-  assert.match(tabSource, /当前班次/);
+  assert.match(tabSource, /managerPortalServiceLinks/);
+  assert.match(tabSource, /teacherPortalServiceLinks/);
+  assert.match(tabSource, /tt-portal-hero/);
+  assert.match(tabSource, /省培服务/);
+  assert.match(tabSource, /培训通知/);
+  assert.match(tabSource, /班次数据|个人数据/);
   assert.match(tabSource, /待处理事项/);
-  assert.match(tabSource, /常用入口/);
   assert.match(tabSource, /待审批请假/);
   assert.match(tabSource, /待报到教师/);
   assert.match(tabSource, /未完成签到/);
   assert.match(tabSource, /未提交任务/);
-  assert.match(tabSource, /openTeacherTrainingSection\("participants"\)/);
   assert.match(tabSource, /openTeacherTrainingSection\("courses"\)/);
   assert.match(tabSource, /openTeacherTrainingSection\("leave"\)/);
   assert.match(tabSource, /openTeacherTrainingSection\("tasks"\)/);
 
   assert.match(tabSource, /teacherPrimaryAction/);
   assert.match(tabSource, /teacherOverviewStatusItems/);
-  assert.match(tabSource, /我的下一步事项/);
   assert.match(tabSource, /今日课程/);
   assert.match(tabSource, /定位签到/);
   assert.match(tabSource, /任务汇报/);
-  assert.match(tabSource, /临时请假/);
+  assert.match(tabSource, /请假申请/);
   assert.match(tabSource, /个人信息/);
-  assert.match(tabSource, /省培教师快捷入口/);
+  assert.match(tabSource, /teacherPortalDataItems/);
+  assert.match(globalStyles, /\.tt-portal-hero/);
+  assert.match(globalStyles, /minmax\(0, 1\.04fr\) minmax\(320px, 0\.96fr\)/);
+  assert.match(globalStyles, /@media \(max-width: 900px\)/);
   assert.doesNotMatch(tabSource, /快去|赶紧|马上弄|搞一下/);
 });
 

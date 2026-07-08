@@ -1057,6 +1057,7 @@ export default function TeacherTrainingTab() {
     attachment: "",
   });
   const [submissionAttachmentFile, setSubmissionAttachmentFile] = useState<File | null>(null);
+  const [submissionAttachmentPreviewUrl, setSubmissionAttachmentPreviewUrl] = useState("");
   const [submissionAttachmentProgress, setSubmissionAttachmentProgress] = useState<number | null>(null);
   const [submissionAttachmentError, setSubmissionAttachmentError] = useState("");
   const [submissionSaveStatus, setSubmissionSaveStatus] = useState("");
@@ -1073,6 +1074,14 @@ export default function TeacherTrainingTab() {
     const timer = window.setInterval(() => setCheckInClock(Date.now()), 30000);
     return () => window.clearInterval(timer);
   }, []);
+
+  useEffect(() => {
+    return () => {
+      if (submissionAttachmentPreviewUrl) {
+        URL.revokeObjectURL(submissionAttachmentPreviewUrl);
+      }
+    };
+  }, [submissionAttachmentPreviewUrl]);
 
   const selectedCohort = useMemo(() => {
     if (selectedCohortId) {
@@ -2435,6 +2444,7 @@ export default function TeacherTrainingTab() {
 
   const resetSubmissionAttachmentState = () => {
     setSubmissionAttachmentFile(null);
+    setSubmissionAttachmentPreviewUrl("");
     setSubmissionAttachmentProgress(null);
     setSubmissionAttachmentError("");
     setSubmissionSaveStatus("");
@@ -2452,6 +2462,7 @@ export default function TeacherTrainingTab() {
     setSubmissionAttachmentProgress(null);
     if (!file) {
       setSubmissionAttachmentFile(null);
+      setSubmissionAttachmentPreviewUrl("");
       setSubmissionAttachmentError("");
       return;
     }
@@ -2463,11 +2474,13 @@ export default function TeacherTrainingTab() {
     });
     if (validationError) {
       setSubmissionAttachmentFile(null);
+      setSubmissionAttachmentPreviewUrl("");
       setSubmissionAttachmentError(validationError);
       return;
     }
 
     setSubmissionAttachmentFile(file);
+    setSubmissionAttachmentPreviewUrl(URL.createObjectURL(file));
     setSubmissionAttachmentError("");
     setSubmissionDraft((current) => ({ ...current, attachment: "" }));
   };
@@ -2573,6 +2586,7 @@ export default function TeacherTrainingTab() {
       if (saved) {
         setSubmissionDraft((current) => ({ ...current, taskId, participantId, attachment }));
         setSubmissionAttachmentFile(null);
+        setSubmissionAttachmentPreviewUrl("");
         setSubmissionAttachmentProgress(null);
         setSubmissionAttachmentError("");
         setSubmissionSaveStatus(
@@ -3296,6 +3310,87 @@ export default function TeacherTrainingTab() {
         ? `待签到 ${teacherPendingCheckInCount} 项`
         : "已完成全部签到"
       : "暂无签到任务";
+  const selectedParticipantAttendanceLabel = selectedParticipant
+    ? getParticipantAttendanceRecord(selectedParticipant, "present", "报到")?.statusLabel ??
+      Workspace.teacherTrainingAttendancePendingLabel
+    : "待确认";
+  const teacherPortalServiceLinks: Array<{
+    label: string;
+    helper: string;
+    Icon: typeof Users;
+    onClick: () => void;
+    count?: string;
+  }> = [
+    { label: "课程安排", helper: "查看日程", Icon: CalendarDays, onClick: () => openTeacherTrainingSection("courses") },
+    {
+      label: "课程签到",
+      helper: teacherCheckInQuickActionHelper,
+      Icon: MapPin,
+      onClick: () => openTeacherTrainingSection("checkins"),
+      count: teacherPendingCheckInCount > 0 ? `${teacherPendingCheckInCount}` : undefined,
+    },
+    {
+      label: "任务汇报",
+      helper: teacherTaskQuickActionHelper,
+      Icon: Send,
+      onClick: () => openTeacherTrainingSection("tasks"),
+      count: teacherPendingTaskCount > 0 ? `${teacherPendingTaskCount}` : undefined,
+    },
+    { label: "请假申请", helper: "提交申请", Icon: FileCheck, onClick: () => openTeacherTrainingSection("leave") },
+    { label: "报到信息", helper: selectedParticipantAttendanceLabel, Icon: CheckCircle2, onClick: () => openTeacherTrainingSection("profile") },
+    { label: "个人信息", helper: teacherProfileNeedsAttention ? "待完善" : "已完善", Icon: User, onClick: () => openTeacherTrainingSection("profile") },
+  ];
+  const managerPortalServiceLinks: Array<{
+    label: string;
+    helper: string;
+    Icon: typeof Users;
+    onClick: () => void;
+    count?: string;
+  }> = [
+    { label: "班次管理", helper: "配置班次", Icon: ClipboardCheck, onClick: () => openTeacherTrainingSection("cohorts") },
+    ...managerCommandQuickLinks.map((item) => ({
+      ...item,
+      count:
+        item.label === "参训教师"
+          ? `${selectedCohort?.stats.participantCount ?? 0}`
+          : item.label === "课程安排"
+            ? `${selectedCohort?.stats.courseCount ?? 0}`
+            : item.label === "请假审批" && pendingLeaveRequests.length > 0
+              ? `${pendingLeaveRequests.length}`
+              : undefined,
+    })),
+    ...(canManageGlobal
+      ? [
+          {
+            label: "省培账号管理",
+            helper: "负责人/班主任",
+            Icon: ClipboardCheck,
+            onClick: () => openTeacherTrainingSection("accounts"),
+          },
+        ]
+      : []),
+    {
+      label: "报到登记",
+      helper: "房号材料",
+      Icon: CheckCircle2,
+      onClick: () => openOverviewMetric({ attendanceFilter: "pending", detailViewTitle: "报到登记", section: "attendance" }),
+      count: `${selectedCohort?.stats.presentCount ?? 0}`,
+    },
+    { label: "课程签到", helper: "定位记录", Icon: MapPin, onClick: () => openOverviewMetric({ detailViewTitle: "课程签到记录", section: "checkins" }) },
+    { label: "导出归档", helper: "材料下载", Icon: Download, onClick: () => openTeacherTrainingSection("exports") },
+  ];
+  const teacherPortalDataItems = [
+    { label: "签到状态", value: teacherPendingCheckInCount > 0 ? `待 ${teacherPendingCheckInCount}` : "已处理", helper: "课程签到" },
+    { label: "汇报任务", value: teacherPendingTaskCount > 0 ? `待 ${teacherPendingTaskCount}` : "已提交", helper: "PDF 汇报" },
+    { label: "请假记录", value: `${selectedParticipant?.leaveRequests.length ?? 0}`, helper: "申请次数" },
+    { label: "报到状态", value: selectedParticipantAttendanceLabel, helper: "当前状态" },
+  ];
+  const managerPortalDataItems = [
+    { label: "参训教师", value: `${selectedCohort?.stats.participantCount ?? 0}`, helper: "名单人数" },
+    { label: "已报到", value: `${selectedCohort?.stats.presentCount ?? 0}`, helper: "报到完成" },
+    { label: "今日签到", value: `${selectedCohort?.stats.checkInRecordCount ?? 0}`, helper: "签到记录" },
+    { label: "汇报提交", value: `${selectedCohort?.stats.submissionCount ?? 0}`, helper: "任务汇报" },
+  ];
   const teacherMobilePriorityItems = [
     ...(teacherPendingCheckInCount > 0
       ? [
@@ -3435,13 +3530,6 @@ export default function TeacherTrainingTab() {
       section: "profile",
       tone: teacherProfileNeedsAttention ? "amber" : "emerald",
     },
-  ];
-  const teacherSecondaryActions = [
-    { label: "课程", Icon: CalendarDays, onClick: () => openTeacherTrainingSection("courses") },
-    { label: "签到", Icon: MapPin, onClick: () => openTeacherTrainingSection("checkins") },
-    { label: "汇报", Icon: Send, onClick: () => openTeacherTrainingSection("tasks") },
-    { label: "请假", Icon: FileCheck, onClick: () => openTeacherTrainingSection("leave") },
-    { label: "资料", Icon: User, onClick: () => openTeacherTrainingSection("profile") },
   ];
   const focusTeacherTaskSubmission = (taskId: string) => {
     const participantId = selectedParticipant?.id ?? submissionDraft.participantId;
@@ -3593,123 +3681,188 @@ export default function TeacherTrainingTab() {
           ) : null}
 
           {!canManage && showTeacherTrainingSection("overview") ? (
-            <section
-              aria-label="我的下一步事项"
-              className="tt-card p-4 sm:p-5"
-            >
-              <div className="flex flex-col gap-1 sm:flex-row sm:items-end sm:justify-between">
-                <div>
-                  <p className="text-sm font-bold text-slate-950">我的下一步事项</p>
-                  <p className="mt-1 text-xs leading-5 text-slate-500">优先完成当前事项，备用入口在下方保留。</p>
+            <section aria-label="省培教师首页" className="space-y-4">
+              <div className="tt-portal-hero">
+                <div className="tt-portal-hero-copy">
+                  <span className="tt-portal-kicker">当前班次</span>
+                  <h3>{selectedCohort?.title ?? "暂无省培班次"}</h3>
+                  <p>
+                    {selectedCohort
+                      ? `${selectedCohort.startDate} 至 ${selectedCohort.endDate}${selectedCohort.location ? ` · ${selectedCohort.location}` : ""}`
+                      : "班次发布后，这里会显示课程、签到、汇报和请假入口。"}
+                  </p>
                 </div>
-                <span className="tt-pill tt-pill-neutral">
-                  {teacherMobilePriorityItems.length > 0 ? `${teacherMobilePriorityItems.length} 项待处理` : "状态正常"}
-                </span>
+                <div className="tt-portal-hero-actions">
+                  <span className="tt-pill tt-pill-neutral">
+                    {teacherMobilePriorityItems.length > 0 ? `${teacherMobilePriorityItems.length} 项待处理` : "状态正常"}
+                  </span>
+                  {teacherPrimaryAction ? (
+                    <button
+                      aria-label={`处理省培事项：${teacherPrimaryAction.label}`}
+                      className="tt-portal-primary-button"
+                      onClick={() => openTeacherTrainingSection(teacherPrimaryAction.section)}
+                      title={`处理省培事项：${teacherPrimaryAction.label}`}
+                      type="button"
+                    >
+                      <teacherPrimaryAction.Icon className="h-4 w-4" />
+                      <span>{teacherPrimaryAction.actionLabel}</span>
+                    </button>
+                  ) : null}
+                </div>
               </div>
 
-              <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1.18fr)_minmax(280px,0.82fr)]">
-                {teacherPrimaryAction ? (
-                  <button
-                    aria-label={`处理省培事项：${teacherPrimaryAction.label}`}
-                    className={`tt-primary-action group text-left focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200/70 ${
-                      teacherPrimaryAction.tone === "amber"
-                        ? "tt-primary-action-warning"
-                        : teacherPrimaryAction.tone === "emerald"
-                          ? "tt-primary-action-success"
-                          : ""
-                    }`}
-                    onClick={() => openTeacherTrainingSection(teacherPrimaryAction.section)}
-                    title={`处理省培事项：${teacherPrimaryAction.label}`}
-                    type="button"
-                  >
-                    <span className="inline-flex h-11 w-11 shrink-0 items-center justify-center rounded-xl bg-white text-blue-700 ring-1 ring-slate-200 transition group-hover:ring-blue-200">
-                      <teacherPrimaryAction.Icon className="h-5 w-5" />
-                    </span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block text-xs font-semibold text-slate-500">下一步</span>
-                      <span className="mt-1 block text-xl font-black leading-6 text-slate-950">{teacherPrimaryAction.label}</span>
-                      <span className="mt-1 block text-sm font-semibold text-blue-700">{teacherPrimaryAction.value}</span>
-                      <span className="mt-2 block text-xs leading-5 text-slate-500">{teacherPrimaryAction.helper}</span>
-                    </span>
-                    <span className="inline-flex h-9 shrink-0 items-center justify-center rounded-lg bg-slate-950 px-3 text-xs font-bold text-white transition group-hover:bg-blue-700">
-                      {teacherPrimaryAction.actionLabel}
-                    </span>
-                  </button>
-                ) : null}
+              <div className="tt-portal-grid">
+                <div className="tt-portal-main">
+                  <section aria-label="省培服务" className="tt-portal-panel">
+                    <div className="tt-portal-panel-header">
+                      <div>
+                        <p className="tt-block-title">省培服务</p>
+                      </div>
+                    </div>
+                    <div className="tt-portal-service-grid">
+                      {teacherPortalServiceLinks.map((item) => (
+                        <button
+                          key={item.label}
+                          aria-label={`进入省培${item.label}`}
+                          className="tt-portal-service-card group"
+                          onClick={item.onClick}
+                          title={`进入省培${item.label}`}
+                          type="button"
+                        >
+                          <span className="tt-portal-service-icon">
+                            <item.Icon className="h-5 w-5" />
+                          </span>
+                          <span className="min-w-0">
+                            <span className="block truncate text-sm font-bold text-slate-950">{item.label}</span>
+                            <span className="mt-1 block truncate text-xs text-slate-500">{item.helper}</span>
+                          </span>
+                          {item.count ? <span className="tt-portal-count">{item.count}</span> : null}
+                        </button>
+                      ))}
+                    </div>
+                  </section>
 
-                <div aria-label="省培今日课程" className="tt-status-panel">
-                  <div className="min-w-0">
-                    <p className="text-xs font-bold text-blue-700">今日课程</p>
+                  <section aria-label="今日课程" className="tt-portal-panel">
+                    <div className="tt-portal-panel-header">
+                      <p className="tt-block-title">今日课程</p>
+                      <button
+                        aria-label="查看课程安排"
+                        className="tt-portal-link"
+                        onClick={() => openTeacherTrainingSection("courses")}
+                        title="查看课程安排"
+                        type="button"
+                      >
+                        查看课程
+                      </button>
+                    </div>
                     {teacherNextCourse ? (
-                      <>
-                        <p className="mt-1 truncate text-base font-black text-slate-950">{teacherNextCourse.title}</p>
-                        <p className="mt-1 text-xs leading-5 text-slate-500">
-                          {[
-                            teacherNextCourse.courseDate,
-                            [teacherNextCourse.startTime, teacherNextCourse.endTime].filter(Boolean).join("-"),
-                            teacherNextCourse.location,
-                            teacherNextCourse.instructor,
-                          ]
-                            .filter(Boolean)
-                            .join(" · ")}
-                        </p>
-                      </>
+                      <div className="tt-portal-course-row">
+                        <span className="tt-portal-course-date">{teacherNextCourse.courseDate}</span>
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-bold text-slate-950">{teacherNextCourse.title}</p>
+                          <p className="mt-1 truncate text-xs text-slate-500">
+                            {[
+                              [teacherNextCourse.startTime, teacherNextCourse.endTime].filter(Boolean).join("-"),
+                              teacherNextCourse.location,
+                              teacherNextCourse.instructor,
+                            ]
+                              .filter(Boolean)
+                              .join(" · ")}
+                          </p>
+                        </div>
+                      </div>
                     ) : (
-                      <p className="mt-1 text-sm font-semibold text-slate-500">后续课程待发布</p>
+                      <div className="tt-portal-empty">后续课程待发布</div>
                     )}
-                  </div>
-                  <button
-                    aria-label="按时间顺序查看全部课程"
-                    className="inline-flex h-9 shrink-0 items-center justify-center rounded-lg bg-blue-50 px-3 text-xs font-bold text-blue-700 transition hover:bg-blue-100 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200/70"
-                    onClick={() => openTeacherTrainingSection("courses")}
-                    title="按时间顺序查看全部课程"
-                    type="button"
-                  >
-                    按时间顺序查看全部课程
-                  </button>
+                  </section>
+
+                  <section aria-label="省培状态" className="tt-portal-panel">
+                    <div className="tt-portal-service-grid tt-portal-status-grid">
+                      {teacherOverviewStatusItems.map((item) => (
+                        <button
+                          key={item.label}
+                          aria-label={`查看省培${item.label}`}
+                          className="tt-portal-mini-card group"
+                          onClick={() => openTeacherTrainingSection(item.section)}
+                          title={`查看省培${item.label}`}
+                          type="button"
+                        >
+                          <item.Icon className="h-4 w-4 text-blue-700" />
+                          <span className="min-w-0">
+                            <span className="block truncate text-xs font-semibold text-slate-500">{item.label}</span>
+                            <span className="mt-1 block truncate text-sm font-black text-slate-950">{item.value}</span>
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </section>
                 </div>
-              </div>
 
-              <div className="mt-4 grid gap-2 md:grid-cols-4">
-                {teacherOverviewStatusItems.map((item) => (
-                  <button
-                    key={item.label}
-                    aria-label={`查看省培${item.label}`}
-                    className="tt-status-row group text-left focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200/70"
-                    onClick={() => openTeacherTrainingSection(item.section)}
-                    title={`查看省培${item.label}`}
-                    type="button"
-                  >
-                    <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-slate-50 text-slate-700 transition group-hover:bg-slate-100 group-hover:text-blue-700">
-                      <item.Icon className="h-4 w-4" />
-                    </span>
-                    <span className="min-w-0">
-                      <span className="flex items-center gap-2">
-                        <span className="truncate text-sm font-bold text-slate-950">{item.label}</span>
-                        <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-600">
-                          {item.value}
-                        </span>
-                      </span>
-                      <span className="mt-1 block truncate text-xs text-slate-500">{item.helper}</span>
-                    </span>
-                  </button>
-                ))}
-              </div>
+                <aside aria-label="省培教师侧栏" className="tt-portal-side">
+                  <section className="tt-portal-panel">
+                    <div className="tt-portal-panel-header">
+                      <p className="tt-block-title">我的待办</p>
+                    </div>
+                    <div className="tt-portal-list">
+                      {teacherMobilePriorityItems.length > 0 ? (
+                        teacherMobilePriorityItems.map((item) => (
+                          <button
+                            key={item.label}
+                            aria-label={`处理省培${item.label}`}
+                            className="tt-portal-list-item"
+                            onClick={() => openTeacherTrainingSection(item.section)}
+                            title={`处理省培${item.label}`}
+                            type="button"
+                          >
+                            <item.Icon className="h-4 w-4 text-blue-700" />
+                            <span className="min-w-0 flex-1">
+                              <span className="block truncate text-sm font-bold text-slate-950">{item.label}</span>
+                              <span className="mt-0.5 block truncate text-xs text-slate-500">{item.helper}</span>
+                            </span>
+                            <span className="text-xs font-bold text-blue-700">{item.value}</span>
+                          </button>
+                        ))
+                      ) : (
+                        <div className="tt-portal-empty">暂无待办</div>
+                      )}
+                    </div>
+                  </section>
 
-              <div className="mt-4 flex flex-wrap gap-2" aria-label="省培教师快捷入口">
-                {teacherSecondaryActions.map((item) => (
-                  <button
-                    key={item.label}
-                    aria-label={`进入省培${item.label}`}
-                    className="tt-secondary-link focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200/70"
-                    onClick={item.onClick}
-                    title={`进入省培${item.label}`}
-                    type="button"
-                  >
-                    <item.Icon className="h-3.5 w-3.5" />
-                    <span>{item.label}</span>
-                  </button>
-                ))}
+                  <section className="tt-portal-panel">
+                    <div className="tt-portal-panel-header">
+                      <p className="tt-block-title">培训通知</p>
+                    </div>
+                    <div className="tt-portal-notice-list">
+                      <div className="tt-portal-notice-item">
+                        <p>按课程窗口完成签到</p>
+                        <span>签到开放后显示入口</span>
+                      </div>
+                      <div className="tt-portal-notice-item">
+                        <p>任务汇报仅提交 PDF</p>
+                        <span>上传后可先预览再保存</span>
+                      </div>
+                      <div className="tt-portal-notice-item">
+                        <p>请假按审批流程处理</p>
+                        <span>通过后可导出请假单</span>
+                      </div>
+                    </div>
+                  </section>
+
+                  <section className="tt-portal-panel">
+                    <div className="tt-portal-panel-header">
+                      <p className="tt-block-title">个人数据</p>
+                    </div>
+                    <div className="tt-portal-data-grid">
+                      {teacherPortalDataItems.map((item) => (
+                        <div key={item.label} className="tt-portal-data-tile">
+                          <p>{item.label}</p>
+                          <strong>{item.value}</strong>
+                          <span>{item.helper}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
+                </aside>
               </div>
             </section>
           ) : null}
@@ -3721,120 +3874,192 @@ export default function TeacherTrainingTab() {
           ) : null}
 
           {canManage && showTeacherTrainingSection("overview") ? (
-            <section className="grid items-stretch gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(300px,0.34fr)]" aria-label="班次运行总览">
-              <div className="tt-card-accent flex flex-col gap-5 p-5">
-                <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
-                  <div className="min-w-0">
-                    <p className="text-sm font-bold text-blue-700">班次运行总览</p>
-                    <h3 className="mt-2 text-2xl font-bold leading-8 text-slate-950">
-                      {selectedCohort?.title ?? "暂无省培班次"}
-                    </h3>
-                    <p className="mt-2 text-sm leading-6 text-slate-500">
-                      {selectedCohort
-                        ? `${selectedCohort.startDate} 至 ${selectedCohort.endDate}${selectedCohort.location ? ` · ${selectedCohort.location}` : ""}`
-                      : "系统管理员可先创建班次，再维护名单、课程、签到、汇报和请假流程。"}
-                    </p>
-                  </div>
-                  <div className="flex shrink-0 flex-wrap gap-2">
-                    <span className="tt-pill tt-pill-success">{selectedCohort ? "运行中" : "待建班"}</span>
-                    <span className="tt-pill tt-pill-neutral">{managerPendingActionCount} 项待处理</span>
-                  </div>
+            <section aria-label="省培管理端首页" className="space-y-4">
+              <div className="tt-portal-hero tt-portal-hero-manager">
+                <div className="tt-portal-hero-copy">
+                  <span className="tt-portal-kicker">班次运行总览</span>
+                  <h3>{selectedCohort?.title ?? "暂无省培班次"}</h3>
+                  <p>
+                    {selectedCohort
+                      ? `${selectedCohort.startDate} 至 ${selectedCohort.endDate}${selectedCohort.location ? ` · ${selectedCohort.location}` : ""}`
+                      : "先创建班次，再维护名单、课程、签到、汇报和请假流程。"}
+                  </p>
                 </div>
-
-                <div aria-label="省培关键数据" className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
-                  {managerOverviewStats.map((item) => (
-                    <button
-                      key={item.label}
-                      aria-label={`查看省培${item.label}明细`}
-                      className="tt-compact-stat group text-left focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200/70"
-                      onClick={item.onClick}
-                      title={item.title}
-                      type="button"
-                    >
-                      <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-50 text-slate-700 transition group-hover:bg-slate-100 group-hover:text-blue-700">
-                        <item.Icon className="h-4 w-4" />
-                      </span>
-                      <span className="min-w-0">
-                        <span className="block truncate text-xs font-semibold text-slate-500">{item.label}</span>
-                        <span className="mt-0.5 flex items-baseline gap-1.5">
-                          <span className="text-xl font-black leading-none text-slate-950">{item.value}</span>
-                          <span className="text-[11px] font-semibold text-slate-400">{item.helper}</span>
-                        </span>
-                      </span>
-                    </button>
-                  ))}
-                </div>
-
-                <div>
-                  <div className="flex items-center justify-between gap-3">
-                    <p className="tt-block-title">待处理事项</p>
-                    <span className="tt-pill tt-pill-neutral">按当前班次</span>
-                  </div>
-                  <div className="mt-3 divide-y divide-slate-100 overflow-hidden rounded-xl border border-slate-200 bg-white">
-                    {managerCommandTodoCards.map((item) => (
-                    <button
-                      key={item.label}
-                      aria-label={`查看省培${item.label}`}
-                      className="group flex w-full items-center gap-3 px-4 py-3 text-left transition hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200/70"
-                      onClick={item.onClick}
-                      title={`查看省培${item.label}`}
-                      type="button"
-                    >
-                        <span
-                          className={`inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${
-                            item.tone === "amber"
-                              ? "bg-amber-50 text-amber-700"
-                              : item.tone === "rose"
-                                ? "bg-rose-50 text-rose-700"
-                                : item.tone === "emerald"
-                                  ? "bg-emerald-50 text-emerald-700"
-                                  : "bg-blue-50 text-blue-700"
-                          }`}
-                        >
-                          <item.Icon className="h-4 w-4" />
-                        </span>
-                        <span className="min-w-0 flex-1">
-                          <span className="block text-sm font-bold text-slate-950">{item.label}</span>
-                          <span className="mt-0.5 block truncate text-xs text-slate-500">{item.helper}</span>
-                        </span>
-                        <span className="text-2xl font-black leading-none text-slate-950">{item.value}</span>
-                    </button>
-                  ))}
-                  </div>
+                <div className="tt-portal-hero-actions">
+                  <span className="tt-pill tt-pill-success">{selectedCohort ? "运行中" : "待建班"}</span>
+                  <span className="tt-pill tt-pill-neutral">{managerPendingActionCount} 项待处理</span>
+                  <button
+                    aria-label="发布课程签到"
+                    className="tt-portal-primary-button"
+                    onClick={() => openTeacherTrainingSection("checkins")}
+                    title="发布课程签到"
+                    type="button"
+                  >
+                    <MapPin className="h-4 w-4" />
+                    <span>发布签到</span>
+                  </button>
                 </div>
               </div>
 
-              <div className="tt-card flex flex-col p-5">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="tt-block-title">常用入口</p>
-                    <p className="mt-1.5 text-xs leading-5 text-slate-500">低频功能从上方模块切换。</p>
-                  </div>
-                  <span className="tt-pill">{managerCommandQuickLinks.length} 项</span>
+              <div className="tt-portal-grid">
+                <div className="tt-portal-main">
+                  <section aria-label="省培服务" className="tt-portal-panel">
+                    <div className="tt-portal-panel-header">
+                      <p className="tt-block-title">省培服务</p>
+                      <span className="tt-pill">{managerPortalServiceLinks.length} 项</span>
+                    </div>
+                    <div className="tt-portal-service-grid">
+                      {managerPortalServiceLinks.map((item) => (
+                        <button
+                          key={item.label}
+                          aria-label={`进入省培${item.label}`}
+                          className="tt-portal-service-card group"
+                          onClick={item.onClick}
+                          title={`进入省培${item.label}`}
+                          type="button"
+                        >
+                          <span className="tt-portal-service-icon">
+                            <item.Icon className="h-5 w-5" />
+                          </span>
+                          <span className="min-w-0">
+                            <span className="block truncate text-sm font-bold text-slate-950">{item.label}</span>
+                            <span className="mt-1 block truncate text-xs text-slate-500">{item.helper}</span>
+                          </span>
+                          {item.count ? <span className="tt-portal-count">{item.count}</span> : null}
+                        </button>
+                      ))}
+                    </div>
+                  </section>
+
+                  <section aria-label="今日运行" className="tt-portal-panel">
+                    <div className="tt-portal-panel-header">
+                      <p className="tt-block-title">今日运行</p>
+                      <button
+                        aria-label="进入导出归档"
+                        className="tt-portal-link"
+                        onClick={() => openTeacherTrainingSection("exports")}
+                        title="进入导出归档"
+                        type="button"
+                      >
+                        导出归档
+                      </button>
+                    </div>
+                    <div className="tt-portal-run-grid">
+                      {managerOverviewStats.map((item) => (
+                        <button
+                          key={item.label}
+                          aria-label={`查看省培${item.label}明细`}
+                          className="tt-portal-run-card group"
+                          onClick={item.onClick}
+                          title={item.title}
+                          type="button"
+                        >
+                          <span className="tt-portal-run-icon">
+                            <item.Icon className="h-4 w-4" />
+                          </span>
+                          <span className="min-w-0">
+                            <span className="block truncate text-xs font-semibold text-slate-500">{item.label}</span>
+                            <span className="mt-1 block text-2xl font-black leading-none text-slate-950">{item.value}</span>
+                            <span className="mt-1 block truncate text-[11px] font-semibold text-slate-400">{item.helper}</span>
+                          </span>
+                        </button>
+                      ))}
+                    </div>
+                  </section>
                 </div>
-                <div className="mt-4 grid flex-1 content-start gap-3 sm:grid-cols-2 xl:grid-cols-1">
-                  {managerCommandQuickLinks.map((item) => (
-                    <button
-                      key={item.label}
-                      aria-label={`进入省培${item.label}`}
-                      className="tt-action-card group flex items-center justify-between gap-3 px-4 py-3 text-left focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-blue-200/70"
-                      onClick={item.onClick}
-                      title={`进入省培${item.label}`}
-                      type="button"
-                    >
-                      <span className="flex min-w-0 items-center gap-3">
-                        <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-blue-50 text-blue-700 transition group-hover:bg-[#1a6fd4] group-hover:text-white">
-                          <item.Icon className="h-4 w-4" />
-                        </span>
-                        <span className="min-w-0">
-                          <span className="block truncate text-sm font-bold text-slate-950">{item.label}</span>
-                          <span className="mt-0.5 block truncate text-xs text-slate-500">{item.helper}</span>
-                        </span>
-                      </span>
-                      <span className="shrink-0 text-sm font-bold text-blue-700">进入</span>
-                    </button>
-                  ))}
-                </div>
+
+                <aside aria-label="省培管理侧栏" className="tt-portal-side">
+                  <section className="tt-portal-panel">
+                    <div className="tt-portal-panel-header">
+                      <p className="tt-block-title">待处理事项</p>
+                      <span className="tt-pill tt-pill-neutral">当前班次</span>
+                    </div>
+                    <div className="tt-portal-list">
+                      {managerCommandTodoCards.map((item) => (
+                        <button
+                          key={item.label}
+                          aria-label={`查看省培${item.label}`}
+                          className="tt-portal-list-item"
+                          onClick={item.onClick}
+                          title={`查看省培${item.label}`}
+                          type="button"
+                        >
+                          <span
+                            className={`tt-portal-list-icon ${
+                              item.tone === "amber"
+                                ? "tt-portal-list-icon-warning"
+                                : item.tone === "rose"
+                                  ? "tt-portal-list-icon-danger"
+                                  : item.tone === "emerald"
+                                    ? "tt-portal-list-icon-success"
+                                    : ""
+                            }`}
+                          >
+                            <item.Icon className="h-4 w-4" />
+                          </span>
+                          <span className="min-w-0 flex-1">
+                            <span className="block truncate text-sm font-bold text-slate-950">{item.label}</span>
+                            <span className="mt-0.5 block truncate text-xs text-slate-500">{item.helper}</span>
+                          </span>
+                          <span className="text-xl font-black leading-none text-slate-950">{item.value}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </section>
+
+                  <section className="tt-portal-panel">
+                    <div className="tt-portal-panel-header">
+                      <p className="tt-block-title">培训通知</p>
+                    </div>
+                    <div className="tt-portal-notice-list">
+                      <div className="tt-portal-notice-item">
+                        <p>名单和账号分开管理</p>
+                        <span>教师名单在参训教师页维护</span>
+                      </div>
+                      <div className="tt-portal-notice-item">
+                        <p>课程结束后提交 PDF 汇报</p>
+                        <span>管理端可预览、评分和归档</span>
+                      </div>
+                      <div className="tt-portal-notice-item">
+                        <p>请假单需全部审批通过</p>
+                        <span>通过后开放 PDF 导出</span>
+                      </div>
+                    </div>
+                  </section>
+
+                  <section className="tt-portal-panel">
+                    <div className="tt-portal-panel-header">
+                      <p className="tt-block-title">班次数据</p>
+                    </div>
+                    <div className="tt-portal-data-grid">
+                      {managerPortalDataItems.map((item) => (
+                        <button
+                          key={item.label}
+                          aria-label={`查看${item.label}`}
+                          className="tt-portal-data-tile text-left"
+                          onClick={() => {
+                            if (item.label === "参训教师") openTeacherTrainingSection("participants");
+                            if (item.label === "已报到") {
+                              openOverviewMetric({ attendanceFilter: "registered", detailViewTitle: "已报到教师", section: "attendance" });
+                            }
+                            if (item.label === "今日签到") {
+                              openOverviewMetric({ detailViewTitle: "课程签到记录", section: "checkins" });
+                            }
+                            if (item.label === "汇报提交") {
+                              openOverviewMetric({ detailViewTitle: "已提交汇报", section: "tasks", submissionFilter: "submitted" });
+                            }
+                          }}
+                          title={`查看${item.label}`}
+                          type="button"
+                        >
+                          <p>{item.label}</p>
+                          <strong>{item.value}</strong>
+                          <span>{item.helper}</span>
+                        </button>
+                      ))}
+                    </div>
+                  </section>
+                </aside>
               </div>
             </section>
           ) : null}
@@ -7940,6 +8165,21 @@ export default function TeacherTrainingTab() {
                                 style={{ width: `${submissionAttachmentProgress}%` }}
                               />
                             </div>
+                          </div>
+                        ) : null}
+                        {submissionAttachmentPreviewUrl || currentSubmissionAttachmentFile ? (
+                          <div className="mt-3 overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
+                            <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-white px-3 py-2">
+                              <span className="text-xs font-bold text-slate-700">PDF 预览</span>
+                              <span className="text-[11px] font-semibold text-slate-400">
+                                {submissionAttachmentPreviewUrl ? "本地文件" : "已上传附件"}
+                              </span>
+                            </div>
+                            <iframe
+                              className="h-[420px] w-full bg-white"
+                              src={submissionAttachmentPreviewUrl || currentSubmissionAttachmentFile!.downloadUrl}
+                              title="PDF 预览"
+                            />
                           </div>
                         ) : null}
                       </div>

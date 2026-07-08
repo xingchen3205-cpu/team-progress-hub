@@ -34,8 +34,8 @@ test("registration screen keeps the form dormant and hides self registration ent
   const screen = readSource("src/components/login-screen.tsx");
 
   assert.match(screen, /selfRegistrationEnabled\s*=\s*false/);
-  assert.match(screen, /账号由系统管理员或校级管理员统一开通/);
-  assert.match(screen, /请使用管理员分配的账号登录/);
+  assert.doesNotMatch(screen, /账号由系统管理员或校级管理员统一开通/);
+  assert.doesNotMatch(screen, /请使用管理员分配的账号登录/);
   assert.match(screen, /emailCode/);
   assert.doesNotMatch(screen, /工号/);
 });

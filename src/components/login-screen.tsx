@@ -376,7 +376,7 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
   const switchMode = (nextMode: FormMode) => {
     if (nextMode === "register" && !selfRegistrationEnabled) {
       setMode("login");
-      setSuccessMessage("账号由系统管理员或校级管理员统一开通，请联系管理员。");
+      setSuccessMessage("暂不开放自助注册。");
       return;
     }
 
@@ -1491,42 +1491,30 @@ export function LoginScreen({ initialResetToken = "" }: { initialResetToken?: st
                 </div>
               </div>
 
-              <div className="mt-5 flex items-center gap-5 rounded-[20px] bg-white px-7 py-6 shadow-[0_10px_30px_rgba(20,55,120,0.08)]">
-                <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[#edf4ff] text-[#1d5cff]">
-                  <UserPlus className="h-6 w-6" />
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-base leading-7 text-[#6b7280]">
-                    {mode === "login"
-                      ? "账号由系统管理员或校级管理员统一开通。"
-                      : mode === "register"
+              {mode !== "login" ? (
+                <div className="mt-5 flex items-center gap-5 rounded-[20px] bg-white px-7 py-6 shadow-[0_10px_30px_rgba(20,55,120,0.08)]">
+                  <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-full bg-[#edf4ff] text-[#1d5cff]">
+                    <UserPlus className="h-6 w-6" />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <p className="text-base leading-7 text-[#6b7280]">
+                      {mode === "register"
                         ? "当前暂不开放自助注册，请返回登录。"
                         : mode === "forgot"
                           ? "如未收到重置邮件，请确认邮箱是否填写正确并检查垃圾邮件。"
                           : "重置完成后，可返回登录并使用新密码进入系统。"}
-                  </p>
-                  {mode === "login" && !selfRegistrationEnabled ? (
-                    <p className="mt-1 text-base font-semibold text-[#1d5cff]">请使用管理员分配的账号登录</p>
-                  ) : (
+                    </p>
                     <button
                       className="mt-1 inline-flex items-center gap-2 text-base font-semibold text-[#1d5cff] transition hover:gap-3"
-                      onClick={() =>
-                        switchMode(
-                          mode === "login"
-                            ? "register"
-                            : mode === "register"
-                              ? "login"
-                              : "login",
-                        )
-                      }
+                      onClick={() => switchMode("login")}
                       type="button"
                     >
-                      {mode === "login" ? "注册账号" : "返回登录"}
+                      返回登录
                       <ArrowRight className="h-4 w-4" />
                     </button>
-                  )}
+                  </div>
                 </div>
-              </div>
+              ) : null}
             </div>
           </div>
 
