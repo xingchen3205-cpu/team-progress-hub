@@ -444,6 +444,7 @@ export type AnnouncementDraft = {
   title: string;
   detail: string;
   notifyTeam: boolean;
+  teacherTrainingCohortId?: string;
 };
 
 export type ReminderDraft = {
@@ -3155,6 +3156,19 @@ function useWorkspaceController({
     [mergeTeacherTrainingCohortDetails],
   );
 
+  const loadTeacherTrainingAnnouncements = useCallback(async (cohortId: string) => {
+    const normalizedCohortId = cohortId.trim();
+    if (!normalizedCohortId) {
+      setAnnouncements([]);
+      return;
+    }
+
+    const payload = await requestJson<{ announcements: Announcement[] }>(
+      `/api/teacher-training/announcements?cohortId=${encodeURIComponent(normalizedCohortId)}`,
+    );
+    setAnnouncements(payload.announcements);
+  }, []);
+
   const loadWorkspaceResource = useCallback(
     async (resourceKey: WorkspaceResourceKey, role: CurrentUser["role"]) => {
       switch (resourceKey) {
@@ -3243,6 +3257,7 @@ function useWorkspaceController({
           if (detailCohortId && payload.cohorts.some((cohort) => cohort.id === detailCohortId && cohort.includeDetails === false)) {
             await loadTeacherTrainingCohortDetails(detailCohortId);
           }
+          await loadTeacherTrainingAnnouncements(detailCohortId ?? "");
           return;
         }
         case "reviewAssignments": {
@@ -3282,6 +3297,7 @@ function useWorkspaceController({
       applyReviewAssignments,
       applyTeamPayload,
       buildReportsRequestUrl,
+      loadTeacherTrainingAnnouncements,
       loadTeacherTrainingCohortDetails,
     ],
   );
@@ -6479,16 +6495,25 @@ function useWorkspaceController({
       return;
     }
 
+    const teacherTrainingCohortId = announcementDraft.teacherTrainingCohortId?.trim();
     setIsSaving(true);
     try {
-      await requestJson("/api/announcements", {
+      await requestJson(teacherTrainingCohortId ? "/api/teacher-training/announcements" : "/api/announcements", {
         method: "POST",
-        body: JSON.stringify(announcementDraft),
+        body: JSON.stringify({
+          ...announcementDraft,
+          teacherTrainingCohortId: undefined,
+          cohortId: teacherTrainingCohortId || undefined,
+        }),
       });
       setAnnouncementDraft(defaultAnnouncementDraft);
       setAnnouncementModalOpen(false);
-      showSuccessToast("公告已发布", "成员将会在首页和通知里看到这条公告。");
-      refreshWorkspace("announcements");
+      showSuccessToast(teacherTrainingCohortId ? "省培通知已发布" : "公告已发布", "成员将会在首页和通知里看到这条公告。");
+      if (teacherTrainingCohortId) {
+        await loadTeacherTrainingAnnouncements(teacherTrainingCohortId);
+      } else {
+        refreshWorkspace("announcements");
+      }
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "公告发布失败");
     } finally {
@@ -8352,6 +8377,7 @@ function useWorkspaceController({
     teacherTrainingCohorts,
     setTeacherTrainingCohorts,
     loadTeacherTrainingCohortDetails,
+    loadTeacherTrainingAnnouncements,
     teacherTrainingApproverOptions,
     setTeacherTrainingApproverOptions,
     teacherTrainingManagerOptions,

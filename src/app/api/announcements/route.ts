@@ -6,6 +6,7 @@ import { assertMainWorkspaceRole, assertRole, hasGlobalAdminPrivileges } from "@
 import { prisma } from "@/lib/prisma";
 import { serializeAnnouncement } from "@/lib/api-serializers";
 import { buildTeamScopedResourceWhere } from "@/lib/team-scope";
+import { teacherTrainingAnnouncementStoragePrefix } from "@/lib/teacher-training-announcements";
 
 export async function GET(request: NextRequest) {
   const user = await getSessionUser(request);
@@ -20,11 +21,22 @@ export async function GET(request: NextRequest) {
   }
 
   const announcements = await prisma.announcement.findMany({
-    where: buildTeamScopedResourceWhere({
-      actor: user,
-      ownerField: "authorId",
-      includeUnassignedForGroupedUsers: true,
-    }),
+    where: {
+      AND: [
+        buildTeamScopedResourceWhere({
+          actor: user,
+          ownerField: "authorId",
+          includeUnassignedForGroupedUsers: true,
+        }),
+        {
+          NOT: {
+            detail: {
+              startsWith: teacherTrainingAnnouncementStoragePrefix,
+            },
+          },
+        },
+      ],
+    },
     orderBy: { createdAt: "desc" },
     include: {
       author: {

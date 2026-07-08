@@ -1124,8 +1124,8 @@ test("teacher training cohort lead is configured above class teachers without ch
   assert.match(tabSource, /teacherTrainingConfigStatusItems/);
   assert.match(tabSource, /班次配置状态/);
   assert.match(tabSource, /审批人/);
-  assert.doesNotMatch(tabSource, /负责人审批/);
-  assert.doesNotMatch(tabSource, /班主任审批/);
+  assert.match(tabSource, /teacherTrainingDefaultLeaveFlowLabel/);
+  assert.match(tabSource, /请假申请 → 省培班主任审批 → 省培负责人审批/);
   assert.match(tabSource, /approverLabelById\.get\(approver\.id\) \?\? approver\.name/);
 });
 
@@ -1477,14 +1477,11 @@ test("teacher training overview metric cards jump to filtered detail lists", () 
   assert.match(tabSource, /teacherTrainingDetailViewTitle/);
   assert.match(tabSource, /当前查看：/);
   assert.match(tabSource, /已报到教师/);
-  assert.match(tabSource, /请假教师/);
   assert.match(tabSource, /课程签到记录/);
-  assert.match(tabSource, /已提交汇报/);
   assert.match(tabSource, /TeacherTrainingFilterSummary/);
   assert.match(tabSource, /openOverviewMetric\(\{ attendanceFilter: "registered", detailViewTitle: "已报到教师", section: "attendance" \}\)/);
-  assert.match(tabSource, /openOverviewMetric\(\{ attendanceFilter: "leave", detailViewTitle: "请假教师", section: "attendance" \}\)/);
-  assert.match(tabSource, /openOverviewMetric\(\{ attendanceFilter: "absent", detailViewTitle: "缺勤教师", section: "attendance" \}\)/);
-  assert.match(tabSource, /openOverviewMetric\(\{ detailViewTitle: "已提交汇报", section: "tasks", submissionFilter: "submitted" \}\)/);
+  assert.match(tabSource, /openOverviewMetric\(\{ detailViewTitle: "课程签到记录", section: "checkins" \}\)/);
+  assert.match(tabSource, /openOverviewMetric\(\{ detailViewTitle: "任务汇报", section: "tasks", submissionFilter: "all" \}\)/);
   assert.match(tabSource, /managerOverviewStats\.map\(\(item\) => \(/);
   assert.match(tabSource, /aria-label=\{`查看省培\$\{item\.label\}明细`\}/);
   assert.match(tabSource, /onClick=\{item\.onClick\}/);
@@ -1512,7 +1509,9 @@ test("teacher training overview works as a role-specific command desk", () => {
   assert.match(tabSource, /tt-portal-floating-tools/);
   assert.match(tabSource, /省培服务/);
   assert.match(tabSource, /培训通知/);
-  assert.match(tabSource, /班次数据|个人数据/);
+  assert.match(tabSource, /班次概览/);
+  assert.match(tabSource, /培训日历/);
+  assert.doesNotMatch(tabSource, /<p className="tt-block-title">班次数据<\/p>/);
   assert.match(tabSource, /待处理事项/);
   assert.match(tabSource, /待审批请假/);
   assert.match(tabSource, /待报到教师/);
@@ -1810,6 +1809,33 @@ test("teacher training manager pages support batch selection and a compact workb
   assert.match(tabSource, /省培管理平台/);
   assert.doesNotMatch(tabSource, /省培Workbench/);
   assert.doesNotMatch(tabSource, /今日运行[\s\S]{0,1200}省培运行总览/);
+});
+
+test("teacher training portal notices are cohort scoped and open as reading pages", () => {
+  const tabSource = read("src/components/tabs/teacher-training-tab.tsx");
+  const styles = read("src/app/globals.css");
+  const contextSource = read("src/components/workspace-context.tsx");
+  const globalAnnouncementRoute = read("src/app/api/announcements/route.ts");
+  const trainingAnnouncementRoute = read("src/app/api/teacher-training/announcements/route.ts");
+  const trainingAnnouncementPage = read("src/app/teacher-training/announcements/[announcementId]/page.tsx");
+  const trainingAnnouncementLib = read("src/lib/teacher-training-announcements.ts");
+
+  assert.match(tabSource, /培训日历/);
+  assert.match(tabSource, /openTeacherTrainingAnnouncementDetail/);
+  assert.match(tabSource, /window\.open\(target,\s*"_blank"/);
+  assert.doesNotMatch(tabSource, /managerPortalDataItems/);
+  assert.doesNotMatch(tabSource, /<p className="tt-block-title">班次数据<\/p>/);
+  assert.match(styles, /tt-portal-calendar-grid/);
+  assert.match(contextSource, /\/api\/teacher-training\/announcements/);
+  assert.match(globalAnnouncementRoute, /teacherTrainingAnnouncementStoragePrefix/);
+  assert.match(globalAnnouncementRoute, /NOT:\s*\{\s*detail:\s*\{\s*startsWith:\s*teacherTrainingAnnouncementStoragePrefix/);
+  assert.match(trainingAnnouncementRoute, /hasTeacherTrainingCohortManageAccess/);
+  assert.match(trainingAnnouncementRoute, /participants:\s*\{\s*some:\s*\{\s*accountUserId:\s*user\.id/);
+  assert.match(trainingAnnouncementRoute, /targetTab:\s*"teacherTraining"/);
+  assert.match(trainingAnnouncementPage, /decodeTeacherTrainingAnnouncementDetail/);
+  assert.match(trainingAnnouncementPage, /canReadAnnouncement/);
+  assert.match(trainingAnnouncementPage, /official-logo\.png/);
+  assert.match(trainingAnnouncementLib, /teacherTrainingAnnouncementStoragePrefix/);
 });
 
 test("workspace unit footer does not cover teacher training forms", () => {

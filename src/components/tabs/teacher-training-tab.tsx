@@ -587,6 +587,23 @@ const formatTeacherTrainingApproverLabel = (title: string, name: string) => {
 const formatTeacherTrainingLeaveDateTime = (date: string, time: string) =>
   time ? `${date} ${time}` : date;
 
+const formatTeacherTrainingCohortTitle = (value?: string | null) =>
+  (value ?? "江苏省职业院校教师素质提高计划职业学校创新创业教育（竞赛）指导能力提升培训")
+    .replace(/\s+/g, " ")
+    .trim();
+
+const formatTeacherTrainingAnnouncementDate = (value: string) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value.slice(0, 10);
+
+  return date.toLocaleDateString("zh-CN", {
+    month: "2-digit",
+    day: "2-digit",
+  });
+};
+
+const teacherTrainingDefaultLeaveFlowLabel = "请假申请 → 省培班主任审批 → 省培负责人审批";
+
 const getTeacherTrainingLeaveDurationLabel = ({
   endDate,
   endTime,
@@ -820,6 +837,10 @@ export default function TeacherTrainingTab() {
     teacherTrainingApproverOptions,
     teacherTrainingManagerAccounts,
     teacherTrainingParticipantAccountOptions,
+    announcements,
+    loadTeacherTrainingAnnouncements,
+    setAnnouncementDraft,
+    setAnnouncementModalOpen,
     canManageTeacherTraining,
     activeTeacherTrainingSection,
     setActiveTeacherTrainingSection,
@@ -866,7 +887,6 @@ export default function TeacherTrainingTab() {
   } = Workspace.useWorkspaceContext();
   const {
     ActionButton,
-    Award,
     BarChart3,
     Bell,
     BookOpen,
@@ -1108,6 +1128,12 @@ export default function TeacherTrainingTab() {
       void loadTeacherTrainingCohortDetails(selectedCohort.id);
     }
   }, [loadTeacherTrainingCohortDetails, selectedCohort]);
+
+  useEffect(() => {
+    if (selectedCohort?.id) {
+      void loadTeacherTrainingAnnouncements(selectedCohort.id);
+    }
+  }, [loadTeacherTrainingAnnouncements, selectedCohort?.id]);
 
   const participantById = useMemo(
     () => new Map((selectedCohort?.participants ?? []).map((participant) => [participant.id, participant])),
@@ -3136,7 +3162,7 @@ export default function TeacherTrainingTab() {
     {
       label: "参训教师",
       value: selectedCohort?.stats.participantCount ?? 0,
-      helper: "名单",
+      helper: "名单人数",
       Icon: Users,
       onClick: () => openOverviewMetric({ detailViewTitle: "全部参训教师", section: "participants" }),
       title: "查看参训教师名单",
@@ -3144,7 +3170,7 @@ export default function TeacherTrainingTab() {
     {
       label: "省培管理",
       value: selectedCohort?.stats.managerCount ?? 0,
-      helper: "管理",
+      helper: "负责人/班主任",
       Icon: User,
       onClick: () => openOverviewMetric({ detailViewTitle: "省培负责人/省培班主任", section: "cohorts" }),
       title: "查看省培负责人/省培班主任设置",
@@ -3152,7 +3178,7 @@ export default function TeacherTrainingTab() {
     {
       label: "课程",
       value: selectedCohort?.stats.courseCount ?? 0,
-      helper: "安排",
+      helper: "课程门数",
       Icon: CalendarDays,
       onClick: () => openOverviewMetric({ detailViewTitle: "课程安排", section: "courses" }),
       title: "查看课程安排",
@@ -3160,52 +3186,46 @@ export default function TeacherTrainingTab() {
     {
       label: "已报到",
       value: selectedCohort?.stats.presentCount ?? 0,
-      helper: "报到",
+      helper: "报到完成",
       Icon: CheckCircle2,
       onClick: () => openOverviewMetric({ attendanceFilter: "registered", detailViewTitle: "已报到教师", section: "attendance" }),
       title: "查看已报到教师",
     },
-    {
-      label: "请假",
-      value: selectedCohort?.stats.leaveCount ?? 0,
-      helper: "审批",
-      Icon: CalendarDays,
-      onClick: () => openOverviewMetric({ attendanceFilter: "leave", detailViewTitle: "请假教师", section: "attendance" }),
-      title: "查看请假教师",
-    },
-    {
-      label: "缺勤",
-      value: selectedCohort?.stats.absentCount ?? 0,
-      helper: "考勤",
-      Icon: FileCheck,
-      onClick: () => openOverviewMetric({ attendanceFilter: "absent", detailViewTitle: "缺勤教师", section: "attendance" }),
-      title: "查看缺勤教师",
-    },
-    {
-      label: "课程签到",
-      value: selectedCohort?.stats.checkInRecordCount ?? 0,
-      helper: "记录",
-      Icon: MapPin,
-      onClick: () => openOverviewMetric({ detailViewTitle: "课程签到记录", section: "checkins" }),
-      title: "查看课程签到记录",
-    },
-    {
-      label: "任务",
-      value: selectedCohort?.stats.taskCount ?? 0,
-      helper: "发布",
-      Icon: FileText,
-      onClick: () => openOverviewMetric({ detailViewTitle: "全部任务", section: "tasks", submissionFilter: "all" }),
-      title: "查看任务列表",
-    },
-    {
-      label: "汇报",
-      value: selectedCohort?.stats.submissionCount ?? 0,
-      helper: "提交",
-      Icon: Send,
-      onClick: () => openOverviewMetric({ detailViewTitle: "已提交汇报", section: "tasks", submissionFilter: "submitted" }),
-      title: "查看已提交汇报",
-    },
   ];
+  const todayForTeacherTrainingCalendar = new Date();
+  const teacherTrainingCalendarYear = todayForTeacherTrainingCalendar.getFullYear();
+  const teacherTrainingCalendarMonth = todayForTeacherTrainingCalendar.getMonth();
+  const teacherTrainingCalendarMonthLabel = `${teacherTrainingCalendarYear}-${String(teacherTrainingCalendarMonth + 1).padStart(2, "0")}`;
+  const teacherTrainingCalendarTodayValue = getDateInputValue(todayForTeacherTrainingCalendar);
+  const teacherTrainingCalendarFirstDay = new Date(teacherTrainingCalendarYear, teacherTrainingCalendarMonth, 1);
+  const teacherTrainingCalendarStartDate = new Date(teacherTrainingCalendarFirstDay);
+  teacherTrainingCalendarStartDate.setDate(
+    teacherTrainingCalendarFirstDay.getDate() - ((teacherTrainingCalendarFirstDay.getDay() + 6) % 7),
+  );
+  const teacherTrainingCalendarCourseDates = new Set(
+    (selectedCohort?.courseSessions ?? []).map((course) => course.courseDate),
+  );
+  const teacherTrainingCalendarTrainingStart = selectedCohort?.startDate ?? "";
+  const teacherTrainingCalendarTrainingEnd = selectedCohort?.endDate ?? "";
+  const teacherTrainingCalendarDays = Array.from({ length: 42 }, (_, index) => {
+    const date = new Date(teacherTrainingCalendarStartDate);
+    date.setDate(teacherTrainingCalendarStartDate.getDate() + index);
+    const value = getDateInputValue(date);
+    const inCurrentMonth = date.getMonth() === teacherTrainingCalendarMonth;
+    const inTrainingRange =
+      Boolean(teacherTrainingCalendarTrainingStart && teacherTrainingCalendarTrainingEnd) &&
+      value >= teacherTrainingCalendarTrainingStart &&
+      value <= teacherTrainingCalendarTrainingEnd;
+
+    return {
+      value,
+      day: date.getDate(),
+      inCurrentMonth,
+      isToday: value === teacherTrainingCalendarTodayValue,
+      inTrainingRange,
+      hasCourse: teacherTrainingCalendarCourseDates.has(value),
+    };
+  });
   const managerPendingAttendanceCount = selectedCohort
     ? Math.max(0, selectedCohort.stats.participantCount - selectedCohort.stats.presentCount)
     : 0;
@@ -3360,17 +3380,6 @@ export default function TeacherTrainingTab() {
     count?: string;
   }> = [
     { label: "班次管理", helper: "配置班次", Icon: ClipboardCheck, onClick: () => openTeacherTrainingSection("cohorts") },
-    ...managerCommandQuickLinks.map((item) => ({
-      ...item,
-      count:
-        item.label === "参训教师"
-          ? `${selectedCohort?.stats.participantCount ?? 0}`
-          : item.label === "课程安排"
-            ? `${selectedCohort?.stats.courseCount ?? 0}`
-            : item.label === "请假审批" && pendingLeaveRequests.length > 0
-              ? `${pendingLeaveRequests.length}`
-              : undefined,
-    })),
     ...(canManageGlobal
       ? [
           {
@@ -3381,12 +3390,12 @@ export default function TeacherTrainingTab() {
           },
         ]
       : []),
+    ...managerCommandQuickLinks,
     {
       label: "报到登记",
       helper: "房号材料",
       Icon: CheckCircle2,
       onClick: () => openOverviewMetric({ attendanceFilter: "pending", detailViewTitle: "报到登记", section: "attendance" }),
-      count: `${selectedCohort?.stats.presentCount ?? 0}`,
     },
     { label: "课程签到", helper: "定位记录", Icon: MapPin, onClick: () => openOverviewMetric({ detailViewTitle: "课程签到记录", section: "checkins" }) },
     { label: "导出归档", helper: "材料下载", Icon: Download, onClick: () => openTeacherTrainingSection("exports") },
@@ -3414,18 +3423,6 @@ export default function TeacherTrainingTab() {
     { label: "已签到", value: `${teacherSignedCheckInCount}`, helper: "签到记录", Icon: GraduationCap, tone: "emerald" },
     { label: "待提交任务", value: `${teacherPendingTaskCount}`, helper: `已提交 ${teacherSubmittedTaskCount} 项`, Icon: FileText, tone: "amber" },
     { label: "请假记录", value: `${selectedParticipant?.leaveRequests.length ?? 0}`, helper: "申请次数", Icon: FileCheck, tone: "violet" },
-  ];
-  const managerPortalDataItems: Array<{
-    label: string;
-    value: string;
-    helper: string;
-    Icon: typeof Users;
-    tone: "blue" | "emerald" | "amber" | "violet";
-  }> = [
-    { label: "参训教师", value: `${selectedCohort?.stats.participantCount ?? 0}`, helper: "名单人数", Icon: Users, tone: "blue" },
-    { label: "已报到", value: `${selectedCohort?.stats.presentCount ?? 0}`, helper: "报到完成", Icon: CheckCircle2, tone: "emerald" },
-    { label: "今日签到", value: `${selectedCohort?.stats.checkInRecordCount ?? 0}`, helper: "签到记录", Icon: MapPin, tone: "amber" },
-    { label: "汇报提交", value: `${selectedCohort?.stats.submissionCount ?? 0}`, helper: "任务汇报", Icon: Award, tone: "violet" },
   ];
   const teacherMobilePriorityItems = [
     ...(teacherPendingCheckInCount > 0
@@ -3521,12 +3518,11 @@ export default function TeacherTrainingTab() {
               label: "当前暂无待办",
               value: "状态正常",
               helper: "可以查看课程安排、请假记录或个人资料。",
-              actionLabel: "查看课程",
+              actionLabel: "个人信息",
               Icon: CheckCircle2,
-              section: "courses",
+              section: "profile",
               tone: "emerald",
             };
-  const TeacherPortalPrimaryIcon = teacherPrimaryAction?.Icon ?? CalendarDays;
   const focusTeacherTaskSubmission = (taskId: string) => {
     const participantId = selectedParticipant?.id ?? submissionDraft.participantId;
     setSubmissionDraft(buildSubmissionDraftForSelection(taskId, participantId));
@@ -3580,12 +3576,35 @@ export default function TeacherTrainingTab() {
       ? normalizeTeacherTrainingManagerIdentity(currentCohortManagerIdentity?.title) || "省培管理人员"
       : "省培教师";
   const teacherTrainingPortalUserName = currentUser?.name || currentUser?.username || "当前用户";
+  const teacherTrainingPortalCohortTitle = formatTeacherTrainingCohortTitle(selectedCohort?.title);
+  const teacherTrainingPortalAnnouncements = announcements.slice(0, 5);
   const teacherTrainingPortalNotificationCount = canManage ? managerPendingActionCount : teacherMobilePriorityItems.length;
+  const openTeacherTrainingAnnouncementDetail = (announcement: (typeof teacherTrainingPortalAnnouncements)[number]) => {
+    const target = `/teacher-training/announcements/${encodeURIComponent(announcement.id)}`;
+    const opened = window.open(target, "_blank", "noopener,noreferrer");
+    if (!opened) {
+      window.location.href = target;
+    }
+  };
+  const openTeacherTrainingAnnouncementPublisher = () => {
+    if (!selectedCohort?.id) {
+      setLoadError("请先选择省培班次");
+      return;
+    }
+
+    setTeacherTrainingPortalUserMenuOpen(false);
+    setAnnouncementDraft({
+      ...Workspace.defaultAnnouncementDraft,
+      teacherTrainingCohortId: selectedCohort.id,
+    });
+    setAnnouncementModalOpen(true);
+  };
   const teacherTrainingPortalNavItems: Array<{
     label: string;
     section: Workspace.TeacherTrainingSectionKey;
     Icon: typeof Users;
     caret?: boolean;
+    onClick?: () => void;
   }> = canManage
     ? [
         { label: "首页", section: "overview", Icon: Home },
@@ -3593,7 +3612,7 @@ export default function TeacherTrainingTab() {
         { label: "培训管理", section: "participants", Icon: ClipboardCheck, caret: true },
         { label: "数据统计", section: "exports", Icon: BarChart3, caret: true },
         { label: "资源中心", section: "tasks", Icon: FolderOpen },
-        { label: "通知公告", section: "overview", Icon: Bell },
+        { label: "通知公告", section: "overview", Icon: Bell, onClick: openTeacherTrainingAnnouncementPublisher },
       ]
     : [
         { label: "首页", section: "overview", Icon: Home },
@@ -3611,14 +3630,14 @@ export default function TeacherTrainingTab() {
     <header className="tt-portal-topbar" aria-label="省培门户导航">
       <div className="tt-portal-topbar-inner">
         <div className="tt-portal-brand">
-          <span className="tt-portal-brand-mark">
+          <span className="tt-portal-brand-logo">
             <Image
-              alt="南京铁道职业技术学院校徽"
+              alt="南京铁道职业技术学院"
               className="h-full w-full object-contain"
-              height={44}
+              height={40}
               priority
-              src="/brand/njrts-logo.png"
-              width={44}
+              src="/official-logo.png"
+              width={224}
             />
           </span>
           <span className="min-w-0">
@@ -3634,7 +3653,7 @@ export default function TeacherTrainingTab() {
                 key={item.label}
                 aria-label={`进入${item.label}`}
                 className={`tt-portal-nav-item ${isHomeActive ? "is-active" : ""}`}
-                onClick={() => openTeacherTrainingPortalSection(item.section)}
+                onClick={item.onClick ?? (() => openTeacherTrainingPortalSection(item.section))}
                 title={`进入${item.label}`}
                 type="button"
               >
@@ -3827,10 +3846,7 @@ export default function TeacherTrainingTab() {
                 <section className="tt-portal-hero" aria-label="当前培训班">
                   <div className="tt-portal-hero-copy">
                     <span className="tt-portal-kicker">江苏省职业院校教师培训服务系统</span>
-                    <h3>
-                      {selectedCohort?.title ??
-                        "江苏省职业院校教师素质提高计划职业学校创新创业教育（竞赛）指导能力提升培训"}
-                    </h3>
+                    <h3>{teacherTrainingPortalCohortTitle}</h3>
                     <div className="tt-portal-hero-meta">
                       <span>
                         <CalendarDays className="h-4 w-4" />
@@ -3842,16 +3858,6 @@ export default function TeacherTrainingTab() {
                       </span>
                     </div>
                   </div>
-                  <button
-                    aria-label="查看课程安排"
-                    className="tt-portal-primary-button"
-                    onClick={() => openTeacherTrainingSection(teacherPrimaryAction?.section ?? "courses")}
-                    title="查看课程安排"
-                    type="button"
-                  >
-                    <TeacherPortalPrimaryIcon className="h-4 w-4" />
-                    <span>{teacherPrimaryAction?.actionLabel ?? "查看课程"}</span>
-                  </button>
                 </section>
 
                 <div className="tt-portal-grid">
@@ -3970,7 +3976,7 @@ export default function TeacherTrainingTab() {
                     </div>
                   </section>
 
-                  <section className="tt-portal-panel">
+                  <section className="tt-portal-panel" id="tt-portal-notices">
                     <div className="tt-portal-panel-header">
                       <p className="tt-block-title">培训通知</p>
                       <button
@@ -3984,23 +3990,24 @@ export default function TeacherTrainingTab() {
                         <ChevronDown className="h-3.5 w-3.5 -rotate-90" />
                       </button>
                     </div>
-                    <div className="tt-portal-notice-list">
-                      <div className="tt-portal-notice-item">
-                        <span className="tt-portal-notice-dot" />
-                        <p>按课程窗口完成签到</p>
-                        <time>2026-07-08</time>
+                    {teacherTrainingPortalAnnouncements.length > 0 ? (
+                      <div className="tt-portal-notice-list">
+                        {teacherTrainingPortalAnnouncements.map((announcement) => (
+                          <button
+                            key={announcement.id}
+                            className="tt-portal-notice-item"
+                            onClick={() => openTeacherTrainingAnnouncementDetail(announcement)}
+                            type="button"
+                          >
+                            <span className="tt-portal-notice-dot" />
+                            <p>{announcement.title}</p>
+                            <time>{formatTeacherTrainingAnnouncementDate(announcement.createdAt)}</time>
+                          </button>
+                        ))}
                       </div>
-                      <div className="tt-portal-notice-item">
-                        <span className="tt-portal-notice-dot" />
-                        <p>任务汇报仅提交 PDF</p>
-                        <time>2026-07-03</time>
-                      </div>
-                      <div className="tt-portal-notice-item">
-                        <span className="tt-portal-notice-dot" />
-                        <p>请假按审批流程处理</p>
-                        <time>2026-07-02</time>
-                      </div>
-                    </div>
+                    ) : (
+                      <div className="tt-portal-empty">暂无培训通知</div>
+                    )}
                   </section>
 
                   <section className="tt-portal-panel">
@@ -4054,10 +4061,7 @@ export default function TeacherTrainingTab() {
                 <section className="tt-portal-hero tt-portal-hero-manager" aria-label="当前培训班">
                   <div className="tt-portal-hero-copy">
                     <span className="tt-portal-kicker">江苏省职业院校教师培训管理系统</span>
-                    <h3>
-                      {selectedCohort?.title ??
-                        "江苏省职业院校教师素质提高计划职业学校创新创业教育（竞赛）指导能力提升培训"}
-                    </h3>
+                    <h3>{teacherTrainingPortalCohortTitle}</h3>
                     <div className="tt-portal-hero-meta">
                       <span>
                         <CalendarDays className="h-4 w-4" />
@@ -4069,16 +4073,6 @@ export default function TeacherTrainingTab() {
                       </span>
                     </div>
                   </div>
-                  <button
-                    aria-label="发布课程签到"
-                    className="tt-portal-primary-button"
-                    onClick={() => openTeacherTrainingSection("checkins")}
-                    title="发布课程签到"
-                    type="button"
-                  >
-                    <MapPin className="h-4 w-4" />
-                    <span>发布签到</span>
-                  </button>
                 </section>
 
                 <div className="tt-portal-grid">
@@ -4120,9 +4114,9 @@ export default function TeacherTrainingTab() {
                     </div>
                   </section>
 
-                  <section aria-label="今日运行" className="tt-portal-panel">
+                  <section aria-label="班次概览" className="tt-portal-panel">
                     <div className="tt-portal-panel-header">
-                      <p className="tt-block-title">今日运行</p>
+                      <p className="tt-block-title">班次概览</p>
                       <button
                         aria-label="进入导出归档"
                         className="tt-portal-link"
@@ -4153,6 +4147,57 @@ export default function TeacherTrainingTab() {
                           </span>
                         </button>
                       ))}
+                    </div>
+                  </section>
+
+                  <section aria-label="培训日历" className="tt-portal-panel tt-portal-calendar-panel">
+                    <div className="tt-portal-panel-header">
+                      <p className="tt-block-title">培训日历</p>
+                      <button
+                        aria-label="查看课程安排"
+                        className="tt-portal-link"
+                        onClick={() => openTeacherTrainingSection("courses")}
+                        title="查看课程安排"
+                        type="button"
+                      >
+                        查看课程
+                      </button>
+                    </div>
+                    <div className="tt-portal-calendar-head">
+                      <span>{teacherTrainingCalendarMonthLabel}</span>
+                      <span>培训期 {selectedCohort?.startDate ?? "--"} 至 {selectedCohort?.endDate ?? "--"}</span>
+                    </div>
+                    <div className="tt-portal-calendar-weekdays" aria-hidden="true">
+                      {["一", "二", "三", "四", "五", "六", "日"].map((day) => (
+                        <span key={day}>{day}</span>
+                      ))}
+                    </div>
+                    <div className="tt-portal-calendar-grid">
+                      {teacherTrainingCalendarDays.map((day) => (
+                        <button
+                          key={day.value}
+                          aria-label={`${day.value}${day.hasCourse ? " 有课程" : ""}`}
+                          className={[
+                            "tt-portal-calendar-day",
+                            day.inCurrentMonth ? "" : "is-muted",
+                            day.inTrainingRange ? "is-training" : "",
+                            day.isToday ? "is-today" : "",
+                            day.hasCourse ? "has-course" : "",
+                          ]
+                            .filter(Boolean)
+                            .join(" ")}
+                          onClick={() => openOverviewMetric({ detailViewTitle: `${day.value} 课程安排`, section: "courses" })}
+                          title={day.hasCourse ? `${day.value} 有课程安排` : day.value}
+                          type="button"
+                        >
+                          {day.day}
+                        </button>
+                      ))}
+                    </div>
+                    <div className="tt-portal-calendar-legend">
+                      <span><i className="is-training" />培训期</span>
+                      <span><i className="has-course" />有课程</span>
+                      <span><i className="is-today" />今天</span>
                     </div>
                   </section>
                 </div>
@@ -4205,73 +4250,39 @@ export default function TeacherTrainingTab() {
                     </div>
                   </section>
 
-                  <section className="tt-portal-panel">
+                  <section className="tt-portal-panel" id="tt-portal-notices">
                     <div className="tt-portal-panel-header">
                       <p className="tt-block-title">培训通知</p>
-                      <button
-                        aria-label="查看更多培训通知"
-                        className="tt-portal-link"
-                        onClick={() => openTeacherTrainingPortalSection("overview")}
-                        title="查看更多培训通知"
-                        type="button"
-                      >
-                        查看更多
-                        <ChevronDown className="h-3.5 w-3.5 -rotate-90" />
-                      </button>
-                    </div>
-                    <div className="tt-portal-notice-list">
-                      <div className="tt-portal-notice-item">
-                        <span className="tt-portal-notice-dot" />
-                        <p>名单和账号分开管理</p>
-                        <time>2026-07-08</time>
-                      </div>
-                      <div className="tt-portal-notice-item">
-                        <span className="tt-portal-notice-dot" />
-                        <p>课程结束后提交 PDF 汇报</p>
-                        <time>2026-07-03</time>
-                      </div>
-                      <div className="tt-portal-notice-item">
-                        <span className="tt-portal-notice-dot" />
-                        <p>请假单需全部审批通过</p>
-                        <time>2026-07-02</time>
-                      </div>
-                    </div>
-                  </section>
-
-                  <section className="tt-portal-panel">
-                    <div className="tt-portal-panel-header">
-                      <p className="tt-block-title">班次数据</p>
-                    </div>
-                    <div className="tt-portal-data-grid">
-                      {managerPortalDataItems.map((item) => (
+                      {canManage ? (
                         <button
-                          key={item.label}
-                          aria-label={`查看${item.label}`}
-                          className="tt-portal-data-tile"
-                          onClick={() => {
-                            if (item.label === "参训教师") openTeacherTrainingSection("participants");
-                            if (item.label === "已报到") {
-                              openOverviewMetric({ attendanceFilter: "registered", detailViewTitle: "已报到教师", section: "attendance" });
-                            }
-                            if (item.label === "今日签到") {
-                              openOverviewMetric({ detailViewTitle: "课程签到记录", section: "checkins" });
-                            }
-                            if (item.label === "汇报提交") {
-                              openOverviewMetric({ detailViewTitle: "已提交汇报", section: "tasks", submissionFilter: "submitted" });
-                            }
-                          }}
-                          title={`查看${item.label}`}
+                          aria-label="发布培训通知"
+                          className="tt-portal-link"
+                          onClick={openTeacherTrainingAnnouncementPublisher}
+                          title="发布培训通知"
                           type="button"
                         >
-                          <span className={`tt-portal-data-icon tt-portal-data-icon-${item.tone}`}>
-                            <item.Icon className="h-7 w-7" />
-                          </span>
-                          <strong>{item.value}</strong>
-                          <p>{item.label}</p>
-                          <span>{item.helper}</span>
+                          发布通知
                         </button>
-                      ))}
+                      ) : null}
                     </div>
+                    {teacherTrainingPortalAnnouncements.length > 0 ? (
+                      <div className="tt-portal-notice-list">
+                        {teacherTrainingPortalAnnouncements.map((announcement) => (
+                          <button
+                            key={announcement.id}
+                            className="tt-portal-notice-item"
+                            onClick={() => openTeacherTrainingAnnouncementDetail(announcement)}
+                            type="button"
+                          >
+                            <span className="tt-portal-notice-dot" />
+                            <p>{announcement.title}</p>
+                            <time>{formatTeacherTrainingAnnouncementDate(announcement.createdAt)}</time>
+                          </button>
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="tt-portal-empty">暂无培训通知</div>
+                    )}
                   </section>
                 </aside>
               </div>
@@ -5406,11 +5417,11 @@ export default function TeacherTrainingTab() {
                     <p className="tt-block-title">
                       {canManage ? "发布签到任务" : "课程定位签到"}
                     </p>
-                    <p className="mt-1.5 text-xs leading-5 text-slate-500">
-                      {canManage
-                        ? "为当天课程发布定位签到，参训教师在省培账号里自行完成签到。"
-                        : "到达授课地点后点击定位签到，管理员可导出最终课程签到名单。"}
-                    </p>
+                    {canManage ? (
+                      <p className="mt-1.5 text-xs leading-5 text-slate-500">
+                        为当天课程发布定位签到，参训教师在省培账号里自行完成签到。
+                      </p>
+                    ) : null}
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="tt-pill">{selectedCohort.checkInTasks.length} 个任务</span>
@@ -5960,13 +5971,13 @@ export default function TeacherTrainingTab() {
                     <p className="tt-block-title">
                       {canManage ? "请假审批" : "临时请假"}
                     </p>
-                    <p className="mt-1.5 text-xs leading-5 text-slate-500">
-                      {canConfigureTeacherTrainingLeaveFlow
-                        ? "系统管理员维护审批规则，管理人员按规则处理请假申请。"
-                        : canManage
-                          ? "查看当前班次待审批和全部请假申请，按已配置流程处理审批。"
-                        : "临时请假会按管理员配置的审批步骤流转，最终批准后自动写入请假签到记录。"}
-                    </p>
+                    {canManage ? (
+                      <p className="mt-1.5 text-xs leading-5 text-slate-500">
+                        {canConfigureTeacherTrainingLeaveFlow
+                          ? "系统管理员维护审批规则，管理人员按规则处理请假申请。"
+                          : "查看当前班次待审批和全部请假申请，按已配置流程处理审批。"}
+                      </p>
+                    ) : null}
                   </div>
                   <span className="tt-pill tt-pill-neutral">{selectedCohort.leaveRequests.length} 条请假</span>
                 </div>
@@ -6356,13 +6367,9 @@ export default function TeacherTrainingTab() {
                       <span className="inline-flex h-9 items-center rounded-b-xl bg-[#4f86e8] px-4 text-sm font-bold text-white">
                         首页指南
                       </span>
-                      <div className="mt-4 space-y-2 text-sm leading-7 text-slate-700">
-                        <p>欢迎使用省培请假管理。</p>
-                        <p>请假申请提交后，将按当前班次的审批流程流转；审批通过后，可导出带电子签的 PDF 请假单。</p>
-                      </div>
                       <div className="mt-4 overflow-x-auto">
                         <table className="min-w-[760px] text-left text-xs">
-                          <thead className="border-y border-slate-200 bg-slate-50 text-slate-600">
+                          <thead className="border-y border-slate-200 bg-slate-50 text-slate-700">
                             <tr className="[&>th]:px-3 [&>th]:py-2">
                               <th>人员类别</th>
                               <th>请假类型</th>
@@ -6370,14 +6377,14 @@ export default function TeacherTrainingTab() {
                               <th>审批流程</th>
                             </tr>
                           </thead>
-                          <tbody className="divide-y divide-slate-100 text-slate-600">
+                          <tbody className="divide-y divide-slate-100 text-slate-700">
                             <tr className="[&>td]:px-3 [&>td]:py-2">
                               <td>参训教师</td>
                               <td>请假</td>
                               <td>需填写开始和结束日期、时间</td>
                               <td>
                                 {selectedCohort.leaveFlow?.isEnabled && selectedCohort.leaveFlow.approvalSteps.length
-                                  ? selectedCohort.leaveFlow.approvalSteps.map((step) => step.name).join(" → ")
+                                  ? teacherTrainingDefaultLeaveFlowLabel
                                   : "管理员尚未配置审批流程"}
                               </td>
                             </tr>

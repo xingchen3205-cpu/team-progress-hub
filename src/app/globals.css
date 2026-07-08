@@ -4440,7 +4440,8 @@ a:hover {
   width: 100vw;
   min-height: calc(100svh - 38px);
   margin-left: -50vw;
-  overflow: hidden;
+  overflow-x: auto;
+  overflow-y: visible;
   background:
     linear-gradient(180deg, #f7fbff 0%, #eef5ff 40%, #ffffff 100%),
     radial-gradient(circle at 88% 28%, rgba(147, 197, 253, 0.18), transparent 34%);
@@ -4466,23 +4467,19 @@ a:hover {
 }
 .tt-portal-brand {
   display: flex;
-  min-width: 360px;
+  min-width: 430px;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
 }
-.tt-portal-brand-mark {
+.tt-portal-brand-logo {
   display: inline-flex;
-  height: 48px;
-  width: 48px;
+  height: 42px;
+  width: 234px;
   flex: 0 0 auto;
   align-items: center;
-  justify-content: center;
-  border: 1px solid rgba(219, 234, 254, 0.46);
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.12);
-  padding: 4px;
+  justify-content: flex-start;
 }
-.tt-portal-brand-mark img {
+.tt-portal-brand-logo img {
   display: block;
 }
 .tt-portal-brand strong,
@@ -4495,7 +4492,7 @@ a:hover {
   letter-spacing: 0;
 }
 .tt-portal-brand strong {
-  font-size: 25px;
+  font-size: 24px;
   line-height: 1.1;
 }
 .tt-portal-brand small,
@@ -4647,16 +4644,17 @@ a:hover {
 .tt-portal-hero {
   position: relative;
   display: grid;
-  min-height: 256px;
-  grid-template-columns: minmax(0, 1fr) auto;
+  min-height: 320px;
+  height: clamp(320px, 26vw, 420px);
+  grid-template-columns: minmax(0, 1fr);
   align-items: end;
   gap: 24px;
   overflow: hidden;
   border-radius: 0;
   background:
-    linear-gradient(90deg, rgba(5, 30, 77, 0.88) 0%, rgba(8, 58, 126, 0.68) 39%, rgba(5, 73, 133, 0.18) 76%),
-    url("/teacher-training-campus-hero.png") center / cover no-repeat;
-  padding: 42px max(32px, calc((100vw - 1488px) / 2 + 28px));
+    linear-gradient(90deg, rgba(5, 30, 77, 0.9) 0%, rgba(8, 58, 126, 0.66) 38%, rgba(5, 73, 133, 0.08) 80%),
+    url("/teacher-training-campus-hero.png") center / 100% 100% no-repeat;
+  padding: 46px max(40px, calc((100vw - 1488px) / 2 + 34px));
 }
 .tt-portal-hero::after {
   content: "";
@@ -4886,7 +4884,7 @@ a:hover {
 }
 .tt-portal-run-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(136px, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 10px;
 }
 .tt-portal-run-card {
@@ -4899,6 +4897,119 @@ a:hover {
   background: #ffffff;
   padding: 12px;
   text-align: left;
+}
+.tt-portal-calendar-panel {
+  min-height: 292px;
+}
+.tt-portal-calendar-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  border-bottom: 1px solid #e2ebf6;
+  padding-bottom: 11px;
+  color: #6f8098;
+  font-size: 12px;
+  font-weight: 720;
+}
+.tt-portal-calendar-head span:first-child {
+  color: #153c78;
+  font-size: 14px;
+  font-weight: 850;
+}
+.tt-portal-calendar-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 5px;
+  margin-top: 12px;
+  color: #7a8ca5;
+  font-size: 12px;
+  font-weight: 800;
+  text-align: center;
+}
+.tt-portal-calendar-grid {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  gap: 5px;
+  margin-top: 7px;
+}
+.tt-portal-calendar-day {
+  position: relative;
+  display: inline-flex;
+  min-height: 38px;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #e0e9f5;
+  border-radius: 4px;
+  background: #ffffff;
+  color: #1f3554;
+  font-size: 13px;
+  font-weight: 760;
+  transition:
+    border-color 180ms ease,
+    background-color 180ms ease,
+    color 180ms ease,
+    transform 180ms ease;
+}
+.tt-portal-calendar-day:hover {
+  transform: translateY(-1px);
+  border-color: #9bbcec;
+  background: #f4f9ff;
+}
+.tt-portal-calendar-day.is-muted {
+  color: #b8c5d5;
+}
+.tt-portal-calendar-day.is-training {
+  border-color: #bfdbfe;
+  background: #eff6ff;
+  color: #184f9d;
+}
+.tt-portal-calendar-day.has-course::after {
+  position: absolute;
+  right: 6px;
+  bottom: 5px;
+  height: 5px;
+  width: 5px;
+  border-radius: 999px;
+  background: #1f6de0;
+  content: "";
+}
+.tt-portal-calendar-day.is-today {
+  border-color: #1f6de0;
+  background: #1f6de0;
+  color: #ffffff;
+}
+.tt-portal-calendar-day.is-today::after {
+  background: #ffffff;
+}
+.tt-portal-calendar-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  margin-top: 12px;
+  color: #60728b;
+  font-size: 12px;
+  font-weight: 720;
+}
+.tt-portal-calendar-legend span {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.tt-portal-calendar-legend i {
+  display: inline-block;
+  height: 8px;
+  width: 8px;
+  border-radius: 999px;
+}
+.tt-portal-calendar-legend .is-training {
+  background: #bfdbfe;
+}
+.tt-portal-calendar-legend .has-course {
+  background: #1f6de0;
+}
+.tt-portal-calendar-legend .is-today {
+  background: #153c78;
 }
 .tt-portal-list {
   display: grid;
@@ -4936,11 +5047,19 @@ a:hover {
 }
 .tt-portal-notice-item {
   display: grid;
+  width: 100%;
   grid-template-columns: 10px minmax(0, 1fr) auto;
   align-items: center;
   gap: 8px;
+  border: 0;
   border-bottom: 1px solid #e2ebf6;
+  background: transparent;
   padding: 10px 0;
+  text-align: left;
+  cursor: pointer;
+}
+.tt-portal-notice-item:hover p {
+  color: #1d5ebd;
 }
 .tt-portal-notice-item:last-child {
   border-bottom: 0;
@@ -5041,11 +5160,12 @@ a:hover {
 }
 .tt-portal-floating-tools {
   position: fixed;
-  top: 238px;
+  top: 50%;
   right: 18px;
-  z-index: 8;
+  z-index: 30;
   display: grid;
   gap: 1px;
+  transform: translateY(-50%);
   border: 1px solid #e2ebf6;
   background: #ffffff;
   box-shadow: 0 8px 24px rgba(24, 63, 111, 0.12);
@@ -5066,7 +5186,17 @@ a:hover {
   color: #1d5ebd;
 }
 
-@media (max-width: 1180px) {
+@media (pointer: fine) {
+  .tt-portal-page-shell {
+    min-width: 1180px;
+  }
+  .tt-portal-topbar-inner,
+  .tt-portal-grid {
+    min-width: 1120px;
+  }
+}
+
+@media (max-width: 1180px) and (pointer: coarse) {
   .tt-portal-topbar-inner {
     flex-wrap: wrap;
     min-height: auto;
@@ -5075,6 +5205,9 @@ a:hover {
   .tt-portal-brand,
   .tt-portal-topuser {
     min-width: 0;
+  }
+  .tt-portal-brand-logo {
+    width: 212px;
   }
   .tt-portal-topnav {
     order: 3;
@@ -5088,15 +5221,19 @@ a:hover {
   }
 }
 
-@media (max-width: 900px) {
+@media (max-width: 900px) and (pointer: coarse) {
   .tt-portal-page-main {
     padding: 0 0 24px;
   }
   .tt-portal-hero {
-    min-height: 232px;
+    min-height: 318px;
+    height: auto;
     grid-template-columns: 1fr;
     align-items: end;
-    padding: 24px 20px;
+    background:
+      linear-gradient(90deg, rgba(5, 30, 77, 0.92) 0%, rgba(8, 58, 126, 0.72) 50%, rgba(5, 73, 133, 0.2) 100%),
+      url("/teacher-training-campus-hero.png") center / cover no-repeat;
+    padding: 28px 20px;
   }
   .tt-portal-grid {
     grid-template-columns: 1fr;
@@ -5112,9 +5249,16 @@ a:hover {
   }
 }
 
-@media (max-width: 560px) {
+@media (max-width: 560px) and (pointer: coarse) {
   .tt-portal-topbar-inner {
     padding: 10px 12px;
+  }
+  .tt-portal-brand {
+    width: 100%;
+  }
+  .tt-portal-brand-logo {
+    height: 34px;
+    width: 190px;
   }
   .tt-portal-brand strong {
     font-size: 20px;
