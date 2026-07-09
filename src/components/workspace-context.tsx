@@ -4233,7 +4233,15 @@ function useWorkspaceController({
   }, [teamAiPage, teamPageCount]);
 
   const pendingApprovalMembers = pendingTeamMembers.filter((member) => canApprovePendingMember(member));
-  const unreadTodoNotifications = notifications.filter((item) => !item.isRead);
+  const visibleNotifications = useMemo(() => {
+    const shouldShowTeacherTrainingNotifications = isTeacherTrainingPlatform || currentUser?.role === "training_teacher";
+    return notifications.filter((notification) => {
+      const isTeacherTrainingNotification =
+        notification.targetTab === "teacherTraining" || notification.type.startsWith("teacher_training_");
+      return shouldShowTeacherTrainingNotifications ? isTeacherTrainingNotification : !isTeacherTrainingNotification;
+    });
+  }, [currentUser?.role, isTeacherTrainingPlatform, notifications]);
+  const unreadTodoNotifications = visibleNotifications.filter((item) => !item.isRead);
 
   const roleTodoItems = useMemo<TodoCenterItem[]>(() => {
     if (!currentUser) {
@@ -4376,7 +4384,13 @@ function useWorkspaceController({
     [permissions.visibleTabs, unreadTodoNotifications],
   );
 
-  const visibleRoleTodoItems = roleTodoItems.filter((item) => !dismissedTodoIds.includes(item.id));
+  const visibleRoleTodoItems = roleTodoItems.filter((item) => {
+    if (dismissedTodoIds.includes(item.id)) {
+      return false;
+    }
+
+    return isTeacherTrainingPlatform ? item.targetTab === "teacherTraining" : item.targetTab !== "teacherTraining";
+  });
   const todoItemCount = visibleRoleTodoItems.length + todoNotifications.length;
   const urgentTodoCount = visibleRoleTodoItems.filter((item) => item.priority === "danger").length;
 
@@ -4436,7 +4450,12 @@ function useWorkspaceController({
     }
 
     if (todoNotifications.length > 0) {
-      await markAllNotificationsAsRead();
+      await Promise.all(
+        todoNotifications
+          .map((item) => item.notificationId)
+          .filter((notificationId): notificationId is string => Boolean(notificationId))
+          .map((notificationId) => markNotificationAsRead(notificationId)),
+      );
     }
   };
 
@@ -6446,7 +6465,7 @@ function useWorkspaceController({
     const attachment = draft.attachment.trim();
 
     if (!taskId || !participantId || !attachment) {
-      setLoadError("请先选择任务、参训教师并上传 PDF 汇报附件");
+      setLoadError("请先选择任务、参训教师并上传 Word 或 PDF 汇报附件");
       return false;
     }
 

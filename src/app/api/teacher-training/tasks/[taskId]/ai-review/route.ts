@@ -6,6 +6,7 @@ import { hasTeacherTrainingCohortManageAccess } from "@/lib/teacher-training-acc
 import {
   decodeTeacherTrainingSubmissionAttachmentFile,
   getTeacherTrainingSubmissionAttachmentLabel,
+  isTeacherTrainingSubmissionAttachmentPdfFile,
 } from "@/lib/teacher-training-submission-attachments";
 import { readStoredFile } from "@/lib/uploads";
 
@@ -259,7 +260,12 @@ export async function POST(request: NextRequest, context: RouteContext) {
     for (const submission of submissionChunk) {
       const attachmentFile = decodeTeacherTrainingSubmissionAttachmentFile(submission.attachment);
       let pdfContent = "";
-      if (attachmentFile) {
+      const attachmentKind = attachmentFile?.fileName
+        ? isTeacherTrainingSubmissionAttachmentPdfFile(attachmentFile.fileName)
+          ? "PDF"
+          : "Word"
+        : "无附件";
+      if (attachmentFile && isTeacherTrainingSubmissionAttachmentPdfFile(attachmentFile.fileName)) {
         try {
           const fileData = await readStoredFile(attachmentFile.filePath);
           pdfContent = (await extractPdfText(fileData.buffer)).slice(0, maxSubmissionPdfContentLength);
@@ -273,16 +279,17 @@ export async function POST(request: NextRequest, context: RouteContext) {
         teacher: submission.participant?.name ?? "参训教师",
         organization: submission.participant?.organization ?? "",
         attachment: getTeacherTrainingSubmissionAttachmentLabel(submission.attachment) || "",
+        attachmentKind,
         pdfContent,
       });
     }
 
     const query = [
-      "你是省培任务汇报的辅助评分员。请根据 PDF 汇报正文和评分细则对每份汇报给出初评分。",
+      "你是省培任务汇报的辅助评分员。请根据可读取的汇报正文和评分细则对每份汇报给出初评分。",
       "要求：只返回 JSON 数组，不要 Markdown，不要解释。",
       "数组元素格式：{\"submissionId\":\"原ID\",\"score\":0-100整数,\"comment\":\"80字以内中文短评\"}。",
       "AI 初评仅供管理端参考，最终成绩由人工确认，所以请保守、客观，不要输出排名。",
-      "注意：pdfContent 为空时，说明 PDF 文本抽取失败或文件内容不可复制，请给出偏低的规范分并提示管理者人工查看附件。",
+      "注意：pdfContent 为空时，说明该附件是 Word、PDF 文本抽取失败或文件内容不可复制，请给出保守规范分并提示管理者人工查看附件。",
       `培训班次：${task.cohort.title}`,
       `关联课程：${courseLabel}`,
       `任务名称：${task.title}`,

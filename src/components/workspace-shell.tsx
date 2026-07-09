@@ -1067,9 +1067,11 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
 
                 <button
                   className="topbar-icon-btn"
-                  aria-label="打开待办与未读提醒"
+                  aria-expanded={notificationsOpen}
+                  aria-haspopup="dialog"
+                  aria-label={`打开待办与通知，当前 ${todoItemCount} 条`}
                   onClick={() => setNotificationsOpen(true)}
-                  title="待办与未读提醒"
+                  title="待办与通知"
                   type="button"
                 >
                   <ClipboardCheck className="h-4 w-4" />
@@ -2509,15 +2511,15 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
         <Modal
           onClose={() => setNotificationsOpen(false)}
           panelClassName="max-h-[min(92vh,860px)] max-w-[min(94vw,860px)] sm:max-w-[min(92vw,860px)]"
-          title="今日待办"
+          title="待办与通知"
         >
           <div className="space-y-5 overflow-hidden">
             <div className={`todo-modal-summary-card ${subtleCardClassName}`}>
               <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                 <div>
-                  <p className="text-base font-semibold text-slate-900">待处理事项总览</p>
+                  <p className="text-base font-semibold text-slate-900">当前账号待处理</p>
                   <p className="mt-1 text-sm leading-6 text-slate-500">
-                    未标记为已读的内容会继续保留在待办入口；通知点开后自动标记为已读。
+                    只显示当前身份可处理的事项和当前平台相关通知；点开通知后自动标记为已读。
                   </p>
                 </div>
                 <div className="flex flex-wrap items-center gap-2">
@@ -2550,8 +2552,8 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
               <section className="space-y-3">
                 <div className="todo-modal-section-header">
                   <div>
-                    <p className="text-sm font-semibold text-slate-900">待办事项</p>
-                    <p className="mt-1 text-xs text-slate-400">需要主动推进的事项，收起后仍可从待办入口再次查看。</p>
+                    <p className="text-sm font-semibold text-slate-900">待处理</p>
+                    <p className="mt-1 text-xs text-slate-400">只保留当前账号有权限处理的事项。</p>
                   </div>
                 </div>
                 <div className="space-y-3">
@@ -2601,8 +2603,8 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
               <section className="space-y-3">
                 <div className="todo-modal-section-header">
                   <div>
-                    <p className="text-sm font-semibold text-slate-900">未读提醒</p>
-                    <p className="mt-1 text-xs text-slate-400">点击提醒进入处理页后会自动标记为已读。</p>
+                    <p className="text-sm font-semibold text-slate-900">通知</p>
+                    <p className="mt-1 text-xs text-slate-400">点击通知进入对应页面后自动标记为已读。</p>
                   </div>
                 </div>
                 <div className="todo-modal-notice-list space-y-3">
@@ -2631,9 +2633,9 @@ export function WorkspaceShell({ tabContent }: { tabContent: ReactNode }) {
             {todoItemCount === 0 ? (
               <div className="rounded-lg border border-dashed border-slate-200">
                 <EmptyState
-                  description="当前没有需要你立刻处理的事项，今天的节奏已经很不错了。"
+                  description="当前账号没有新的待处理事项。"
                   icon={BellPlus}
-                  title="暂时没有新的待办"
+                  title="暂无待办或通知"
                 />
               </div>
             ) : null}

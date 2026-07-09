@@ -128,19 +128,54 @@ export async function GET(request: NextRequest) {
         .replace(/[\\/:*?"<>|]/g, "_")
         .replace(/\s+/g, "_")
         .trim() || "未命名";
+    const usedParticipantFolders = new Set<string>();
+    const uniqueParticipantFolder = (folder: string) => {
+      if (!usedParticipantFolders.has(folder)) {
+        usedParticipantFolders.add(folder);
+        return folder;
+      }
+
+      let index = 2;
+      let candidate = `${folder}_${index}`;
+      while (usedParticipantFolders.has(candidate)) {
+        index += 1;
+        candidate = `${folder}_${index}`;
+      }
+      usedParticipantFolders.add(candidate);
+      return candidate;
+    };
     const participantFolders = new Map(
       serialized.participants.map((participant) => [
         participant.id,
-        `${cleanPathPart(participant.name)}-${cleanPathPart(participant.organization)}`,
+        uniqueParticipantFolder(`${cleanPathPart(participant.name)}-${cleanPathPart(participant.organization)}`),
       ]),
     );
+    const usedZipPaths = new Set<string>();
+    const uniqueZipPath = (path: string) => {
+      if (!usedZipPaths.has(path)) {
+        usedZipPaths.add(path);
+        return path;
+      }
+
+      const lastDotIndex = path.lastIndexOf(".");
+      const basePath = lastDotIndex > 0 ? path.slice(0, lastDotIndex) : path;
+      const extension = lastDotIndex > 0 ? path.slice(lastDotIndex) : "";
+      let index = 2;
+      let candidate = `${basePath}_${index}${extension}`;
+      while (usedZipPaths.has(candidate)) {
+        index += 1;
+        candidate = `${basePath}_${index}${extension}`;
+      }
+      usedZipPaths.add(candidate);
+      return candidate;
+    };
     const zipEntries: ZipArchiveEntry[] = serialized.participants.map((participant) => ({
-        path: `${cleanPathPart(participant.name)}-${cleanPathPart(participant.organization)}/省培任务汇报.docx`,
-        content: buildTeacherTrainingSubmissionWordDocument({
-          cohort: serialized,
-          participant,
-        }),
-      }));
+      path: uniqueZipPath(`${cleanPathPart(participant.name)}-${cleanPathPart(participant.organization)}/省培任务汇报汇总.docx`),
+      content: buildTeacherTrainingSubmissionWordDocument({
+        cohort: serialized,
+        participant,
+      }),
+    }));
 
     for (const task of cohort.tasks) {
       for (const submission of task.submissions) {
@@ -152,12 +187,12 @@ export async function GET(request: NextRequest) {
         try {
           const fileData = await readStoredFile(attachmentFile.filePath);
           zipEntries.push({
-            path: attachmentPath,
+            path: uniqueZipPath(attachmentPath),
             content: fileData.buffer,
           });
         } catch {
           zipEntries.push({
-            path: `${attachmentPath}.缺失说明.txt`,
+            path: uniqueZipPath(`${attachmentPath}.缺失说明.txt`),
             content: `附件读取失败：${attachmentFile.fileName}\n请联系管理员重新上传。`,
           });
         }
@@ -165,7 +200,7 @@ export async function GET(request: NextRequest) {
     }
 
     const zipBuffer = createZipArchive(zipEntries);
-    const fileName = `${serialized.title}-任务汇报Word归档.zip`;
+    const fileName = `${serialized.title}-任务汇报归档.zip`;
 
     return new NextResponse(zipBuffer, {
       headers: {

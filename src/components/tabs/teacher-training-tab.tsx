@@ -703,7 +703,7 @@ const teacherTrainingActionHints: Partial<Record<Workspace.TeacherTrainingSectio
   },
   tasks: {
     title: "任务汇报",
-    steps: ["教师选择任务", "上传 PDF 汇报", "管理员统一评分归档"],
+    steps: ["教师选择任务", "上传 Word/PDF 汇报", "管理员统一评分归档"],
   },
   leave: {
     title: "请假审批",
@@ -780,7 +780,7 @@ const getTeacherTrainingSubmissionDisabledReason = (
   }
 
   if (!hasAttachment) {
-    return "请上传 PDF 汇报附件";
+    return "请上传 Word 或 PDF 汇报附件";
   }
 
   return "";
@@ -2518,7 +2518,9 @@ export default function TeacherTrainingTab() {
     }
 
     setSubmissionAttachmentFile(file);
-    setSubmissionAttachmentPreviewUrl(URL.createObjectURL(file));
+    setSubmissionAttachmentPreviewUrl(
+      Workspace.isTeacherTrainingSubmissionAttachmentPdfFile(file.name) ? URL.createObjectURL(file) : "",
+    );
     setSubmissionAttachmentError("");
     setSubmissionDraft((current) => ({ ...current, attachment: "" }));
   };
@@ -3486,7 +3488,7 @@ export default function TeacherTrainingTab() {
       ? {
           label: "继续提交汇报",
           value: `${teacherPendingTaskCount} 项待提交`,
-          helper: "按课程或总任务上传 PDF 汇报。",
+          helper: "按课程或总任务上传 Word/PDF 汇报。",
           actionLabel: "去填写",
           Icon: Send,
           section: "tasks",
@@ -8310,9 +8312,9 @@ export default function TeacherTrainingTab() {
                       <span className={teacherTrainingFieldLabelClassName}>省培任务汇报附件</span>
                       <label className="mt-1.5 flex min-h-[112px] cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-blue-200 bg-blue-50/35 px-4 py-4 text-center transition hover:border-blue-300 hover:bg-blue-50/70">
                         <Upload className="h-5 w-5 text-blue-600" />
-                        <span className="mt-2 text-sm font-semibold text-slate-900">选择 PDF 文件</span>
+                        <span className="mt-2 text-sm font-semibold text-slate-900">选择 Word 或 PDF 文件</span>
                         <span className="mt-1 text-xs leading-5 text-slate-500">
-                          任务汇报附件仅支持 PDF，单个 {Workspace.teacherTrainingSubmissionAttachmentMaxSizeLabel} 以内
+                          任务汇报附件仅支持 Word/PDF，单个 {Workspace.teacherTrainingSubmissionAttachmentMaxSizeLabel} 以内
                         </span>
                         <input
                           {...fieldHint("省培任务汇报附件")}
@@ -8386,7 +8388,7 @@ export default function TeacherTrainingTab() {
                         ) : currentSubmissionAttachmentLabel ? (
                           <p className="text-xs leading-5 text-slate-500">已保留旧附件说明：{currentSubmissionAttachmentLabel}</p>
                         ) : (
-                          <p className="text-xs leading-5 text-slate-500">请上传 PDF 汇报附件后保存。</p>
+                          <p className="text-xs leading-5 text-slate-500">请上传 Word 或 PDF 汇报附件后保存。</p>
                         )}
                         {submissionAttachmentProgress !== null ? (
                           <div className="mt-3">
@@ -8402,19 +8404,33 @@ export default function TeacherTrainingTab() {
                             </div>
                           </div>
                         ) : null}
-                        {submissionAttachmentPreviewUrl || currentSubmissionAttachmentFile ? (
+                        {submissionAttachmentFile || currentSubmissionAttachmentFile ? (
                           <div className="mt-3 overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
                             <div className="flex items-center justify-between gap-3 border-b border-slate-200 bg-white px-3 py-2">
-                              <span className="text-xs font-bold text-slate-700">PDF 预览</span>
+                              <span className="text-xs font-bold text-slate-700">附件预览</span>
                               <span className="text-[11px] font-semibold text-slate-400">
-                                {submissionAttachmentPreviewUrl ? "本地文件" : "已上传附件"}
+                                {submissionAttachmentFile ? "本地文件" : "已上传附件"}
                               </span>
                             </div>
-                            <iframe
-                              className="h-[420px] w-full bg-white"
-                              src={submissionAttachmentPreviewUrl || currentSubmissionAttachmentFile!.downloadUrl}
-                              title="PDF 预览"
-                            />
+                            {submissionAttachmentPreviewUrl ||
+                            (currentSubmissionAttachmentFile &&
+                              Workspace.isTeacherTrainingSubmissionAttachmentPdfFile(currentSubmissionAttachmentFile.fileName)) ? (
+                              <iframe
+                                className="h-[420px] w-full bg-white"
+                                src={submissionAttachmentPreviewUrl || currentSubmissionAttachmentFile!.downloadUrl}
+                                title="PDF 汇报预览"
+                              />
+                            ) : (
+                              <div className="flex min-h-[180px] flex-col items-center justify-center gap-2 px-4 py-8 text-center text-sm text-slate-500">
+                                <FileText className="h-8 w-8 text-blue-500" />
+                                <p className="font-semibold text-slate-700">Word 文件请下载后查看</p>
+                                <p className="text-xs leading-5 text-slate-500">
+                                  {submissionAttachmentFile
+                                    ? "本地 Word 文件已选择，保存后管理员可随归档一起导出。"
+                                    : "已上传的 Word 汇报不会在网页中硬预览，可通过上方下载按钮查看。"}
+                                </p>
+                              </div>
+                            )}
                           </div>
                         ) : null}
                       </div>
@@ -8643,7 +8659,7 @@ export default function TeacherTrainingTab() {
                                     onClick={() => {
                                       if (
                                         !window.confirm(
-                                          `确认对“${task.title}”的 ${task.submissions.length} 份 PDF 汇报生成 AI 初评？\n\n系统会自动分批处理并读取 PDF 文本；AI 初评不会覆盖人工最终得分。`,
+                                          `确认对“${task.title}”的 ${task.submissions.length} 份汇报生成 AI 初评？\n\n系统会自动分批处理可读取的汇报正文；AI 初评不会覆盖人工最终得分。`,
                                         )
                                       ) {
                                         return;
@@ -8683,7 +8699,7 @@ export default function TeacherTrainingTab() {
                               <p className="text-xs leading-5 text-slate-600">
                                 {teacherSubmission
                                   ? `已提交：${teacherSubmission.submittedAt}`
-                                  : "这项任务还没有提交，请上传 PDF 汇报后保存。"}
+                                  : "这项任务还没有提交，请上传 Word 或 PDF 汇报后保存。"}
                               </p>
                               <button
                                 aria-label={`${teacherSubmission ? "更新" : "继续填写"}${task.title}省培任务汇报`}
@@ -8719,6 +8735,7 @@ export default function TeacherTrainingTab() {
                           <div className="mt-3 grid gap-2">
                             {visibleSubmissions.map((submission) => {
                               const attachmentFile = submission.attachmentFile;
+                              const attachmentIsPdf = Workspace.isTeacherTrainingSubmissionAttachmentPdfFile(attachmentFile?.fileName);
                               const reviewDraft = getSubmissionReviewDraft(submission);
                               const participant = participantById.get(submission.participantId);
                               const previewOpen = previewTeacherTrainingSubmissionId === submission.id;
@@ -8795,15 +8812,35 @@ export default function TeacherTrainingTab() {
                                       </div>
                                       <div className="mt-3 grid gap-3 lg:grid-cols-[minmax(0,1fr)_240px]">
                                         <div className="min-h-[420px] overflow-hidden rounded-lg border border-slate-100 bg-slate-50/75">
-                                          {attachmentFile ? (
+                                          {attachmentFile && attachmentIsPdf ? (
                                             <iframe
                                               className="h-[420px] w-full bg-white"
                                               src={attachmentFile.downloadUrl}
-                                              title={`${submission.participantName} PDF 汇报预览`}
+                                              title={`${submission.participantName}汇报预览`}
                                             />
                                           ) : (
-                                            <div className="flex h-[420px] items-center justify-center px-4 text-center text-sm text-slate-500">
-                                              暂无可预览的 PDF 附件
+                                            <div className="flex h-[420px] flex-col items-center justify-center gap-2 px-4 text-center text-sm text-slate-500">
+                                              <FileText className="h-8 w-8 text-blue-500" />
+                                              <p className="font-semibold text-slate-700">
+                                                {attachmentFile ? "Word 文件请下载后查看" : "暂无可预览附件"}
+                                              </p>
+                                              {attachmentFile ? (
+                                                <button
+                                                  className="inline-flex h-8 items-center gap-1 rounded-md border border-blue-100 bg-blue-50 px-2.5 text-xs font-semibold text-blue-700"
+                                                  disabled={downloadingTeacherTrainingFile === attachmentFile.downloadUrl}
+                                                  onClick={() =>
+                                                    void downloadTeacherTrainingFile({
+                                                      url: attachmentFile.downloadUrl,
+                                                      label: "任务汇报附件",
+                                                      fallbackName: attachmentFile.fileName,
+                                                    })
+                                                  }
+                                                  type="button"
+                                                >
+                                                  <Download className="h-3 w-3" />
+                                                  下载查看
+                                                </button>
+                                              ) : null}
                                             </div>
                                           )}
                                         </div>

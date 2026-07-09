@@ -229,7 +229,7 @@ test("teacher training APIs support admin-managed courses, check-in, tasks, subm
   assert.match(submissionRoute, /isTeacherTrainingTaskReleased/);
   assert.match(submissionUploadRoute, /isTeacherTrainingTaskReleased/);
   assert.match(submissionRoute, /requireAttachment/);
-  assert.match(submissionRoute, /请上传 PDF 汇报附件/);
+  assert.match(submissionRoute, /请上传 Word 或 PDF 汇报附件/);
   assert.doesNotMatch(submissionRoute, /请填写任务、参训教师和汇报内容/);
   assert.match(submissionRoute, /getTeacherTrainingSubmissionAttachmentObjectKeyPrefix/);
   assert.match(submissionRoute, /附件路径与当前任务不匹配/);
@@ -954,7 +954,7 @@ test("teacher training teacher-facing forms keep visible field labels on mobile"
   assert.match(tabSource, /submissionAttachmentProgress/);
   assert.match(tabSource, /uploadFileDirectly/);
   assert.match(tabSource, /type="file"/);
-  assert.match(tabSource, /仅支持 PDF，单个/);
+  assert.match(tabSource, /任务汇报附件仅支持 Word\/PDF/);
   assert.match(tabSource, /上传进度/);
   assert.match(tabSource, /附件：/);
   assert.match(tabSource, /已按当前省培账号锁定/);
@@ -1039,7 +1039,7 @@ test("teacher training teacher-facing forms keep visible field labels on mobile"
   assert.match(tabSource, /请填写请假原因后再提交/);
   assert.match(tabSource, /请填写请假开始和结束时间/);
   assert.match(tabSource, /暂无省培任务，请等待管理员发布任务/);
-  assert.match(tabSource, /请上传 PDF 汇报附件/);
+  assert.match(tabSource, /请上传 Word 或 PDF 汇报附件/);
   assert.match(tabSource, /leaveDisabledReason \? \(/);
   assert.match(tabSource, /profileDisabledReason \? \(/);
   assert.match(tabSource, /submissionDisabledReason \? \(/);
@@ -1271,7 +1271,7 @@ test("teacher training submission archive exports laid out A4 DOCX reports", () 
   const exportRoute = read("src/app/api/teacher-training/export/route.ts");
   const libSource = read("src/lib/teacher-training.ts");
 
-  assert.match(exportRoute, /省培任务汇报\.docx/);
+  assert.match(exportRoute, /省培任务汇报汇总\.docx/);
   assert.doesNotMatch(exportRoute, /省培任务汇报\.doc`/);
   assert.match(libSource, /createZipArchive/);
   assert.match(libSource, /\[Content_Types\]\.xml/);
@@ -1286,7 +1286,7 @@ test("teacher training submission archive exports laid out A4 DOCX reports", () 
   assert.doesNotMatch(libSource, /<!doctype html/);
 });
 
-test("teacher training task reports require one PDF attachment with upload progress", () => {
+test("teacher training task reports require one Word or PDF attachment with upload progress", () => {
   const attachmentSource = read("src/lib/teacher-training-submission-attachments.ts");
   const uploadRouteSource = read("src/app/api/teacher-training/submissions/upload-url/route.ts");
   const downloadRouteSource = read("src/app/api/teacher-training/submissions/[submissionId]/attachment/route.ts");
@@ -1295,10 +1295,10 @@ test("teacher training task reports require one PDF attachment with upload progr
   const contextSource = read("src/components/workspace-context.tsx");
   const exportRouteSource = read("src/app/api/teacher-training/export/route.ts");
 
-  assert.match(attachmentSource, /teacherTrainingSubmissionAttachmentAcceptAttribute = "\.pdf"/);
+  assert.match(attachmentSource, /teacherTrainingSubmissionAttachmentAcceptAttribute = "\.pdf,\.doc,\.docx"/);
   assert.match(attachmentSource, /teacherTrainingSubmissionAttachmentMaxSizeLabel = "20MB"/);
   assert.match(attachmentSource, /validateTeacherTrainingSubmissionAttachmentMeta/);
-  assert.match(attachmentSource, /任务汇报附件仅支持 PDF 文件/);
+  assert.match(attachmentSource, /任务汇报附件仅支持 Word 或 PDF 文件/);
   assert.match(uploadRouteSource, /getSignedUrl/);
   assert.match(uploadRouteSource, /validateTeacherTrainingSubmissionAttachmentMeta/);
   assert.match(uploadRouteSource, /ContentLength:\s*fileSize/);
@@ -1310,7 +1310,7 @@ test("teacher training task reports require one PDF attachment with upload progr
   assert.match(downloadRouteSource, /hasTeacherTrainingCohortManageAccess/);
   assert.match(downloadRouteSource, /附件文件不存在或已丢失/);
   assert.match(submissionsRouteSource, /decodeTeacherTrainingSubmissionAttachmentFile/);
-  assert.match(submissionsRouteSource, /请上传 PDF 汇报附件/);
+  assert.match(submissionsRouteSource, /请上传 Word 或 PDF 汇报附件/);
   assert.match(submissionsRouteSource, /getTeacherTrainingSubmissionAttachmentObjectKeyPrefix/);
   assert.match(submissionsRouteSource, /HeadObjectCommand/);
   assert.match(submissionsRouteSource, /真实附件大小不能超过 20MB/);
@@ -1336,11 +1336,11 @@ test("teacher training task reports require one PDF attachment with upload progr
   assert.match(tabSource, /submissionAttachmentPreviewUrl/);
   assert.match(tabSource, /URL\.createObjectURL\(file\)/);
   assert.match(tabSource, /URL\.revokeObjectURL/);
-  assert.match(tabSource, /PDF 预览/);
-  assert.match(tabSource, /src=\{submissionAttachmentPreviewUrl \|\| currentSubmissionAttachmentFile!\.downloadUrl\}/);
+  assert.match(tabSource, /附件预览/);
+  assert.match(tabSource, /isTeacherTrainingSubmissionAttachmentPdfFile/);
   assert.match(tabSource, /Workspace\.uploadFileDirectly/);
   assert.match(tabSource, /teacherTrainingSubmissionAttachmentAcceptAttribute/);
-  assert.match(tabSource, /任务汇报附件仅支持 PDF/);
+  assert.match(tabSource, /任务汇报附件仅支持 Word\/PDF/);
   assert.match(contextSource, /export \* from "@\/lib\/teacher-training-submission-attachments"/);
   assert.match(contextSource, /return true/);
   assert.match(exportRouteSource, /任务附件/);
@@ -1711,7 +1711,7 @@ test("teacher training first-login profile requires contact and password but kee
   assert.doesNotMatch(tabSource, /以下到达信息均为必填/);
 });
 
-test("teacher training check-in and PDF submissions avoid misleading fallback copy", () => {
+test("teacher training check-in and Word/PDF submissions avoid misleading fallback copy", () => {
   const tabSource = read("src/components/tabs/teacher-training-tab.tsx");
   const attachmentPolicySource = read("src/lib/teacher-training-submission-attachments.ts");
   const contextSource = read("src/components/workspace-context.tsx");
@@ -1721,12 +1721,12 @@ test("teacher training check-in and PDF submissions avoid misleading fallback co
   assert.doesNotMatch(tabSource, /无坐标签到/);
   assert.doesNotMatch(tabSource, /省培平台独立管理班次、参训教师、课程签到、任务汇报、请假审批和导出归档/);
 
-  assert.match(attachmentPolicySource, /teacherTrainingSubmissionAttachmentAcceptAttribute = "\.pdf"/);
-  assert.match(attachmentPolicySource, /new Set\(\["\.pdf"\]\)/);
-  assert.match(contextSource, /请先选择任务、参训教师并上传 PDF 汇报附件/);
+  assert.match(attachmentPolicySource, /teacherTrainingSubmissionAttachmentAcceptAttribute = "\.pdf,\.doc,\.docx"/);
+  assert.match(attachmentPolicySource, /new Set\(\["\.pdf", "\.doc", "\.docx"\]\)/);
+  assert.match(contextSource, /请先选择任务、参训教师并上传 Word 或 PDF 汇报附件/);
   assert.doesNotMatch(tabSource, /省培任务汇报内容/);
   assert.doesNotMatch(tabSource, /placeholder="汇报内容"/);
-  assert.match(tabSource, /选择 PDF 文件/);
+  assert.match(tabSource, /选择 Word 或 PDF 文件/);
 });
 
 test("teacher training stays current with quiet visible-page refreshes", () => {
@@ -1845,6 +1845,45 @@ test("teacher training portal notices are cohort scoped and open as reading page
   assert.match(trainingAnnouncementPage, /canReadAnnouncement/);
   assert.match(trainingAnnouncementPage, /official-logo\.png/);
   assert.match(trainingAnnouncementLib, /teacherTrainingAnnouncementStoragePrefix/);
+});
+
+test("teacher training task reports support Word/PDF attachments and preserve export files", () => {
+  const attachmentPolicySource = read("src/lib/teacher-training-submission-attachments.ts");
+  const submissionsRouteSource = read("src/app/api/teacher-training/submissions/route.ts");
+  const exportRouteSource = read("src/app/api/teacher-training/export/route.ts");
+  const tabSource = read("src/components/tabs/teacher-training-tab.tsx");
+
+  assert.match(attachmentPolicySource, /teacherTrainingSubmissionAttachmentAcceptAttribute = "\.pdf,\.doc,\.docx"/);
+  assert.match(attachmentPolicySource, /new Set\(\["\.pdf", "\.doc", "\.docx"\]\)/);
+  assert.match(attachmentPolicySource, /isTeacherTrainingSubmissionAttachmentPdfFile/);
+  assert.match(attachmentPolicySource, /isTeacherTrainingSubmissionAttachmentWordFile/);
+  assert.match(submissionsRouteSource, /请上传 Word 或 PDF 汇报附件/);
+  assert.match(submissionsRouteSource, /汇报附件：\$\{attachmentFile\.fileName\}/);
+  assert.match(tabSource, /选择 Word 或 PDF 文件/);
+  assert.match(tabSource, /Word 文件请下载后查看/);
+  assert.match(exportRouteSource, /uniqueParticipantFolder/);
+  assert.match(exportRouteSource, /uniqueZipPath/);
+  assert.match(exportRouteSource, /任务汇报汇总\.docx/);
+  assert.match(exportRouteSource, /readStoredFile\(attachmentFile\.filePath\)/);
+  assert.match(exportRouteSource, /任务汇报归档\.zip/);
+  assert.doesNotMatch(exportRouteSource, /任务汇报Word归档/);
+});
+
+test("workspace todo notifications are platform scoped and mark visible notices only", () => {
+  const contextSource = read("src/components/workspace-context.tsx");
+  const shellSource = read("src/components/workspace-shell.tsx");
+
+  assert.match(contextSource, /visibleNotifications/);
+  assert.match(contextSource, /notification\.targetTab === "teacherTraining"/);
+  assert.match(contextSource, /notification\.type\.startsWith\("teacher_training_"\)/);
+  assert.match(contextSource, /shouldShowTeacherTrainingNotifications \? isTeacherTrainingNotification : !isTeacherTrainingNotification/);
+  assert.match(contextSource, /item\.targetTab === "teacherTraining"/);
+  assert.match(contextSource, /todoNotifications[\s\S]{0,600}markNotificationAsRead\(notificationId\)/);
+  assert.doesNotMatch(contextSource, /todoNotifications\.length > 0\) \{\s*await markAllNotificationsAsRead\(\)/);
+  assert.match(shellSource, /title="待办与通知"/);
+  assert.match(shellSource, /aria-label=\{`打开待办与通知，当前 \$\{todoItemCount\} 条`\}/);
+  assert.match(shellSource, /点开通知后自动标记为已读/);
+  assert.doesNotMatch(shellSource, /今天的节奏已经很不错/);
 });
 
 test("workspace unit footer does not cover teacher training forms", () => {

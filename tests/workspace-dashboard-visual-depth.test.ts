@@ -258,7 +258,7 @@ test("workspace global clickable controls expose explicit action hints", () => {
   assert.match(source, /aria-label="退出登录"/);
   assert.match(source, /title="退出登录"/);
   assert.match(source, /aria-label="发布全校公告"/);
-  assert.match(source, /aria-label="打开待办与未读提醒"/);
+  assert.match(source, /aria-label=\{`打开待办与通知，当前 \$\{todoItemCount\} 条`\}/);
   assert.match(source, /aria-label="打开帮助与反馈"/);
 });
 
@@ -288,6 +288,6 @@ test("province training mobile entry does not auto-cover the first screen with g
   assert.match(contextSource, /safeActiveTab === "teacherTraining"[\s\S]*setNotificationsOpen\(false\)/);
   assert.match(contextSource, /todoItemCount <= 0 \|\| isTeacherTrainingPlatform/);
   assert.match(contextSource, /\}, \[dismissedTodosReady, isBooting, isTeacherTrainingPlatform, todoAutoOpened, todoItemCount\]\)/);
-  assert.match(shellSource, /aria-label="打开待办与未读提醒"/);
+  assert.match(shellSource, /aria-label=\{`打开待办与通知，当前 \$\{todoItemCount\} 条`\}/);
   assert.match(shellSource, /setNotificationsOpen\(true\)/);
 });

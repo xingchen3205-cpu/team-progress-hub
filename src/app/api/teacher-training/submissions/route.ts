@@ -83,7 +83,7 @@ export async function POST(request: NextRequest) {
 
   const attachmentFile = attachment ? decodeTeacherTrainingSubmissionAttachmentFile(attachment) : null;
   if (!attachmentFile) {
-    return NextResponse.json({ message: "请上传 PDF 汇报附件" }, { status: 400 });
+    return NextResponse.json({ message: "请上传 Word 或 PDF 汇报附件" }, { status: 400 });
   }
 
   const expectedObjectKeyPrefix = getTeacherTrainingSubmissionAttachmentObjectKeyPrefix({
@@ -127,7 +127,7 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: "真实附件大小不能超过 20MB，请重新上传" }, { status: 400 });
   }
 
-  const content = `PDF附件：${attachmentFile.fileName}`;
+  const content = `汇报附件：${attachmentFile.fileName}`;
   let previousAttachmentFilePath: string | null = null;
   let submission;
   try {
