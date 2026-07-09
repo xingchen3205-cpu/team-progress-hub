@@ -3642,7 +3642,6 @@ export default function TeacherTrainingTab() {
           </span>
           <span className="min-w-0">
             <strong>省培管理平台</strong>
-            <small>南京铁道职业技术学院教师培训管理系统</small>
           </span>
         </div>
         <nav className="tt-portal-topnav" aria-label={navLabel}>
