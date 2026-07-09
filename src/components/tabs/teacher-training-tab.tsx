@@ -846,6 +846,8 @@ export default function TeacherTrainingTab() {
     setActiveTeacherTrainingSection,
     activeTeacherTrainingCohortId,
     setActiveTeacherTrainingCohortId,
+    setNotificationsOpen,
+    todoItemCount,
     isSaving,
     createTeacherTrainingCohort,
     deleteTeacherTrainingCohort,
@@ -902,11 +904,13 @@ export default function TeacherTrainingTab() {
     FileText,
     FolderOpen,
     GraduationCap,
-    HelpCircle,
     Home,
     Loader2,
     LogOut,
     MapPin,
+    MessageSquareText,
+    Modal,
+    ModalActions,
     Navigation,
     Pencil,
     Plus,
@@ -920,6 +924,14 @@ export default function TeacherTrainingTab() {
     textareaClassName,
   } = Workspace;
   const [teacherTrainingPortalUserMenuOpen, setTeacherTrainingPortalUserMenuOpen] = useState(false);
+  const [teacherTrainingPortalFeedbackOpen, setTeacherTrainingPortalFeedbackOpen] = useState(false);
+  const [teacherTrainingPortalFeedbackDraft, setTeacherTrainingPortalFeedbackDraft] = useState({
+    title: "",
+    detail: "",
+  });
+  const [teacherTrainingPortalFeedbackError, setTeacherTrainingPortalFeedbackError] = useState<string | null>(null);
+  const [teacherTrainingPortalFeedbackSuccess, setTeacherTrainingPortalFeedbackSuccess] = useState<string | null>(null);
+  const [teacherTrainingPortalFeedbackSubmitting, setTeacherTrainingPortalFeedbackSubmitting] = useState(false);
   const teacherTrainingScrollableListClassName =
     "max-h-[min(68vh,760px)] overflow-y-auto pr-1 overscroll-contain";
   // 列表卡片在两栏布局里随对侧表单拉伸到等高，内部列表区填满剩余高度并自行滚动，
@@ -3289,7 +3301,6 @@ export default function TeacherTrainingTab() {
     { label: "请假审批", helper: "待审申请和流程", Icon: FileCheck, onClick: () => openTeacherTrainingSection("leave") },
     { label: "任务汇报", helper: "作业发布与评分", Icon: Send, onClick: () => openTeacherTrainingSection("tasks") },
   ];
-  const managerPendingActionCount = managerCommandTodoCards.reduce((total, item) => total + item.value, 0);
   const teacherTrainingSectionCounts: Partial<Record<Workspace.TeacherTrainingSectionKey, number>> = {
     cohorts: selectedCohort?.stats.managerCount ?? 0,
     participants: selectedCohort?.stats.participantCount ?? 0,
@@ -3580,7 +3591,9 @@ export default function TeacherTrainingTab() {
   const teacherTrainingPortalUserName = currentUser?.name || currentUser?.username || "当前用户";
   const teacherTrainingPortalCohortTitle = formatTeacherTrainingCohortTitle(selectedCohort?.title);
   const teacherTrainingPortalAnnouncements = announcements.slice(0, 5);
-  const teacherTrainingPortalNotificationCount = canManage ? managerPendingActionCount : teacherMobilePriorityItems.length;
+  const teacherTrainingPortalNotificationCount = todoItemCount;
+  const teacherTrainingPortalNotificationBadge =
+    teacherTrainingPortalNotificationCount > 99 ? "99+" : `${teacherTrainingPortalNotificationCount}`;
   const openTeacherTrainingAnnouncementDetail = (announcement: (typeof teacherTrainingPortalAnnouncements)[number]) => {
     const target = `/teacher-training/announcements/${encodeURIComponent(announcement.id)}`;
     const opened = window.open(target, "_blank", "noopener,noreferrer");
@@ -3600,6 +3613,45 @@ export default function TeacherTrainingTab() {
       teacherTrainingCohortId: selectedCohort.id,
     });
     setAnnouncementModalOpen(true);
+  };
+  const openTeacherTrainingPortalFeedback = () => {
+    setTeacherTrainingPortalUserMenuOpen(false);
+    setTeacherTrainingPortalFeedbackError(null);
+    setTeacherTrainingPortalFeedbackSuccess(null);
+    setTeacherTrainingPortalFeedbackOpen(true);
+  };
+  const submitTeacherTrainingPortalFeedback = async () => {
+    const title = teacherTrainingPortalFeedbackDraft.title.trim();
+    const detail = teacherTrainingPortalFeedbackDraft.detail.trim();
+
+    setTeacherTrainingPortalFeedbackSuccess(null);
+    if (!title || !detail) {
+      setTeacherTrainingPortalFeedbackError("请填写问题标题和问题描述");
+      return;
+    }
+
+    setTeacherTrainingPortalFeedbackSubmitting(true);
+    setTeacherTrainingPortalFeedbackError(null);
+    try {
+      await Workspace.requestJson("/api/bug-feedback", {
+        method: "POST",
+        body: JSON.stringify({
+          title: `省培系统：${title}`,
+          detail: [
+            detail,
+            "",
+            `当前省培班次：${teacherTrainingPortalCohortTitle}`,
+            `当前页面：${activeTeacherTrainingSectionMeta?.label ?? "工作台"}`,
+          ].join("\n"),
+        }),
+      });
+      setTeacherTrainingPortalFeedbackDraft({ title: "", detail: "" });
+      setTeacherTrainingPortalFeedbackSuccess("反馈已提交，系统管理员会收到。");
+    } catch (error) {
+      setTeacherTrainingPortalFeedbackError(error instanceof Error ? error.message : "反馈提交失败");
+    } finally {
+      setTeacherTrainingPortalFeedbackSubmitting(false);
+    }
   };
   const teacherTrainingPortalNavItems: Array<{
     label: string;
@@ -3667,19 +3719,26 @@ export default function TeacherTrainingTab() {
         </nav>
         <div className="tt-portal-topuser">
           <button
-            aria-label={canManage ? "查看待办" : "查看通知"}
+            aria-label={`打开待办与通知，当前 ${teacherTrainingPortalNotificationCount} 条`}
+            aria-haspopup="dialog"
             className="tt-portal-icon-button"
-            onClick={() => openTeacherTrainingPortalSection("overview")}
-            title={canManage ? "查看待办" : "查看通知"}
+            onClick={() => setNotificationsOpen(true)}
+            title="待办与通知"
             type="button"
           >
             <Bell className="h-4 w-4" />
             {teacherTrainingPortalNotificationCount > 0 ? (
-              <span>{teacherTrainingPortalNotificationCount}</span>
+              <span>{teacherTrainingPortalNotificationBadge}</span>
             ) : null}
           </button>
-          <button aria-label="帮助" className="tt-portal-icon-button" title="帮助" type="button">
-            <HelpCircle className="h-4 w-4" />
+          <button
+            aria-label="提交系统反馈"
+            className="tt-portal-icon-button"
+            onClick={openTeacherTrainingPortalFeedback}
+            title="系统反馈"
+            type="button"
+          >
+            <MessageSquareText className="h-4 w-4" />
           </button>
           <div className="tt-portal-user-menu-wrap">
             <button
@@ -3731,6 +3790,71 @@ export default function TeacherTrainingTab() {
 
   return (
     <div className={isTeacherTrainingOverview ? "tt-portal-overview-host" : "tt-workspace-host space-y-4"}>
+      {teacherTrainingPortalFeedbackOpen ? (
+        <Modal
+          onClose={() => setTeacherTrainingPortalFeedbackOpen(false)}
+          panelClassName="max-w-[min(92vw,540px)]"
+          title="系统反馈"
+        >
+          <div className="space-y-4">
+            <div className="rounded-xl border border-blue-100 bg-blue-50/70 px-4 py-3 text-sm leading-6 text-blue-800">
+              这里用于反馈省培系统使用问题。提交后系统管理员会在消息中收到。
+            </div>
+            <label className="block text-sm font-semibold text-slate-600">
+              问题标题 <span className="text-red-500">*</span>
+              <input
+                className={fieldClassName}
+                {...fieldHint("反馈问题标题")}
+                onChange={(event) =>
+                  setTeacherTrainingPortalFeedbackDraft((current) => ({
+                    ...current,
+                    title: event.target.value,
+                  }))
+                }
+                placeholder="例如：课程签到打不开"
+                type="text"
+                value={teacherTrainingPortalFeedbackDraft.title}
+              />
+            </label>
+            <label className="block text-sm font-semibold text-slate-600">
+              问题描述 <span className="text-red-500">*</span>
+              <textarea
+                className={textareaClassName}
+                {...fieldHint("反馈问题描述")}
+                onChange={(event) =>
+                  setTeacherTrainingPortalFeedbackDraft((current) => ({
+                    ...current,
+                    detail: event.target.value,
+                  }))
+                }
+                placeholder="请写清楚账号身份、页面位置、点击了什么、实际出现了什么问题。"
+                value={teacherTrainingPortalFeedbackDraft.detail}
+              />
+            </label>
+            {teacherTrainingPortalFeedbackError ? (
+              <p className="rounded-lg border border-red-100 bg-red-50 px-3 py-2 text-sm text-red-600">
+                {teacherTrainingPortalFeedbackError}
+              </p>
+            ) : null}
+            {teacherTrainingPortalFeedbackSuccess ? (
+              <p className="rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
+                {teacherTrainingPortalFeedbackSuccess}
+              </p>
+            ) : null}
+            <ModalActions>
+              <ActionButton onClick={() => setTeacherTrainingPortalFeedbackOpen(false)}>关闭</ActionButton>
+              <ActionButton
+                loading={teacherTrainingPortalFeedbackSubmitting}
+                loadingLabel="提交中"
+                onClick={() => void submitTeacherTrainingPortalFeedback()}
+                variant="primary"
+              >
+                提交反馈
+              </ActionButton>
+            </ModalActions>
+          </div>
+        </Modal>
+      ) : null}
       {!isTeacherTrainingOverview ? (
         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <SectionHeader

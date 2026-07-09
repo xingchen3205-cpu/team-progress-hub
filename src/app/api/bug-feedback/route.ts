@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { getSessionUser } from "@/lib/auth";
 import { createNotifications } from "@/lib/notifications";
-import { assertMainWorkspaceRole } from "@/lib/permissions";
+import { assertRole } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 
 export async function POST(request: NextRequest) {
@@ -12,7 +12,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    assertMainWorkspaceRole(user.role);
+    assertRole(user.role, ["admin", "school_admin", "teacher", "leader", "member", "training_teacher"]);
   } catch {
     return NextResponse.json({ message: "无权限" }, { status: 403 });
   }

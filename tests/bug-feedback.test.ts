@@ -10,7 +10,7 @@ test("bug feedback api notifies only system administrators", () => {
   const routeSource = readSource("src/app/api/bug-feedback/route.ts");
 
   assert.match(routeSource, /export async function POST/);
-  assert.match(routeSource, /assertMainWorkspaceRole\(user\.role\)/);
+  assert.match(routeSource, /assertRole\(user\.role,\s*\["admin", "school_admin", "teacher", "leader", "member", "training_teacher"\]\)/);
   assert.match(routeSource, /role:\s*"admin"/);
   assert.doesNotMatch(routeSource, /role:\s*"school_admin"/);
   assert.match(routeSource, /createNotifications\(\{/);

@@ -1877,6 +1877,7 @@ test("workspace todo notifications are platform scoped and mark visible notices 
   assert.match(contextSource, /notification\.targetTab === "teacherTraining"/);
   assert.match(contextSource, /notification\.type\.startsWith\("teacher_training_"\)/);
   assert.match(contextSource, /shouldShowTeacherTrainingNotifications \? isTeacherTrainingNotification : !isTeacherTrainingNotification/);
+  assert.match(contextSource, /notification\.type !== "teacher_training_announcement"/);
   assert.match(contextSource, /item\.targetTab === "teacherTraining"/);
   assert.match(contextSource, /todoNotifications[\s\S]{0,600}markNotificationAsRead\(notificationId\)/);
   assert.doesNotMatch(contextSource, /todoNotifications\.length > 0\) \{\s*await markAllNotificationsAsRead\(\)/);
@@ -1884,6 +1885,23 @@ test("workspace todo notifications are platform scoped and mark visible notices 
   assert.match(shellSource, /aria-label=\{`打开待办与通知，当前 \$\{todoItemCount\} 条`\}/);
   assert.match(shellSource, /点开通知后自动标记为已读/);
   assert.doesNotMatch(shellSource, /今天的节奏已经很不错/);
+});
+
+test("teacher training portal topbar opens todo center and system feedback", () => {
+  const tabSource = read("src/components/tabs/teacher-training-tab.tsx");
+
+  assert.match(tabSource, /setNotificationsOpen\(true\)/);
+  assert.match(tabSource, /teacherTrainingPortalNotificationCount = todoItemCount/);
+  assert.match(tabSource, /teacherTrainingPortalNotificationCount > 99 \? "99\+"/);
+  assert.match(tabSource, /aria-label=\{`打开待办与通知，当前 \$\{teacherTrainingPortalNotificationCount\} 条`\}/);
+  assert.match(tabSource, /aria-label="提交系统反馈"/);
+  assert.match(tabSource, /title="系统反馈"/);
+  assert.match(tabSource, /<MessageSquareText className="h-4 w-4" \/>/);
+  assert.match(tabSource, /submitTeacherTrainingPortalFeedback/);
+  assert.match(tabSource, /Workspace\.requestJson\("\/api\/bug-feedback"/);
+  assert.match(tabSource, /\.\.\.fieldHint\("反馈问题标题"\)/);
+  assert.match(tabSource, /\.\.\.fieldHint\("反馈问题描述"\)/);
+  assert.doesNotMatch(tabSource, /<button aria-label="帮助" className="tt-portal-icon-button" title="帮助"/);
 });
 
 test("workspace unit footer does not cover teacher training forms", () => {

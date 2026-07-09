@@ -4367,21 +4367,29 @@ function useWorkspaceController({
 
   const todoNotifications = useMemo<TodoCenterItem[]>(
     () =>
-      unreadTodoNotifications.map((notification) => ({
-        id: `notification-${notification.id}`,
-        title: notification.title,
-        detail: notification.detail,
-        actionLabel: notification.targetTab ? "去处理" : "查看提醒",
-        targetTab:
-          notification.targetTab && permissions.visibleTabs.includes(notification.targetTab as TabKey)
-            ? (notification.targetTab as TabKey)
-            : undefined,
-        priority: "normal",
-        type: "notification",
-        notificationId: notification.id,
-        documentId: notification.documentId ?? null,
-      })),
-    [permissions.visibleTabs, unreadTodoNotifications],
+      unreadTodoNotifications
+        .filter((notification) => {
+          if (!isTeacherTrainingPlatform) {
+            return true;
+          }
+
+          return notification.type !== "teacher_training_announcement";
+        })
+        .map((notification) => ({
+          id: `notification-${notification.id}`,
+          title: notification.title,
+          detail: notification.detail,
+          actionLabel: notification.targetTab ? "去处理" : "查看提醒",
+          targetTab:
+            notification.targetTab && permissions.visibleTabs.includes(notification.targetTab as TabKey)
+              ? (notification.targetTab as TabKey)
+              : undefined,
+          priority: "normal",
+          type: "notification",
+          notificationId: notification.id,
+          documentId: notification.documentId ?? null,
+        })),
+    [isTeacherTrainingPlatform, permissions.visibleTabs, unreadTodoNotifications],
   );
 
   const visibleRoleTodoItems = roleTodoItems.filter((item) => {
