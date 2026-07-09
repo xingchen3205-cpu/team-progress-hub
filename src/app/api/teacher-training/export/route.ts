@@ -13,6 +13,9 @@ import { decodeTeacherTrainingSubmissionAttachmentFile } from "@/lib/teacher-tra
 import { readStoredFile } from "@/lib/uploads";
 import { createZipArchive, type ZipArchiveEntry } from "@/lib/zip";
 
+export const runtime = "nodejs";
+export const maxDuration = 60;
+
 const exportTypeSet = new Set([
   "participants",
   "attendance",
@@ -123,6 +126,7 @@ export async function GET(request: NextRequest) {
 
   const serialized = serializeTeacherTrainingCohort(cohort);
   if (type === "submissions") {
+    const maxInlineZipBytes = 4 * 1024 * 1024;
     const cleanPathPart = (value: string) =>
       value
         .replace(/[\\/:*?"<>|]/g, "_")
@@ -169,33 +173,66 @@ export async function GET(request: NextRequest) {
       usedZipPaths.add(candidate);
       return candidate;
     };
-    const zipEntries: ZipArchiveEntry[] = serialized.participants.map((participant) => ({
-      path: uniqueZipPath(`${cleanPathPart(participant.name)}-${cleanPathPart(participant.organization)}/省培任务汇报汇总.docx`),
-      content: buildTeacherTrainingSubmissionWordDocument({
+    const zipEntries: ZipArchiveEntry[] = serialized.participants.map((participant) => {
+      const content = buildTeacherTrainingSubmissionWordDocument({
         cohort: serialized,
         participant,
-      }),
-    }));
+      });
+      return {
+        path: uniqueZipPath(`${cleanPathPart(participant.name)}-${cleanPathPart(participant.organization)}/省培任务汇报汇总.docx`),
+        content,
+      };
+    });
 
-    for (const task of cohort.tasks) {
-      for (const submission of task.submissions) {
-        const attachmentFile = decodeTeacherTrainingSubmissionAttachmentFile(submission.attachment);
-        if (!attachmentFile) continue;
+    const estimatedBaseBytes = zipEntries.reduce(
+      (total, entry) => total + (Buffer.isBuffer(entry.content) ? entry.content.length : Buffer.byteLength(entry.content, "utf8")),
+      0,
+    );
+    const attachmentFiles = cohort.tasks.flatMap((task) =>
+      task.submissions
+        .map((submission) => {
+          const attachmentFile = decodeTeacherTrainingSubmissionAttachmentFile(submission.attachment);
+          return attachmentFile
+            ? {
+                taskTitle: task.title,
+                participantId: submission.participantId,
+                participantName: submission.participant?.name ?? "参训教师",
+                file: attachmentFile,
+              }
+            : null;
+        })
+        .filter((item): item is {
+          taskTitle: string;
+          participantId: string;
+          participantName: string;
+          file: NonNullable<ReturnType<typeof decodeTeacherTrainingSubmissionAttachmentFile>>;
+        } => Boolean(item)),
+    );
+    const estimatedAttachmentBytes = attachmentFiles.reduce((total, item) => total + item.file.fileSize, 0);
+    if (estimatedBaseBytes + estimatedAttachmentBytes > maxInlineZipBytes) {
+      return NextResponse.json(
+        {
+          message:
+            "任务附件总量较大，当前平台不能在网页请求中直接打包下载。请先在任务汇报列表中分批下载附件，后续建议改为后台归档后再下载。",
+        },
+        { status: 413 },
+      );
+    }
 
-        const folder = participantFolders.get(submission.participantId) ?? `未命名-${cleanPathPart(submission.participant?.name ?? "参训教师")}`;
-        const attachmentPath = `${folder}/任务附件/${cleanPathPart(task.title)}-${cleanPathPart(attachmentFile.fileName)}`;
-        try {
-          const fileData = await readStoredFile(attachmentFile.filePath);
-          zipEntries.push({
-            path: uniqueZipPath(attachmentPath),
-            content: fileData.buffer,
-          });
-        } catch {
-          zipEntries.push({
-            path: uniqueZipPath(`${attachmentPath}.缺失说明.txt`),
-            content: `附件读取失败：${attachmentFile.fileName}\n请联系管理员重新上传。`,
-          });
-        }
+    for (const item of attachmentFiles) {
+      const folder = participantFolders.get(item.participantId) ?? `未命名-${cleanPathPart(item.participantName)}`;
+      const attachmentPath = `${folder}/任务附件/${cleanPathPart(item.taskTitle)}-${cleanPathPart(item.file.fileName)}`;
+      try {
+        const fileData = await readStoredFile(item.file.filePath);
+        zipEntries.push({
+          path: uniqueZipPath(attachmentPath),
+          content: fileData.buffer,
+        });
+      } catch {
+        zipEntries.push({
+          path: uniqueZipPath(`${attachmentPath}.缺失说明.txt`),
+          content: `附件读取失败：${item.file.fileName}\n请联系管理员重新上传。`,
+        });
       }
     }
 

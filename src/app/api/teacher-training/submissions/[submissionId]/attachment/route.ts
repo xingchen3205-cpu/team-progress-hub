@@ -1,11 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
+import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
 
 import { getSessionUser } from "@/lib/auth";
 import { buildAttachmentDisposition } from "@/lib/downloads";
 import { prisma } from "@/lib/prisma";
+import { GetObjectCommand, HeadObjectCommand, R2_BUCKET, r2Client } from "@/lib/r2";
 import { hasTeacherTrainingCohortManageAccess } from "@/lib/teacher-training-access";
 import { decodeTeacherTrainingSubmissionAttachmentFile } from "@/lib/teacher-training-submission-attachments";
-import { readStoredFile } from "@/lib/uploads";
 
 export const runtime = "nodejs";
 
@@ -50,20 +51,29 @@ export async function GET(
     return NextResponse.json({ message: "附件不存在" }, { status: 404 });
   }
 
-  const fileData = await readStoredFile(attachmentFile.filePath).catch((error) => {
+  const head = await r2Client.send(
+    new HeadObjectCommand({
+      Bucket: R2_BUCKET,
+      Key: attachmentFile.filePath,
+    }),
+  ).catch((error) => {
     console.error("Teacher training submission attachment download failed", error);
     return null;
   });
-  if (!fileData) {
+  if (!head) {
     return NextResponse.json({ message: "附件文件不存在或已丢失" }, { status: 404 });
   }
 
-  return new NextResponse(fileData.buffer, {
-    headers: {
-      "Content-Type": fileData.contentType || attachmentFile.mimeType || "application/octet-stream",
-      "Content-Disposition": buildAttachmentDisposition(attachmentFile.fileName),
-      "Content-Length": `${attachmentFile.fileSize}`,
-      "X-Content-Type-Options": "nosniff",
-    },
-  });
+  const downloadUrl = await getSignedUrl(
+    r2Client,
+    new GetObjectCommand({
+      Bucket: R2_BUCKET,
+      Key: attachmentFile.filePath,
+      ResponseContentDisposition: buildAttachmentDisposition(attachmentFile.fileName),
+      ResponseContentType: head.ContentType || attachmentFile.mimeType || "application/octet-stream",
+    }),
+    { expiresIn: 60 * 5 },
+  );
+
+  return NextResponse.redirect(downloadUrl);
 }
