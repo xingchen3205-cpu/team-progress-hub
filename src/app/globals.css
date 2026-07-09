@@ -5172,34 +5172,6 @@ a:hover {
   font-size: 13px;
   font-weight: 720;
 }
-.tt-portal-floating-tools {
-  position: fixed;
-  top: 50%;
-  right: 18px;
-  z-index: 30;
-  display: grid;
-  gap: 1px;
-  transform: translateY(-50%);
-  border: 1px solid #e2ebf6;
-  background: #ffffff;
-  box-shadow: 0 8px 24px rgba(24, 63, 111, 0.12);
-}
-.tt-portal-floating-tools button {
-  display: grid;
-  width: 72px;
-  min-height: 58px;
-  place-items: center;
-  gap: 4px;
-  padding: 8px 6px;
-  color: #34516f;
-  font-size: 12px;
-  font-weight: 760;
-}
-.tt-portal-floating-tools button:hover {
-  background: #eef5ff;
-  color: #1d5ebd;
-}
-
 @media (pointer: fine) {
   .tt-portal-page-shell {
     min-width: 1360px;
@@ -5265,9 +5237,6 @@ a:hover {
   .tt-portal-run-grid,
   .tt-portal-data-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-  .tt-portal-floating-tools {
-    display: none;
   }
 }
 

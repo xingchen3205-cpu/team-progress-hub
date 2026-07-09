@@ -1122,6 +1122,7 @@ model TeacherTrainingLeaveRequest {
   endTime               String?
   sessionLabel          String?
   reason                String
+  attachment            String?
   status                String                         @default("pending")
   currentStepIndex      Int                            @default(0)
   approvalStepsSnapshot String                         @default("[]")

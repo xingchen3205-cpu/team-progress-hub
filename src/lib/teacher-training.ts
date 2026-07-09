@@ -5,6 +5,12 @@ import {
   getTeacherTrainingSubmissionAttachmentLabel,
   type TeacherTrainingSubmissionAttachmentItem,
 } from "@/lib/teacher-training-submission-attachments";
+import {
+  buildTeacherTrainingLeaveAttachmentDownloadUrl,
+  decodeTeacherTrainingLeaveAttachmentFile,
+  getTeacherTrainingLeaveAttachmentLabel,
+  type TeacherTrainingLeaveAttachmentItem,
+} from "@/lib/teacher-training-leave-attachments";
 
 export type TeacherTrainingAttendanceStatus = "present" | "leave" | "absent";
 
@@ -299,6 +305,9 @@ export type TeacherTrainingLeaveRequestItem = {
   endTime: string;
   sessionLabel: string;
   reason: string;
+  attachment: string;
+  attachmentLabel: string;
+  attachmentFile: TeacherTrainingLeaveAttachmentItem | null;
   status: string;
   statusLabel: string;
   currentStepIndex: number;
@@ -1294,6 +1303,7 @@ type TeacherTrainingLeaveRequestRecord = {
   endTime?: string | null;
   sessionLabel?: string | null;
   reason: string;
+  attachment?: string | null;
   status: string;
   currentStepIndex: number;
   approvalStepsSnapshot: string;
@@ -1471,26 +1481,40 @@ export const serializeTeacherTrainingLeaveApproval = (
 
 export const serializeTeacherTrainingLeaveRequest = (
   request: TeacherTrainingLeaveRequestRecord,
-): TeacherTrainingLeaveRequestItem => ({
-  id: request.id,
-  cohortId: request.cohortId,
-  participantId: request.participantId,
-  participantName: request.participant?.name ?? "参训教师",
-  organization: request.participant?.organization ?? "",
-  startDate: request.startDate,
-  endDate: request.endDate,
-  startTime: request.startTime ?? "",
-  endTime: request.endTime ?? "",
-  sessionLabel: request.sessionLabel ?? "请假",
-  reason: request.reason,
-  status: request.status,
-  statusLabel: teacherTrainingLeaveStatusLabels[request.status] ?? request.status,
-  currentStepIndex: request.currentStepIndex,
-  approvalSteps: parseTeacherTrainingLeaveSteps(request.approvalStepsSnapshot),
-  approvals: (request.approvals ?? []).map(serializeTeacherTrainingLeaveApproval),
-  submittedAt: toDateTimeLabel(request.submittedAt),
-  completedAt: toDateTimeLabel(request.completedAt ?? null),
-});
+): TeacherTrainingLeaveRequestItem => {
+  const uploadedAttachment = decodeTeacherTrainingLeaveAttachmentFile(request.attachment);
+
+  return {
+    id: request.id,
+    cohortId: request.cohortId,
+    participantId: request.participantId,
+    participantName: request.participant?.name ?? "参训教师",
+    organization: request.participant?.organization ?? "",
+    startDate: request.startDate,
+    endDate: request.endDate,
+    startTime: request.startTime ?? "",
+    endTime: request.endTime ?? "",
+    sessionLabel: request.sessionLabel ?? "请假",
+    reason: request.reason,
+    attachment: request.attachment ?? "",
+    attachmentLabel: getTeacherTrainingLeaveAttachmentLabel(request.attachment),
+    attachmentFile: uploadedAttachment
+      ? {
+          fileName: uploadedAttachment.fileName,
+          fileSize: uploadedAttachment.fileSize,
+          mimeType: uploadedAttachment.mimeType,
+          downloadUrl: buildTeacherTrainingLeaveAttachmentDownloadUrl(request.id),
+        }
+      : null,
+    status: request.status,
+    statusLabel: teacherTrainingLeaveStatusLabels[request.status] ?? request.status,
+    currentStepIndex: request.currentStepIndex,
+    approvalSteps: parseTeacherTrainingLeaveSteps(request.approvalStepsSnapshot),
+    approvals: (request.approvals ?? []).map(serializeTeacherTrainingLeaveApproval),
+    submittedAt: toDateTimeLabel(request.submittedAt),
+    completedAt: toDateTimeLabel(request.completedAt ?? null),
+  };
+};
 
 export const serializeTeacherTrainingCohort = (
   cohort: TeacherTrainingCohortRecord,
@@ -1891,6 +1915,15 @@ export const buildTeacherTrainingCsv = ({
   cohort: TeacherTrainingCohortItem;
   type: "participants" | "attendance" | "checkIns" | "leaves" | "submissions" | "arrivals";
 }) => {
+  const now = new Date();
+  const isLeaveActive = (request: TeacherTrainingLeaveRequestItem) => {
+    if (request.status !== "approved") return false;
+    const start = new Date(`${request.startDate}T${request.startTime || "00:00"}:00`);
+    const end = new Date(`${request.endDate}T${request.endTime || "23:59"}:00`);
+    if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime())) return false;
+    return start.getTime() <= now.getTime() && now.getTime() <= end.getTime();
+  };
+
   if (type === "arrivals") {
     return toCsv([
       [
@@ -1958,6 +1991,7 @@ export const buildTeacherTrainingCsv = ({
         const attendance =
           participant.attendances.find((item) => item.status === "present" && item.sessionLabel === "报到") ??
           cohort.attendances.find((item) => item.participantId === participant.id && item.status === "present" && item.sessionLabel === "报到");
+        const activeLeave = participant.leaveRequests.find(isLeaveActive);
         return [
           cohort.title,
           participant.name,
@@ -1971,7 +2005,7 @@ export const buildTeacherTrainingCsv = ({
           participant.city,
           formatTeacherTrainingArrivalAt(participant.arrivalInfo.arrivalAt),
           participant.arrivalInfo.transportationLabel,
-          attendance ? attendance.statusLabel : teacherTrainingAttendancePendingLabel,
+          attendance ? attendance.statusLabel : activeLeave ? "请假中" : teacherTrainingAttendancePendingLabel,
           attendance?.markedAt ?? "",
           attendance?.roomNumber ?? "",
           attendance?.materialsCompleteLabel ?? "未确认",
@@ -1992,6 +2026,7 @@ export const buildTeacherTrainingCsv = ({
         "请假开始",
         "请假结束",
         "请假原因",
+        "附件",
         "审批状态",
         "提交时间",
         "完成时间",
@@ -2005,6 +2040,7 @@ export const buildTeacherTrainingCsv = ({
         [request.startDate, request.startTime].filter(Boolean).join(" "),
         [request.endDate, request.endTime].filter(Boolean).join(" "),
         request.reason,
+        request.attachmentLabel,
         request.statusLabel,
         request.submittedAt,
         request.completedAt,

@@ -634,6 +634,30 @@ const getTeacherTrainingLeaveDurationLabel = ({
   return parts.join("") || "少于1分钟";
 };
 
+const getTeacherTrainingLeavePeriodLabel = (
+  request: Pick<Workspace.TeacherTrainingLeaveRequestItem, "startDate" | "endDate" | "startTime" | "endTime">,
+) => {
+  const start = formatTeacherTrainingLeaveDateTime(request.startDate, request.startTime);
+  const end = formatTeacherTrainingLeaveDateTime(request.endDate, request.endTime);
+  return start === end ? start : `${start} 至 ${end}`;
+};
+
+const parseTeacherTrainingLeaveDateTime = (date: string, time: string, fallbackTime: string) => {
+  const dateValue = date.trim();
+  if (!dateValue) return null;
+  const timeValue = time.trim() || fallbackTime;
+  const parsed = new Date(`${dateValue}T${timeValue}:00`);
+  return Number.isNaN(parsed.getTime()) ? null : parsed;
+};
+
+const isTeacherTrainingLeaveActiveNow = (request: Workspace.TeacherTrainingLeaveRequestItem, now = new Date()) => {
+  if (request.status !== "approved") return false;
+  const start = parseTeacherTrainingLeaveDateTime(request.startDate, request.startTime, "00:00");
+  const end = parseTeacherTrainingLeaveDateTime(request.endDate, request.endTime, "23:59");
+  if (!start || !end) return false;
+  return start.getTime() <= now.getTime() && now.getTime() <= end.getTime();
+};
+
 const teacherTrainingManagerRoleOptions = [
   {
     title: "省培负责人",
@@ -912,6 +936,7 @@ export default function TeacherTrainingTab() {
     Modal,
     ModalActions,
     Navigation,
+    Paperclip,
     Pencil,
     Plus,
     SectionHeader,
@@ -1046,7 +1071,12 @@ export default function TeacherTrainingTab() {
     endTime: "",
     sessionLabel: "请假",
     reason: "",
+    attachment: "",
   });
+  const [leaveAttachmentFile, setLeaveAttachmentFile] = useState<File | null>(null);
+  const [leaveAttachmentProgress, setLeaveAttachmentProgress] = useState<number | null>(null);
+  const [leaveAttachmentError, setLeaveAttachmentError] = useState("");
+  const [isLeaveAttachmentUploading, setIsLeaveAttachmentUploading] = useState(false);
   const [leaveReviewCommentsById, setLeaveReviewCommentsById] = useState<Record<string, string>>({});
   const [activeLeaveReviewAction, setActiveLeaveReviewAction] = useState<{
     leaveRequestId: string;
@@ -1256,16 +1286,22 @@ export default function TeacherTrainingTab() {
         (!sessionLabel || attendance.sessionLabel === sessionLabel),
     ) ??
     null;
+  const getActiveLeaveRequestForParticipant = (participant: Workspace.TeacherTrainingParticipantItem) =>
+    participant.leaveRequests.find((request) => isTeacherTrainingLeaveActiveNow(request)) ?? null;
   const matchesAttendanceOverviewFilter = (participant: Workspace.TeacherTrainingParticipantItem) => {
     const registered = Boolean(getParticipantAttendanceRecord(participant, "present", "报到"));
+    const activeLeaveRequest = participant.leaveRequests.find((request) => isTeacherTrainingLeaveActiveNow(request));
 
     if (attendanceOverviewFilter === "registered") {
       return registered;
     }
     if (attendanceOverviewFilter === "pending") {
-      return !registered;
+      return !registered && !activeLeaveRequest;
     }
-    if (attendanceOverviewFilter === "leave" || attendanceOverviewFilter === "absent") {
+    if (attendanceOverviewFilter === "leave") {
+      return Boolean(activeLeaveRequest || getParticipantAttendanceRecord(participant, "leave"));
+    }
+    if (attendanceOverviewFilter === "absent") {
       return Boolean(getParticipantAttendanceRecord(participant, attendanceOverviewFilter));
     }
 
@@ -1362,6 +1398,7 @@ export default function TeacherTrainingTab() {
       participant.professionalTitle,
       participant.city,
       getParticipantAttendanceRecord(participant, "present", "报到")?.statusLabel ?? Workspace.teacherTrainingAttendancePendingLabel,
+      getActiveLeaveRequestForParticipant(participant) ? "请假中" : "",
       getParticipantAttendanceRecord(participant, "leave")?.statusLabel ?? "",
       getParticipantAttendanceRecord(participant, "absent")?.statusLabel ?? "",
       participant.arrivalInfo.arrivalAt,
@@ -2746,7 +2783,7 @@ export default function TeacherTrainingTab() {
   const submitAttendanceRegistration = async () => {
     if (!selectedCohort || !attendanceRegistrationParticipant || attendanceRegistrationDisabledReason) return;
 
-    await markTeacherTrainingAttendance({
+    const ok = await markTeacherTrainingAttendance({
       cohortId: selectedCohort.id,
       participantId: attendanceRegistrationParticipant.id,
       sessionDate: selectedCohort.startDate || getDateInputValue(new Date()),
@@ -2756,7 +2793,9 @@ export default function TeacherTrainingTab() {
       materialsComplete: attendanceRegistrationDraft.materialsComplete === "yes",
       note: attendanceRegistrationDraft.note,
     });
-    closeAttendanceRegistration();
+    if (ok) {
+      closeAttendanceRegistration();
+    }
   };
 
   const submitCheckInTask = async () => {
@@ -3068,13 +3107,124 @@ export default function TeacherTrainingTab() {
     });
   };
 
+  const handleLeaveAttachmentFile = (file: File | null) => {
+    setLeaveAttachmentProgress(null);
+    if (!file) {
+      setLeaveAttachmentFile(null);
+      setLeaveAttachmentError("");
+      setLeaveDraft((current) => ({ ...current, attachment: "" }));
+      return;
+    }
+
+    const validationError = Workspace.validateTeacherTrainingLeaveAttachmentMeta({
+      fileName: file.name,
+      fileSize: file.size,
+      mimeType: file.type || "application/octet-stream",
+    });
+    if (validationError) {
+      setLeaveAttachmentFile(null);
+      setLeaveAttachmentError(validationError);
+      setLeaveDraft((current) => ({ ...current, attachment: "" }));
+      return;
+    }
+
+    setLeaveAttachmentFile(file);
+    setLeaveAttachmentError("");
+    setLeaveDraft((current) => ({ ...current, attachment: "" }));
+  };
+
+  const uploadLeaveAttachmentIfNeeded = async (participantId: string) => {
+    if (!leaveAttachmentFile) {
+      return leaveDraft.attachment?.trim() ?? "";
+    }
+
+    const validationError = Workspace.validateTeacherTrainingLeaveAttachmentMeta({
+      fileName: leaveAttachmentFile.name,
+      fileSize: leaveAttachmentFile.size,
+      mimeType: leaveAttachmentFile.type || "application/octet-stream",
+    });
+    if (validationError) {
+      throw new Error(validationError);
+    }
+
+    setIsLeaveAttachmentUploading(true);
+    setLeaveAttachmentProgress(0);
+    setLeaveAttachmentError("");
+    try {
+      const uploadUrlController = new AbortController();
+      const uploadUrlTimeoutId = window.setTimeout(
+        () => uploadUrlController.abort(),
+        TEACHER_TRAINING_UPLOAD_URL_TIMEOUT_MS,
+      );
+      let response: Response;
+      try {
+        response = await fetch("/api/teacher-training/leave-requests/upload-url", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          signal: uploadUrlController.signal,
+          body: JSON.stringify({
+            participantId,
+            fileName: leaveAttachmentFile.name,
+            fileSize: leaveAttachmentFile.size,
+            mimeType: leaveAttachmentFile.type || "application/octet-stream",
+          }),
+        });
+      } catch (error) {
+        if (error instanceof Error && error.name === "AbortError") {
+          throw new Error("附件上传准备超时，请稍后重试");
+        }
+        throw new Error("附件上传准备失败，请检查网络后重试");
+      } finally {
+        window.clearTimeout(uploadUrlTimeoutId);
+      }
+
+      const payload = (await response.json().catch(() => null)) as
+        | {
+            uploadUrl?: string;
+            contentType?: string;
+            attachment?: string;
+            message?: string;
+          }
+        | null;
+      if (!response.ok || !payload?.uploadUrl || !payload.attachment) {
+        throw new Error(payload?.message || "请假附件上传失败");
+      }
+
+      await Workspace.uploadFileDirectly({
+        url: payload.uploadUrl,
+        file: leaveAttachmentFile,
+        contentType: payload.contentType || leaveAttachmentFile.type || "application/octet-stream",
+        onProgress: setLeaveAttachmentProgress,
+      });
+      setLeaveAttachmentProgress(100);
+      return payload.attachment;
+    } finally {
+      setIsLeaveAttachmentUploading(false);
+    }
+  };
+
   const submitLeaveRequest = async () => {
+    const participantId = selectedParticipant?.id ?? leaveDraft.participantId;
+    let attachment = leaveDraft.attachment?.trim() ?? "";
+    try {
+      attachment = await uploadLeaveAttachmentIfNeeded(participantId);
+    } catch (error) {
+      setLeaveAttachmentError(error instanceof Error ? error.message : "请假附件上传失败");
+      return;
+    }
+
     const ok = await submitTeacherTrainingLeaveRequest({
       ...leaveDraft,
-      participantId: selectedParticipant?.id ?? leaveDraft.participantId,
+      participantId,
+      attachment,
     });
     if (ok) {
       setTeacherLeaveFormOpen(false);
+      setLeaveAttachmentFile(null);
+      setLeaveAttachmentProgress(null);
+      setLeaveAttachmentError("");
       setLeaveDraft((current) => ({
         ...current,
         startDate: getDateInputValue(new Date()),
@@ -3083,6 +3233,7 @@ export default function TeacherTrainingTab() {
         endTime: "",
         sessionLabel: "请假",
         reason: "",
+        attachment: "",
       }));
       window.requestAnimationFrame(() => {
         document.getElementById("tt-teacher-leave-records")?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -3858,7 +4009,7 @@ export default function TeacherTrainingTab() {
       {!isTeacherTrainingOverview ? (
         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <SectionHeader
-            title="江苏省职业院校创新创业教育（竞赛）指导能力提升培训"
+            title="南京铁道职业技术学院创新创业教师培训管理系统"
           />
           <div className="inline-flex w-fit min-w-[180px] items-center gap-2 rounded-xl border border-slate-200 bg-white px-3 py-2 shadow-sm">
             <span className="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-blue-50 text-blue-700">
@@ -4155,20 +4306,6 @@ export default function TeacherTrainingTab() {
                 </aside>
               </div>
               </main>
-              <aside aria-label="门户快捷工具" className="tt-portal-floating-tools">
-                <button type="button" onClick={() => openTeacherTrainingSection("tasks")}>
-                  <Send className="h-4 w-4" />
-                  <span>我的任务</span>
-                </button>
-                <button type="button" onClick={() => openTeacherTrainingSection("leave")}>
-                  <FileCheck className="h-4 w-4" />
-                  <span>我的请假</span>
-                </button>
-                <button type="button" onClick={() => openTeacherTrainingSection("profile")}>
-                  <User className="h-4 w-4" />
-                  <span>个人资料</span>
-                </button>
-              </aside>
             </section>
           ) : null}
 
@@ -4412,20 +4549,6 @@ export default function TeacherTrainingTab() {
                 </aside>
               </div>
               </main>
-              <aside aria-label="门户快捷工具" className="tt-portal-floating-tools">
-                <button type="button" onClick={() => openTeacherTrainingSection("participants")}>
-                  <Users className="h-4 w-4" />
-                  <span>名单</span>
-                </button>
-                <button type="button" onClick={() => openTeacherTrainingSection("leave")}>
-                  <FileCheck className="h-4 w-4" />
-                  <span>审批</span>
-                </button>
-                <button type="button" onClick={() => openTeacherTrainingSection("exports")}>
-                  <Download className="h-4 w-4" />
-                  <span>归档</span>
-                </button>
-              </aside>
             </section>
           ) : null}
 
@@ -6399,6 +6522,19 @@ export default function TeacherTrainingTab() {
                                           <p className="text-[11px] font-semibold text-slate-400">请假原因</p>
                                           <p className="mt-1 whitespace-pre-wrap text-sm leading-6 text-slate-700">{request.reason}</p>
                                         </div>
+                                        {request.attachmentFile ? (
+                                          <a
+                                            className="mt-3 inline-flex h-9 max-w-full items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 text-xs font-semibold text-blue-700 hover:border-blue-200 hover:bg-blue-100"
+                                            href={request.attachmentFile.downloadUrl}
+                                            rel="noreferrer"
+                                            target="_blank"
+                                            title={request.attachmentFile.fileName}
+                                          >
+                                            <Paperclip className="h-3.5 w-3.5 shrink-0" />
+                                            <span className="truncate">{request.attachmentFile.fileName}</span>
+                                            <span className="shrink-0 text-blue-500">{Workspace.formatFileSize(request.attachmentFile.fileSize)}</span>
+                                          </a>
+                                        ) : null}
                                       </div>
 
                                       <div className="rounded-2xl border border-slate-100 bg-slate-50/70 p-3">
@@ -6683,6 +6819,42 @@ export default function TeacherTrainingTab() {
                                 value={leaveDraft.reason}
                               />
                             </label>
+                            <div className={`${teacherTrainingFieldShellClassName} md:col-span-2 xl:col-span-2`}>
+                              <span className={teacherTrainingFieldLabelClassName}>请假附件</span>
+                              <label className="mt-1 flex min-h-24 cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-blue-200 bg-blue-50/40 px-3 py-4 text-center text-sm font-semibold text-blue-700 transition hover:border-blue-300 hover:bg-blue-50">
+                                <Upload className="mb-2 h-5 w-5" />
+                                <span>{leaveAttachmentFile ? "重新选择附件" : "上传证明材料"}</span>
+                                <span className="mt-1 text-xs font-normal text-slate-500">支持 PDF、Word、JPG、PNG，单个不超过 20MB</span>
+                                <input
+                                  className="sr-only"
+                                  accept={Workspace.teacherTrainingLeaveAttachmentAcceptAttribute}
+                                  onChange={(event) => handleLeaveAttachmentFile(event.target.files?.[0] ?? null)}
+                                  type="file"
+                                />
+                              </label>
+                              {leaveAttachmentFile ? (
+                                <div className="mt-2 rounded-xl border border-blue-100 bg-white px-3 py-2">
+                                  <p className="truncate text-sm font-semibold text-slate-900">{leaveAttachmentFile.name}</p>
+                                  <p className="mt-0.5 text-xs text-slate-500">{Workspace.formatFileSize(leaveAttachmentFile.size)}</p>
+                                </div>
+                              ) : null}
+                              {leaveAttachmentProgress !== null ? (
+                                <div className="mt-2">
+                                  <div className="flex items-center justify-between text-xs font-semibold text-blue-700">
+                                    <span>上传进度</span>
+                                    <span>{leaveAttachmentProgress}%</span>
+                                  </div>
+                                  <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-blue-100">
+                                    <div className="h-full rounded-full bg-blue-600" style={{ width: `${leaveAttachmentProgress}%` }} />
+                                  </div>
+                                </div>
+                              ) : null}
+                              {leaveAttachmentError ? (
+                                <p className="mt-2 rounded-lg border border-rose-100 bg-rose-50 px-3 py-2 text-xs text-rose-600">
+                                  {leaveAttachmentError}
+                                </p>
+                              ) : null}
+                            </div>
                           </div>
                         </div>
 
@@ -6694,13 +6866,13 @@ export default function TeacherTrainingTab() {
                             <ActionButton onClick={() => setTeacherLeaveFormOpen(false)}>取消</ActionButton>
                             <ActionButton
                               aria-label="提交省培请假申请"
-                              disabled={Boolean(leaveDisabledReason)}
-                              loading={isSaving}
+                              disabled={Boolean(leaveDisabledReason) || isLeaveAttachmentUploading}
+                              loading={isSaving || isLeaveAttachmentUploading}
                               onClick={() => void submitLeaveRequest()}
                               title={leaveDisabledReason || "提交省培请假申请"}
                               variant="primary"
                             >
-                              提交请假
+                              {isLeaveAttachmentUploading ? "上传中" : "提交请假"}
                             </ActionButton>
                           </div>
                         </div>
@@ -6734,6 +6906,7 @@ export default function TeacherTrainingTab() {
                               <th>请假结束时间</th>
                               <th>请假时长</th>
                               <th>请假原因</th>
+                              <th>附件</th>
                               <th>状态</th>
                               <th className="text-right">操作</th>
                             </tr>
@@ -6760,6 +6933,22 @@ export default function TeacherTrainingTab() {
                                       <p className="line-clamp-2 max-w-[260px] text-xs leading-5 text-slate-600" title={request.reason}>
                                         {request.reason}
                                       </p>
+                                    </td>
+                                    <td className="whitespace-nowrap">
+                                      {request.attachmentFile ? (
+                                        <a
+                                          className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-blue-100 bg-blue-50 px-2.5 text-xs font-semibold text-blue-700 hover:border-blue-200 hover:bg-blue-100"
+                                          href={request.attachmentFile.downloadUrl}
+                                          rel="noreferrer"
+                                          target="_blank"
+                                          title={request.attachmentFile.fileName}
+                                        >
+                                          <Paperclip className="h-3.5 w-3.5" />
+                                          查看
+                                        </a>
+                                      ) : (
+                                        <span className="text-xs text-slate-400">无</span>
+                                      )}
                                     </td>
                                     <td>
                                       <span className={`w-fit rounded-full px-2.5 py-1 text-xs font-bold ${leaveStatusClassName}`}>
@@ -6797,7 +6986,7 @@ export default function TeacherTrainingTab() {
                               })
                             ) : (
                               <tr>
-                                <td colSpan={8} className="px-4 py-14">
+                                <td colSpan={9} className="px-4 py-14">
                                   <EmptyState description="点击上方请假申请，提交后这里会显示审批进度。" icon={FileCheck} title="暂无请假记录" />
                                 </td>
                               </tr>
@@ -7933,14 +8122,29 @@ export default function TeacherTrainingTab() {
                       </div>
                       {filteredAttendanceParticipants.map((participant) => {
                         const attendance = getArrivalRegistrationAttendance(participant);
+                        const activeLeaveRequest = getActiveLeaveRequestForParticipant(participant);
                         const leaveAttendance = getParticipantAttendanceRecord(participant, "leave");
                         const absentAttendance = getParticipantAttendanceRecord(participant, "absent");
+                        const primaryAttendanceLabel = attendance
+                          ? attendance.statusLabel
+                          : activeLeaveRequest
+                            ? "请假中"
+                            : Workspace.teacherTrainingAttendancePendingLabel;
+                        const primaryAttendanceClassName = attendance
+                          ? statusStyleMap.present
+                          : activeLeaveRequest
+                            ? statusStyleMap.leave
+                            : attendancePendingStyleClassName;
 
                         return (
                           <div
                             key={participant.id}
                             className={`grid gap-3 border p-4 lg:grid-cols-[minmax(0,1.4fr)_120px_120px_120px_auto] lg:items-center ${
-                              attendance ? "border-emerald-100 bg-emerald-50/20" : "border-amber-100 bg-amber-50/20"
+                              attendance
+                                ? "border-emerald-100 bg-emerald-50/20"
+                                : activeLeaveRequest
+                                  ? "border-amber-100 bg-amber-50/30"
+                                  : "border-amber-100 bg-amber-50/20"
                             }`}
                           >
                             <div className="min-w-0">
@@ -7950,13 +8154,11 @@ export default function TeacherTrainingTab() {
                                   {participant.groupName || "未分组"}
                                 </span>
                                 <span
-                                  className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${
-                                    attendance ? statusStyleMap.present : attendancePendingStyleClassName
-                                  }`}
+                                  className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${primaryAttendanceClassName}`}
                                 >
-                                  {attendance ? attendance.statusLabel : Workspace.teacherTrainingAttendancePendingLabel}
+                                  {primaryAttendanceLabel}
                                 </span>
-                                {leaveAttendance ? (
+                                {leaveAttendance && !activeLeaveRequest ? (
                                   <span className={`rounded-full border px-2 py-0.5 text-xs font-semibold ${statusStyleMap.leave}`}>
                                     {leaveAttendance.statusLabel}
                                   </span>
@@ -7968,6 +8170,11 @@ export default function TeacherTrainingTab() {
                                 ) : null}
                               </div>
                               <p className="mt-1 text-sm text-slate-500">{participant.organization}</p>
+                              {activeLeaveRequest ? (
+                                <p className="mt-2 rounded-xl border border-amber-100 bg-white/80 px-3 py-2 text-xs font-semibold text-amber-700">
+                                  请假时间：{getTeacherTrainingLeavePeriodLabel(activeLeaveRequest)}
+                                </p>
+                              ) : null}
                               {attendance ? (
                                 <div className="mt-2 grid gap-2 text-xs text-slate-500 sm:grid-cols-3 lg:hidden">
                                   <span>报到时间：{attendance.markedAt || "未记录"}</span>
@@ -7997,7 +8204,7 @@ export default function TeacherTrainingTab() {
                               ) : null}
                             </div>
                             <div className="hidden text-sm font-semibold text-slate-700 lg:block">
-                              {attendance ? attendance.statusLabel : Workspace.teacherTrainingAttendancePendingLabel}
+                              {primaryAttendanceLabel}
                             </div>
                             <div className="hidden text-sm text-slate-600 lg:block">
                               {attendance?.roomNumber || "未填写"}

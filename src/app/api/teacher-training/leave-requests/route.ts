@@ -3,11 +3,19 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { createNotifications } from "@/lib/notifications";
 import { prisma } from "@/lib/prisma";
+import { HeadObjectCommand, R2_BUCKET, r2Client } from "@/lib/r2";
+import {
+  decodeTeacherTrainingLeaveAttachmentFile,
+  getTeacherTrainingLeaveAttachmentObjectKeyPrefix,
+  teacherTrainingLeaveAttachmentMaxSize,
+  validateTeacherTrainingLeaveAttachmentMeta,
+} from "@/lib/teacher-training-leave-attachments";
 import {
   parseTeacherTrainingLeaveSteps,
   serializeTeacherTrainingLeaveRequest,
   validateTeacherTrainingLeaveRange,
 } from "@/lib/teacher-training";
+import { deleteStoredFile } from "@/lib/uploads";
 
 const formatLeavePeriod = ({
   startDate,
@@ -41,6 +49,7 @@ export async function POST(request: NextRequest) {
         endTime?: string;
         sessionLabel?: string;
         reason?: string;
+        attachment?: string;
       }
     | null;
   const participantId = body?.participantId?.trim();
@@ -49,6 +58,7 @@ export async function POST(request: NextRequest) {
   const startTime = body?.startTime?.trim() || null;
   const endTime = body?.endTime?.trim() || null;
   const reason = body?.reason?.trim();
+  const attachment = body?.attachment?.trim() || "";
 
   if (!participantId || !startDate || !endDate || !startTime || !endTime || !reason) {
     return NextResponse.json({ message: "请填写请假日期、时间和原因" }, { status: 400 });
@@ -83,6 +93,45 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ message: "管理员尚未配置请假审批流程" }, { status: 400 });
   }
 
+  const uploadedAttachment = decodeTeacherTrainingLeaveAttachmentFile(attachment);
+  if (attachment && !uploadedAttachment) {
+    return NextResponse.json({ message: "请假附件信息无效，请重新上传" }, { status: 400 });
+  }
+  if (uploadedAttachment) {
+    const validationError = validateTeacherTrainingLeaveAttachmentMeta({
+      fileName: uploadedAttachment.fileName,
+      fileSize: uploadedAttachment.fileSize,
+      mimeType: uploadedAttachment.mimeType,
+    });
+    if (validationError) {
+      await deleteStoredFile(uploadedAttachment.filePath).catch(() => undefined);
+      return NextResponse.json({ message: validationError }, { status: 400 });
+    }
+
+    const expectedPrefix = getTeacherTrainingLeaveAttachmentObjectKeyPrefix({
+      cohortId: participant.cohortId,
+      participantId: participant.id,
+    });
+    if (!uploadedAttachment.filePath.startsWith(expectedPrefix)) {
+      await deleteStoredFile(uploadedAttachment.filePath).catch(() => undefined);
+      return NextResponse.json({ message: "请假附件和当前申请不匹配，请重新上传" }, { status: 400 });
+    }
+
+    const head = await r2Client.send(
+      new HeadObjectCommand({
+        Bucket: R2_BUCKET,
+        Key: uploadedAttachment.filePath,
+      }),
+    ).catch(() => null);
+    if (!head) {
+      return NextResponse.json({ message: "请假附件上传未完成，请重新上传" }, { status: 400 });
+    }
+    if (Number(head.ContentLength ?? 0) > teacherTrainingLeaveAttachmentMaxSize) {
+      await deleteStoredFile(uploadedAttachment.filePath).catch(() => undefined);
+      return NextResponse.json({ message: "请假附件超过 20MB，请重新上传" }, { status: 400 });
+    }
+  }
+
   const leaveRequest = await prisma.teacherTrainingLeaveRequest.create({
     data: {
       cohortId: participant.cohortId,
@@ -94,6 +143,7 @@ export async function POST(request: NextRequest) {
       endTime,
       sessionLabel: body?.sessionLabel?.trim() || "请假",
       reason,
+      attachment: uploadedAttachment ? attachment : null,
       status: "pending",
       currentStepIndex: 0,
       approvalStepsSnapshot: JSON.stringify(approvalSteps),
@@ -115,6 +165,11 @@ export async function POST(request: NextRequest) {
         },
       },
     },
+  }).catch(async (error) => {
+    if (uploadedAttachment) {
+      await deleteStoredFile(uploadedAttachment.filePath).catch(() => undefined);
+    }
+    throw error;
   });
 
   await createNotifications({

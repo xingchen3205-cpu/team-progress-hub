@@ -160,6 +160,7 @@ export * from "@/lib/document-reminder";
 export * from "@/lib/training-import";
 export * from "@/lib/teacher-training";
 export * from "@/lib/teacher-training-submission-attachments";
+export * from "@/lib/teacher-training-leave-attachments";
 export * from "@/lib/task-workflow";
 export * from "@/lib/request-json";
 
@@ -380,6 +381,7 @@ export type TeacherTrainingLeaveRequestDraft = {
   endTime: string;
   sessionLabel: string;
   reason: string;
+  attachment?: string;
 };
 
 export type TeacherTrainingLeaveReviewDraft = {
@@ -5992,7 +5994,7 @@ function useWorkspaceController({
   }) => {
     if (!cohortId || !participantId || !sessionDate || !sessionLabel) {
       setLoadError("请先选择班次、日期和参训教师");
-      return;
+      return false;
     }
 
     setIsSaving(true);
@@ -6012,8 +6014,10 @@ function useWorkspaceController({
       });
       showSuccessToast("报到信息已保存", "报到状态、房号和材料情况已同步更新。");
       refreshWorkspace("teacherTraining");
+      return true;
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "报到状态保存失败");
+      return false;
     } finally {
       setIsSaving(false);
     }
@@ -6321,6 +6325,7 @@ function useWorkspaceController({
     const startTime = draft.startTime.trim();
     const endTime = draft.endTime.trim();
     const reason = draft.reason.trim();
+    const attachment = draft.attachment?.trim() || "";
 
     if (!participantId || !startDate || !endDate || !startTime || !endTime || !reason) {
       setLoadError("请先填写请假日期、时间和原因");
@@ -6339,6 +6344,7 @@ function useWorkspaceController({
           endTime,
           sessionLabel: draft.sessionLabel.trim(),
           reason,
+          attachment,
         }),
       });
       showSuccessToast("请假申请已提交", "审批人处理后会同步更新签到记录。");
