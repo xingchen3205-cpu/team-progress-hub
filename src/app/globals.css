@@ -5457,6 +5457,162 @@ a:hover {
   color: rgba(15, 23, 42, 0.5);
 }
 
+/* 移动端兜底：省培管理页所有模块都必须收进手机视口，长班次名和操作区不能把页面撑宽。 */
+.tt-workspace-host,
+.tt-workspace-host * {
+  min-width: 0;
+}
+
+.tt-workspace-host {
+  max-width: 100%;
+  overflow-x: clip;
+}
+
+.tt-workspace-host .tt-card,
+.tt-workspace-host .tt-card-accent,
+.tt-workspace-host .tt-subcard,
+.tt-workspace-host .tt-action-card {
+  max-width: 100%;
+}
+
+.tt-workspace-host input,
+.tt-workspace-host select,
+.tt-workspace-host textarea,
+.tt-workspace-host button {
+  max-width: 100%;
+}
+
+.tt-current-cohort-title {
+  overflow-wrap: anywhere;
+}
+
+@media (max-width: 768px) {
+  .tt-workspace-host {
+    overflow-x: hidden;
+  }
+
+  .tt-workspace-host .tt-card,
+  .tt-workspace-host .tt-card-accent,
+  .tt-workspace-host .tt-subcard,
+  .tt-workspace-host .tt-action-card {
+    border-radius: 10px;
+  }
+
+  .tt-workspace-host .tt-card,
+  .tt-workspace-host .tt-card-accent {
+    padding: 16px;
+  }
+
+  .tt-workspace-host .tt-subcard,
+  .tt-workspace-host .tt-action-card {
+    padding: 12px;
+  }
+
+  .tt-workspace-host .tt-pill {
+    max-width: 100%;
+  }
+
+  .tt-workspace-host select {
+    width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .tt-workspace-host input,
+  .tt-workspace-host textarea {
+    width: 100%;
+  }
+
+  .tt-workspace-host .tt-block-title {
+    max-width: 100%;
+    overflow-wrap: anywhere;
+  }
+
+  .tt-current-cohort-strip {
+    align-items: stretch;
+  }
+
+  .tt-current-cohort-strip > div:first-child {
+    align-items: flex-start;
+  }
+
+  .tt-current-cohort-title {
+    display: -webkit-box;
+    white-space: normal;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+  }
+
+  .tt-current-cohort-title span {
+    display: block;
+    margin-left: 0;
+    margin-top: 4px;
+    overflow-wrap: anywhere;
+  }
+
+  .tt-workspace-host .tt-empty-fill {
+    min-height: 112px;
+    padding: 22px 12px;
+  }
+
+  .tt-workspace-host .tt-primary-action,
+  .tt-workspace-host .tt-status-row,
+  .tt-workspace-host .tt-compact-stat {
+    align-items: flex-start;
+  }
+
+  .tt-workspace-host [class*="grid-cols-3"],
+  .tt-workspace-host [class*="grid-cols-4"] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .tt-workspace-host [class*="max-h-[min(68vh,760px)]"] {
+    max-height: none;
+    overflow-y: visible;
+    padding-right: 0;
+  }
+}
+
+@media (max-width: 480px) {
+  .tt-workspace-host {
+    font-size: 14px;
+  }
+
+  .tt-workspace-host .tt-card,
+  .tt-workspace-host .tt-card-accent {
+    padding: 14px;
+  }
+
+  .tt-workspace-host .tt-subcard,
+  .tt-workspace-host .tt-action-card {
+    padding: 12px;
+  }
+
+  .tt-workspace-host .tt-action-card button,
+  .tt-workspace-host .tt-subcard button {
+    min-height: 36px;
+  }
+
+  .tt-workspace-host .tt-action-card .flex,
+  .tt-workspace-host .tt-subcard .flex {
+    min-width: 0;
+  }
+
+  .tt-workspace-host .tt-action-card p,
+  .tt-workspace-host .tt-action-card span,
+  .tt-workspace-host .tt-subcard p,
+  .tt-workspace-host .tt-subcard span {
+    overflow-wrap: anywhere;
+  }
+
+  .tt-workspace-host .tt-action-card [class*="whitespace-nowrap"],
+  .tt-workspace-host .tt-subcard [class*="whitespace-nowrap"] {
+    white-space: normal;
+  }
+}
+
 /* 不确定进度条：导出/生成等无法预估时长的等待动画 */
 .tt-progress-indeterminate {
   width: 40%;

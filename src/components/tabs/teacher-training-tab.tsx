@@ -3728,7 +3728,7 @@ export default function TeacherTrainingTab() {
   );
 
   return (
-    <div className={isTeacherTrainingOverview ? "tt-portal-overview-host" : "space-y-4"}>
+    <div className={isTeacherTrainingOverview ? "tt-portal-overview-host" : "tt-workspace-host space-y-4"}>
       {!isTeacherTrainingOverview ? (
         <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
           <SectionHeader
@@ -5033,12 +5033,12 @@ export default function TeacherTrainingTab() {
           ) : (
             <>
               {!showTeacherTrainingSection("overview") ? (
-              <section className="tt-card flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+              <section className="tt-current-cohort-strip tt-card flex flex-col gap-2 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                 <div className="flex min-w-0 items-center gap-2.5">
                   <span className="inline-flex h-7 shrink-0 items-center rounded-lg bg-[#1a6fd4]/10 px-2.5 text-xs font-bold text-[#1a6fd4]">
                     当前班次
                   </span>
-                  <p className="min-w-0 truncate text-sm font-semibold text-slate-900" title={selectedCohort.title}>
+                  <p className="tt-current-cohort-title min-w-0 truncate text-sm font-semibold text-slate-900" title={selectedCohort.title}>
                     {selectedCohort.title}
                     <span className="ml-2 font-normal text-slate-400">
                       {selectedCohort.startDate} 至 {selectedCohort.endDate}
