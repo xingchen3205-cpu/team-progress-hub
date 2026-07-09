@@ -88,7 +88,7 @@ const preloadWorkspaceTabComponents: Record<TabKey, () => Promise<unknown>> = {
   profile: loadProfileTab,
 };
 
-const priorityPreloadTabs: TabKey[] = ["overview", "board", "reports", "documents", "project", "team"];
+const priorityPreloadTabs: TabKey[] = ["teacherTraining", "overview", "board", "reports", "documents", "project", "team"];
 
 function WorkspaceDashboardContent() {
   const { safeActiveTab, isActiveTabResourceLoading } = useWorkspaceContext();

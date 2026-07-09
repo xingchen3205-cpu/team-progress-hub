@@ -1734,14 +1734,20 @@ test("teacher training stays current with quiet visible-page refreshes", () => {
 
   assert.match(contextSource, /mergeTeacherTrainingCohortSummaries/);
   assert.match(contextSource, /current\?\.includeDetails/);
-  assert.match(contextSource, /setTeacherTrainingCohorts\(\(current\) => mergeTeacherTrainingCohortSummaries\(current, payload\.cohorts\)\)/);
+  assert.match(contextSource, /const next = mergeTeacherTrainingCohortSummaries\(current, payload\.cohorts\)/);
+  assert.match(contextSource, /areJsonSnapshotsEqual\(current, next\) \? current : next/);
+  assert.match(contextSource, /setStateIfChanged\(setTeacherTrainingApproverOptions, payload\.approverOptions \?\? \[\]\)/);
   assert.match(contextSource, /refreshTeacherTrainingIfVisible/);
   assert.match(contextSource, /safeActiveTab !== "teacherTraining"/);
   assert.match(contextSource, /document\.visibilityState !== "visible"/);
-  assert.match(contextSource, /window\.setInterval\(refreshTeacherTrainingIfVisible,\s*30 \* 1000\)/);
+  assert.match(contextSource, /teacherTrainingDetailMode\?: "selected" \| "none"/);
+  assert.match(contextSource, /options\?\.teacherTrainingDetailMode !== "none"/);
+  assert.match(contextSource, /refreshTeacherTrainingIfVisible\("none"\)/);
+  assert.match(contextSource, /refreshTeacherTrainingIfVisible\("selected"\)/);
+  assert.match(contextSource, /60 \* 1000/);
   assert.match(contextSource, /document\.addEventListener\("visibilitychange", handleTeacherTrainingVisibilityChange\)/);
-  assert.match(contextSource, /window\.addEventListener\("focus", refreshTeacherTrainingIfVisible\)/);
-  assert.match(contextSource, /loadWorkspaceResources\(\["teacherTraining"\], currentUserRole, \{ force: true \}\)/);
+  assert.match(contextSource, /window\.addEventListener\("focus", handleTeacherTrainingFocus\)/);
+  assert.match(contextSource, /teacherTrainingDetailMode,\s*\}\)/);
 });
 
 test("teacher training account management is a manager account pool, not another participant roster", () => {

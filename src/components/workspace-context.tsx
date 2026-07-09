@@ -7,7 +7,19 @@
 import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState, createContext, useContext, type ReactNode } from "react";
+import {
+  startTransition,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  createContext,
+  useContext,
+  type Dispatch,
+  type ReactNode,
+  type SetStateAction,
+} from "react";
 import type { LucideIcon } from "lucide-react";
 import {
   Bot,
@@ -185,6 +197,27 @@ export type WorkspaceResourceKey =
   | "teacherTraining"
   | "reviewAssignments"
   | "reports";
+
+type WorkspaceResourceLoadOptions = {
+  force?: boolean;
+  teacherTrainingDetailMode?: "selected" | "none";
+};
+
+function areJsonSnapshotsEqual<T>(current: T, next: T) {
+  if (Object.is(current, next)) {
+    return true;
+  }
+
+  try {
+    return JSON.stringify(current) === JSON.stringify(next);
+  } catch {
+    return false;
+  }
+}
+
+function setStateIfChanged<T>(setState: Dispatch<SetStateAction<T>>, nextValue: T) {
+  setState((currentValue) => (areJsonSnapshotsEqual(currentValue, nextValue) ? currentValue : nextValue));
+}
 
 export type TabItem = {
   key: TabKey;
@@ -2399,6 +2432,7 @@ function useWorkspaceController({
   const [activeTeacherTrainingCohortId, setActiveTeacherTrainingCohortId] = useState("");
   const loadedWorkspaceResourcesRef = useRef<Set<string>>(new Set());
   const refreshResourceQueueRef = useRef<Set<WorkspaceResourceKey>>(new Set());
+  const refreshScheduleTimerRef = useRef<number | null>(null);
   const [announcements, setAnnouncements] = useState<Announcement[]>([]);
   const [events, setEvents] = useState<EventItem[]>([]);
   const [tasks, setTasks] = useState<BoardTask[]>([]);
@@ -3178,7 +3212,10 @@ function useWorkspaceController({
       );
       const detailCohort = payload.cohorts[0];
       if (!detailCohort) return;
-      setTeacherTrainingCohorts((current) => mergeTeacherTrainingCohortDetails(current, detailCohort));
+      setTeacherTrainingCohorts((current) => {
+        const next = mergeTeacherTrainingCohortDetails(current, detailCohort);
+        return areJsonSnapshotsEqual(current, next) ? current : next;
+      });
     },
     [mergeTeacherTrainingCohortDetails],
   );
@@ -3186,52 +3223,52 @@ function useWorkspaceController({
   const loadTeacherTrainingAnnouncements = useCallback(async (cohortId: string) => {
     const normalizedCohortId = cohortId.trim();
     if (!normalizedCohortId) {
-      setAnnouncements([]);
+      setStateIfChanged<Announcement[]>(setAnnouncements, []);
       return;
     }
 
     const payload = await requestJson<{ announcements: Announcement[] }>(
       `/api/teacher-training/announcements?cohortId=${encodeURIComponent(normalizedCohortId)}`,
     );
-    setAnnouncements(payload.announcements);
+    setStateIfChanged(setAnnouncements, payload.announcements);
   }, []);
 
   const loadWorkspaceResource = useCallback(
-    async (resourceKey: WorkspaceResourceKey, role: CurrentUser["role"]) => {
+    async (resourceKey: WorkspaceResourceKey, role: CurrentUser["role"], options?: WorkspaceResourceLoadOptions) => {
       switch (resourceKey) {
         case "announcements": {
           const payload = await requestJson<{ announcements: Announcement[] }>("/api/announcements");
-          setAnnouncements(payload.announcements);
+          setStateIfChanged(setAnnouncements, payload.announcements);
           return;
         }
         case "events": {
           const payload = await requestJson<{ events: EventItem[] }>("/api/events");
-          setEvents(payload.events);
+          setStateIfChanged(setEvents, payload.events);
           return;
         }
         case "tasks": {
           const payload = await requestJson<{ tasks: BoardTask[] }>("/api/tasks");
-          setTasks(payload.tasks);
+          setStateIfChanged(setTasks, payload.tasks);
           return;
         }
         case "experts": {
           const payload = await requestJson<{ experts: ExpertItem[] }>("/api/experts");
-          setExperts(payload.experts);
+          setStateIfChanged(setExperts, payload.experts);
           return;
         }
         case "documents": {
           const payload = await requestJson<{ documents: DocumentItem[] }>("/api/documents");
-          setDocuments(payload.documents);
+          setStateIfChanged(setDocuments, payload.documents);
           return;
         }
         case "projectStages": {
           const payload = await requestJson<{ stages: ProjectReviewStageItem[] }>("/api/project-stages");
-          setProjectStages(payload.stages);
+          setStateIfChanged(setProjectStages, payload.stages);
           return;
         }
         case "projectMaterials": {
           const payload = await requestJson<{ materials: ProjectMaterialSubmissionItem[] }>("/api/project-materials");
-          setProjectMaterials(payload.materials);
+          setStateIfChanged(setProjectMaterials, payload.materials);
           return;
         }
         case "team": {
@@ -3245,23 +3282,23 @@ function useWorkspaceController({
             const expertProfilePayload = await requestJson<{ expertProfiles: ExpertProfileItem[] }>(
               "/api/team/expert-profiles",
             );
-            setExpertProfiles(expertProfilePayload.expertProfiles);
+            setStateIfChanged(setExpertProfiles, expertProfilePayload.expertProfiles);
           } else {
-            setExpertProfiles([]);
+            setStateIfChanged<ExpertProfileItem[]>(setExpertProfiles, []);
           }
           return;
         }
         case "trainingQuestions": {
           const payload = await requestJson<{ questions: TrainingQuestionItem[] }>("/api/training/questions");
-          setTrainingQuestions(payload.questions);
+          setStateIfChanged(setTrainingQuestions, payload.questions);
           return;
         }
         case "trainingSessions": {
           const payload = await requestJson<{ sessions: TrainingSessionItem[]; stats: TrainingStats }>(
             "/api/training/sessions",
           );
-          setTrainingSessions(payload.sessions);
-          setTrainingStats(payload.stats);
+          setStateIfChanged(setTrainingSessions, payload.sessions);
+          setStateIfChanged(setTrainingStats, payload.stats);
           return;
         }
         case "teacherTraining": {
@@ -3272,16 +3309,24 @@ function useWorkspaceController({
             managerAccountOptions: TeacherTrainingManagerAccountItem[];
             participantAccountOptions: TeacherTrainingParticipantAccountOptionItem[];
           }>("/api/teacher-training?mode=summary");
-          setTeacherTrainingCohorts((current) => mergeTeacherTrainingCohortSummaries(current, payload.cohorts));
-          setTeacherTrainingApproverOptions(payload.approverOptions ?? []);
-          setTeacherTrainingManagerOptions(payload.managerOptions ?? []);
-          setTeacherTrainingManagerAccounts(payload.managerAccountOptions ?? []);
-          setTeacherTrainingParticipantAccountOptions(payload.participantAccountOptions ?? []);
+          setTeacherTrainingCohorts((current) => {
+            const next = mergeTeacherTrainingCohortSummaries(current, payload.cohorts);
+            return areJsonSnapshotsEqual(current, next) ? current : next;
+          });
+          setStateIfChanged(setTeacherTrainingApproverOptions, payload.approverOptions ?? []);
+          setStateIfChanged(setTeacherTrainingManagerOptions, payload.managerOptions ?? []);
+          setStateIfChanged(setTeacherTrainingManagerAccounts, payload.managerAccountOptions ?? []);
+          setStateIfChanged(setTeacherTrainingParticipantAccountOptions, payload.participantAccountOptions ?? []);
           const detailCohortId =
             activeTeacherTrainingCohortId && payload.cohorts.some((cohort) => cohort.id === activeTeacherTrainingCohortId)
               ? activeTeacherTrainingCohortId
               : payload.cohorts[0]?.id;
-          if (detailCohortId && payload.cohorts.some((cohort) => cohort.id === detailCohortId && cohort.includeDetails === false)) {
+          const shouldLoadSelectedCohortDetails = options?.teacherTrainingDetailMode !== "none";
+          if (
+            shouldLoadSelectedCohortDetails &&
+            detailCohortId &&
+            payload.cohorts.some((cohort) => cohort.id === detailCohortId && cohort.includeDetails === false)
+          ) {
             await loadTeacherTrainingCohortDetails(detailCohortId);
           }
           await loadTeacherTrainingAnnouncements(detailCohortId ?? "");
@@ -3331,7 +3376,7 @@ function useWorkspaceController({
   );
 
   const loadWorkspaceResources = useCallback(
-    async (resourceKeys: WorkspaceResourceKey[], role: CurrentUser["role"], options?: { force?: boolean }) => {
+    async (resourceKeys: WorkspaceResourceKey[], role: CurrentUser["role"], options?: WorkspaceResourceLoadOptions) => {
       const uniqueKeys = Array.from(new Set(resourceKeys));
       const pendingKeys = uniqueKeys.filter(
         (resourceKey) =>
@@ -3344,7 +3389,7 @@ function useWorkspaceController({
 
       await Promise.all(
         pendingKeys.map(async (resourceKey) => {
-          await loadWorkspaceResource(resourceKey, role);
+          await loadWorkspaceResource(resourceKey, role, options);
           loadedWorkspaceResourcesRef.current.add(getWorkspaceResourceLoadedKey(resourceKey, role));
         }),
       );
@@ -3355,7 +3400,7 @@ function useWorkspaceController({
   const loadNotificationsInBackground = useCallback(async () => {
     try {
       const payload = await requestJson<{ notifications: NotificationItem[] }>("/api/notifications");
-      setNotifications(payload.notifications);
+      setStateIfChanged(setNotifications, payload.notifications);
       loadedWorkspaceResourcesRef.current.add("notifications");
     } catch (error) {
       const message = error instanceof Error ? error.message : "通知加载失败";
@@ -3363,6 +3408,15 @@ function useWorkspaceController({
         window.location.replace("/login");
       }
     }
+  }, []);
+
+  useEffect(() => {
+    return () => {
+      if (refreshScheduleTimerRef.current !== null) {
+        window.clearTimeout(refreshScheduleTimerRef.current);
+        refreshScheduleTimerRef.current = null;
+      }
+    };
   }, []);
 
   useEffect(() => {
@@ -3433,7 +3487,9 @@ function useWorkspaceController({
         );
         setActiveTabResourceLoading(pendingBlockingResourceKeys.length > 0);
         if (blockingResourceKeys.length > 0) {
-          await loadWorkspaceResources(blockingResourceKeys, currentUserRole);
+          await loadWorkspaceResources(blockingResourceKeys, currentUserRole, {
+            teacherTrainingDetailMode: safeActiveTab === "teacherTraining" ? "none" : "selected",
+          });
         }
 
         const blockingResourceKeySet = new Set(blockingResourceKeys);
@@ -3541,7 +3597,7 @@ function useWorkspaceController({
         undefined,
         { cacheTtlMs: 0, force: true },
       );
-      setNotifications(payload.notifications);
+      setStateIfChanged(setNotifications, payload.notifications);
       loadedWorkspaceResourcesRef.current.add("notifications");
     } catch (error) {
       const message = error instanceof Error ? error.message : "";
@@ -3567,14 +3623,19 @@ function useWorkspaceController({
     }
 
     let refreshInFlight = false;
-    const refreshTeacherTrainingIfVisible = async () => {
+    const refreshTeacherTrainingIfVisible = async (
+      teacherTrainingDetailMode: WorkspaceResourceLoadOptions["teacherTrainingDetailMode"] = "none",
+    ) => {
       if (document.visibilityState !== "visible" || refreshInFlight) {
         return;
       }
 
       refreshInFlight = true;
       try {
-        await loadWorkspaceResources(["teacherTraining"], currentUserRole, { force: true });
+        await loadWorkspaceResources(["teacherTraining"], currentUserRole, {
+          force: true,
+          teacherTrainingDetailMode,
+        });
       } catch (error) {
         const message = error instanceof Error ? error.message : "";
         if (message === "未登录") {
@@ -3585,20 +3646,25 @@ function useWorkspaceController({
       }
     };
 
-    const interval = window.setInterval(refreshTeacherTrainingIfVisible, 30 * 1000);
+    const interval = window.setInterval(() => {
+      void refreshTeacherTrainingIfVisible("none");
+    }, 60 * 1000);
     const handleTeacherTrainingVisibilityChange = () => {
       if (document.visibilityState === "visible") {
-        void refreshTeacherTrainingIfVisible();
+        void refreshTeacherTrainingIfVisible("selected");
       }
     };
 
     document.addEventListener("visibilitychange", handleTeacherTrainingVisibilityChange);
-    window.addEventListener("focus", refreshTeacherTrainingIfVisible);
+    const handleTeacherTrainingFocus = () => {
+      void refreshTeacherTrainingIfVisible("selected");
+    };
+    window.addEventListener("focus", handleTeacherTrainingFocus);
 
     return () => {
       window.clearInterval(interval);
       document.removeEventListener("visibilitychange", handleTeacherTrainingVisibilityChange);
-      window.removeEventListener("focus", refreshTeacherTrainingIfVisible);
+      window.removeEventListener("focus", handleTeacherTrainingFocus);
     };
   }, [
     currentUser?.role,
@@ -3619,7 +3685,7 @@ function useWorkspaceController({
       }
     };
 
-    const interval = window.setInterval(refreshIfVisible, 20 * 1000);
+    const interval = window.setInterval(refreshIfVisible, 60 * 1000);
     const handleVisibilityChange = () => {
       if (document.visibilityState === "visible") {
         refreshIfVisible();
@@ -4550,7 +4616,16 @@ function useWorkspaceController({
         refreshResourceQueueRef.current.add(key);
       }
     }
-    setReloadToken((current) => current + 1);
+    if (refreshScheduleTimerRef.current !== null) {
+      return;
+    }
+
+    refreshScheduleTimerRef.current = window.setTimeout(() => {
+      refreshScheduleTimerRef.current = null;
+      startTransition(() => {
+        setReloadToken((current) => current + 1);
+      });
+    }, 80);
   };
 
   const getReportDraftStorageKey = (date: string) =>

@@ -59,6 +59,8 @@ test("workspace defines tab-scoped resource loading", () => {
   );
   assert.match(contextSource, /if \(!currentUserRole\) \{\s+return;\s+\}/);
   assert.match(contextSource, /getWorkspaceTabResourceKeys\(safeActiveTab, currentUserRole\)/);
+  assert.match(contextSource, /loadWorkspaceResources\(blockingResourceKeys, currentUserRole, \{/);
+  assert.match(contextSource, /teacherTrainingDetailMode: safeActiveTab === "teacherTraining" \? "none" : "selected"/);
 });
 
 test("workspace keeps tab switches smooth with resource skeletons and idle preloads", () => {

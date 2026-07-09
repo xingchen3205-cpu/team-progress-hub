@@ -18,7 +18,8 @@ test("workspace bootstrap requests no longer bind the full dashboard reload to r
   const bootstrapBlock = contextSource.slice(bootstrapEffectStart, bootstrapEffectEnd);
 
   assert.match(bootstrapBlock, /requestJson<\{ user: CurrentUser \}>\("\/api\/auth\/me"\)/);
-  assert.match(bootstrapBlock, /requestJson<\{ notifications: NotificationItem\[\] \}>\("\/api\/notifications"\)/);
+  assert.match(bootstrapBlock, /void loadNotificationsInBackground\(\)/);
+  assert.match(contextSource, /requestJson<\{ notifications: NotificationItem\[\] \}>\("\/api\/notifications"\)/);
   assert.doesNotMatch(bootstrapBlock, /requestJson<\{ tasks: BoardTask\[\] \}>\("\/api\/tasks"\)/);
   assert.doesNotMatch(bootstrapBlock, /requestJson<\{ dates: string\[\]; reports: ReportEntryWithDate\[\] \}>\(/);
   assert.match(contextSource, /getWorkspaceTabResourceKeys\(safeActiveTab, currentUserRole\)/);
@@ -27,16 +28,18 @@ test("workspace bootstrap requests no longer bind the full dashboard reload to r
 test("workspace visibility refresh no longer re-enters the boot loading shell", () => {
   assert.match(contextSource, /const refreshWorkspaceSilently = async \(\) =>/);
   assert.match(contextSource, /if \(reloadToken === 0 \|\| !currentUserRole\) \{\s+return;\s+\}/);
-  assert.match(
-    contextSource,
-    /useEffect\(\(\) => \{\s+let isMounted = true;[\s\S]*?const loadWorkspaceData = async \(\) => \{[\s\S]*?setIsBooting\(true\);[\s\S]*?\n\s*\}, \[clearNonExpertWorkspaceData\]\);/,
-  );
+  assert.match(contextSource, /const loadWorkspaceData = async \(\) => \{/);
+  assert.match(contextSource, /setIsBooting\(true\)/);
+  assert.match(contextSource, /clearNonExpertWorkspaceData/);
   const refreshStart = contextSource.indexOf("const refreshWorkspaceSilently = async () => {");
   const refreshEnd = contextSource.indexOf("void refreshWorkspaceSilently();", refreshStart);
   const refreshBlock = contextSource.slice(refreshStart, refreshEnd);
 
   assert.doesNotMatch(refreshBlock, /requestJson<\{ user: CurrentUser \}>\("\/api\/auth\/me"\)/);
   assert.match(refreshBlock, /loadWorkspaceResources\(resourceKeys, currentUserRole, \{ force: true \}\)/);
+  assert.match(contextSource, /refreshScheduleTimerRef/);
+  assert.match(contextSource, /startTransition\(\(\) => \{/);
+  assert.match(contextSource, /setStateIfChanged\(setNotifications, payload\.notifications\)/);
   assert.doesNotMatch(
     contextSource,
     /const refreshWorkspaceSilently = async \(\) => \{[\s\S]*?setIsBooting\(true\);/,
