@@ -5927,22 +5927,28 @@ function useWorkspaceController({
   const signTeacherTrainingCheckIn = async (draft: TeacherTrainingCheckInSignDraft) => {
     if (!draft.checkInTaskId || !draft.participantId) {
       setLoadError("请先选择签到任务和参训教师身份");
-      return;
+      return false;
     }
 
     setIsSaving(true);
     try {
-      const payload = await requestJson<{ message?: string; alreadySigned?: boolean }>("/api/teacher-training/check-ins/sign", {
-        method: "POST",
-        body: JSON.stringify(draft),
-      });
+      const payload = await requestJson<{ message?: string; alreadySigned?: boolean }>(
+        "/api/teacher-training/check-ins/sign",
+        {
+          method: "POST",
+          body: JSON.stringify(draft),
+        },
+        { retryCount: 1, retryMutation: true },
+      );
       showSuccessToast(
         payload.alreadySigned ? "签到记录已存在" : "定位签到成功",
         payload.message || "管理员导出的课程签到名单会同步更新。",
       );
       refreshWorkspace("teacherTraining");
+      return true;
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "定位签到失败");
+      return false;
     } finally {
       setIsSaving(false);
     }

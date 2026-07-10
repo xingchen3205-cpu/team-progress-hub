@@ -159,4 +159,28 @@ describe("requestJson", () => {
     );
     assert.equal(postCallCount, 1);
   });
+
+  it("retries an explicitly idempotent mutation after a transient network failure", async () => {
+    let callCount = 0;
+
+    global.fetch = (async () => {
+      callCount += 1;
+      if (callCount === 1) {
+        throw new TypeError("Failed to fetch");
+      }
+      return {
+        ok: true,
+        json: async () => ({ saved: true }),
+      } as Response;
+    }) as typeof fetch;
+
+    const payload = await requestJson<{ saved: boolean }>(
+      "/api/teacher-training/check-ins/sign",
+      { method: "POST", body: JSON.stringify({ checkInTaskId: "task-1" }) },
+      { retryCount: 1, retryMutation: true, timeoutMs: 1_000 },
+    );
+
+    assert.deepEqual(payload, { saved: true });
+    assert.equal(callCount, 2);
+  });
 });

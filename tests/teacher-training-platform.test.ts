@@ -723,7 +723,9 @@ test("teacher training attendance registration records arrival room and material
   assert.match(libSource, /酒店房号/);
   assert.match(libSource, /材料齐全/);
   assert.match(exportRoute, /报到信息/);
-  assert.doesNotMatch(attendanceSection, /请假|缺勤|报到登记日期|报到登记场次/);
+  assert.match(attendanceSection, /请假中/);
+  assert.match(attendanceSection, /请假时间/);
+  assert.doesNotMatch(attendanceSection, /报到登记日期|报到登记场次/);
 });
 
 test("teacher training course import accepts Word and PDF files", () => {
@@ -845,6 +847,9 @@ test("teacher training tab supports location-based course check-in tasks", () =>
   assert.match(tabSource, /课程定位签到/);
   assert.match(tabSource, /定位签到/);
   assert.match(tabSource, /navigator\.geolocation/);
+  assert.match(tabSource, /getReliableBrowserPosition/);
+  assert.match(tabSource, /getBrowserGeolocationPermissionState/);
+  assert.match(contextSource, /retryMutation:\s*true/);
   assert.match(tabSource, /getTeacherTrainingCheckInWindowState/);
   assert.match(tabSource, /getTeacherTrainingCheckInWindowLabel/);
   assert.match(tabSource, /setInterval\(\(\) => setCheckInClock/);
@@ -1305,7 +1310,9 @@ test("teacher training task reports require one Word or PDF attachment with uplo
   assert.match(attachmentSource, /teacher-training-submissions/);
   assert.match(uploadRouteSource, /getTeacherTrainingSubmissionAttachmentObjectKeyPrefix/);
   assert.match(uploadRouteSource, /encodeTeacherTrainingSubmissionAttachmentFile/);
-  assert.match(downloadRouteSource, /readStoredFile/);
+  assert.match(downloadRouteSource, /getSignedUrl/);
+  assert.match(downloadRouteSource, /GetObjectCommand/);
+  assert.match(downloadRouteSource, /NextResponse\.redirect\(downloadUrl\)/);
   assert.match(downloadRouteSource, /decodeTeacherTrainingSubmissionAttachmentFile/);
   assert.match(downloadRouteSource, /hasTeacherTrainingCohortManageAccess/);
   assert.match(downloadRouteSource, /附件文件不存在或已丢失/);
@@ -1506,7 +1513,7 @@ test("teacher training overview works as a role-specific command desk", () => {
   assert.match(tabSource, /省培管理平台/);
   assert.match(tabSource, /培训时间：/);
   assert.match(tabSource, /tt-portal-hero-meta/);
-  assert.match(tabSource, /tt-portal-floating-tools/);
+  assert.doesNotMatch(tabSource, /tt-portal-floating-tools/);
   assert.match(tabSource, /省培服务/);
   assert.match(tabSource, /培训通知/);
   assert.match(tabSource, /班次概览/);
@@ -1533,7 +1540,7 @@ test("teacher training overview works as a role-specific command desk", () => {
   assert.match(globalStyles, /\.tt-portal-page-shell/);
   assert.match(globalStyles, /url\("\/teacher-training-campus-hero\.png"\)/);
   assert.match(globalStyles, /minmax\(0, 1\.06fr\) minmax\(360px, 0\.94fr\)/);
-  assert.match(globalStyles, /\.tt-portal-floating-tools/);
+  assert.doesNotMatch(globalStyles, /\.tt-portal-floating-tools/);
   assert.match(globalStyles, /@media \(max-width: 900px\)/);
   assert.doesNotMatch(tabSource, /快去|赶紧|马上弄|搞一下/);
 });
@@ -1864,7 +1871,7 @@ test("teacher training task reports support Word/PDF attachments and preserve ex
   assert.match(exportRouteSource, /uniqueParticipantFolder/);
   assert.match(exportRouteSource, /uniqueZipPath/);
   assert.match(exportRouteSource, /任务汇报汇总\.docx/);
-  assert.match(exportRouteSource, /readStoredFile\(attachmentFile\.filePath\)/);
+  assert.match(exportRouteSource, /readStoredFile\(item\.file\.filePath\)/);
   assert.match(exportRouteSource, /任务汇报归档\.zip/);
   assert.doesNotMatch(exportRouteSource, /任务汇报Word归档/);
 });

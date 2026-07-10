@@ -10,6 +10,11 @@ import {
   TeacherTrainingCheckInRecordStatusBadge,
 } from "@/components/teacher-training/check-in-record-status-badge";
 import {
+  getBrowserGeolocationPermissionState,
+  getBrowserLocationErrorMessage,
+  getReliableBrowserPosition,
+} from "@/lib/browser-geolocation";
+import {
   parseTeacherTrainingParticipantImportText,
   resolveTeacherTrainingParticipantImportColumn,
   splitTeacherTrainingImportLine,
@@ -2877,33 +2882,29 @@ export default function TeacherTrainingTab() {
     if (deleted) setSelectedCheckInTaskIds([]);
   };
 
-  const useCurrentLocationForCheckInTask = () => {
+  const useCurrentLocationForCheckInTask = async () => {
     if (!navigator.geolocation) {
       setLocationMessage("当前浏览器不支持读取发布位置；可先不填经纬度发布，教师签到时仍需授权定位。");
       return;
     }
 
     setLocationMessage("正在读取当前位置...");
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        setCheckInDraft((current) => ({
-          ...current,
-          latitude: String(position.coords.latitude.toFixed(6)),
-          longitude: String(position.coords.longitude.toFixed(6)),
-        }));
-        setLocationMessage("已填入当前位置，可直接发布签到任务。");
-      },
-      (error) =>
-        setLocationMessage(
-          error.code === error.PERMISSION_DENIED
-            ? "定位权限被拒绝；可先不填经纬度发布，教师签到时仍需授权定位。"
-            : "定位失败；可先不填经纬度发布，教师签到时仍需授权定位。",
-        ),
-      { enableHighAccuracy: true, timeout: 10000 },
-    );
+    const permissionStatePromise = getBrowserGeolocationPermissionState(navigator.permissions);
+    try {
+      const position = await getReliableBrowserPosition(navigator.geolocation);
+      setCheckInDraft((current) => ({
+        ...current,
+        latitude: String(position.coords.latitude.toFixed(6)),
+        longitude: String(position.coords.longitude.toFixed(6)),
+      }));
+      setLocationMessage("已填入当前位置，可直接发布签到任务。");
+    } catch (error) {
+      const permissionState = await permissionStatePromise;
+      setLocationMessage(`${getBrowserLocationErrorMessage(error, permissionState)} 管理端也可暂不填写坐标发布签到。`);
+    }
   };
 
-  const signWithCurrentLocation = (checkInTaskId: string) => {
+  const signWithCurrentLocation = async (checkInTaskId: string) => {
     if (!selectedParticipant) return;
     if (!navigator.geolocation) {
       setLocationMessage("当前浏览器不支持定位签到，请更换浏览器或联系管理端人工补签。");
@@ -2911,30 +2912,24 @@ export default function TeacherTrainingTab() {
     }
 
     setCheckInSigningId(checkInTaskId);
-    setLocationMessage("正在读取定位...");
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        void signTeacherTrainingCheckIn({
-          checkInTaskId,
-          participantId: selectedParticipant.id,
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude,
-          accuracy: Number.isFinite(position.coords.accuracy) ? position.coords.accuracy : null,
-        }).finally(() => {
-          setCheckInSigningId("");
-          setLocationMessage("");
-        });
-      },
-      (error) => {
-        setCheckInSigningId("");
-        setLocationMessage(
-          error.code === error.PERMISSION_DENIED
-            ? "定位权限被拒绝，请在浏览器地址栏允许本网站使用位置后重试；仍失败时联系管理端人工补签。"
-            : "定位失败，请检查网络和设备定位后重试；仍失败时联系管理端人工补签。",
-        );
-      },
-      { enableHighAccuracy: true, timeout: 12000 },
-    );
+    setLocationMessage("正在读取定位，请保持页面开启...");
+    const permissionStatePromise = getBrowserGeolocationPermissionState(navigator.permissions);
+    try {
+      const position = await getReliableBrowserPosition(navigator.geolocation);
+      const signed = await signTeacherTrainingCheckIn({
+        checkInTaskId,
+        participantId: selectedParticipant.id,
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+        accuracy: Number.isFinite(position.coords.accuracy) ? position.coords.accuracy : null,
+      });
+      setLocationMessage(signed ? "" : "定位已经获取，但签到提交未完成，请按页面提示重试。");
+    } catch (error) {
+      const permissionState = await permissionStatePromise;
+      setLocationMessage(getBrowserLocationErrorMessage(error, permissionState));
+    } finally {
+      setCheckInSigningId("");
+    }
   };
 
   const copyAccountMessage = async (participantId: string) => {
@@ -6828,6 +6823,7 @@ export default function TeacherTrainingTab() {
                                 <input
                                   className="sr-only"
                                   accept={Workspace.teacherTrainingLeaveAttachmentAcceptAttribute}
+                                  aria-label="上传请假证明附件"
                                   onChange={(event) => handleLeaveAttachmentFile(event.target.files?.[0] ?? null)}
                                   type="file"
                                 />

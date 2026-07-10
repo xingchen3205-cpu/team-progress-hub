@@ -10,6 +10,7 @@ type RequestJsonOptions = {
   cacheTtlMs?: number;
   force?: boolean;
   retryCount?: number;
+  retryMutation?: boolean;
   timeoutMs?: number;
 };
 
@@ -107,7 +108,8 @@ async function executeJsonRequestAttempt<T>(input: string, init?: RequestInit, o
 
 async function executeJsonRequest<T>(input: string, init?: RequestInit, options?: RequestJsonOptions) {
   const method = (init?.method ?? "GET").toUpperCase();
-  const retryCount = method === "GET" || method === "HEAD" ? (options?.retryCount ?? defaultGetRetryCount) : 0;
+  const canRetry = method === "GET" || method === "HEAD" || options?.retryMutation === true;
+  const retryCount = canRetry ? (options?.retryCount ?? defaultGetRetryCount) : 0;
   let lastError: unknown;
 
   for (let attemptIndex = 0; attemptIndex <= retryCount; attemptIndex += 1) {
