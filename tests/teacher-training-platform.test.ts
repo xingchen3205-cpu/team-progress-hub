@@ -12,6 +12,10 @@ import {
   validateTeacherTrainingLeaveRange,
 } from "../src/lib/teacher-training";
 import { parseTeacherTrainingParticipantImportText } from "../src/lib/teacher-training-participant-import";
+import {
+  teacherTrainingSubmissionAttachmentMaxSize,
+  validateTeacherTrainingSubmissionAttachmentMeta,
+} from "../src/lib/teacher-training-submission-attachments";
 
 const root = process.cwd();
 const read = (file: string) => readFileSync(path.join(root, file), "utf8");
@@ -708,7 +712,7 @@ test("teacher training attendance registration records arrival room and material
   const attendanceSection = tabSource.match(/showTeacherTrainingSection\("attendance"\)[\s\S]*?showTeacherTrainingSection\("tasks"\)/)?.[0] ?? "";
 
   assert.match(tabSource, /attendanceRegistrationDraft/);
-  assert.match(tabSource, /确认参训教师已报到/);
+  assert.match(tabSource, /登记报到状态/);
   assert.match(tabSource, /酒店房号/);
   assert.match(tabSource, /报到材料是否齐全/);
   assert.match(tabSource, /材料齐全/);
@@ -726,6 +730,25 @@ test("teacher training attendance registration records arrival room and material
   assert.match(attendanceSection, /请假中/);
   assert.match(attendanceSection, /请假时间/);
   assert.doesNotMatch(attendanceSection, /报到登记日期|报到登记场次/);
+});
+
+test("teacher training arrival registration can be reverted or marked as online", () => {
+  const tabSource = read("src/components/tabs/teacher-training-tab.tsx");
+  const attendanceRoute = read("src/app/api/teacher-training/attendance/route.ts");
+  const libSource = read("src/lib/teacher-training.ts");
+  const attendanceSection = tabSource.match(/showTeacherTrainingSection\("attendance"\)[\s\S]*?showTeacherTrainingSection\("tasks"\)/)?.[0] ?? "";
+
+  assert.match(libSource, /TeacherTrainingAttendanceStatus = "present" \| "leave" \| "absent" \| "online"/);
+  assert.match(libSource, /online:\s*"线上参训"/);
+  assert.match(attendanceRoute, /status === "pending"/);
+  assert.match(attendanceRoute, /teacherTrainingAttendance\.deleteMany/);
+  assert.match(attendanceRoute, /id:\s*attendanceId/);
+  assert.match(tabSource, /attendanceId:\s*currentAttendance\?\.id/);
+  assert.match(attendanceSection, /待报到/);
+  assert.match(attendanceSection, /线上参训/);
+  assert.match(attendanceSection, /改为待报到/);
+  assert.match(tabSource, /确认撤销/);
+  assert.match(tabSource, /attendanceOverviewFilter === "online"/);
 });
 
 test("teacher training course import accepts Word and PDF files", () => {
@@ -893,8 +916,8 @@ test("teacher training interactions expose clear hints for mobile web users", ()
   assert.match(tabSource, /title=\{participant\.accountUsername \? "复制省培账号通知消息"/);
   assert.match(tabSource, /accountMessagesByParticipantId\[participant\.id\]/);
   assert.match(tabSource, /\$\{participant\.name\}省培账号通知消息/);
-  assert.match(tabSource, /aria-label=\{`\$\{participant\.name\}\$\{attendance \? "修改报到信息" : "报到"\}`\}/);
-  assert.match(tabSource, /title=\{`\$\{participant\.name\}\$\{attendance \? "修改报到信息" : "报到"\}`\}/);
+  assert.match(tabSource, /aria-label=\{`\$\{participant\.name\}\$\{attendance \? "修改报到状态" : "登记报到状态"\}`\}/);
+  assert.match(tabSource, /title=\{`\$\{participant\.name\}\$\{attendance \? "修改报到状态" : "登记报到状态"\}`\}/);
   assert.doesNotMatch(shellSource, /打开省培模块导航/);
   assert.match(shellSource, /mobileNavigationTitle/);
 });
@@ -1301,7 +1324,8 @@ test("teacher training task reports require one Word or PDF attachment with uplo
   const exportRouteSource = read("src/app/api/teacher-training/export/route.ts");
 
   assert.match(attachmentSource, /teacherTrainingSubmissionAttachmentAcceptAttribute = "\.pdf,\.doc,\.docx"/);
-  assert.match(attachmentSource, /teacherTrainingSubmissionAttachmentMaxSizeLabel = "20MB"/);
+  assert.match(attachmentSource, /teacherTrainingSubmissionAttachmentMaxSize = 10 \* 1024 \* 1024/);
+  assert.match(attachmentSource, /teacherTrainingSubmissionAttachmentMaxSizeLabel = "10MB"/);
   assert.match(attachmentSource, /validateTeacherTrainingSubmissionAttachmentMeta/);
   assert.match(attachmentSource, /任务汇报附件仅支持 Word 或 PDF 文件/);
   assert.match(uploadRouteSource, /getSignedUrl/);
@@ -1320,7 +1344,7 @@ test("teacher training task reports require one Word or PDF attachment with uplo
   assert.match(submissionsRouteSource, /请上传 Word 或 PDF 汇报附件/);
   assert.match(submissionsRouteSource, /getTeacherTrainingSubmissionAttachmentObjectKeyPrefix/);
   assert.match(submissionsRouteSource, /HeadObjectCommand/);
-  assert.match(submissionsRouteSource, /真实附件大小不能超过 20MB/);
+  assert.match(submissionsRouteSource, /真实附件大小不能超过 \$\{teacherTrainingSubmissionAttachmentMaxSizeLabel\}/);
   assert.match(submissionsRouteSource, /deleteStoredFile\(attachmentFile\.filePath\)/);
   assert.match(submissionsRouteSource, /previousAttachmentFilePath/);
   assert.match(submissionsRouteSource, /previousAttachmentFilePath !== attachmentFile\?\.filePath/);
@@ -1352,6 +1376,26 @@ test("teacher training task reports require one Word or PDF attachment with uplo
   assert.match(contextSource, /return true/);
   assert.match(exportRouteSource, /任务附件/);
   assert.match(exportRouteSource, /readStoredFile/);
+});
+
+test("teacher training task report attachment validation enforces the 10MB boundary", () => {
+  assert.equal(teacherTrainingSubmissionAttachmentMaxSize, 10 * 1024 * 1024);
+  assert.equal(
+    validateTeacherTrainingSubmissionAttachmentMeta({
+      fileName: "汇报.pdf",
+      fileSize: 10 * 1024 * 1024,
+      mimeType: "application/pdf",
+    }),
+    null,
+  );
+  assert.equal(
+    validateTeacherTrainingSubmissionAttachmentMeta({
+      fileName: "汇报.pdf",
+      fileSize: 10 * 1024 * 1024 + 1,
+      mimeType: "application/pdf",
+    }),
+    "附件大小不能超过 10MB",
+  );
 });
 
 test("teacher training destructive and import paths include reviewer-requested safeguards", () => {

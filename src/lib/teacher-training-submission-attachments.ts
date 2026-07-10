@@ -1,4 +1,4 @@
-import { getFileExtension, isMimeTypeAllowedForFileName, MAX_UPLOAD_SIZE } from "@/lib/file-policy";
+import { getFileExtension, isMimeTypeAllowedForFileName } from "@/lib/file-policy";
 
 export type TeacherTrainingSubmissionAttachmentFile = {
   fileName: string;
@@ -14,8 +14,8 @@ export type TeacherTrainingSubmissionAttachmentItem = {
   downloadUrl: string;
 };
 
-export const teacherTrainingSubmissionAttachmentMaxSize = MAX_UPLOAD_SIZE;
-export const teacherTrainingSubmissionAttachmentMaxSizeLabel = "20MB";
+export const teacherTrainingSubmissionAttachmentMaxSize = 10 * 1024 * 1024;
+export const teacherTrainingSubmissionAttachmentMaxSizeLabel = "10MB";
 export const teacherTrainingSubmissionAttachmentAcceptAttribute = ".pdf,.doc,.docx";
 
 const teacherTrainingSubmissionAttachmentPrefix = "__teacher_training_submission_file_v1__:";

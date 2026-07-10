@@ -9,6 +9,7 @@ import {
   decodeTeacherTrainingSubmissionAttachmentFile,
   getTeacherTrainingSubmissionAttachmentObjectKeyPrefix,
   teacherTrainingSubmissionAttachmentMaxSize,
+  teacherTrainingSubmissionAttachmentMaxSizeLabel,
   validateTeacherTrainingSubmissionAttachmentMeta,
 } from "@/lib/teacher-training-submission-attachments";
 import { deleteStoredFile } from "@/lib/uploads";
@@ -124,7 +125,10 @@ export async function POST(request: NextRequest) {
 
   if (actualFileSize > teacherTrainingSubmissionAttachmentMaxSize) {
     await deleteStoredFile(attachmentFile.filePath).catch(() => undefined);
-    return NextResponse.json({ message: "真实附件大小不能超过 20MB，请重新上传" }, { status: 400 });
+    return NextResponse.json(
+      { message: `真实附件大小不能超过 ${teacherTrainingSubmissionAttachmentMaxSizeLabel}，请重新上传` },
+      { status: 400 },
+    );
   }
 
   const content = `汇报附件：${attachmentFile.fileName}`;

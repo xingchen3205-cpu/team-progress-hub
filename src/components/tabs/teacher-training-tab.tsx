@@ -22,7 +22,7 @@ import {
 } from "@/lib/teacher-training-participant-import";
 
 type AttendanceStatus = Workspace.TeacherTrainingAttendanceStatus;
-type AttendanceOverviewFilter = "all" | "registered" | "pending" | "leave" | "absent";
+type AttendanceOverviewFilter = "all" | "registered" | "pending" | "online" | "leave" | "absent";
 type CheckInWindowState = Workspace.TeacherTrainingCheckInWindowState;
 type SubmissionOverviewFilter = "all" | "submitted";
 type TeacherTrainingLeavePanelKey = "pending" | "all" | "rules";
@@ -523,12 +523,14 @@ const statusStyleMap: Record<AttendanceStatus, string> = {
   present: "border-emerald-200 bg-emerald-50 text-emerald-700",
   leave: "border-amber-200 bg-amber-50 text-amber-700",
   absent: "border-rose-200 bg-rose-50 text-rose-700",
+  online: "border-blue-200 bg-blue-50 text-blue-700",
 };
 const attendancePendingStyleClassName = "border-amber-200 bg-amber-50 text-amber-700";
 const attendanceOverviewFilters: Array<{ key: AttendanceOverviewFilter; label: string }> = [
   { key: "all", label: "全部" },
   { key: "registered", label: "已报到" },
   { key: "pending", label: "待报到" },
+  { key: "online", label: "线上参训" },
   { key: "leave", label: "请假" },
   { key: "absent", label: "缺勤" },
 ];
@@ -1107,11 +1109,13 @@ export default function TeacherTrainingTab() {
   });
   const [attendanceRegistrationDraft, setAttendanceRegistrationDraft] = useState<{
     participantId: string;
+    status: "pending" | "present" | "online";
     roomNumber: string;
     materialsComplete: "" | "yes" | "no";
     note: string;
   }>({
     participantId: "",
+    status: "present",
     roomNumber: "",
     materialsComplete: "",
     note: "",
@@ -1184,6 +1188,13 @@ export default function TeacherTrainingTab() {
 
   const participantById = useMemo(
     () => new Map((selectedCohort?.participants ?? []).map((participant) => [participant.id, participant])),
+    [selectedCohort?.participants],
+  );
+  const onlineParticipantCount = useMemo(
+    () =>
+      (selectedCohort?.participants ?? []).filter((participant) =>
+        participant.attendances.some((attendance) => attendance.status === "online" && attendance.sessionLabel === "报到"),
+      ).length,
     [selectedCohort?.participants],
   );
   const selectedCohortTasksForCurrentUser = useMemo(
@@ -1295,13 +1306,17 @@ export default function TeacherTrainingTab() {
     participant.leaveRequests.find((request) => isTeacherTrainingLeaveActiveNow(request)) ?? null;
   const matchesAttendanceOverviewFilter = (participant: Workspace.TeacherTrainingParticipantItem) => {
     const registered = Boolean(getParticipantAttendanceRecord(participant, "present", "报到"));
+    const online = Boolean(getParticipantAttendanceRecord(participant, "online", "报到"));
     const activeLeaveRequest = participant.leaveRequests.find((request) => isTeacherTrainingLeaveActiveNow(request));
 
     if (attendanceOverviewFilter === "registered") {
       return registered;
     }
     if (attendanceOverviewFilter === "pending") {
-      return !registered && !activeLeaveRequest;
+      return !registered && !online && !activeLeaveRequest;
+    }
+    if (attendanceOverviewFilter === "online") {
+      return online;
     }
     if (attendanceOverviewFilter === "leave") {
       return Boolean(activeLeaveRequest || getParticipantAttendanceRecord(participant, "leave"));
@@ -1403,6 +1418,7 @@ export default function TeacherTrainingTab() {
       participant.professionalTitle,
       participant.city,
       getParticipantAttendanceRecord(participant, "present", "报到")?.statusLabel ?? Workspace.teacherTrainingAttendancePendingLabel,
+      getParticipantAttendanceRecord(participant, "online", "报到")?.statusLabel ?? "",
       getActiveLeaveRequestForParticipant(participant) ? "请假中" : "",
       getParticipantAttendanceRecord(participant, "leave")?.statusLabel ?? "",
       getParticipantAttendanceRecord(participant, "absent")?.statusLabel ?? "",
@@ -2055,14 +2071,18 @@ export default function TeacherTrainingTab() {
   }, [activeLeaveFlowSteps]);
 
   const getArrivalRegistrationAttendance = (participant: Workspace.TeacherTrainingParticipantItem) =>
-    getParticipantAttendanceRecord(participant, "present", "报到");
+    getParticipantAttendanceRecord(participant, "present", "报到") ??
+    getParticipantAttendanceRecord(participant, "online", "报到");
   const attendanceRegistrationParticipant =
     selectedCohort?.participants.find((participant) => participant.id === attendanceRegistrationDraft.participantId) ?? null;
-  const attendanceRegistrationDisabledReason = !attendanceRegistrationDraft.roomNumber.trim()
-    ? "请填写酒店房号"
-    : !attendanceRegistrationDraft.materialsComplete
-      ? "请选择材料是否齐全"
-      : "";
+  const attendanceRegistrationDisabledReason =
+    attendanceRegistrationDraft.status !== "present"
+      ? ""
+      : !attendanceRegistrationDraft.roomNumber.trim()
+        ? "请填写酒店房号"
+        : !attendanceRegistrationDraft.materialsComplete
+          ? "请选择材料是否齐全"
+          : "";
 
   const submitCohort = async () => {
     if (!cohortDraft.id && !canCreateTeacherTrainingCohort) {
@@ -2770,6 +2790,7 @@ export default function TeacherTrainingTab() {
     const attendance = getArrivalRegistrationAttendance(participant);
     setAttendanceRegistrationDraft({
       participantId: participant.id,
+      status: attendance?.status === "online" ? "online" : "present",
       roomNumber: attendance?.roomNumber ?? "",
       materialsComplete: attendance?.materialsComplete === null ? "" : attendance?.materialsComplete ? "yes" : "no",
       note: attendance?.registrationNote ?? "",
@@ -2779,6 +2800,7 @@ export default function TeacherTrainingTab() {
   const closeAttendanceRegistration = () => {
     setAttendanceRegistrationDraft({
       participantId: "",
+      status: "present",
       roomNumber: "",
       materialsComplete: "",
       note: "",
@@ -2788,14 +2810,36 @@ export default function TeacherTrainingTab() {
   const submitAttendanceRegistration = async () => {
     if (!selectedCohort || !attendanceRegistrationParticipant || attendanceRegistrationDisabledReason) return;
 
+    const currentAttendance = getArrivalRegistrationAttendance(attendanceRegistrationParticipant);
+    if (
+      attendanceRegistrationDraft.status === "pending" &&
+      currentAttendance &&
+      !window.confirm(
+        `确认撤销${attendanceRegistrationParticipant.name}的报到记录并改为待报到？房号和材料登记会一并清除，课程签到、请假和汇报数据不受影响。`,
+      )
+    ) {
+      return;
+    }
+    if (
+      attendanceRegistrationDraft.status === "online" &&
+      currentAttendance?.status === "present" &&
+      !window.confirm(
+        `确认将${attendanceRegistrationParticipant.name}改为线上参训？原房号和材料登记会被清除，课程签到、请假和汇报数据不受影响。`,
+      )
+    ) {
+      return;
+    }
+
     const ok = await markTeacherTrainingAttendance({
       cohortId: selectedCohort.id,
+      attendanceId: currentAttendance?.id,
       participantId: attendanceRegistrationParticipant.id,
       sessionDate: selectedCohort.startDate || getDateInputValue(new Date()),
       sessionLabel: "报到",
-      status: "present",
-      roomNumber: attendanceRegistrationDraft.roomNumber,
-      materialsComplete: attendanceRegistrationDraft.materialsComplete === "yes",
+      status: attendanceRegistrationDraft.status,
+      roomNumber: attendanceRegistrationDraft.status === "present" ? attendanceRegistrationDraft.roomNumber : "",
+      materialsComplete:
+        attendanceRegistrationDraft.status === "present" ? attendanceRegistrationDraft.materialsComplete === "yes" : null,
       note: attendanceRegistrationDraft.note,
     });
     if (ok) {
@@ -8042,12 +8086,16 @@ export default function TeacherTrainingTab() {
                   <div>
                     <p className="tt-block-title">报到登记</p>
                     <p className="mt-1.5 text-xs leading-5 text-slate-500">
-                      所有人默认待报到；点击报到后确认酒店房号和材料情况，系统自动记录报到时间。
+                      可登记现场报到、线上参训，或将误操作改回待报到。
                     </p>
                   </div>
-                  <span className="tt-pill tt-pill-success">
-                    已报到 {selectedCohort?.stats.presentCount ?? 0} / {selectedCohort?.stats.participantCount ?? 0}
-                  </span>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="tt-pill tt-pill-success">
+                      已报到 {selectedCohort?.stats.presentCount ?? 0}
+                    </span>
+                    <span className="tt-pill border-blue-200 bg-blue-50 text-blue-700">线上 {onlineParticipantCount}</span>
+                    <span className="tt-pill tt-pill-neutral">总计 {selectedCohort?.stats.participantCount ?? 0}</span>
+                  </div>
                 </div>
 
                 <div className="mt-4 flex flex-col gap-2 rounded-2xl border border-slate-100 bg-white/70 p-2 sm:flex-row sm:items-center sm:justify-between">
@@ -8127,7 +8175,7 @@ export default function TeacherTrainingTab() {
                             ? "请假中"
                             : Workspace.teacherTrainingAttendancePendingLabel;
                         const primaryAttendanceClassName = attendance
-                          ? statusStyleMap.present
+                          ? statusStyleMap[attendance.status]
                           : activeLeaveRequest
                             ? statusStyleMap.leave
                             : attendancePendingStyleClassName;
@@ -8137,7 +8185,9 @@ export default function TeacherTrainingTab() {
                             key={participant.id}
                             className={`grid gap-3 border p-4 lg:grid-cols-[minmax(0,1.4fr)_120px_120px_120px_auto] lg:items-center ${
                               attendance
-                                ? "border-emerald-100 bg-emerald-50/20"
+                                ? attendance.status === "online"
+                                  ? "border-blue-100 bg-blue-50/25"
+                                  : "border-emerald-100 bg-emerald-50/20"
                                 : activeLeaveRequest
                                   ? "border-amber-100 bg-amber-50/30"
                                   : "border-amber-100 bg-amber-50/20"
@@ -8171,7 +8221,7 @@ export default function TeacherTrainingTab() {
                                   请假时间：{getTeacherTrainingLeavePeriodLabel(activeLeaveRequest)}
                                 </p>
                               ) : null}
-                              {attendance ? (
+                              {attendance?.status === "present" ? (
                                 <div className="mt-2 grid gap-2 text-xs text-slate-500 sm:grid-cols-3 lg:hidden">
                                   <span>报到时间：{attendance.markedAt || "未记录"}</span>
                                   <span>酒店房号：{attendance.roomNumber || "未填写"}</span>
@@ -8179,6 +8229,11 @@ export default function TeacherTrainingTab() {
                                   <span className="sm:col-span-3">工作人员：{attendance.markedByName}</span>
                                   {attendance.registrationNote ? <span className="sm:col-span-3">备注：{attendance.registrationNote}</span> : null}
                                 </div>
+                              ) : null}
+                              {attendance?.status === "online" ? (
+                                <p className="mt-2 inline-flex rounded-lg border border-blue-100 bg-blue-50 px-3 py-1.5 text-xs font-semibold text-blue-700">
+                                  线上参训，无需登记现场房号和报到材料
+                                </p>
                               ) : null}
                               {participant.accountUsername ? (
                                 <p className="mt-1 text-xs text-slate-400">省培账号：{participant.accountUsername}</p>
@@ -8203,21 +8258,21 @@ export default function TeacherTrainingTab() {
                               {primaryAttendanceLabel}
                             </div>
                             <div className="hidden text-sm text-slate-600 lg:block">
-                              {attendance?.roomNumber || "未填写"}
+                              {attendance?.status === "online" ? "无需登记" : attendance?.roomNumber || "未填写"}
                             </div>
                             <div className="hidden text-sm text-slate-600 lg:block">
-                              {attendance?.materialsCompleteLabel || "待确认"}
+                              {attendance?.status === "online" ? "无需登记" : attendance?.materialsCompleteLabel || "待确认"}
                             </div>
                             <div className="flex flex-wrap gap-2 lg:justify-end">
                               <button
                                 className="inline-flex h-9 items-center justify-center rounded-lg bg-blue-600 px-4 text-sm font-semibold text-white transition hover:bg-blue-700 disabled:cursor-not-allowed disabled:bg-slate-300"
-                                aria-label={`${participant.name}${attendance ? "修改报到信息" : "报到"}`}
+                                aria-label={`${participant.name}${attendance ? "修改报到状态" : "登记报到状态"}`}
                                 disabled={isSaving}
                                 onClick={() => openAttendanceRegistration(participant)}
-                                title={`${participant.name}${attendance ? "修改报到信息" : "报到"}`}
+                                title={`${participant.name}${attendance ? "修改报到状态" : "登记报到状态"}`}
                                 type="button"
                               >
-                                {attendance ? "修改报到" : "报到"}
+                                {attendance ? "修改状态" : "登记状态"}
                               </button>
                             </div>
                           </div>
@@ -8234,7 +8289,9 @@ export default function TeacherTrainingTab() {
                   <div className="w-full max-w-lg rounded-2xl border border-slate-200 bg-white p-5 shadow-2xl">
                     <div className="flex items-start justify-between gap-4">
                       <div>
-                        <p className="text-base font-semibold text-slate-950">确认参训教师已报到</p>
+                        <p className="text-base font-semibold text-slate-950">
+                          {getArrivalRegistrationAttendance(attendanceRegistrationParticipant) ? "修改报到状态" : "登记报到状态"}
+                        </p>
                         <p className="mt-1 text-sm leading-6 text-slate-500">
                           {attendanceRegistrationParticipant.name} · {attendanceRegistrationParticipant.organization}
                         </p>
@@ -8251,6 +8308,47 @@ export default function TeacherTrainingTab() {
                     </div>
 
                     <div className="mt-4 grid gap-3">
+                      <div>
+                        <span className={teacherTrainingFieldLabelClassName}>参训状态</span>
+                        <div className="mt-1 grid grid-cols-3 gap-2">
+                          {[
+                            { value: "present", label: "已报到" },
+                            { value: "pending", label: "待报到" },
+                            { value: "online", label: "线上参训" },
+                          ].map((option) => (
+                            <button
+                              key={option.value}
+                              className={`min-h-10 rounded-lg border px-2 text-sm font-semibold transition ${
+                                attendanceRegistrationDraft.status === option.value
+                                  ? "border-blue-300 bg-blue-50 text-blue-700"
+                                  : "border-slate-200 bg-white text-slate-600 hover:border-blue-200"
+                              }`}
+                              aria-pressed={attendanceRegistrationDraft.status === option.value}
+                              onClick={() =>
+                                setAttendanceRegistrationDraft((current) => ({
+                                  ...current,
+                                  status: option.value as "pending" | "present" | "online",
+                                }))
+                              }
+                              type="button"
+                            >
+                              {option.label}
+                            </button>
+                          ))}
+                        </div>
+                        {attendanceRegistrationDraft.status === "online" ? (
+                          <p className="mt-2 rounded-lg border border-blue-100 bg-blue-50 px-3 py-2 text-xs leading-5 text-blue-700">
+                            该教师将显示为线上参训，不计入现场已报到人数。
+                          </p>
+                        ) : null}
+                        {attendanceRegistrationDraft.status === "pending" ? (
+                          <p className="mt-2 rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-700">
+                            改为待报到会清除已有房号和材料登记，其他记录不受影响。
+                          </p>
+                        ) : null}
+                      </div>
+                      {attendanceRegistrationDraft.status === "present" ? (
+                        <>
                       <label className={teacherTrainingFieldShellClassName}>
                         <span className={teacherTrainingFieldLabelClassName}>酒店房号</span>
                         <input
@@ -8291,13 +8389,15 @@ export default function TeacherTrainingTab() {
                           ))}
                         </div>
                       </div>
+                        </>
+                      ) : null}
                       <label className={teacherTrainingFieldShellClassName}>
                         <span className={teacherTrainingFieldLabelClassName}>报到备注</span>
                         <textarea
                           className={`${textareaClassName} min-h-20`}
                           {...fieldHint("报到备注")}
                           onChange={(event) => setAttendanceRegistrationDraft((current) => ({ ...current, note: event.target.value }))}
-                          placeholder="可填写缺少材料、特殊住宿说明等"
+                          placeholder={attendanceRegistrationDraft.status === "online" ? "可填写线上参训说明" : "可填写缺少材料、特殊住宿说明等"}
                           value={attendanceRegistrationDraft.note}
                         />
                       </label>
@@ -8322,7 +8422,11 @@ export default function TeacherTrainingTab() {
                         onClick={() => void submitAttendanceRegistration()}
                         type="button"
                       >
-                        确认已报到
+                        {attendanceRegistrationDraft.status === "pending"
+                          ? "改为待报到"
+                          : attendanceRegistrationDraft.status === "online"
+                            ? "确认线上参训"
+                            : "确认已报到"}
                       </button>
                     </div>
                   </div>

@@ -5981,6 +5981,7 @@ function useWorkspaceController({
 
   const markTeacherTrainingAttendance = async ({
     cohortId,
+    attendanceId = "",
     participantId,
     sessionDate,
     sessionLabel,
@@ -5990,10 +5991,11 @@ function useWorkspaceController({
     note = "",
   }: {
     cohortId: string;
+    attendanceId?: string;
     participantId: string;
     sessionDate: string;
     sessionLabel: string;
-    status: TeacherTrainingAttendanceStatus;
+    status: TeacherTrainingAttendanceStatus | "pending";
     roomNumber?: string;
     materialsComplete?: boolean | null;
     note?: string;
@@ -6009,6 +6011,7 @@ function useWorkspaceController({
         method: "POST",
         body: JSON.stringify({
           cohortId,
+          attendanceId,
           participantId,
           sessionDate,
           sessionLabel,
@@ -6018,7 +6021,10 @@ function useWorkspaceController({
           note,
         }),
       });
-      showSuccessToast("报到信息已保存", "报到状态、房号和材料情况已同步更新。");
+      showSuccessToast(
+        status === "pending" ? "已改为待报到" : status === "online" ? "已标记为线上参训" : "报到信息已保存",
+        status === "pending" ? "仅撤销现场报到记录，其他业务数据不受影响。" : "报到状态已同步更新。",
+      );
       refreshWorkspace("teacherTraining");
       return true;
     } catch (error) {

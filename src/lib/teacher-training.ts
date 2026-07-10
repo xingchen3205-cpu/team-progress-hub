@@ -12,12 +12,13 @@ import {
   type TeacherTrainingLeaveAttachmentItem,
 } from "@/lib/teacher-training-leave-attachments";
 
-export type TeacherTrainingAttendanceStatus = "present" | "leave" | "absent";
+export type TeacherTrainingAttendanceStatus = "present" | "leave" | "absent" | "online";
 
 export const teacherTrainingAttendanceLabels: Record<TeacherTrainingAttendanceStatus, string> = {
   present: "已报到",
   leave: "请假",
   absent: "缺勤",
+  online: "线上参训",
 };
 
 const attendanceRoomPattern = /^酒店房号\s*[：:]\s*(.*)$/;
@@ -794,7 +795,7 @@ const toDateTimeLabel = (value: Date | string | null | undefined) => {
 };
 
 const normalizeAttendanceStatus = (value?: string | null): TeacherTrainingAttendanceStatus => {
-  if (value === "leave" || value === "absent") {
+  if (value === "leave" || value === "absent" || value === "online") {
     return value;
   }
 
@@ -1981,7 +1982,7 @@ export const buildTeacherTrainingCsv = ({
         "预计到达时间",
         "交通方式",
         "报到状态",
-        "报到时间",
+        "状态登记时间",
         "酒店房号",
         "材料齐全",
         "工作人员",
@@ -1989,8 +1990,15 @@ export const buildTeacherTrainingCsv = ({
       ],
       ...cohort.participants.map((participant) => {
         const attendance =
-          participant.attendances.find((item) => item.status === "present" && item.sessionLabel === "报到") ??
-          cohort.attendances.find((item) => item.participantId === participant.id && item.status === "present" && item.sessionLabel === "报到");
+          participant.attendances.find(
+            (item) => (item.status === "present" || item.status === "online") && item.sessionLabel === "报到",
+          ) ??
+          cohort.attendances.find(
+            (item) =>
+              item.participantId === participant.id &&
+              (item.status === "present" || item.status === "online") &&
+              item.sessionLabel === "报到",
+          );
         const activeLeave = participant.leaveRequests.find(isLeaveActive);
         return [
           cohort.title,
