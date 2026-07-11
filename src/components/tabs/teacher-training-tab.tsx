@@ -1152,6 +1152,7 @@ export default function TeacherTrainingTab() {
     note: "",
   });
   const [taskDraft, setTaskDraft] = useState<Workspace.TeacherTrainingTaskDraft>(createDefaultTaskDraft);
+  const [taskFormOpen, setTaskFormOpen] = useState(false);
   const [submissionReviewDrafts, setSubmissionReviewDrafts] = useState<
     Record<string, { finalScore: string; finalComment: string }>
   >({});
@@ -2623,6 +2624,23 @@ export default function TeacherTrainingTab() {
     }
   };
 
+  const scrollToTaskForm = () => {
+    window.requestAnimationFrame(() => {
+      document.getElementById("tt-task-form")?.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+  };
+
+  const openNewTaskForm = () => {
+    setTaskDraft(createDefaultTaskDraft());
+    setTaskFormOpen(true);
+    scrollToTaskForm();
+  };
+
+  const cancelTaskForm = () => {
+    setTaskDraft(createDefaultTaskDraft());
+    setTaskFormOpen(false);
+  };
+
   const submitTask = async () => {
     if (!selectedCohort) return;
     const ok = await createTeacherTrainingTask({
@@ -2631,6 +2649,7 @@ export default function TeacherTrainingTab() {
     });
     if (ok) {
       setTaskDraft(createDefaultTaskDraft());
+      setTaskFormOpen(false);
     }
   };
 
@@ -2649,6 +2668,8 @@ export default function TeacherTrainingTab() {
       enableAiReview: task.enableAiReview,
       scoringRubric: task.scoringRubric,
     });
+    setTaskFormOpen(true);
+    scrollToTaskForm();
   };
 
   const removeTask = async (task: Workspace.TeacherTrainingTaskItem) => {
@@ -8995,201 +9016,204 @@ export default function TeacherTrainingTab() {
               {showTeacherTrainingSection("tasks") ? (
               <section className={teacherTaskWorkbenchClassName}>
                 {canManage ? (
-                <div className="tt-card p-5">
-                  <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-                    <div className="flex items-start gap-3">
-                      <span className="inline-flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#1a6fd4]/10 text-[#1a6fd4]">
+                <div className="tt-card p-5" id="tt-task-form">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div className="flex items-center gap-2.5">
+                      <span className="inline-flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-[#1a6fd4]/10 text-[#1a6fd4]">
                         <FileText className="h-4 w-4" />
                       </span>
-                      <div>
-                        <p className="text-[15px] font-bold text-slate-950">发布任务</p>
-                        <p className="mt-1 text-xs leading-5 text-slate-500">
-                          管理者只发布任务，参训教师登录后自行填写汇报。
-                        </p>
-                      </div>
+                      <p className="text-[15px] font-bold text-slate-950">任务管理</p>
+                      <span className="tt-pill tt-pill-neutral">共 {selectedCohort.tasks.length} 项任务</span>
                     </div>
-                    <span className="tt-pill tt-pill-neutral">{selectedCohort.tasks.length} 项任务</span>
-                  </div>
-                  <div className="mt-4 grid gap-3 lg:grid-cols-2">
-                    <label className={teacherTrainingFieldShellClassName}>
-                      <RequiredFieldLabel>省培任务名称</RequiredFieldLabel>
-                      <input
-                        className={fieldClassName}
-                        {...fieldHint("省培任务名称")}
-                        onChange={(event) => setTaskDraft((current) => ({ ...current, title: event.target.value }))}
-                        placeholder="任务名称"
-                        value={taskDraft.title}
-                      />
-                    </label>
-                    <label className={teacherTrainingFieldShellClassName}>
-                      <span className={teacherTrainingFieldLabelClassName}>省培任务截止日期</span>
-                      <input
-                        className={fieldClassName}
-                        {...fieldHint("省培任务截止日期")}
-                        onChange={(event) => setTaskDraft((current) => ({ ...current, dueDate: event.target.value }))}
-                        type="date"
-                        value={taskDraft.dueDate}
-                      />
-                    </label>
-                    <label className={teacherTrainingFieldShellClassName}>
-                      <RequiredFieldLabel>任务类型</RequiredFieldLabel>
-                      <select
-                        className={fieldClassName}
-                        {...fieldHint("省培任务类型")}
-                        onChange={(event) => {
-                          const nextType = event.target.value;
-                          setTaskDraft((current) => ({
-                            ...current,
-                            taskType: nextType,
-                            courseSessionId:
-                              nextType === "course" ? current.courseSessionId || courseSessions[0]?.id || "" : "",
-                            releaseMode:
-                              nextType === "course" ? current.releaseMode : current.releaseMode === "after_course" ? "immediate" : current.releaseMode,
-                          }));
-                        }}
-                        value={taskDraft.taskType}
-                      >
-                        <option value="cohort">班级任务</option>
-                        <option value="course">课程任务</option>
-                        <option value="stage">阶段任务</option>
-                        <option value="group">小组任务（每组提交一份）</option>
-                      </select>
-                    </label>
-                    {selectedTask ? (
-                      <div className="rounded-xl border border-blue-100 bg-blue-50/60 px-4 py-3">
-                        <div className="flex flex-wrap items-center gap-2">
-                          <p className="text-sm font-bold text-slate-950">{selectedTask.title}</p>
-                          <span className="tt-pill">{selectedTask.releaseStatusLabel}</span>
-                        </div>
-                        <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-700">
-                          {selectedTask.description || "暂无任务说明"}
-                        </p>
-                        <p className="mt-2 text-xs text-slate-500">
-                          {[selectedTask.courseTitle, selectedTask.dueDate ? `截止 ${selectedTask.dueDate}` : ""]
-                            .filter(Boolean)
-                            .join(" · ")}
-                        </p>
-                      </div>
-                    ) : null}
-                    {taskDraft.taskType === "course" ? (
-                      <label className={teacherTrainingFieldShellClassName}>
-                        <span className={teacherTrainingFieldLabelClassName}>关联课程</span>
-                        <select
-                          className={fieldClassName}
-                          {...fieldHint("关联课程")}
-                          onChange={(event) => setTaskDraft((current) => ({ ...current, courseSessionId: event.target.value }))}
-                          value={taskDraft.courseSessionId}
-                        >
-                          {courseSessions.length === 0 ? <option value="">暂无课程，请先添加课程</option> : null}
-                          {courseSessions.map((course) => (
-                            <option key={course.id} value={course.id}>
-                              {course.courseDate} {course.startTime ? `${course.startTime} ` : ""}{course.title}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                    ) : null}
-                    <label className={teacherTrainingFieldShellClassName}>
-                      <RequiredFieldLabel>开放时间</RequiredFieldLabel>
-                      <select
-                        className={fieldClassName}
-                        {...fieldHint("省培任务开放时间")}
-                        onChange={(event) =>
-                          setTaskDraft((current) => ({
-                            ...current,
-                            releaseMode: event.target.value as Workspace.TeacherTrainingTaskReleaseMode,
-                          }))
-                        }
-                        value={taskDraft.releaseMode}
-                      >
-                        <option value="immediate">立即开放</option>
-                        <option disabled={taskDraft.taskType !== "course"} value="after_course">
-                          课程结束后开放
-                        </option>
-                        <option value="scheduled">指定时间开放</option>
-                      </select>
-                    </label>
-                    {taskDraft.releaseMode === "scheduled" ? (
-                      <label className={teacherTrainingFieldShellClassName}>
-                        <span className={teacherTrainingFieldLabelClassName}>指定开放时间</span>
-                        <input
-                          className={fieldClassName}
-                          {...fieldHint("指定开放时间")}
-                          onChange={(event) => setTaskDraft((current) => ({ ...current, releaseAt: event.target.value }))}
-                          type="datetime-local"
-                          value={taskDraft.releaseAt}
-                        />
-                      </label>
-                    ) : null}
-                    <label className={`${teacherTrainingFieldShellClassName} lg:col-span-2`}>
-                      <RequiredFieldLabel>省培任务说明</RequiredFieldLabel>
-                      <textarea
-                        className={textareaClassName}
-                        {...fieldHint("省培任务说明")}
-                        onChange={(event) => setTaskDraft((current) => ({ ...current, description: event.target.value }))}
-                        placeholder="任务说明"
-                        value={taskDraft.description}
-                      />
-                    </label>
-                    <div className="flex flex-col gap-3 lg:col-span-2 lg:flex-row lg:items-center lg:justify-between">
-                      <div className="grid gap-3 sm:grid-cols-2">
-                      <div className={teacherTrainingFieldShellClassName}>
-                        <span className={teacherTrainingFieldLabelClassName}>省培任务附件要求</span>
-                        <div className="mt-1.5 inline-flex h-10 items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 text-sm font-semibold text-blue-700">
-                          <FileText className="h-4 w-4" />
-                          PDF 附件必交
-                        </div>
-                      </div>
-                      <div className={teacherTrainingFieldShellClassName}>
-                        <span className={teacherTrainingFieldLabelClassName}>AI 辅助评分</span>
-                        <label className="mt-1.5 inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-600">
-                          <input
-                            checked={taskDraft.enableAiReview}
-                            {...fieldHint("是否开启 AI 辅助评分")}
-                            onChange={(event) =>
-                              setTaskDraft((current) => ({ ...current, enableAiReview: event.target.checked }))
-                            }
-                            type="checkbox"
-                          />
-                          管理端可用
-                        </label>
-                      </div>
-                      </div>
+                    {!taskFormOpen ? (
                       <ActionButton
-                        aria-label="发布省培任务汇报要求"
-                        className="w-full lg:w-auto"
-                        loading={isSaving}
-                        onClick={() => void submitTask()}
-                        title="发布省培任务汇报要求"
+                        aria-label="发布新任务"
+                        className="gap-1.5"
+                        onClick={openNewTaskForm}
+                        title="发布新任务"
                         variant="primary"
                       >
-                        {taskDraft.id ? "保存任务修改" : "发布任务"}
+                        <Plus className="h-4 w-4" />
+                        发布新任务
                       </ActionButton>
-                    </div>
-                    {taskDraft.enableAiReview ? (
-                      <label className={`${teacherTrainingFieldShellClassName} lg:col-span-2`}>
-                        <span className={teacherTrainingFieldLabelClassName}>评分细则</span>
-                        <textarea
-                          className={`${textareaClassName} min-h-24`}
-                          {...fieldHint("AI辅助评分细则")}
-                          onChange={(event) => setTaskDraft((current) => ({ ...current, scoringRubric: event.target.value }))}
-                          placeholder="例如：课程理解40分、结合实际30分、结构表达20分、规范完成10分。未填写时按完成度和内容质量辅助判断。"
-                          value={taskDraft.scoringRubric}
-                        />
-                      </label>
-                    ) : null}
-                    {taskDraft.id ? (
-                      <button
-                        className="text-xs font-semibold text-slate-500 lg:col-span-2"
-                        onClick={() =>
-                          setTaskDraft(createDefaultTaskDraft())
-                        }
-                        type="button"
-                      >
-                        取消修改
-                      </button>
                     ) : null}
                   </div>
+
+                  {taskFormOpen ? (
+                  <div className="mt-4 border-t border-slate-100 pt-4">
+                    <p className="text-sm font-bold text-slate-950">{taskDraft.id ? "修改任务" : "发布任务"}</p>
+                    <div className="mt-3 space-y-3">
+                      <div className="grid gap-3 lg:grid-cols-3">
+                        <label className={`${teacherTrainingFieldShellClassName} lg:col-span-2`}>
+                          <RequiredFieldLabel>省培任务名称</RequiredFieldLabel>
+                          <input
+                            className={fieldClassName}
+                            {...fieldHint("省培任务名称")}
+                            onChange={(event) => setTaskDraft((current) => ({ ...current, title: event.target.value }))}
+                            placeholder="任务名称"
+                            value={taskDraft.title}
+                          />
+                        </label>
+                        <label className={teacherTrainingFieldShellClassName}>
+                          <span className={teacherTrainingFieldLabelClassName}>省培任务截止日期</span>
+                          <input
+                            className={fieldClassName}
+                            {...fieldHint("省培任务截止日期")}
+                            onChange={(event) => setTaskDraft((current) => ({ ...current, dueDate: event.target.value }))}
+                            type="date"
+                            value={taskDraft.dueDate}
+                          />
+                        </label>
+                      </div>
+
+                      <div className="grid gap-3 lg:grid-cols-2">
+                        <label className={teacherTrainingFieldShellClassName}>
+                          <RequiredFieldLabel>任务类型</RequiredFieldLabel>
+                          <select
+                            className={fieldClassName}
+                            {...fieldHint("省培任务类型")}
+                            onChange={(event) => {
+                              const nextType = event.target.value;
+                              setTaskDraft((current) => ({
+                                ...current,
+                                taskType: nextType,
+                                courseSessionId:
+                                  nextType === "course" ? current.courseSessionId || courseSessions[0]?.id || "" : "",
+                                releaseMode:
+                                  nextType === "course" ? current.releaseMode : current.releaseMode === "after_course" ? "immediate" : current.releaseMode,
+                              }));
+                            }}
+                            value={taskDraft.taskType}
+                          >
+                            <option value="cohort">班级任务</option>
+                            <option value="course">课程任务</option>
+                            <option value="stage">阶段任务</option>
+                            <option value="group">小组任务（每组提交一份）</option>
+                          </select>
+                        </label>
+                        <label className={teacherTrainingFieldShellClassName}>
+                          <RequiredFieldLabel>开放时间</RequiredFieldLabel>
+                          <select
+                            className={fieldClassName}
+                            {...fieldHint("省培任务开放时间")}
+                            onChange={(event) =>
+                              setTaskDraft((current) => ({
+                                ...current,
+                                releaseMode: event.target.value as Workspace.TeacherTrainingTaskReleaseMode,
+                              }))
+                            }
+                            value={taskDraft.releaseMode}
+                          >
+                            <option value="immediate">立即开放</option>
+                            <option disabled={taskDraft.taskType !== "course"} value="after_course">
+                              课程结束后开放
+                            </option>
+                            <option value="scheduled">指定时间开放</option>
+                          </select>
+                        </label>
+                        {taskDraft.taskType === "course" ? (
+                          <label className={teacherTrainingFieldShellClassName}>
+                            <span className={teacherTrainingFieldLabelClassName}>关联课程</span>
+                            <select
+                              className={fieldClassName}
+                              {...fieldHint("关联课程")}
+                              onChange={(event) => setTaskDraft((current) => ({ ...current, courseSessionId: event.target.value }))}
+                              value={taskDraft.courseSessionId}
+                            >
+                              {courseSessions.length === 0 ? <option value="">暂无课程，请先添加课程</option> : null}
+                              {courseSessions.map((course) => (
+                                <option key={course.id} value={course.id}>
+                                  {course.courseDate} {course.startTime ? `${course.startTime} ` : ""}{course.title}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                        ) : null}
+                        {taskDraft.releaseMode === "scheduled" ? (
+                          <label className={teacherTrainingFieldShellClassName}>
+                            <span className={teacherTrainingFieldLabelClassName}>指定开放时间</span>
+                            <input
+                              className={fieldClassName}
+                              {...fieldHint("指定开放时间")}
+                              onChange={(event) => setTaskDraft((current) => ({ ...current, releaseAt: event.target.value }))}
+                              type="datetime-local"
+                              value={taskDraft.releaseAt}
+                            />
+                          </label>
+                        ) : null}
+                      </div>
+
+                      <label className={teacherTrainingFieldShellClassName}>
+                        <RequiredFieldLabel>省培任务说明</RequiredFieldLabel>
+                        <textarea
+                          className={textareaClassName}
+                          {...fieldHint("省培任务说明")}
+                          onChange={(event) => setTaskDraft((current) => ({ ...current, description: event.target.value }))}
+                          placeholder="任务说明"
+                          value={taskDraft.description}
+                        />
+                      </label>
+
+                      {taskDraft.enableAiReview ? (
+                        <label className={teacherTrainingFieldShellClassName}>
+                          <span className={teacherTrainingFieldLabelClassName}>评分细则</span>
+                          <textarea
+                            className={`${textareaClassName} min-h-24`}
+                            {...fieldHint("AI辅助评分细则")}
+                            onChange={(event) => setTaskDraft((current) => ({ ...current, scoringRubric: event.target.value }))}
+                            placeholder="例如：课程理解40分、结合实际30分、结构表达20分、规范完成10分。未填写时按完成度和内容质量辅助判断。"
+                            value={taskDraft.scoringRubric}
+                          />
+                        </label>
+                      ) : null}
+
+                      <div className="flex flex-col gap-3 border-t border-slate-100 pt-3 lg:flex-row lg:items-end lg:justify-between">
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          <div className={teacherTrainingFieldShellClassName}>
+                            <span className={teacherTrainingFieldLabelClassName}>省培任务附件要求</span>
+                            <div className="mt-1.5 inline-flex h-10 items-center gap-2 rounded-lg border border-blue-100 bg-blue-50 px-3 text-sm font-semibold text-blue-700">
+                              <FileText className="h-4 w-4" />
+                              PDF 附件必交
+                            </div>
+                          </div>
+                          <div className={teacherTrainingFieldShellClassName}>
+                            <span className={teacherTrainingFieldLabelClassName}>AI 辅助评分</span>
+                            <label className="mt-1.5 inline-flex h-10 items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-600">
+                              <input
+                                checked={taskDraft.enableAiReview}
+                                {...fieldHint("是否开启 AI 辅助评分")}
+                                onChange={(event) =>
+                                  setTaskDraft((current) => ({ ...current, enableAiReview: event.target.checked }))
+                                }
+                                type="checkbox"
+                              />
+                              管理端可用
+                            </label>
+                          </div>
+                        </div>
+                        <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-end">
+                          <button
+                            className="inline-flex h-10 items-center justify-center rounded-lg border border-slate-200 bg-white px-4 text-sm font-semibold text-slate-600 transition hover:bg-slate-50"
+                            onClick={cancelTaskForm}
+                            type="button"
+                          >
+                            {taskDraft.id ? "取消修改" : "取消"}
+                          </button>
+                          <ActionButton
+                            aria-label={taskDraft.id ? "保存任务修改" : "发布省培任务"}
+                            className="w-full sm:w-auto"
+                            loading={isSaving}
+                            onClick={() => void submitTask()}
+                            title={taskDraft.id ? "保存任务修改" : "发布省培任务"}
+                            variant="primary"
+                          >
+                            {taskDraft.id ? "保存修改" : "发布任务"}
+                          </ActionButton>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                  ) : null}
                 </div>
                 ) : null}
 

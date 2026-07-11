@@ -1489,7 +1489,10 @@ test("teacher training manager task page keeps one publish entry and hides repor
   assert.match(tabSource, /const showTeacherTrainingSubmissionForm = !canManage/);
   assert.match(tabSource, /showTeacherTrainingSubmissionForm \? \(/);
   assert.doesNotMatch(tabSource, />登记汇报</);
-  assert.match(tabSource, /管理者只发布任务，参训教师登录后自行填写汇报/);
+  // 发布区改为紧凑折叠入口，不再显示这类说明性废话。
+  assert.doesNotMatch(tabSource, /管理者只发布任务，参训教师登录后自行填写汇报/);
+  assert.match(tabSource, />任务管理</);
+  assert.match(tabSource, /发布新任务/);
 });
 
 test("teacher training teacher task report page uses a horizontal workbench without redundant intro copy", () => {
