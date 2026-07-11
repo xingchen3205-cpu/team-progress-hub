@@ -4683,6 +4683,13 @@ a:hover {
   z-index: 1;
   max-width: 920px;
 }
+.tt-portal-hero-manager .tt-portal-hero-copy {
+  position: absolute;
+  top: 30px;
+  left: max(40px, calc((100vw - 1488px) / 2 + 34px));
+  width: min(980px, 64vw);
+  max-width: calc(100% - 80px);
+}
 .tt-portal-kicker {
   display: inline-flex;
   align-items: center;
@@ -5227,6 +5234,13 @@ a:hover {
       url("/teacher-training-campus-hero.png") center bottom / 100% auto no-repeat,
       linear-gradient(180deg, #0b3776 0%, #0d4388 100%);
     padding: 20px 18px 24px;
+  }
+  .tt-portal-hero-manager .tt-portal-hero-copy {
+    position: relative;
+    top: auto;
+    left: auto;
+    width: 100%;
+    max-width: none;
   }
   .tt-portal-grid {
     grid-template-columns: 1fr;
