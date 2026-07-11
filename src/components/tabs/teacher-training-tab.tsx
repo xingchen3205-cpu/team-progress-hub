@@ -9345,7 +9345,7 @@ export default function TeacherTrainingTab() {
                                     onClick={() => {
                                       if (
                                         !window.confirm(
-                                          `确认对“${task.title}”的 ${task.submissions.length} 份汇报生成 AI 初评？\n\n系统会自动分批处理可读取的汇报正文；AI 初评不会覆盖人工最终得分。`,
+                                          `确认对“${task.title}”的 ${task.submissions.length} 份汇报生成 DeepSeek AI 初评？\n\n系统会读取 Word/PDF 正文；AI 初评不会覆盖人工最终得分。`,
                                         )
                                       ) {
                                         return;
@@ -9356,7 +9356,7 @@ export default function TeacherTrainingTab() {
                                     type="button"
                                   >
                                     <Bot className="h-3.5 w-3.5" />
-                                    AI 初评
+                                    一键 AI 初评
                                   </button>
                                 ) : null}
                                 <button
@@ -9449,6 +9449,26 @@ export default function TeacherTrainingTab() {
                                       </p>
                                     </div>
                                     <div className="flex shrink-0 flex-wrap gap-2">
+                                      {canManage && task.enableAiReview ? (
+                                        <button
+                                          className="inline-flex h-8 w-fit items-center gap-1 rounded-md border border-indigo-200 bg-indigo-50 px-2 py-1 text-xs font-semibold text-indigo-700 disabled:cursor-wait disabled:opacity-60"
+                                          disabled={isSaving || !attachmentFile}
+                                          onClick={() => {
+                                            if (
+                                              !window.confirm(
+                                                `确认使用 DeepSeek 对“${submission.participantName}”这份汇报进行单份 AI 初评？\n\n评分只作为人工确认参考。`,
+                                              )
+                                            ) {
+                                              return;
+                                            }
+                                            void runTeacherTrainingTaskAiReview(task.id, { submissionId: submission.id });
+                                          }}
+                                          type="button"
+                                        >
+                                          <Bot className="h-3 w-3" />
+                                          单份 AI 初评
+                                        </button>
+                                      ) : null}
                                       <button
                                         className="inline-flex h-8 w-fit items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-700"
                                         disabled={!attachmentFile}

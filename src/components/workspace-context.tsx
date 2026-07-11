@@ -6543,7 +6543,7 @@ function useWorkspaceController({
     }
   };
 
-  const runTeacherTrainingTaskAiReview = async (taskId: string) => {
+  const runTeacherTrainingTaskAiReview = async (taskId: string, options?: { submissionId?: string }) => {
     const normalizedTaskId = taskId.trim();
     if (!normalizedTaskId) {
       setLoadError("请先选择要 AI 评分的任务");
@@ -6556,9 +6556,13 @@ function useWorkspaceController({
         `/api/teacher-training/tasks/${encodeURIComponent(normalizedTaskId)}/ai-review`,
         {
           method: "POST",
+          body: JSON.stringify({ submissionId: options?.submissionId?.trim() || undefined }),
         },
       );
-      showSuccessToast("AI 初评已完成", `已生成 ${payload.reviewedCount ?? 0} 份汇报的 AI 初评。`);
+      showSuccessToast(
+        options?.submissionId ? "单份 AI 初评已完成" : "一键 AI 初评已完成",
+        `已生成 ${payload.reviewedCount ?? 0} 份汇报的 DeepSeek 初评。`,
+      );
       refreshWorkspace("teacherTraining");
       return true;
     } catch (error) {

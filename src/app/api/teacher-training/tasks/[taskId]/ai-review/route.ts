@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import mammoth from "mammoth";
 
 import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -14,9 +15,15 @@ type RouteContext = {
   params: Promise<{ taskId: string }>;
 };
 
-type DifyBlockingChatResponse = {
-  answer?: string;
-  message?: string;
+type DeepSeekChatResponse = {
+  choices?: Array<{
+    message?: {
+      content?: string | null;
+    };
+  }>;
+  error?: {
+    message?: string;
+  };
 };
 
 type AiScoreResult = {
@@ -25,9 +32,11 @@ type AiScoreResult = {
   comment?: string;
 };
 
-const DEFAULT_DIFY_BASE_URL = "https://api.dify.ai/v1";
+const DEFAULT_DEEPSEEK_BASE_URL = "https://api.deepseek.com";
+const DEFAULT_DEEPSEEK_MODEL = "deepseek-v4-flash";
 const maxAiReviewSubmissionsPerBatch = 60;
 const maxSubmissionPdfContentLength = 4_000;
+export const maxDuration = 60;
 
 class PdfJsNodeDOMMatrix {
   a = 1;
@@ -141,15 +150,16 @@ const extractPdfText = async (buffer: Buffer) => {
   return pageTexts.join("\n").trim();
 };
 
-const getDifyConfig = () => {
-  const apiKey = process.env.DIFY_API_KEY?.trim();
+const getDeepSeekConfig = () => {
+  const apiKey = process.env.DEEPSEEK_API_KEY?.trim();
   if (!apiKey) {
     return null;
   }
 
   return {
     apiKey,
-    baseUrl: (process.env.DIFY_BASE_URL?.trim() || DEFAULT_DIFY_BASE_URL).replace(/\/$/, ""),
+    baseUrl: (process.env.DEEPSEEK_BASE_URL?.trim() || DEFAULT_DEEPSEEK_BASE_URL).replace(/\/$/, ""),
+    model: process.env.DEEPSEEK_MODEL?.trim() || DEFAULT_DEEPSEEK_MODEL,
   };
 };
 
@@ -169,7 +179,37 @@ const extractJsonArray = (value: string) => {
     throw new Error("AI 返回内容不是评分数组");
   }
 
-  return JSON.parse(candidate.slice(start, end + 1)) as AiScoreResult[];
+  const parsed = JSON.parse(candidate) as { results?: AiScoreResult[] } | AiScoreResult[];
+  if (Array.isArray(parsed)) return parsed;
+  if (Array.isArray(parsed.results)) return parsed.results;
+  if (start >= 0 && end > start) return JSON.parse(candidate.slice(start, end + 1)) as AiScoreResult[];
+  throw new Error("AI 返回内容不是评分数组");
+};
+
+const extractSubmissionText = async (attachment: string | null) => {
+  const attachmentFile = decodeTeacherTrainingSubmissionAttachmentFile(attachment);
+  if (!attachmentFile) return { attachmentFile: null, content: "" };
+
+  try {
+    const fileData = await readStoredFile(attachmentFile.filePath);
+    if (isTeacherTrainingSubmissionAttachmentPdfFile(attachmentFile.fileName)) {
+      return {
+        attachmentFile,
+        content: (await extractPdfText(fileData.buffer)).slice(0, maxSubmissionPdfContentLength),
+      };
+    }
+    if (attachmentFile.fileName.toLocaleLowerCase("zh-CN").endsWith(".docx")) {
+      const extracted = await mammoth.extractRawText({ buffer: fileData.buffer });
+      return {
+        attachmentFile,
+        content: extracted.value.replace(/\s+/g, " ").trim().slice(0, maxSubmissionPdfContentLength),
+      };
+    }
+  } catch {
+    return { attachmentFile, content: "" };
+  }
+
+  return { attachmentFile, content: "" };
 };
 
 const chunkTeacherTrainingSubmissions = <T,>(items: T[], size: number) => {
@@ -187,6 +227,8 @@ export async function POST(request: NextRequest, context: RouteContext) {
   }
 
   const { taskId } = await context.params;
+  const body = (await request.json().catch(() => null)) as { submissionId?: string } | null;
+  const requestedSubmissionId = body?.submissionId?.trim() || "";
   const task = await prisma.teacherTrainingTask.findFirst({
     where: {
       id: taskId,
@@ -236,13 +278,19 @@ export async function POST(request: NextRequest, context: RouteContext) {
     return NextResponse.json({ message: "该任务未开启 AI 辅助评分" }, { status: 400 });
   }
 
-  if (task.submissions.length === 0) {
+  const submissions = requestedSubmissionId
+    ? task.submissions.filter((submission) => submission.id === requestedSubmissionId)
+    : task.submissions;
+  if (requestedSubmissionId && submissions.length === 0) {
+    return NextResponse.json({ message: "该汇报不属于当前任务" }, { status: 404 });
+  }
+  if (submissions.length === 0) {
     return NextResponse.json({ message: "当前任务暂无已提交汇报，无法评分" }, { status: 400 });
   }
 
-  const config = getDifyConfig();
+  const config = getDeepSeekConfig();
   if (!config) {
-    return NextResponse.json({ message: "AI 评分尚未配置 Dify API Key" }, { status: 503 });
+    return NextResponse.json({ message: "AI 评分尚未配置 DeepSeek API Key" }, { status: 503 });
   }
 
   const rubric =
@@ -252,27 +300,18 @@ export async function POST(request: NextRequest, context: RouteContext) {
     ? `${task.courseSession.courseDate} ${[task.courseSession.startTime, task.courseSession.endTime].filter(Boolean).join("-")} ${task.courseSession.title}`.trim()
     : "未绑定具体课程";
 
-  const submissionChunks = chunkTeacherTrainingSubmissions(task.submissions, maxAiReviewSubmissionsPerBatch);
+  const submissionChunks = chunkTeacherTrainingSubmissions(submissions, maxAiReviewSubmissionsPerBatch);
   const parsedResults: AiScoreResult[] = [];
 
   for (const submissionChunk of submissionChunks) {
     const submissionPayload = [];
     for (const submission of submissionChunk) {
-      const attachmentFile = decodeTeacherTrainingSubmissionAttachmentFile(submission.attachment);
-      let pdfContent = "";
+      const { attachmentFile, content } = await extractSubmissionText(submission.attachment);
       const attachmentKind = attachmentFile?.fileName
         ? isTeacherTrainingSubmissionAttachmentPdfFile(attachmentFile.fileName)
           ? "PDF"
           : "Word"
         : "无附件";
-      if (attachmentFile && isTeacherTrainingSubmissionAttachmentPdfFile(attachmentFile.fileName)) {
-        try {
-          const fileData = await readStoredFile(attachmentFile.filePath);
-          pdfContent = (await extractPdfText(fileData.buffer)).slice(0, maxSubmissionPdfContentLength);
-        } catch {
-          pdfContent = "";
-        }
-      }
 
       submissionPayload.push({
         submissionId: submission.id,
@@ -280,16 +319,16 @@ export async function POST(request: NextRequest, context: RouteContext) {
         organization: submission.participant?.organization ?? "",
         attachment: getTeacherTrainingSubmissionAttachmentLabel(submission.attachment) || "",
         attachmentKind,
-        pdfContent,
+        content,
       });
     }
 
     const query = [
-      "你是省培任务汇报的辅助评分员。请根据可读取的汇报正文和评分细则对每份汇报给出初评分。",
-      "要求：只返回 JSON 数组，不要 Markdown，不要解释。",
-      "数组元素格式：{\"submissionId\":\"原ID\",\"score\":0-100整数,\"comment\":\"80字以内中文短评\"}。",
+      "你是省培任务汇报的辅助评分员。请根据可读取的汇报正文和评分细则对每份汇报给出初评分，并输出 json。",
+      "要求：只返回 JSON 对象，不要 Markdown，不要解释。",
+      "对象格式：{\"results\":[{\"submissionId\":\"原ID\",\"score\":0-100整数,\"comment\":\"80字以内中文短评\"}]}。",
       "AI 初评仅供管理端参考，最终成绩由人工确认，所以请保守、客观，不要输出排名。",
-      "注意：pdfContent 为空时，说明该附件是 Word、PDF 文本抽取失败或文件内容不可复制，请给出保守规范分并提示管理者人工查看附件。",
+      "注意：content 为空时，说明文档正文抽取失败，请给出保守规范分并提示管理者人工查看附件。",
       `培训班次：${task.cohort.title}`,
       `关联课程：${courseLabel}`,
       `任务名称：${task.title}`,
@@ -298,27 +337,35 @@ export async function POST(request: NextRequest, context: RouteContext) {
       `汇报列表：${JSON.stringify(submissionPayload)}`,
     ].join("\n");
 
-    const response = await fetch(`${config.baseUrl}/chat-messages`, {
+    const response = await fetch(`${config.baseUrl}/chat/completions`, {
       method: "POST",
       headers: {
         Authorization: `Bearer ${config.apiKey}`,
         "Content-Type": "application/json",
       },
       body: JSON.stringify({
-        inputs: {},
-        query,
-        response_mode: "blocking",
-        user: `teacher-training-review-${user.id}`,
+        model: config.model,
+        messages: [
+          {
+            role: "system",
+            content: "你是严谨的教师培训作业评分助手。评分必须依据用户提供的任务、评分细则和正文，输出有效 json。",
+          },
+          { role: "user", content: query },
+        ],
+        response_format: { type: "json_object" },
+        temperature: 0.2,
+        max_tokens: Math.max(800, submissionChunk.length * 180),
+        user_id: `teacher-training-${user.id.replace(/[^a-zA-Z0-9\-_]/g, "-")}`,
       }),
     });
 
     if (!response.ok) {
-      const payload = (await response.json().catch(() => null)) as { message?: string } | null;
-      return NextResponse.json({ message: payload?.message || "AI 评分暂时不可用，请稍后重试" }, { status: 502 });
+      const payload = (await response.json().catch(() => null)) as DeepSeekChatResponse | null;
+      return NextResponse.json({ message: payload?.error?.message || "DeepSeek 评分暂时不可用，请稍后重试" }, { status: 502 });
     }
 
-    const payload = (await response.json().catch(() => null)) as DifyBlockingChatResponse | null;
-    const answer = payload?.answer?.trim();
+    const payload = (await response.json().catch(() => null)) as DeepSeekChatResponse | null;
+    const answer = payload?.choices?.[0]?.message?.content?.trim();
     if (!answer) {
       return NextResponse.json({ message: "AI 未返回评分结果，请稍后重试" }, { status: 502 });
     }
@@ -330,7 +377,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
     }
   }
 
-  const validSubmissionIds = new Set(task.submissions.map((submission) => submission.id));
+  const validSubmissionIds = new Set(submissions.map((submission) => submission.id));
   const reviewedAt = new Date();
   const updates = parsedResults
     .map((result) => {

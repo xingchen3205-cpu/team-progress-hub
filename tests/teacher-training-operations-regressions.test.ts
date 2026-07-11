@@ -93,3 +93,20 @@ test("manual check-in gives immediate feedback instead of opening a form below a
   assert.match(tabSource, /window\.prompt\(`为“\$\{participant\.name\}”人工补签/);
   assert.match(tabSource, /manualSignTeacherTrainingCheckIn\(\{[\s\S]*checkInTaskId:\s*task\.id/);
 });
+
+test("teacher training AI review connects directly to DeepSeek and supports single or task-wide review", () => {
+  const routeSource = read("src/app/api/teacher-training/tasks/[taskId]/ai-review/route.ts");
+  const contextSource = read("src/components/workspace-context.tsx");
+  const tabSource = read("src/components/tabs/teacher-training-tab.tsx");
+
+  assert.match(routeSource, /process\.env\.DEEPSEEK_API_KEY/);
+  assert.match(routeSource, /https:\/\/api\.deepseek\.com/);
+  assert.match(routeSource, /\/chat\/completions/);
+  assert.match(routeSource, /response_format:\s*\{\s*type:\s*"json_object"/);
+  assert.match(routeSource, /mammoth\.extractRawText/);
+  assert.match(routeSource, /submissionId/);
+  assert.doesNotMatch(routeSource, /DIFY_API_KEY|chat-messages|api\.dify\.ai/);
+  assert.match(contextSource, /submissionId\?:\s*string/);
+  assert.match(tabSource, /单份 AI 初评/);
+  assert.match(tabSource, /一键 AI 初评/);
+});

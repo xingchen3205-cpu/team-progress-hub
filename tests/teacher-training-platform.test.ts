@@ -240,10 +240,12 @@ test("teacher training APIs support admin-managed courses, check-in, tasks, subm
   assert.match(submissionReviewRoute, /hasTeacherTrainingCohortManageAccess/);
   assert.match(submissionReviewRoute, /finalScore/);
   assert.match(taskAiReviewRoute, /hasTeacherTrainingCohortManageAccess/);
-  assert.match(taskAiReviewRoute, /DIFY_API_KEY/);
+  assert.match(taskAiReviewRoute, /DEEPSEEK_API_KEY/);
+  assert.doesNotMatch(taskAiReviewRoute, /DIFY_API_KEY|chat-messages|api\.dify\.ai/);
   assert.match(taskAiReviewRoute, /enableAiReview/);
   assert.match(taskAiReviewRoute, /extractPdfText/);
-  assert.match(taskAiReviewRoute, /pdfContent/);
+  assert.match(taskAiReviewRoute, /extractSubmissionText/);
+  assert.match(taskAiReviewRoute, /mammoth\.extractRawText/);
   assert.doesNotMatch(taskAiReviewRoute, /不能直接读取 Word\/PDF 附件正文/);
   assert.match(exportRoute, /text\/csv/);
   assert.match(exportRoute, /buildTeacherTrainingCsv/);
