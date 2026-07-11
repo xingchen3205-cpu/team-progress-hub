@@ -26,6 +26,7 @@ type TeacherTrainingTaskInput = {
 };
 
 const normalizeTeacherTrainingTaskType = (value?: string | null, courseSessionId?: string | null) => {
+  if (value === "group") return "group";
   if (value === "course" || courseSessionId) return "course";
   if (value === "stage") return "stage";
   return "cohort";
@@ -92,6 +93,14 @@ export async function POST(request: NextRequest) {
   if (!(await hasTeacherTrainingCohortManageAccess(user, cohortId))) {
     return NextResponse.json({ message: "无权限发布该省培班次任务" }, { status: 403 });
   }
+  if (taskType === "group") {
+    const groupedParticipantCount = await prisma.teacherTrainingParticipant.count({
+      where: { cohortId, groupName: { not: null } },
+    });
+    if (!groupedParticipantCount) {
+      return NextResponse.json({ message: "请先在参训教师中完成随机分组" }, { status: 400 });
+    }
+  }
   const optionError = await validateTeacherTrainingTaskOptions({
     cohortId,
     courseSessionId,
@@ -150,6 +159,14 @@ export async function PATCH(request: NextRequest) {
   }
   if (!(await hasTeacherTrainingCohortManageAccess(user, existing.cohortId))) {
     return NextResponse.json({ message: "无权限修改该省培班次任务" }, { status: 403 });
+  }
+  if (taskType === "group") {
+    const groupedParticipantCount = await prisma.teacherTrainingParticipant.count({
+      where: { cohortId: existing.cohortId, groupName: { not: null } },
+    });
+    if (!groupedParticipantCount) {
+      return NextResponse.json({ message: "请先在参训教师中完成随机分组" }, { status: 400 });
+    }
   }
   const optionError = await validateTeacherTrainingTaskOptions({
     cohortId: existing.cohortId,

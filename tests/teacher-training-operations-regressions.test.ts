@@ -110,3 +110,21 @@ test("teacher training AI review connects directly to DeepSeek and supports sing
   assert.match(tabSource, /单份 AI 初评/);
   assert.match(tabSource, /一键 AI 初评/);
 });
+
+test("teacher training supports previewed random groups and one shared submission per group", () => {
+  const groupRoute = read("src/app/api/teacher-training/participants/random-groups/route.ts");
+  const taskRoute = read("src/app/api/teacher-training/tasks/route.ts");
+  const submissionRoute = read("src/app/api/teacher-training/submissions/route.ts");
+  const platformRoute = read("src/app/api/teacher-training/route.ts");
+  const tabSource = read("src/components/tabs/teacher-training-tab.tsx");
+
+  assert.match(groupRoute, /hasTeacherTrainingCohortManageAccess/);
+  assert.match(groupRoute, /groupSize < 2 \|\| groupSize > 20/);
+  assert.match(groupRoute, /prisma\.\$transaction/);
+  assert.match(taskRoute, /value === "group"/);
+  assert.match(submissionRoute, /task\.taskType === "group"/);
+  assert.match(submissionRoute, /groupParticipantIds/);
+  assert.match(platformRoute, /groupParticipantIds/);
+  assert.match(tabSource, /随机分组/);
+  assert.match(tabSource, /小组任务（每组提交一份）/);
+});

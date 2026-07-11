@@ -32,9 +32,6 @@ const teacherTrainingManagerTitleWhere: Prisma.TeacherTrainingCohortManagerWhere
 };
 
 const buildTeacherTrainingInclude = (options: { participantAccountUserId?: string } = {}) => {
-  const participantWhere = options.participantAccountUserId
-    ? { accountUserId: options.participantAccountUserId }
-    : undefined;
   const participantOwnedWhere = options.participantAccountUserId
     ? { participant: { is: { accountUserId: options.participantAccountUserId } } }
     : undefined;
@@ -46,7 +43,6 @@ const buildTeacherTrainingInclude = (options: { participantAccountUserId?: strin
     },
   },
   participants: {
-    where: participantWhere,
     orderBy: [{ createdAt: "asc" as const }],
     include: {
       accountUser: {
@@ -204,7 +200,6 @@ const buildTeacherTrainingInclude = (options: { participantAccountUserId?: strin
         },
       },
       submissions: {
-        where: participantOwnedWhere,
         orderBy: [{ submittedAt: "desc" as const }],
         include: {
           participant: {
@@ -385,6 +380,16 @@ const filterCohortForParticipantOnly = (
       .filter((participant) => participant.accountUserId === accountUserId)
       .map((participant) => participant.id),
   );
+  const participantGroupNames = new Set(
+    cohort.participants
+      .filter((participant) => participant.accountUserId === accountUserId && participant.groupName?.trim())
+      .map((participant) => participant.groupName?.trim() || ""),
+  );
+  const groupParticipantIds = new Set(
+    cohort.participants
+      .filter((participant) => participant.groupName && participantGroupNames.has(participant.groupName.trim()))
+      .map((participant) => participant.id),
+  );
 
   return {
     ...cohort,
@@ -402,7 +407,11 @@ const filterCohortForParticipantOnly = (
         enableAiReview: false,
         scoringRubric: null,
         submissions: task.submissions
-          .filter((submission) => participantIds.has(submission.participantId))
+          .filter((submission) =>
+            task.taskType === "group"
+              ? groupParticipantIds.has(submission.participantId)
+              : participantIds.has(submission.participantId),
+          )
           .map((submission) => ({
             ...submission,
             aiScore: null,

@@ -823,6 +823,7 @@ export const teacherTrainingTaskTypeLabels: Record<string, string> = {
   cohort: "班级任务",
   course: "课程任务",
   stage: "阶段任务",
+  group: "小组任务",
 };
 
 export const normalizeTeacherTrainingTaskReleaseMode = (value?: string | null): TeacherTrainingTaskReleaseMode => {

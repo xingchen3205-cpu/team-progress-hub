@@ -905,6 +905,8 @@ export default function TeacherTrainingTab() {
     deleteTeacherTrainingCohorts,
     addTeacherTrainingParticipant,
     importTeacherTrainingParticipants,
+    previewTeacherTrainingRandomGroups,
+    saveTeacherTrainingRandomGroups,
     createTeacherTrainingCourseSession,
     importTeacherTrainingCourses,
     deleteTeacherTrainingCourseSession,
@@ -1175,6 +1177,9 @@ export default function TeacherTrainingTab() {
   const [isSubmissionAttachmentUploading, setIsSubmissionAttachmentUploading] = useState(false);
   const [profileSaveStatus, setProfileSaveStatus] = useState("");
   const [selectedParticipantIds, setSelectedParticipantIds] = useState<string[]>([]);
+  const [randomGroupSize, setRandomGroupSize] = useState("5");
+  const [randomGroupPreview, setRandomGroupPreview] = useState<Workspace.TeacherTrainingRandomGroup[]>([]);
+  const [randomGroupPanelOpen, setRandomGroupPanelOpen] = useState(false);
   const [selectedCohortIds, setSelectedCohortIds] = useState<string[]>([]);
   const [selectedCourseSessionIds, setSelectedCourseSessionIds] = useState<string[]>([]);
   const [selectedCheckInTaskIds, setSelectedCheckInTaskIds] = useState<string[]>([]);
@@ -1257,7 +1262,9 @@ export default function TeacherTrainingTab() {
       null
     : currentAccountParticipant;
   const selectedSubmission =
-    selectedTask?.submissions.find((submission) => submission.participantId === selectedParticipant?.id) ?? null;
+    (selectedTask?.taskType === "group"
+      ? selectedTask.submissions[0]
+      : selectedTask?.submissions.find((submission) => submission.participantId === selectedParticipant?.id)) ?? null;
   const savedSubmissionAttachment = selectedSubmission?.attachment ?? "";
   const savedSubmissionAttachmentFile = selectedSubmission?.attachmentFile ?? null;
   const currentSubmissionAttachmentLabel = Workspace.getTeacherTrainingSubmissionAttachmentLabel(submissionDraft.attachment);
@@ -1636,7 +1643,11 @@ export default function TeacherTrainingTab() {
   const teacherWaitingReleaseTasks = (selectedCohort?.tasks ?? []).filter((task) => !task.isReleased);
   const teacherSubmittedTaskIds = new Set(
     teacherReleasedTasks
-      .filter((task) => task.submissions.some((submission) => submission.participantId === selectedParticipant?.id))
+      .filter((task) =>
+        task.taskType === "group"
+          ? task.submissions.length > 0
+          : task.submissions.some((submission) => submission.participantId === selectedParticipant?.id),
+      )
       .map((task) => task.id),
   );
   const teacherPendingTaskCount =
@@ -1644,7 +1655,10 @@ export default function TeacherTrainingTab() {
       ? teacherReleasedTasks.filter((task) => !teacherSubmittedTaskIds.has(task.id)).length
       : 0;
   const teacherTaskProgressItems = teacherReleasedTasks.map((task) => {
-    const submission = task.submissions.find((item) => item.participantId === selectedParticipant?.id) ?? null;
+    const submission =
+      (task.taskType === "group"
+        ? task.submissions[0]
+        : task.submissions.find((item) => item.participantId === selectedParticipant?.id)) ?? null;
 
     return {
       id: task.id,
@@ -2212,6 +2226,27 @@ export default function TeacherTrainingTab() {
       ...participantDraft,
       cohortId: selectedCohort.id,
     });
+  };
+
+  const previewRandomGroups = async () => {
+    if (!selectedCohort) return;
+    const groupSize = Number.parseInt(randomGroupSize, 10);
+    if (!Number.isFinite(groupSize) || groupSize < 2 || groupSize > 20) {
+      setLoadError("每组人数须为 2 至 20 人");
+      return;
+    }
+    const payload = await previewTeacherTrainingRandomGroups(selectedCohort.id, groupSize);
+    if (payload) setRandomGroupPreview(payload.groups);
+  };
+
+  const confirmRandomGroups = async () => {
+    if (!selectedCohort || randomGroupPreview.length === 0) return;
+    if (!window.confirm("确认保存当前随机分组？\n\n教师原有分组会更新，姓名、账号、签到和汇报数据不受影响。")) return;
+    const saved = await saveTeacherTrainingRandomGroups(selectedCohort.id, randomGroupPreview);
+    if (saved) {
+      setRandomGroupPreview([]);
+      setRandomGroupPanelOpen(false);
+    }
   };
 
   const importParticipants = async () => {
@@ -7496,6 +7531,18 @@ export default function TeacherTrainingTab() {
                       导入名单
                     </button>
                     <button
+                      className={`inline-flex h-9 items-center justify-center gap-2 rounded-lg px-3 text-xs font-semibold transition ${
+                        randomGroupPanelOpen
+                          ? "bg-blue-600 text-white shadow-sm shadow-blue-900/15"
+                          : "border border-blue-100 bg-white text-blue-700 hover:border-blue-200 hover:bg-blue-50"
+                      }`}
+                      onClick={() => setRandomGroupPanelOpen((open) => !open)}
+                      type="button"
+                    >
+                      <Users className="h-4 w-4" />
+                      随机分组
+                    </button>
+                    <button
                       className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-blue-100 bg-white px-3 text-xs font-semibold text-blue-700 transition hover:border-blue-200 hover:bg-blue-50"
                       aria-label="一键用手机号开通省培账号"
                       disabled={isSaving || !selectedCohort.participants.some((participant) => !participant.accountUserId && getPhoneAccountUsername(participant))}
@@ -7531,6 +7578,65 @@ export default function TeacherTrainingTab() {
                     </button>
                   </div>
                 </div>
+
+                {randomGroupPanelOpen ? (
+                  <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50/40 p-4">
+                    <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                      <label className="w-full sm:max-w-52">
+                        <span className={teacherTrainingFieldLabelClassName}>每组人数</span>
+                        <input
+                          className={fieldClassName}
+                          {...fieldHint("随机分组每组人数")}
+                          max={20}
+                          min={2}
+                          onChange={(event) => setRandomGroupSize(event.target.value)}
+                          type="number"
+                          value={randomGroupSize}
+                        />
+                      </label>
+                      <div className="flex flex-wrap gap-2">
+                        <button
+                          className="inline-flex h-10 items-center rounded-lg border border-blue-200 bg-white px-4 text-sm font-semibold text-blue-700"
+                          disabled={isSaving || selectedCohort.participants.length < 2}
+                          onClick={() => void previewRandomGroups()}
+                          type="button"
+                        >
+                          {randomGroupPreview.length ? "重新随机" : "生成分组预览"}
+                        </button>
+                        <button
+                          className="inline-flex h-10 items-center rounded-lg bg-blue-600 px-4 text-sm font-semibold text-white disabled:bg-slate-300"
+                          disabled={isSaving || randomGroupPreview.length === 0}
+                          onClick={() => void confirmRandomGroups()}
+                          type="button"
+                        >
+                          确认保存
+                        </button>
+                      </div>
+                    </div>
+                    {randomGroupPreview.length ? (
+                      <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                        {randomGroupPreview.map((group) => (
+                          <section className="rounded-xl border border-white bg-white p-3 shadow-sm" key={group.name}>
+                            <div className="flex items-center justify-between">
+                              <p className="text-sm font-bold text-slate-950">{group.name}</p>
+                              <span className="tt-pill">{group.members.length} 人</span>
+                            </div>
+                            <div className="mt-2 space-y-1.5">
+                              {group.members.map((member) => (
+                                <div className="rounded-lg bg-slate-50 px-2.5 py-2" key={member.id}>
+                                  <p className="text-sm font-semibold text-slate-800">{member.name}</p>
+                                  <p className="truncate text-xs text-slate-500">{member.organization}</p>
+                                </div>
+                              ))}
+                            </div>
+                          </section>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="mt-3 text-xs text-slate-500">先生成预览，确认后才会更新教师分组。</p>
+                    )}
+                  </div>
+                ) : null}
 
                 {participantFormOpen ? (
                   <div
@@ -8675,6 +8781,7 @@ export default function TeacherTrainingTab() {
                         <option value="cohort">班级任务</option>
                         <option value="course">课程任务</option>
                         <option value="stage">阶段任务</option>
+                        <option value="group">小组任务（每组提交一份）</option>
                       </select>
                     </label>
                     {selectedTask ? (

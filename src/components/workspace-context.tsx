@@ -318,6 +318,11 @@ export type TeacherTrainingParticipantDraft = {
   note: string;
 };
 
+export type TeacherTrainingRandomGroup = {
+  name: string;
+  members: Array<{ id: string; name: string; organization: string }>;
+};
+
 export type TeacherTrainingCheckInTaskDraft = {
   id?: string;
   cohortId: string;
@@ -5727,6 +5732,42 @@ function useWorkspaceController({
     }
   };
 
+  const previewTeacherTrainingRandomGroups = async (cohortId: string, groupSize: number) => {
+    try {
+      return await requestJson<{ groups: TeacherTrainingRandomGroup[] }>(
+        "/api/teacher-training/participants/random-groups",
+        {
+          method: "POST",
+          body: JSON.stringify({ cohortId, groupSize }),
+        },
+      );
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "随机分组失败");
+      return null;
+    }
+  };
+
+  const saveTeacherTrainingRandomGroups = async (cohortId: string, groups: TeacherTrainingRandomGroup[]) => {
+    setIsSaving(true);
+    try {
+      const assignments = groups.flatMap((group) =>
+        group.members.map((member) => ({ participantId: member.id, groupName: group.name })),
+      );
+      await requestJson("/api/teacher-training/participants/random-groups", {
+        method: "PATCH",
+        body: JSON.stringify({ cohortId, assignments }),
+      });
+      showSuccessToast("随机分组已保存", `已将 ${assignments.length} 位教师分为 ${groups.length} 组。`);
+      refreshWorkspace("teacherTraining");
+      return true;
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "分组结果保存失败");
+      return false;
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const createTeacherTrainingCourseSession = async (draft: TeacherTrainingCourseSessionDraft) => {
     const cohortId = draft.cohortId.trim();
     const title = draft.title.trim();
@@ -9006,6 +9047,8 @@ function useWorkspaceController({
     deleteTeacherTrainingCohorts,
     addTeacherTrainingParticipant,
     importTeacherTrainingParticipants,
+    previewTeacherTrainingRandomGroups,
+    saveTeacherTrainingRandomGroups,
     createTeacherTrainingCourseSession,
     importTeacherTrainingCourses,
     deleteTeacherTrainingCourseSession,

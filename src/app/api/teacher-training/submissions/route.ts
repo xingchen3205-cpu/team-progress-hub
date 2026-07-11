@@ -47,6 +47,7 @@ export async function POST(request: NextRequest) {
     },
     select: {
       cohortId: true,
+      taskType: true,
       requireAttachment: true,
       releaseMode: true,
       releaseAt: true,
@@ -75,11 +76,15 @@ export async function POST(request: NextRequest) {
       },
       ...(canManageCohort ? {} : { accountUserId: user.id }),
     },
-    select: { cohortId: true },
+    select: { cohortId: true, groupName: true },
   });
 
   if (!participant || task.cohortId !== participant.cohortId) {
     return NextResponse.json({ message: "任务和参训教师不属于同一班次或当前账号无权提交" }, { status: 400 });
+  }
+  const groupName = participant.groupName?.trim() || "";
+  if (task.taskType === "group" && !groupName) {
+    return NextResponse.json({ message: "你尚未分组，请联系班主任后再提交小组任务" }, { status: 400 });
   }
 
   const attachmentFile = attachment ? decodeTeacherTrainingSubmissionAttachmentFile(attachment) : null;
@@ -136,14 +141,17 @@ export async function POST(request: NextRequest) {
   let submission;
   try {
     submission = await prisma.$transaction(async (tx) => {
-      const existingSubmission = await tx.teacherTrainingSubmission.findUnique({
-        where: {
-          taskId_participantId: {
-            taskId,
-            participantId,
-          },
-        },
-        select: { attachment: true },
+      const groupParticipantIds = task.taskType === "group"
+        ? (
+            await tx.teacherTrainingParticipant.findMany({
+              where: { cohortId: task.cohortId, groupName },
+              select: { id: true },
+            })
+          ).map((item) => item.id)
+        : [participantId];
+      const existingSubmission = await tx.teacherTrainingSubmission.findFirst({
+        where: { taskId, participantId: { in: groupParticipantIds } },
+        select: { attachment: true, participantId: true },
       });
       previousAttachmentFilePath =
         decodeTeacherTrainingSubmissionAttachmentFile(existingSubmission?.attachment)?.filePath ?? null;
@@ -152,7 +160,7 @@ export async function POST(request: NextRequest) {
         where: {
           taskId_participantId: {
             taskId,
-            participantId,
+            participantId: existingSubmission?.participantId ?? participantId,
           },
         },
         update: {
