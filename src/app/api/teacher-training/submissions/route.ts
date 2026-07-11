@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { getSessionUser } from "@/lib/auth";
 import { hasTeacherTrainingCohortManageAccess } from "@/lib/teacher-training-access";
-import { isTeacherTrainingTaskReleased } from "@/lib/teacher-training";
+import { isTeacherTrainingTaskReleased, parseTeacherTrainingParticipantExtraInfo } from "@/lib/teacher-training";
 import { prisma } from "@/lib/prisma";
 import { HeadObjectCommand, R2_BUCKET, r2Client } from "@/lib/r2";
 import {
@@ -76,7 +76,7 @@ export async function POST(request: NextRequest) {
       },
       ...(canManageCohort ? {} : { accountUserId: user.id }),
     },
-    select: { cohortId: true, groupName: true },
+    select: { cohortId: true, groupName: true, extraInfo: true },
   });
 
   if (!participant || task.cohortId !== participant.cohortId) {
@@ -85,6 +85,9 @@ export async function POST(request: NextRequest) {
   const groupName = participant.groupName?.trim() || "";
   if (task.taskType === "group" && !groupName) {
     return NextResponse.json({ message: "你尚未分组，请联系班主任后再提交小组任务" }, { status: 400 });
+  }
+  if (task.taskType === "group" && !parseTeacherTrainingParticipantExtraInfo(participant.extraInfo).isGroupLeader) {
+    return NextResponse.json({ message: "小组任务仅限本组组长提交或替换附件" }, { status: 403 });
   }
 
   const attachmentFile = attachment ? decodeTeacherTrainingSubmissionAttachmentFile(attachment) : null;

@@ -5768,6 +5768,24 @@ function useWorkspaceController({
     }
   };
 
+  const setTeacherTrainingGroupLeader = async (cohortId: string, groupName: string, leaderId: string) => {
+    setIsSaving(true);
+    try {
+      await requestJson("/api/teacher-training/participants/random-groups", {
+        method: "PUT",
+        body: JSON.stringify({ cohortId, groupName, leaderId }),
+      });
+      showSuccessToast("小组组长已设置", `${groupName}的小组任务将由组长提交。`);
+      refreshWorkspace("teacherTraining");
+      return true;
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "组长设置失败");
+      return false;
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const createTeacherTrainingCourseSession = async (draft: TeacherTrainingCourseSessionDraft) => {
     const cohortId = draft.cohortId.trim();
     const title = draft.title.trim();
@@ -9049,6 +9067,7 @@ function useWorkspaceController({
     importTeacherTrainingParticipants,
     previewTeacherTrainingRandomGroups,
     saveTeacherTrainingRandomGroups,
+    setTeacherTrainingGroupLeader,
     createTeacherTrainingCourseSession,
     importTeacherTrainingCourses,
     deleteTeacherTrainingCourseSession,

@@ -3,6 +3,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hasTeacherTrainingCohortManageAccess } from "@/lib/teacher-training-access";
+import { mergeTeacherTrainingParticipantExtraInfo } from "@/lib/teacher-training";
 
 type GroupAssignment = { participantId?: string; groupName?: string };
 
@@ -72,18 +73,68 @@ export async function PATCH(request: NextRequest) {
   if (uniqueIds.length !== assignments.length) {
     return NextResponse.json({ message: "分组结果包含重复教师，请重新随机" }, { status: 400 });
   }
-  const validCount = await prisma.teacherTrainingParticipant.count({ where: { cohortId, id: { in: uniqueIds } } });
-  if (validCount !== uniqueIds.length) {
+  const existingMembers = await prisma.teacherTrainingParticipant.findMany({
+    where: { cohortId, id: { in: uniqueIds } },
+    select: { id: true, extraInfo: true },
+  });
+  if (existingMembers.length !== uniqueIds.length) {
     return NextResponse.json({ message: "部分教师不属于当前班次，请刷新后重试" }, { status: 400 });
   }
+  const extraInfoById = new Map(existingMembers.map((member) => [member.id, member.extraInfo]));
 
+  // 重新分组会打散原有小组，旧组长身份不再适用，保存时统一清除，避免出现跨组或一组多名组长。
   await prisma.$transaction(
     assignments.map((item) =>
       prisma.teacherTrainingParticipant.update({
         where: { id: item.participantId },
-        data: { groupName: item.groupName },
+        data: {
+          groupName: item.groupName,
+          extraInfo: mergeTeacherTrainingParticipantExtraInfo(extraInfoById.get(item.participantId), {
+            isGroupLeader: false,
+          }),
+        },
       }),
     ),
   );
   return NextResponse.json({ ok: true, updatedCount: assignments.length });
+}
+
+export async function PUT(request: NextRequest) {
+  const user = await getSessionUser(request);
+  if (!user) return NextResponse.json({ message: "未登录" }, { status: 401 });
+
+  const body = (await request.json().catch(() => null)) as
+    | { cohortId?: string; groupName?: string; leaderId?: string }
+    | null;
+  const cohortId = body?.cohortId?.trim() || "";
+  const groupName = body?.groupName?.trim() || "";
+  const leaderId = body?.leaderId?.trim() || "";
+  if (!cohortId || !groupName || !leaderId) {
+    return NextResponse.json({ message: "请选择分组和组长" }, { status: 400 });
+  }
+  if (!(await hasTeacherTrainingCohortManageAccess(user, cohortId))) {
+    return NextResponse.json({ message: "无权限设置该班次组长" }, { status: 403 });
+  }
+
+  const members = await prisma.teacherTrainingParticipant.findMany({
+    where: { cohortId, groupName },
+    select: { id: true, extraInfo: true },
+  });
+  if (!members.some((member) => member.id === leaderId)) {
+    return NextResponse.json({ message: "所选教师不属于该分组" }, { status: 400 });
+  }
+
+  await prisma.$transaction(
+    members.map((member) =>
+      prisma.teacherTrainingParticipant.update({
+        where: { id: member.id },
+        data: {
+          extraInfo: mergeTeacherTrainingParticipantExtraInfo(member.extraInfo, {
+            isGroupLeader: member.id === leaderId,
+          }),
+        },
+      }),
+    ),
+  );
+  return NextResponse.json({ ok: true, leaderId });
 }

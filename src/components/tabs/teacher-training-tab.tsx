@@ -907,6 +907,7 @@ export default function TeacherTrainingTab() {
     importTeacherTrainingParticipants,
     previewTeacherTrainingRandomGroups,
     saveTeacherTrainingRandomGroups,
+    setTeacherTrainingGroupLeader,
     createTeacherTrainingCourseSession,
     importTeacherTrainingCourses,
     deleteTeacherTrainingCourseSession,
@@ -1180,6 +1181,9 @@ export default function TeacherTrainingTab() {
   const [randomGroupSize, setRandomGroupSize] = useState("5");
   const [randomGroupPreview, setRandomGroupPreview] = useState<Workspace.TeacherTrainingRandomGroup[]>([]);
   const [randomGroupPanelOpen, setRandomGroupPanelOpen] = useState(false);
+  const [groupLeaderDrafts, setGroupLeaderDrafts] = useState<Record<string, string>>({});
+  const [randomGroupLeaderDrafts, setRandomGroupLeaderDrafts] = useState<Record<string, string>>({});
+  const [randomRegroupOpen, setRandomRegroupOpen] = useState(false);
   const [selectedCohortIds, setSelectedCohortIds] = useState<string[]>([]);
   const [selectedCourseSessionIds, setSelectedCourseSessionIds] = useState<string[]>([]);
   const [selectedCheckInTaskIds, setSelectedCheckInTaskIds] = useState<string[]>([]);
@@ -1206,6 +1210,27 @@ export default function TeacherTrainingTab() {
 
     return teacherTrainingCohorts[0] ?? null;
   }, [selectedCohortId, teacherTrainingCohorts]);
+
+  const existingParticipantGroups = useMemo(() => {
+    const groups = new Map<string, Workspace.TeacherTrainingParticipantItem[]>();
+    for (const participant of selectedCohort?.participants ?? []) {
+      const groupName = participant.groupName.trim();
+      if (!groupName) continue;
+      groups.set(groupName, [...(groups.get(groupName) ?? []), participant]);
+    }
+    return [...groups.entries()].map(([name, members]) => ({ name, members }));
+  }, [selectedCohort?.participants]);
+
+  useEffect(() => {
+    setGroupLeaderDrafts(
+      Object.fromEntries(
+        existingParticipantGroups.map((group) => [
+          group.name,
+          group.members.find((member) => member.isGroupLeader)?.id ?? "",
+        ]),
+      ),
+    );
+  }, [existingParticipantGroups]);
 
   useEffect(() => {
     if (selectedCohort && selectedCohort.includeDetails === false) {
@@ -1829,14 +1854,20 @@ export default function TeacherTrainingTab() {
     canManage,
   );
   const profileDisabledReason = getTeacherTrainingProfileDisabledReason(effectiveProfileDraft, teacherPasswordChangeRequired);
-  const submissionDisabledReason =
-    participantBindingIssue ||
-    getTeacherTrainingSubmissionDisabledReason(
-      Boolean(selectedTask),
-      hasSelectedParticipant,
-      canManage,
-      Boolean(submissionAttachmentFile || currentSubmissionAttachmentFile),
-    );
+  const selectedTaskIsGroup = selectedTask?.taskType === "group";
+  const teacherGroupTaskReadOnly =
+    !canManage && selectedTaskIsGroup && !Boolean(currentAccountParticipant?.isGroupLeader);
+  const teacherGroupTaskNoGroup =
+    !canManage && selectedTaskIsGroup && !(currentAccountParticipant?.groupName?.trim());
+  const submissionDisabledReason = teacherGroupTaskReadOnly
+    ? ""
+    : participantBindingIssue ||
+      getTeacherTrainingSubmissionDisabledReason(
+        Boolean(selectedTask),
+        hasSelectedParticipant,
+        canManage,
+        Boolean(submissionAttachmentFile || currentSubmissionAttachmentFile),
+      );
   const defaultLeaveFlowSteps = useMemo<Workspace.TeacherTrainingLeaveFlowStep[]>(
     () => [],
     [],
@@ -2236,17 +2267,54 @@ export default function TeacherTrainingTab() {
       return;
     }
     const payload = await previewTeacherTrainingRandomGroups(selectedCohort.id, groupSize);
-    if (payload) setRandomGroupPreview(payload.groups);
+    if (payload) {
+      setRandomGroupPreview(payload.groups);
+      setRandomGroupLeaderDrafts({});
+    }
   };
 
   const confirmRandomGroups = async () => {
     if (!selectedCohort || randomGroupPreview.length === 0) return;
-    if (!window.confirm("确认保存当前随机分组？\n\n教师原有分组会更新，姓名、账号、签到和汇报数据不受影响。")) return;
+    if (
+      !window.confirm(
+        "确认用新的随机分组覆盖现有分组？\n\n原有分组和组长会被清空并重新排组，需重新指定组长。姓名、账号、签到和汇报数据不受影响。",
+      )
+    )
+      return;
     const saved = await saveTeacherTrainingRandomGroups(selectedCohort.id, randomGroupPreview);
     if (saved) {
+      // 分组已覆盖，若在预览里为某组选了组长，保存后一并写入，避免出现无组长或跨组组长。
+      for (const group of randomGroupPreview) {
+        const leaderId = randomGroupLeaderDrafts[group.name] || "";
+        if (leaderId && group.members.some((member) => member.id === leaderId)) {
+          await setTeacherTrainingGroupLeader(selectedCohort.id, group.name, leaderId);
+        }
+      }
       setRandomGroupPreview([]);
-      setRandomGroupPanelOpen(false);
+      setRandomGroupLeaderDrafts({});
+      setRandomRegroupOpen(false);
     }
+  };
+
+  const saveExistingGroupLeader = async (groupName: string) => {
+    if (!selectedCohort) return;
+    const leaderId = groupLeaderDrafts[groupName] || "";
+    if (!leaderId) {
+      setLoadError(`请先选择${groupName}组长`);
+      return;
+    }
+    const group = existingParticipantGroups.find((item) => item.name === groupName);
+    const nextLeaderName = group?.members.find((member) => member.id === leaderId)?.name ?? "所选教师";
+    const currentLeader = group?.members.find((member) => member.isGroupLeader);
+    if (currentLeader && currentLeader.id === leaderId) {
+      setLoadError(`${nextLeaderName}已是${groupName}组长`);
+      return;
+    }
+    const confirmMessage = currentLeader
+      ? `确认将${groupName}组长改为${nextLeaderName}？\n\n原组长${currentLeader.name}会被自动取消，改由新组长负责小组任务提交。`
+      : `确认将${nextLeaderName}设为${groupName}组长？\n\n该组小组任务将由组长提交。`;
+    if (!window.confirm(confirmMessage)) return;
+    await setTeacherTrainingGroupLeader(selectedCohort.id, groupName, leaderId);
   };
 
   const importParticipants = async () => {
@@ -3876,6 +3944,9 @@ export default function TeacherTrainingTab() {
       ? normalizeTeacherTrainingManagerIdentity(currentCohortManagerIdentity?.title) || "省培管理人员"
       : "省培教师";
   const teacherTrainingPortalUserName = currentUser?.name || currentUser?.username || "当前用户";
+  const teacherOwnGroupName = !canManage ? currentAccountParticipant?.groupName?.trim() ?? "" : "";
+  const teacherOwnIsGroupLeader = !canManage && Boolean(currentAccountParticipant?.isGroupLeader);
+  const teacherOwnGroupLabel = teacherOwnGroupName || "暂未分组";
   const teacherTrainingPortalCohortTitle = formatTeacherTrainingCohortTitle(selectedCohort?.title);
   const teacherTrainingPortalAnnouncements = announcements.slice(0, 5);
   const teacherTrainingPortalNotificationCount = todoItemCount;
@@ -4005,6 +4076,20 @@ export default function TeacherTrainingTab() {
           })}
         </nav>
         <div className="tt-portal-topuser">
+          {!canManage ? (
+            <span
+              className="inline-flex max-w-full shrink items-center gap-1 truncate rounded-full border border-blue-100 bg-blue-50 px-2.5 py-1 text-[11px] font-bold text-blue-700"
+              title={teacherOwnIsGroupLeader ? `${teacherOwnGroupLabel} · 组长` : teacherOwnGroupLabel}
+            >
+              <Users className="h-3.5 w-3.5 shrink-0" />
+              <span className="truncate">{teacherOwnGroupLabel}</span>
+              {teacherOwnIsGroupLeader ? (
+                <span className="shrink-0 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] font-bold text-amber-700">
+                  组长
+                </span>
+              ) : null}
+            </span>
+          ) : null}
           <button
             aria-label={`打开待办与通知，当前 ${teacherTrainingPortalNotificationCount} 条`}
             aria-haspopup="dialog"
@@ -4260,6 +4345,15 @@ export default function TeacherTrainingTab() {
                     <span className="tt-portal-kicker">江苏省职业院校教师培训服务系统</span>
                     <h3>{teacherTrainingPortalCohortTitle}</h3>
                     <div className="tt-portal-hero-meta">
+                      <span>
+                        <Users className="h-4 w-4" />
+                        我的分组：{teacherOwnGroupLabel}
+                        {teacherOwnIsGroupLeader ? (
+                          <span className="ml-1.5 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-700">
+                            组长
+                          </span>
+                        ) : null}
+                      </span>
                       <span>
                         <CalendarDays className="h-4 w-4" />
                         培训时间：{selectedCohort ? `${selectedCohort.startDate} 至 ${selectedCohort.endDate}` : "待发布"}
@@ -7313,6 +7407,20 @@ export default function TeacherTrainingTab() {
                     </p>
                   </div>
                 ) : null}
+                <div className="mt-4 flex flex-col gap-3 rounded-xl border border-blue-100 bg-white px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold text-slate-500">我的分组</p>
+                    <div className="mt-1 flex flex-wrap items-center gap-2">
+                      <span className="text-base font-bold text-slate-950">{teacherOwnGroupLabel}</span>
+                      {teacherOwnIsGroupLeader ? (
+                        <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-700">组长</span>
+                      ) : null}
+                    </div>
+                  </div>
+                  <p className="text-xs leading-5 text-slate-500 sm:max-w-[52%]">
+                    分组和组长由班主任统一安排，如需调整请联系班主任。
+                  </p>
+                </div>
                 <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50/70 px-3 py-2 text-xs leading-5 text-blue-700">
                   姓名、单位、手机号和职务已从导入名单带入，可按实际情况修改；保存后会同步到管理端参训教师列表。
                 </div>
@@ -7540,7 +7648,7 @@ export default function TeacherTrainingTab() {
                       type="button"
                     >
                       <Users className="h-4 w-4" />
-                      随机分组
+                      分组管理
                     </button>
                     <button
                       className="inline-flex h-9 items-center justify-center gap-2 rounded-lg border border-blue-100 bg-white px-3 text-xs font-semibold text-blue-700 transition hover:border-blue-200 hover:bg-blue-50"
@@ -7580,61 +7688,181 @@ export default function TeacherTrainingTab() {
                 </div>
 
                 {randomGroupPanelOpen ? (
-                  <div className="mt-4 rounded-xl border border-blue-100 bg-blue-50/40 p-4">
-                    <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
-                      <label className="w-full sm:max-w-52">
-                        <span className={teacherTrainingFieldLabelClassName}>每组人数</span>
-                        <input
-                          className={fieldClassName}
-                          {...fieldHint("随机分组每组人数")}
-                          max={20}
-                          min={2}
-                          onChange={(event) => setRandomGroupSize(event.target.value)}
-                          type="number"
-                          value={randomGroupSize}
-                        />
-                      </label>
-                      <div className="flex flex-wrap gap-2">
+                  <div className="mt-4 space-y-4">
+                    <div className="rounded-xl border border-blue-100 bg-white p-4">
+                      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                        <div className="min-w-0">
+                          <p className="text-sm font-bold text-slate-950">现有分组与组长</p>
+                          <p className="mt-1 text-xs leading-5 text-slate-500">
+                            在每个分组里指定一名组长，组长负责本组小组任务提交；更换组长后原组长自动取消。
+                          </p>
+                        </div>
+                        <span className="tt-pill w-fit shrink-0">{existingParticipantGroups.length} 组</span>
+                      </div>
+                      {existingParticipantGroups.length === 0 ? (
+                        <p className="mt-3 rounded-lg border border-slate-100 bg-slate-50 px-3 py-3 text-xs leading-5 text-slate-500">
+                          还没有分组。可在下方随机分组，或在教师档案里填写分组后再指定组长。
+                        </p>
+                      ) : (
+                        <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                          {existingParticipantGroups.map((group) => {
+                            const currentLeader = group.members.find((member) => member.isGroupLeader);
+                            const draftLeaderId = groupLeaderDrafts[group.name] ?? currentLeader?.id ?? "";
+                            const isLeaderDirty = draftLeaderId !== (currentLeader?.id ?? "");
+
+                            return (
+                              <section className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm" key={group.name}>
+                                <div className="flex items-center justify-between gap-2">
+                                  <p className="min-w-0 truncate text-sm font-bold text-slate-950">{group.name}</p>
+                                  <span className="tt-pill shrink-0">{group.members.length} 人</span>
+                                </div>
+                                <div className="mt-2 space-y-1.5">
+                                  {group.members.map((member) => (
+                                    <div
+                                      className="flex items-center justify-between gap-2 rounded-lg bg-slate-50 px-2.5 py-2"
+                                      key={member.id}
+                                    >
+                                      <div className="min-w-0">
+                                        <p className="truncate text-sm font-semibold text-slate-800">{member.name}</p>
+                                        <p className="truncate text-xs text-slate-500">{member.organization}</p>
+                                      </div>
+                                      {member.isGroupLeader ? (
+                                        <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-700">
+                                          组长
+                                        </span>
+                                      ) : null}
+                                    </div>
+                                  ))}
+                                </div>
+                                <label className="mt-3 block">
+                                  <span className={teacherTrainingFieldLabelClassName}>组长</span>
+                                  <select
+                                    className={fieldClassName}
+                                    {...fieldHint(`选择${group.name}组长`)}
+                                    onChange={(event) =>
+                                      setGroupLeaderDrafts((current) => ({ ...current, [group.name]: event.target.value }))
+                                    }
+                                    value={draftLeaderId}
+                                  >
+                                    <option value="">未指定组长</option>
+                                    {group.members.map((member) => (
+                                      <option key={member.id} value={member.id}>
+                                        {member.name}
+                                      </option>
+                                    ))}
+                                  </select>
+                                </label>
+                                <button
+                                  className="mt-2 inline-flex h-9 w-full items-center justify-center rounded-lg bg-blue-600 px-3 text-sm font-semibold text-white disabled:bg-slate-300"
+                                  disabled={isSaving || !draftLeaderId || !isLeaderDirty}
+                                  onClick={() => void saveExistingGroupLeader(group.name)}
+                                  type="button"
+                                >
+                                  {currentLeader ? "更换组长" : "设为组长"}
+                                </button>
+                              </section>
+                            );
+                          })}
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="rounded-xl border border-rose-100 bg-rose-50/40 p-4">
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                        <div className="min-w-0">
+                          <p className="text-sm font-bold text-rose-700">随机重新分组</p>
+                          <p className="mt-1 text-xs leading-5 text-rose-600">
+                            会覆盖现有分组并清空组长，保存后需重新指定组长。请谨慎操作。
+                          </p>
+                        </div>
                         <button
-                          className="inline-flex h-10 items-center rounded-lg border border-blue-200 bg-white px-4 text-sm font-semibold text-blue-700"
-                          disabled={isSaving || selectedCohort.participants.length < 2}
-                          onClick={() => void previewRandomGroups()}
+                          className="inline-flex h-9 w-fit shrink-0 items-center rounded-lg border border-rose-200 bg-white px-3 text-xs font-semibold text-rose-600"
+                          onClick={() => setRandomRegroupOpen((open) => !open)}
                           type="button"
                         >
-                          {randomGroupPreview.length ? "重新随机" : "生成分组预览"}
-                        </button>
-                        <button
-                          className="inline-flex h-10 items-center rounded-lg bg-blue-600 px-4 text-sm font-semibold text-white disabled:bg-slate-300"
-                          disabled={isSaving || randomGroupPreview.length === 0}
-                          onClick={() => void confirmRandomGroups()}
-                          type="button"
-                        >
-                          确认保存
+                          {randomRegroupOpen ? "收起" : "展开重新分组"}
                         </button>
                       </div>
-                    </div>
-                    {randomGroupPreview.length ? (
-                      <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                        {randomGroupPreview.map((group) => (
-                          <section className="rounded-xl border border-white bg-white p-3 shadow-sm" key={group.name}>
-                            <div className="flex items-center justify-between">
-                              <p className="text-sm font-bold text-slate-950">{group.name}</p>
-                              <span className="tt-pill">{group.members.length} 人</span>
+                      {randomRegroupOpen ? (
+                        <div className="mt-3 rounded-xl border border-white bg-white p-3">
+                          <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+                            <label className="w-full sm:max-w-52">
+                              <span className={teacherTrainingFieldLabelClassName}>每组人数</span>
+                              <input
+                                className={fieldClassName}
+                                {...fieldHint("随机分组每组人数")}
+                                max={20}
+                                min={2}
+                                onChange={(event) => setRandomGroupSize(event.target.value)}
+                                type="number"
+                                value={randomGroupSize}
+                              />
+                            </label>
+                            <div className="flex flex-wrap gap-2">
+                              <button
+                                className="inline-flex h-10 items-center rounded-lg border border-blue-200 bg-white px-4 text-sm font-semibold text-blue-700"
+                                disabled={isSaving || selectedCohort.participants.length < 2}
+                                onClick={() => void previewRandomGroups()}
+                                type="button"
+                              >
+                                {randomGroupPreview.length ? "重新随机" : "生成分组预览"}
+                              </button>
+                              <button
+                                className="inline-flex h-10 items-center rounded-lg bg-rose-600 px-4 text-sm font-semibold text-white disabled:bg-slate-300"
+                                disabled={isSaving || randomGroupPreview.length === 0}
+                                onClick={() => void confirmRandomGroups()}
+                                type="button"
+                              >
+                                确认覆盖保存
+                              </button>
                             </div>
-                            <div className="mt-2 space-y-1.5">
-                              {group.members.map((member) => (
-                                <div className="rounded-lg bg-slate-50 px-2.5 py-2" key={member.id}>
-                                  <p className="text-sm font-semibold text-slate-800">{member.name}</p>
-                                  <p className="truncate text-xs text-slate-500">{member.organization}</p>
-                                </div>
+                          </div>
+                          {randomGroupPreview.length ? (
+                            <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+                              {randomGroupPreview.map((group) => (
+                                <section className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm" key={group.name}>
+                                  <div className="flex items-center justify-between gap-2">
+                                    <p className="min-w-0 truncate text-sm font-bold text-slate-950">{group.name}</p>
+                                    <span className="tt-pill shrink-0">{group.members.length} 人</span>
+                                  </div>
+                                  <div className="mt-2 space-y-1.5">
+                                    {group.members.map((member) => (
+                                      <div className="rounded-lg bg-slate-50 px-2.5 py-2" key={member.id}>
+                                        <p className="truncate text-sm font-semibold text-slate-800">{member.name}</p>
+                                        <p className="truncate text-xs text-slate-500">{member.organization}</p>
+                                      </div>
+                                    ))}
+                                  </div>
+                                  <label className="mt-3 block">
+                                    <span className={teacherTrainingFieldLabelClassName}>组长（可选）</span>
+                                    <select
+                                      className={fieldClassName}
+                                      {...fieldHint(`选择${group.name}组长`)}
+                                      onChange={(event) =>
+                                        setRandomGroupLeaderDrafts((current) => ({
+                                          ...current,
+                                          [group.name]: event.target.value,
+                                        }))
+                                      }
+                                      value={randomGroupLeaderDrafts[group.name] ?? ""}
+                                    >
+                                      <option value="">保存后再指定</option>
+                                      {group.members.map((member) => (
+                                        <option key={member.id} value={member.id}>
+                                          {member.name}
+                                        </option>
+                                      ))}
+                                    </select>
+                                  </label>
+                                </section>
                               ))}
                             </div>
-                          </section>
-                        ))}
-                      </div>
-                    ) : (
-                      <p className="mt-3 text-xs text-slate-500">先生成预览，确认后才会更新教师分组。</p>
-                    )}
+                          ) : (
+                            <p className="mt-3 text-xs text-slate-500">先生成预览，确认后才会覆盖现有分组。</p>
+                          )}
+                        </div>
+                      ) : null}
+                    </div>
                   </div>
                 ) : null}
 
@@ -9049,6 +9277,65 @@ export default function TeacherTrainingTab() {
                         </div>
                       </div>
                     )}
+                    {teacherGroupTaskReadOnly ? (
+                      <div className="rounded-xl border border-blue-100 bg-blue-50/60 p-4">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-700">
+                            小组任务
+                          </span>
+                          <span className="text-sm font-bold text-slate-950">由本组组长提交</span>
+                        </div>
+                        <p className="mt-2 text-xs leading-5 text-slate-600">
+                          {teacherGroupTaskNoGroup
+                            ? "你尚未分组，请联系班主任安排分组后由组长提交。"
+                            : "本组小组任务统一由组长上传提交，你可以查看任务说明、截止时间和提交进度。"}
+                        </p>
+                        <div className="mt-3 space-y-2 rounded-lg border border-white bg-white p-3">
+                          <p className="text-sm font-semibold text-slate-900">{selectedTask?.title}</p>
+                          {selectedTask?.description ? (
+                            <p className="whitespace-pre-wrap text-xs leading-5 text-slate-600">
+                              {selectedTask.description}
+                            </p>
+                          ) : null}
+                          <div className="flex flex-wrap gap-2 text-[11px] font-semibold">
+                            {selectedTask?.dueDate ? (
+                              <span className="rounded-full bg-slate-100 px-2 py-0.5 text-slate-600">
+                                截止 {selectedTask.dueDate}
+                              </span>
+                            ) : null}
+                            <span
+                              className={`rounded-full px-2 py-0.5 ${
+                                selectedSubmission ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"
+                              }`}
+                            >
+                              {selectedSubmission
+                                ? `已由组长提交 · ${selectedSubmission.submittedByName}`
+                                : "本组暂未提交"}
+                            </span>
+                          </div>
+                          {selectedSubmission?.attachmentFile ? (
+                            <button
+                              className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-2.5 text-xs font-semibold text-blue-700 disabled:cursor-wait disabled:opacity-60"
+                              disabled={downloadingTeacherTrainingFile === selectedSubmission.attachmentFile.downloadUrl}
+                              onClick={() =>
+                                void downloadTeacherTrainingFile({
+                                  url: selectedSubmission.attachmentFile!.downloadUrl,
+                                  label: "小组任务附件",
+                                  fallbackName: selectedSubmission.attachmentFile!.fileName,
+                                })
+                              }
+                              type="button"
+                            >
+                              <Download className="h-3.5 w-3.5" />
+                              下载已提交附件
+                            </button>
+                          ) : (
+                            <p className="text-xs text-slate-500">组长提交后，这里可以查看和下载已提交附件。</p>
+                          )}
+                        </div>
+                      </div>
+                    ) : (
+                    <>
                     <div className={teacherTrainingFieldShellClassName}>
                       <span className={teacherTrainingFieldLabelClassName}>省培任务汇报附件</span>
                       <label className="mt-1.5 flex min-h-[112px] cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-blue-200 bg-blue-50/35 px-4 py-4 text-center transition hover:border-blue-300 hover:bg-blue-50/70">
@@ -9241,6 +9528,8 @@ export default function TeacherTrainingTab() {
                         {submissionDisabledReason}
                       </p>
                     ) : null}
+                    </>
+                    )}
                   </div>
                 </div>
                 ) : null}
@@ -9375,9 +9664,12 @@ export default function TeacherTrainingTab() {
                     filteredSubmissionTasks
                       .filter((task) => !canManage || task.id === activeSubmissionTask?.id)
                       .map((task) => {
-                      const teacherSubmission = task.submissions.find(
-                        (submission) => submission.participantId === selectedParticipant?.id,
-                      );
+                      const teacherSubmission =
+                        task.taskType === "group"
+                          ? task.submissions[0]
+                          : task.submissions.find(
+                              (submission) => submission.participantId === selectedParticipant?.id,
+                            );
                       const visibleSubmissions = getVisibleTaskSubmissions(task);
                       const rankedSubmissions = canManage
                         ? [...task.submissions]
@@ -9486,26 +9778,38 @@ export default function TeacherTrainingTab() {
                             ) : null}
                           </div>
                         </div>
-                        {!canManage ? (
+                        {!canManage ? (() => {
+                          const isGroupMemberView =
+                            task.taskType === "group" && !Boolean(currentAccountParticipant?.isGroupLeader);
+                          const cardHint = isGroupMemberView
+                            ? teacherSubmission
+                              ? `组长已提交：${teacherSubmission.submittedAt}`
+                              : "小组任务由本组组长提交，可点击查看任务详情。"
+                            : teacherSubmission
+                              ? `已提交：${teacherSubmission.submittedAt}`
+                              : "这项任务还没有提交，请上传 Word 或 PDF 汇报后保存。";
+                          const cardAction = isGroupMemberView
+                            ? "查看小组任务"
+                            : teacherSubmission
+                              ? "更新汇报"
+                              : "继续填写汇报";
+                          return (
                           <div className="mt-3 rounded-xl border border-blue-100 bg-blue-50/60 px-3 py-2">
                             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                              <p className="text-xs leading-5 text-slate-600">
-                                {teacherSubmission
-                                  ? `已提交：${teacherSubmission.submittedAt}`
-                                  : "这项任务还没有提交，请上传 Word 或 PDF 汇报后保存。"}
-                              </p>
+                              <p className="text-xs leading-5 text-slate-600">{cardHint}</p>
                               <button
-                                aria-label={`${teacherSubmission ? "更新" : "继续填写"}${task.title}省培任务汇报`}
+                                aria-label={`${cardAction}${task.title}`}
                                 className="inline-flex h-8 w-full items-center justify-center rounded-lg bg-white px-3 text-xs font-bold text-blue-700 shadow-sm transition hover:bg-blue-100 sm:w-auto"
                                 onClick={() => focusTeacherTaskSubmission(task.id)}
-                                title={`${teacherSubmission ? "更新" : "继续填写"}${task.title}省培任务汇报`}
+                                title={`${cardAction}${task.title}`}
                                 type="button"
                               >
-                                {teacherSubmission ? "更新汇报" : "继续填写汇报"}
+                                {cardAction}
                               </button>
                             </div>
                           </div>
-                        ) : null}
+                          );
+                        })() : null}
                         {canManage && rankedSubmissions.length > 0 ? (
                           <div className="mt-3 rounded-xl border border-blue-100 bg-blue-50/55 px-3 py-2">
                             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
@@ -9551,6 +9855,42 @@ export default function TeacherTrainingTab() {
                                         ) : null}
                                       </div>
                                       <p className="mt-1 text-xs text-slate-500">提交时间：{submission.submittedAt}</p>
+                                      {canManage && task.taskType === "group"
+                                        ? (() => {
+                                            const groupName = participant?.groupName?.trim() ?? "";
+                                            const groupMembers = groupName
+                                              ? selectedCohort.participants.filter(
+                                                  (item) => item.groupName?.trim() === groupName,
+                                                )
+                                              : [];
+                                            const groupLeader = groupMembers.find((item) => item.isGroupLeader);
+                                            return (
+                                              <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-slate-500">
+                                                <span>
+                                                  组名：
+                                                  <strong className="font-semibold text-slate-700">
+                                                    {groupName || "未分组"}
+                                                  </strong>
+                                                </span>
+                                                <span>
+                                                  组长：
+                                                  <strong className="font-semibold text-slate-700">
+                                                    {groupLeader?.name ?? "未指定"}
+                                                  </strong>
+                                                </span>
+                                                <span>
+                                                  提交人：
+                                                  <strong className="font-semibold text-slate-700">
+                                                    {submission.submittedByName}
+                                                  </strong>
+                                                </span>
+                                                <span className="w-full break-words">
+                                                  组员：{groupMembers.map((item) => item.name).join("、") || "—"}
+                                                </span>
+                                              </div>
+                                            );
+                                          })()
+                                        : null}
                                       <p className="mt-2 text-xs leading-5 text-slate-500">
                                         {attachmentFile?.fileName ?? submission.attachmentLabel ?? "未上传附件"}
                                       </p>

@@ -347,6 +347,7 @@ export type TeacherTrainingParticipantItem = {
   organization: string;
   phone: string;
   groupName: string;
+  isGroupLeader: boolean;
   title: string;
   email: string;
   gender: string;
@@ -501,6 +502,7 @@ const participantPersonnelCategoryPattern = /^(?:人员类别|人员类型|教�
 const participantSubjectPattern = /^(?:学科|专业学科|任教学科)\s*[：:]\s*(.*)$/;
 const participantProfessionalTitlePattern = /^(?:职称|专业技术职称|教师职称)\s*[：:]\s*(.*)$/;
 const participantCityPattern = /^(?:所属市|地市|所在市|城市)\s*[：:]\s*(.*)$/;
+const participantGroupLeaderPattern = /^小组组长\s*[：:]\s*(是|否)$/;
 const participantArrivalTransportationPattern = /^(?:交通方式|到达交通方式|预计到达交通方式)\s*[：:]\s*(.*)$/;
 const participantArrivalAtPattern = /^(?:预计到达时间|预计报到时间|到达时间|报到时间)\s*[：:]\s*(.*)$/;
 const participantArrivalVehicleNoPattern = /^(?:车次\/航班\/车牌|车次|航班|车牌|班次)\s*[：:]\s*(.*)$/;
@@ -518,6 +520,7 @@ const participantStructuredExtraPatterns = [
   participantSubjectPattern,
   participantProfessionalTitlePattern,
   participantCityPattern,
+  participantGroupLeaderPattern,
   participantArrivalTransportationPattern,
   participantArrivalAtPattern,
   participantArrivalVehicleNoPattern,
@@ -654,6 +657,7 @@ export const parseTeacherTrainingParticipantExtraInfo = (value?: string | null) 
   let subject = "";
   let professionalTitle = "";
   let city = "";
+  let isGroupLeader = false;
   const arrivalInfo = parseTeacherTrainingArrivalInfo(value);
 
   for (const rawLine of (value ?? "").split(/\r?\n/)) {
@@ -705,10 +709,16 @@ export const parseTeacherTrainingParticipantExtraInfo = (value?: string | null) 
     const cityMatch = line.match(participantCityPattern);
     if (cityMatch) {
       city = cityMatch[1]?.trim() ?? "";
+      continue;
+    }
+
+    const groupLeaderMatch = line.match(participantGroupLeaderPattern);
+    if (groupLeaderMatch) {
+      isGroupLeader = groupLeaderMatch[1] === "是";
     }
   }
 
-  return { title, email, gender, age, personnelCategory, subject, professionalTitle, city, arrivalInfo };
+  return { title, email, gender, age, personnelCategory, subject, professionalTitle, city, isGroupLeader, arrivalInfo };
 };
 
 export const mergeTeacherTrainingParticipantExtraInfo = (
@@ -722,6 +732,7 @@ export const mergeTeacherTrainingParticipantExtraInfo = (
     subject?: string | null;
     professionalTitle?: string | null;
     city?: string | null;
+    isGroupLeader?: boolean;
     arrivalTransportation?: string | null;
     arrivalAt?: string | null;
     arrivalVehicleNo?: string | null;
@@ -739,6 +750,7 @@ export const mergeTeacherTrainingParticipantExtraInfo = (
   const professionalTitle =
     fields.professionalTitle === undefined ? existing.professionalTitle : fields.professionalTitle?.trim() ?? "";
   const city = fields.city === undefined ? existing.city : fields.city?.trim() ?? "";
+  const isGroupLeader = fields.isGroupLeader === undefined ? existing.isGroupLeader : fields.isGroupLeader;
   const arrivalTransportation =
     fields.arrivalTransportation === undefined
       ? existing.arrivalInfo.transportation
@@ -763,6 +775,7 @@ export const mergeTeacherTrainingParticipantExtraInfo = (
     subject ? `学科：${subject}` : "",
     professionalTitle ? `职称：${professionalTitle}` : "",
     city ? `所属市：${city}` : "",
+    isGroupLeader ? "小组组长：是" : "",
     arrivalAt ? `预计到达时间：${arrivalAt}` : "",
     arrivalTransportation ? `交通方式：${getTeacherTrainingArrivalTransportationLabel(`${arrivalTransportation}`)}` : "",
     arrivalVehicleNo ? `车次/航班/车牌：${arrivalVehicleNo}` : "",
@@ -1660,6 +1673,7 @@ export const serializeTeacherTrainingCohort = (
       organization: participant.organization,
       phone: participant.phone ?? "",
       groupName: participant.groupName ?? "",
+      isGroupLeader: profileExtra.isGroupLeader,
       title: profileExtra.title,
       email: profileExtra.email,
       gender: profileExtra.gender,

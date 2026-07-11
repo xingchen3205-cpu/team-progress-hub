@@ -10,7 +10,7 @@ import {
   validateTeacherTrainingSubmissionAttachmentMeta,
 } from "@/lib/teacher-training-submission-attachments";
 import { hasTeacherTrainingCohortManageAccess } from "@/lib/teacher-training-access";
-import { isTeacherTrainingTaskReleased } from "@/lib/teacher-training";
+import { isTeacherTrainingTaskReleased, parseTeacherTrainingParticipantExtraInfo } from "@/lib/teacher-training";
 import { buildStoredObjectKey } from "@/lib/uploads";
 
 export const runtime = "nodejs";
@@ -59,6 +59,7 @@ export async function POST(request: NextRequest) {
     },
     select: {
       cohortId: true,
+      taskType: true,
       releaseMode: true,
       releaseAt: true,
       courseSession: {
@@ -84,10 +85,16 @@ export async function POST(request: NextRequest) {
       cohortId: task.cohortId,
       ...(canManageCohort ? {} : { accountUserId: user.id }),
     },
-    select: { id: true },
+    select: { id: true, groupName: true, extraInfo: true },
   });
   if (!participant) {
     return NextResponse.json({ message: "任务和参训教师不属于同一班次或当前账号无权提交" }, { status: 400 });
+  }
+  if (task.taskType === "group" && !participant.groupName?.trim()) {
+    return NextResponse.json({ message: "你尚未分组，请联系班主任后再提交小组任务" }, { status: 400 });
+  }
+  if (task.taskType === "group" && !parseTeacherTrainingParticipantExtraInfo(participant.extraInfo).isGroupLeader) {
+    return NextResponse.json({ message: "小组任务仅限本组组长上传和提交" }, { status: 403 });
   }
 
   const { objectKey } = buildStoredObjectKey({

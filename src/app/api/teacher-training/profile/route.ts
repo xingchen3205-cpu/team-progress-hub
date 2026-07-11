@@ -36,7 +36,6 @@ export async function PATCH(request: NextRequest) {
   const name = body?.name?.trim();
   const organization = body?.organization?.trim();
   const phone = body?.phone?.trim() || "";
-  const groupName = body?.groupName?.trim() || "";
   const title = body?.title?.trim() || "";
   const email = body?.email?.trim() || "";
   const arrivalTransportation = body?.arrivalTransportation?.trim() || "";
@@ -147,7 +146,7 @@ export async function PATCH(request: NextRequest) {
         name,
         organization,
         phone,
-        groupName,
+        // 分组与组长由班主任统一安排，教师本人不能自行修改，这里保留原有分组。
         extraInfo: mergeTeacherTrainingParticipantExtraInfo(participant.extraInfo, {
           title,
           email,
