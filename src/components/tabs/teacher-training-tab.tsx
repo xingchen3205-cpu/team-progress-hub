@@ -936,6 +936,9 @@ export default function TeacherTrainingTab() {
     deleteTeacherTrainingTasks,
     saveTeacherTrainingSubmission,
     reviewTeacherTrainingSubmission,
+    rejectTeacherTrainingSubmission,
+    teacherTrainingFocusTaskId,
+    setTeacherTrainingFocusTaskId,
     runTeacherTrainingTaskAiReview,
     updateTeacherTrainingProfile,
     loadTeacherTrainingCohortDetails,
@@ -974,6 +977,7 @@ export default function TeacherTrainingTab() {
     SectionHeader,
     Send,
     Trash2,
+    Undo2,
     Upload,
     User,
     Users,
@@ -1153,6 +1157,14 @@ export default function TeacherTrainingTab() {
   });
   const [taskDraft, setTaskDraft] = useState<Workspace.TeacherTrainingTaskDraft>(createDefaultTaskDraft);
   const [taskFormOpen, setTaskFormOpen] = useState(false);
+  const [rejectingSubmission, setRejectingSubmission] = useState<{
+    submission: Workspace.TeacherTrainingSubmissionItem;
+    taskTitle: string;
+    isGroup: boolean;
+    groupName: string;
+    leaderName: string;
+  } | null>(null);
+  const [rejectReasonDraft, setRejectReasonDraft] = useState("");
   const [submissionReviewDrafts, setSubmissionReviewDrafts] = useState<
     Record<string, { finalScore: string; finalComment: string }>
   >({});
@@ -1663,35 +1675,79 @@ export default function TeacherTrainingTab() {
     filteredCheckInTasks.find((task) => task.id === activeCheckInTaskId) ?? filteredCheckInTasks[0] ?? null;
   const teacherReleasedTasks = (selectedCohort?.tasks ?? []).filter((task) => task.isReleased);
   const teacherWaitingReleaseTasks = (selectedCohort?.tasks ?? []).filter((task) => !task.isReleased);
-  const teacherSubmittedTaskIds = new Set(
-    teacherReleasedTasks
-      .filter((task) =>
-        task.taskType === "group"
-          ? task.submissions.length > 0
-          : task.submissions.some((submission) => submission.participantId === selectedParticipant?.id),
-      )
-      .map((task) => task.id),
-  );
-  const teacherPendingTaskCount =
-    !canManage && selectedCohort
-      ? teacherReleasedTasks.filter((task) => !teacherSubmittedTaskIds.has(task.id)).length
-      : 0;
-  const teacherTaskProgressItems = teacherReleasedTasks.map((task) => {
-    const submission =
-      (task.taskType === "group"
-        ? task.submissions[0]
-        : task.submissions.find((item) => item.participantId === selectedParticipant?.id)) ?? null;
-
-    return {
-      id: task.id,
-      title: task.title,
-      dueDate: task.dueDate,
-      releaseStatusLabel: task.releaseStatusLabel,
-      isComplete: Boolean(submission),
-      statusLabel: submission ? "任务已提交" : "任务待提交",
-      submittedAt: submission?.submittedAt ?? "",
-    };
-  });
+  // 教师端只统计当前登录教师本人（普通任务=本人提交；小组任务=本人所在小组的提交）。
+  // 教师接口只返回本人及本组的提交，小组任务的 submissions 已被后端按本组过滤，故取其一即可。
+  const myGroupName = !canManage ? selectedParticipant?.groupName?.trim() ?? "" : "";
+  const getTeacherTaskSubmission = (task: Workspace.TeacherTrainingTaskItem) => {
+    if (task.isGroupTask) {
+      if (!myGroupName) return null;
+      return task.submissions[0] ?? null;
+    }
+    return task.submissions.find((submission) => submission.participantId === selectedParticipant?.id) ?? null;
+  };
+  const myGroupHasLeader =
+    !canManage && myGroupName
+      ? Boolean(selectedCohort?.currentParticipantGroupHasLeader)
+      : false;
+  const getTeacherTaskPersonalState = (task: Workspace.TeacherTrainingTaskItem) => {
+    const submission = getTeacherTaskSubmission(task);
+    const isRejected = submission?.isRejected ?? false;
+    const isSubmitted = Boolean(submission) && !isRejected;
+    let statusLabel: string;
+    let tone: "emerald" | "amber" | "rose" | "slate";
+    if (task.isGroupTask) {
+      if (isSubmitted) {
+        statusLabel = "本组已提交";
+        tone = "emerald";
+      } else if (isRejected) {
+        statusLabel = "本组汇报已驳回";
+        tone = "rose";
+      } else if (!myGroupHasLeader) {
+        statusLabel = "本组未指定组长";
+        tone = "slate";
+      } else if (task.isPastDue) {
+        statusLabel = "已截止，未提交";
+        tone = "slate";
+      } else {
+        statusLabel = "待组长提交";
+        tone = "amber";
+      }
+    } else if (isRejected) {
+      statusLabel = "已驳回，待重新提交";
+      tone = "rose";
+    } else if (isSubmitted && submission?.finalScore !== null && submission?.finalScore !== undefined) {
+      statusLabel = "已确认评分";
+      tone = "emerald";
+    } else if (isSubmitted) {
+      statusLabel = "已提交，待审核";
+      tone = "emerald";
+    } else if (task.isPastDue) {
+      statusLabel = "已截止，未提交";
+      tone = "slate";
+    } else {
+      statusLabel = "未提交";
+      tone = "amber";
+    }
+    return { submission, isRejected, isSubmitted, statusLabel, tone };
+  };
+  const teacherTaskPersonalStates = teacherReleasedTasks.map((task) => ({
+    task,
+    ...getTeacherTaskPersonalState(task),
+  }));
+  const teacherSubmittedTaskCount = teacherTaskPersonalStates.filter((item) => item.isSubmitted).length;
+  const teacherRejectedTaskCount = teacherTaskPersonalStates.filter((item) => item.isRejected).length;
+  // 待提交 = 已开放任务中本人未有效提交的（含未提交与被驳回），不用全班人数相减。
+  const teacherPendingTaskCount = !canManage ? teacherReleasedTasks.length - teacherSubmittedTaskCount : 0;
+  const teacherAllTaskCount = teacherReleasedTasks.length;
+  const teacherTaskProgressItems = teacherTaskPersonalStates.map(({ task, isSubmitted, statusLabel, submission }) => ({
+    id: task.id,
+    title: task.title,
+    dueLabel: task.dueLabel,
+    releaseStatusLabel: task.releaseStatusLabel,
+    isComplete: isSubmitted,
+    statusLabel,
+    submittedAt: submission?.submittedAt ?? "",
+  }));
   const teacherTaskCompletedCount = teacherTaskProgressItems.filter((item) => item.isComplete).length;
   const teacherTaskCompletionPercent = Math.round(
     (teacherTaskCompletedCount / Math.max(1, teacherTaskProgressItems.length)) * 100,
@@ -2660,7 +2716,8 @@ export default function TeacherTrainingTab() {
       courseSessionId: task.courseSessionId ?? "",
       title: task.title,
       description: task.description,
-      dueDate: task.dueDate ?? "",
+      // 旧的纯日期截止在 datetime-local 中回显为当天 23:59；除非管理员保存否则不改写原数据。
+      dueDate: task.dueDateInputValue ?? "",
       taskType: task.taskType,
       releaseMode: task.releaseMode,
       releaseAt: task.releaseAt,
@@ -2930,6 +2987,37 @@ export default function TeacherTrainingTab() {
       finalScore: draft.finalScore,
       finalComment: draft.finalComment,
     });
+  };
+
+  const openRejectSubmission = (
+    submission: Workspace.TeacherTrainingSubmissionItem,
+    task: Workspace.TeacherTrainingTaskItem,
+  ) => {
+    const participant = participantById.get(submission.participantId);
+    const groupName = participant?.groupName?.trim() ?? "";
+    const leader =
+      task.isGroupTask && groupName
+        ? (selectedCohort?.participants ?? []).find(
+            (item) => item.groupName?.trim() === groupName && item.isGroupLeader,
+          )
+        : null;
+    setRejectReasonDraft("");
+    setRejectingSubmission({
+      submission,
+      taskTitle: task.title,
+      isGroup: task.isGroupTask,
+      groupName,
+      leaderName: leader?.name ?? "",
+    });
+  };
+
+  const confirmRejectSubmission = async () => {
+    if (!rejectingSubmission) return;
+    const ok = await rejectTeacherTrainingSubmission(rejectingSubmission.submission.id, rejectReasonDraft);
+    if (ok) {
+      setRejectingSubmission(null);
+      setRejectReasonDraft("");
+    }
   };
 
   const updateProfileDraftField = <K extends keyof Workspace.TeacherTrainingProfileDraft>(
@@ -3802,11 +3890,6 @@ export default function TeacherTrainingTab() {
         task.records.some((record) => record.participantId === selectedParticipantId),
       ).length ?? 0
     : 0;
-  const teacherSubmittedTaskCount = selectedParticipantId
-    ? selectedCohort?.tasks.filter((task) =>
-        task.submissions.some((submission) => submission.participantId === selectedParticipantId),
-      ).length ?? 0
-    : 0;
   const teacherPortalDataItems: Array<{
     label: string;
     value: string;
@@ -3938,6 +4021,16 @@ export default function TeacherTrainingTab() {
       });
     });
   };
+  // 从"任务汇报被驳回"通知进入时，定位到对应任务并打开重新提交区。
+  useEffect(() => {
+    if (!teacherTrainingFocusTaskId || canManage) return;
+    const targetTask = (selectedCohort?.tasks ?? []).find((task) => task.id === teacherTrainingFocusTaskId);
+    if (!targetTask) return;
+    openTeacherTrainingSection("tasks");
+    window.requestAnimationFrame(() => focusTeacherTaskSubmission(teacherTrainingFocusTaskId));
+    setTeacherTrainingFocusTaskId("");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [teacherTrainingFocusTaskId, selectedCohort?.tasks]);
   const ActiveTeacherTrainingIcon = activeTeacherTrainingSectionMeta?.Icon ?? ClipboardCheck;
   const showTeacherTrainingSection = (...keys: Workspace.TeacherTrainingSectionKey[]) =>
     keys.includes(effectiveTeacherTrainingSection);
@@ -4249,6 +4342,69 @@ export default function TeacherTrainingTab() {
                 variant="primary"
               >
                 提交反馈
+              </ActionButton>
+            </ModalActions>
+          </div>
+        </Modal>
+      ) : null}
+      {rejectingSubmission ? (
+        <Modal
+          onClose={() => setRejectingSubmission(null)}
+          panelClassName="max-w-[min(92vw,560px)]"
+          title="驳回该份汇报？"
+        >
+          <div className="space-y-4">
+            <div className="rounded-xl border border-slate-100 bg-slate-50 px-4 py-3 text-sm leading-6 text-slate-600">
+              <p>任务名称：<span className="font-semibold text-slate-900">{rejectingSubmission.taskTitle}</span></p>
+              {rejectingSubmission.isGroup ? (
+                <p className="mt-1">
+                  提交分组：
+                  <span className="font-semibold text-slate-900">{rejectingSubmission.groupName || "未分组"}</span>
+                  {rejectingSubmission.leaderName ? `（组长 ${rejectingSubmission.leaderName}）` : "（未指定组长）"}
+                </p>
+              ) : (
+                <p className="mt-1">
+                  提交教师：<span className="font-semibold text-slate-900">{rejectingSubmission.submission.participantName}</span>
+                </p>
+              )}
+              <p className="mt-1">
+                提交人：<span className="font-semibold text-slate-900">{rejectingSubmission.submission.submittedByName}</span>
+              </p>
+              <p className="mt-1 break-words">
+                当前附件：
+                <span className="font-semibold text-slate-900">
+                  {rejectingSubmission.submission.attachmentFile?.fileName ||
+                    rejectingSubmission.submission.attachmentLabel ||
+                    "无附件"}
+                </span>
+              </p>
+              <p className="mt-1">提交时间：{rejectingSubmission.submission.submittedAt || "—"}</p>
+            </div>
+            <label className="block text-sm font-semibold text-slate-600">
+              驳回原因 <span className="text-red-500">*</span>
+              <textarea
+                className={`${textareaClassName} mt-1`}
+                {...fieldHint("驳回原因")}
+                maxLength={500}
+                onChange={(event) => setRejectReasonDraft(event.target.value)}
+                placeholder="例如：附件内容与任务要求不符，请补充小组分工及实施计划后重新提交。"
+                value={rejectReasonDraft}
+              />
+              <span className="mt-1 block text-[11px] font-medium text-slate-400">2 至 500 字，提交人会收到通知。</span>
+            </label>
+            <p className="rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-700">
+              仅退回本次汇报，不会删除任务。提交人将收到通知，并可重新上传附件。
+            </p>
+            <ModalActions>
+              <ActionButton onClick={() => setRejectingSubmission(null)}>取消</ActionButton>
+              <ActionButton
+                disabled={rejectReasonDraft.trim().length < 2}
+                loading={isSaving}
+                loadingLabel="驳回中"
+                onClick={() => void confirmRejectSubmission()}
+                variant="danger"
+              >
+                确认驳回
               </ActionButton>
             </ModalActions>
           </div>
@@ -9055,12 +9211,12 @@ export default function TeacherTrainingTab() {
                           />
                         </label>
                         <label className={teacherTrainingFieldShellClassName}>
-                          <span className={teacherTrainingFieldLabelClassName}>省培任务截止日期</span>
+                          <span className={teacherTrainingFieldLabelClassName}>省培任务截止时间</span>
                           <input
                             className={fieldClassName}
-                            {...fieldHint("省培任务截止日期")}
+                            {...fieldHint("省培任务截止时间")}
                             onChange={(event) => setTaskDraft((current) => ({ ...current, dueDate: event.target.value }))}
-                            type="date"
+                            type="datetime-local"
                             value={taskDraft.dueDate}
                           />
                         </label>
@@ -9244,6 +9400,24 @@ export default function TeacherTrainingTab() {
                         style={{ width: `${teacherTaskCompletionPercent}%` }}
                       />
                     </div>
+                    <div className="mt-4 grid grid-cols-2 gap-2 sm:grid-cols-4">
+                      <div className="rounded-xl border border-slate-100 bg-white px-3 py-2 text-center">
+                        <p className="text-lg font-black text-slate-950">{teacherAllTaskCount}</p>
+                        <p className="mt-0.5 text-[11px] font-semibold text-slate-500">全部任务</p>
+                      </div>
+                      <div className="rounded-xl border border-amber-100 bg-amber-50 px-3 py-2 text-center">
+                        <p className="text-lg font-black text-amber-700">{teacherPendingTaskCount}</p>
+                        <p className="mt-0.5 text-[11px] font-semibold text-amber-700">待提交</p>
+                      </div>
+                      <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-center">
+                        <p className="text-lg font-black text-emerald-700">{teacherSubmittedTaskCount}</p>
+                        <p className="mt-0.5 text-[11px] font-semibold text-emerald-700">已提交</p>
+                      </div>
+                      <div className="rounded-xl border border-rose-100 bg-rose-50 px-3 py-2 text-center">
+                        <p className="text-lg font-black text-rose-700">{teacherRejectedTaskCount}</p>
+                        <p className="mt-0.5 text-[11px] font-semibold text-rose-700">被驳回</p>
+                      </div>
+                    </div>
                     <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
                       {teacherTaskProgressItems.length === 0 ? (
                         <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-3 text-sm font-semibold text-slate-500">
@@ -9266,8 +9440,8 @@ export default function TeacherTrainingTab() {
                             <span className="mt-1 block text-xs font-semibold">{item.statusLabel}</span>
                             {item.submittedAt ? (
                               <span className="mt-1 block text-[11px] font-medium text-slate-500">{item.submittedAt}</span>
-                            ) : item.dueDate ? (
-                              <span className="mt-1 block text-[11px] font-medium text-slate-500">截止 {item.dueDate}</span>
+                            ) : item.dueLabel ? (
+                              <span className="mt-1 block text-[11px] font-medium text-slate-500">截止 {item.dueLabel}</span>
                             ) : null}
                           </button>
                         ))
@@ -9311,6 +9485,54 @@ export default function TeacherTrainingTab() {
                         ))}
                       </select>
                     </label>
+                    {!canManage && selectedTask ? (() => {
+                      const personalState = getTeacherTaskPersonalState(selectedTask);
+                      return (
+                        <div className="rounded-xl border border-slate-200 bg-white p-4">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-bold text-slate-600">
+                              {selectedTask.taskTypeLabel}
+                            </span>
+                            <span
+                              className={`rounded-full px-2 py-0.5 text-[11px] font-bold ${
+                                personalState.tone === "emerald"
+                                  ? "bg-emerald-50 text-emerald-700"
+                                  : personalState.tone === "rose"
+                                    ? "bg-rose-50 text-rose-700"
+                                    : personalState.tone === "amber"
+                                      ? "bg-amber-50 text-amber-700"
+                                      : "bg-slate-100 text-slate-500"
+                              }`}
+                            >
+                              {personalState.statusLabel}
+                            </span>
+                          </div>
+                          <p className="mt-2 text-base font-bold text-slate-950">{selectedTask.title}</p>
+                          <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-700">
+                            {selectedTask.description || "暂无任务说明"}
+                          </p>
+                          <div className="mt-3 grid gap-1.5 text-xs text-slate-500 sm:grid-cols-2">
+                            <p>开放时间：{selectedTask.isReleased ? "已开放" : selectedTask.availableAtLabel || "待发布"}</p>
+                            <p>截止时间：{selectedTask.dueLabel ? selectedTask.dueLabel : "无截止时间"}</p>
+                            {selectedTask.courseTitle ? (
+                              <p className="break-words">
+                                关联课程：{selectedTask.courseDate} {selectedTask.courseTitle}
+                              </p>
+                            ) : null}
+                            <p>附件要求：需上传 Word 或 PDF 附件</p>
+                          </div>
+                          {personalState.isRejected && personalState.submission ? (
+                            <p className="mt-3 break-words rounded-lg border border-rose-100 bg-rose-50 px-3 py-2 text-xs leading-5 text-rose-700">
+                              汇报已驳回，请重新提交。驳回原因：{personalState.submission.rejectionReason || "—"}
+                              {personalState.submission.rejectedByName
+                                ? ` · 驳回人 ${personalState.submission.rejectedByName}`
+                                : ""}
+                              {personalState.submission.rejectedAt ? ` · ${personalState.submission.rejectedAt}` : ""}
+                            </p>
+                          ) : null}
+                        </div>
+                      );
+                    })() : null}
                     {canManage ? (
                       <label className={teacherTrainingFieldShellClassName}>
                         <span className={teacherTrainingFieldLabelClassName}>选择省培汇报教师</span>
@@ -9365,9 +9587,9 @@ export default function TeacherTrainingTab() {
                             </p>
                           ) : null}
                           <div className="flex flex-wrap gap-2 text-[11px] font-semibold">
-                            {selectedTask?.dueDate ? (
+                            {selectedTask?.dueLabel ? (
                               <span className="rounded-full bg-slate-100 px-2 py-0.5 text-slate-600">
-                                截止 {selectedTask.dueDate}
+                                截止 {selectedTask.dueLabel}
                               </span>
                             ) : null}
                             <span
@@ -9710,7 +9932,7 @@ export default function TeacherTrainingTab() {
                         >
                           <div className="flex items-center justify-between gap-2">
                             <span className="truncate text-sm font-bold text-slate-900">{task.title}</span>
-                            <span className="tt-pill shrink-0">{task.submissions.length}/{selectedCohort.participants.length} 份</span>
+                            <span className="tt-pill shrink-0">{task.completionLabel}</span>
                           </div>
                           <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500">
                             {task.description || "暂无任务说明"}
@@ -9731,12 +9953,8 @@ export default function TeacherTrainingTab() {
                     filteredSubmissionTasks
                       .filter((task) => !canManage || task.id === activeSubmissionTask?.id)
                       .map((task) => {
-                      const teacherSubmission =
-                        task.taskType === "group"
-                          ? task.submissions[0]
-                          : task.submissions.find(
-                              (submission) => submission.participantId === selectedParticipant?.id,
-                            );
+                      const teacherPersonalState = canManage ? null : getTeacherTaskPersonalState(task);
+                      const teacherSubmission = teacherPersonalState?.submission ?? null;
                       const visibleSubmissions = getVisibleTaskSubmissions(task);
                       const rankedSubmissions = canManage
                         ? [...task.submissions]
@@ -9797,7 +10015,7 @@ export default function TeacherTrainingTab() {
                               }`}
                             >
                               {canManage
-                                ? `${task.submissions.length}/${selectedCohort.participants.length} 份`
+                                ? task.completionLabel
                                 : teacherSubmission
                                   ? "已提交"
                                   : "待提交"}
@@ -9811,7 +10029,7 @@ export default function TeacherTrainingTab() {
                                     onClick={() => {
                                       if (
                                         !window.confirm(
-                                          `确认对“${task.title}”的 ${task.submissions.length} 份汇报生成 DeepSeek AI 初评？\n\n系统会读取 Word/PDF 正文；AI 初评不会覆盖人工最终得分。`,
+                                          `确认对“${task.title}”的 ${task.completionSubmitted} ${task.completionUnit}汇报生成 DeepSeek AI 初评？\n\n系统会读取 Word/PDF 正文；AI 初评不会覆盖人工最终得分。`,
                                         )
                                       ) {
                                         return;
@@ -9845,33 +10063,54 @@ export default function TeacherTrainingTab() {
                             ) : null}
                           </div>
                         </div>
-                        {!canManage ? (() => {
-                          const isGroupMemberView =
-                            task.taskType === "group" && !Boolean(currentAccountParticipant?.isGroupLeader);
-                          const cardHint = isGroupMemberView
-                            ? teacherSubmission
-                              ? `组长已提交：${teacherSubmission.submittedAt}`
-                              : "小组任务由本组组长提交，可点击查看任务详情。"
-                            : teacherSubmission
-                              ? `已提交：${teacherSubmission.submittedAt}`
-                              : "这项任务还没有提交，请上传 Word 或 PDF 汇报后保存。";
-                          const cardAction = isGroupMemberView
-                            ? "查看小组任务"
-                            : teacherSubmission
-                              ? "更新汇报"
-                              : "继续填写汇报";
+                        {!canManage && teacherPersonalState ? (() => {
+                          const state = teacherPersonalState;
+                          const canTeacherSubmit = task.isGroupTask
+                            ? Boolean(currentAccountParticipant?.isGroupLeader)
+                            : true;
+                          const actionLabel = state.isRejected
+                            ? canTeacherSubmit
+                              ? "重新提交"
+                              : "查看任务"
+                            : state.isSubmitted
+                              ? canTeacherSubmit
+                                ? "更新汇报"
+                                : "查看任务"
+                              : canTeacherSubmit
+                                ? "继续填写汇报"
+                                : "查看任务";
+                          const toneClass =
+                            state.tone === "emerald"
+                              ? "border-emerald-100 bg-emerald-50/70"
+                              : state.tone === "rose"
+                                ? "border-rose-100 bg-rose-50/70"
+                                : state.tone === "amber"
+                                  ? "border-amber-100 bg-amber-50/70"
+                                  : "border-slate-100 bg-slate-50";
                           return (
-                          <div className="mt-3 rounded-xl border border-blue-100 bg-blue-50/60 px-3 py-2">
+                          <div className={`mt-3 rounded-xl border px-3 py-2 ${toneClass}`}>
                             <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-                              <p className="text-xs leading-5 text-slate-600">{cardHint}</p>
+                              <div className="min-w-0">
+                                <p className="text-xs font-bold text-slate-700">{state.statusLabel}</p>
+                                {state.isSubmitted && state.submission?.submittedAt ? (
+                                  <p className="mt-0.5 text-[11px] text-slate-500">提交时间：{state.submission.submittedAt}</p>
+                                ) : null}
+                                {state.isRejected && state.submission ? (
+                                  <p className="mt-0.5 break-words text-[11px] leading-5 text-rose-600">
+                                    驳回原因：{state.submission.rejectionReason || "—"}
+                                    {state.submission.rejectedByName ? ` · 驳回人 ${state.submission.rejectedByName}` : ""}
+                                    {state.submission.rejectedAt ? ` · ${state.submission.rejectedAt}` : ""}
+                                  </p>
+                                ) : null}
+                              </div>
                               <button
-                                aria-label={`${cardAction}${task.title}`}
-                                className="inline-flex h-8 w-full items-center justify-center rounded-lg bg-white px-3 text-xs font-bold text-blue-700 shadow-sm transition hover:bg-blue-100 sm:w-auto"
+                                aria-label={`${actionLabel}${task.title}`}
+                                className="inline-flex h-8 w-full shrink-0 items-center justify-center rounded-lg bg-white px-3 text-xs font-bold text-blue-700 shadow-sm transition hover:bg-blue-100 sm:w-auto"
                                 onClick={() => focusTeacherTaskSubmission(task.id)}
-                                title={`${cardAction}${task.title}`}
+                                title={`${actionLabel}${task.title}`}
                                 type="button"
                               >
-                                {cardAction}
+                                {actionLabel}
                               </button>
                             </div>
                           </div>
@@ -9892,6 +10131,69 @@ export default function TeacherTrainingTab() {
                                   {index + 1}. {submission.participantName} {submission.finalScore ?? submission.aiScore}分
                                 </span>
                               ))}
+                            </div>
+                          </div>
+                        ) : null}
+                        {canManage && task.isGroupTask ? (
+                          <div className="mt-3">
+                            <p className="text-xs font-bold text-slate-600">
+                              小组提交进度：{task.completionLabel}
+                            </p>
+                            <div className="mt-2 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                              {existingParticipantGroups.length === 0 ? (
+                                <p className="rounded-lg border border-slate-100 bg-slate-50 px-3 py-2 text-xs leading-5 text-slate-500 sm:col-span-2 xl:col-span-3">
+                                  当前班次尚未完成分组，请先在参训教师中保存分组。
+                                </p>
+                              ) : (
+                                existingParticipantGroups.map((group) => {
+                                  const leader = group.members.find((member) => member.isGroupLeader);
+                                  const groupSubmission =
+                                    task.submissions.find(
+                                      (item) =>
+                                        participantById.get(item.participantId)?.groupName?.trim() === group.name,
+                                    ) ?? null;
+                                  const effective = groupSubmission && !groupSubmission.isRejected;
+                                  const statusText = groupSubmission?.isRejected
+                                    ? "已驳回，待重新提交"
+                                    : effective
+                                      ? "已提交"
+                                      : !leader
+                                        ? "未指定组长，暂不可提交"
+                                        : task.isPastDue
+                                          ? "已截止，未提交"
+                                          : "待组长提交";
+                                  const statusTone = groupSubmission?.isRejected
+                                    ? "bg-amber-100 text-amber-700"
+                                    : effective
+                                      ? "bg-emerald-50 text-emerald-700"
+                                      : !leader
+                                        ? "bg-slate-100 text-slate-500"
+                                        : task.isPastDue
+                                          ? "bg-slate-100 text-slate-500"
+                                          : "bg-blue-50 text-blue-700";
+                                  return (
+                                    <div
+                                      key={group.name}
+                                      className="rounded-xl border border-slate-200 bg-white p-3 text-xs text-slate-600"
+                                    >
+                                      <div className="flex items-center justify-between gap-2">
+                                        <span className="min-w-0 truncate text-sm font-bold text-slate-900">{group.name}</span>
+                                        <span className={`shrink-0 rounded-full px-2 py-0.5 text-[11px] font-bold ${statusTone}`}>
+                                          {statusText}
+                                        </span>
+                                      </div>
+                                      <p className="mt-1 break-words">
+                                        组长：{leader?.name ?? "未指定组长"} · {group.members.length} 人
+                                      </p>
+                                      {effective && groupSubmission ? (
+                                        <p className="mt-1 break-words">
+                                          提交人 {groupSubmission.submittedByName} · {groupSubmission.submittedAt}
+                                        </p>
+                                      ) : null}
+                                    </div>
+                                  );
+                                })
+                              )}
                             </div>
                           </div>
                         ) : null}
@@ -9916,12 +10218,25 @@ export default function TeacherTrainingTab() {
                                           </span>
                                         ) : null}
                                         {canManage ? (
-                                          <span className="rounded-full bg-white px-2 py-0.5 text-xs font-semibold text-slate-500">
-                                            {submission.reviewStatusLabel}
+                                          <span
+                                            className={`rounded-full px-2 py-0.5 text-xs font-semibold ${
+                                              submission.isRejected
+                                                ? "bg-amber-100 text-amber-700"
+                                                : "bg-white text-slate-500"
+                                            }`}
+                                          >
+                                            {submission.isRejected ? "已驳回，待重新提交" : submission.reviewStatusLabel}
                                           </span>
                                         ) : null}
                                       </div>
                                       <p className="mt-1 text-xs text-slate-500">提交时间：{submission.submittedAt}</p>
+                                      {canManage && submission.isRejected ? (
+                                        <p className="mt-1 break-words text-xs leading-5 text-amber-700">
+                                          驳回原因：{submission.rejectionReason || "—"}
+                                          {submission.rejectedByName ? ` · 驳回人 ${submission.rejectedByName}` : ""}
+                                          {submission.rejectedAt ? ` · ${submission.rejectedAt}` : ""}
+                                        </p>
+                                      ) : null}
                                       {canManage && task.taskType === "group"
                                         ? (() => {
                                             const groupName = participant?.groupName?.trim() ?? "";
@@ -10097,7 +10412,7 @@ export default function TeacherTrainingTab() {
                                       </div>
                                     </div>
                                   ) : null}
-                                  {canManage ? (
+                                  {canManage && !submission.isRejected ? (
                                     <div className="mt-3 grid gap-2 rounded-lg border border-white bg-white/70 p-3 lg:grid-cols-[120px_minmax(0,1fr)_auto] lg:items-end">
                                       {task.enableAiReview ? (
                                         <div className="lg:col-span-3 rounded-lg border border-indigo-100 bg-indigo-50 px-3 py-2 text-xs leading-5 text-indigo-700">
@@ -10147,6 +10462,17 @@ export default function TeacherTrainingTab() {
                                       >
                                         保存评分
                                       </ActionButton>
+                                      {!submission.isRejected ? (
+                                        <button
+                                          className="inline-flex h-10 items-center justify-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 text-sm font-semibold text-amber-700 transition hover:bg-amber-100 disabled:cursor-not-allowed disabled:opacity-50"
+                                          disabled={isSaving}
+                                          onClick={() => openRejectSubmission(submission, task)}
+                                          type="button"
+                                        >
+                                          <Undo2 className="h-3.5 w-3.5" />
+                                          驳回重交
+                                        </button>
+                                      ) : null}
                                       {submission.finalReviewedAt ? (
                                         <p className="lg:col-span-3 text-xs text-slate-500">
                                           已由 {submission.finalReviewedByName || "管理者"} 于 {submission.finalReviewedAt} 确认

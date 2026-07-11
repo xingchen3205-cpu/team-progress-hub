@@ -48,6 +48,7 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
     },
     select: {
       id: true,
+      status: true,
       task: {
         select: {
           cohortId: true,
@@ -62,6 +63,13 @@ export async function PATCH(request: NextRequest, context: RouteContext) {
 
   if (!(await hasTeacherTrainingCohortManageAccess(user, submission.task.cohortId))) {
     return NextResponse.json({ message: "无权限评分该任务汇报" }, { status: 403 });
+  }
+
+  if (submission.status === "rejected") {
+    return NextResponse.json(
+      { message: "该汇报已驳回，请等待教师重新提交后再评分" },
+      { status: 409 },
+    );
   }
 
   const finalScore = parseScore(body?.finalScore);

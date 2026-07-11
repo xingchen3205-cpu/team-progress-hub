@@ -2634,6 +2634,8 @@ function useWorkspaceController({
   const [reviewAction, setReviewAction] = useState<DocumentReviewActionKey | null>(null);
   const [reviewComment, setReviewComment] = useState("");
   const [highlightedDocId, setHighlightedDocId] = useState<string | null>(null);
+  // 点击"任务汇报被驳回"通知后，用于让省培任务页定位到对应任务并打开重新提交区。
+  const [teacherTrainingFocusTaskId, setTeacherTrainingFocusTaskId] = useState<string>("");
   const [openDocumentViewMenuId, setOpenDocumentViewMenuId] = useState<string | null>(null);
   const [openExpertAttachmentMenuId, setOpenExpertAttachmentMenuId] = useState<string | null>(null);
   const [editingTeamRowId, setEditingTeamRowId] = useState<string | null>(null);
@@ -4920,6 +4922,10 @@ function useWorkspaceController({
     }
 
     if (notification.targetTab && permissions.visibleTabs.includes(notification.targetTab as TabKey)) {
+      // 省培汇报被驳回的通知：进入省培任务页并定位到对应任务、打开重新提交区。
+      if (notification.targetTab === "teacherTraining" && notification.relatedId) {
+        setTeacherTrainingFocusTaskId(notification.relatedId);
+      }
       router.push(notification.targetTab === "overview" ? "/workspace" : `/workspace?tab=${notification.targetTab}`);
     }
   };
@@ -6596,6 +6602,35 @@ function useWorkspaceController({
       return true;
     } catch (error) {
       setLoadError(error instanceof Error ? error.message : "任务汇报评分保存失败");
+      return false;
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const rejectTeacherTrainingSubmission = async (submissionId: string, reason: string) => {
+    const normalizedId = submissionId.trim();
+    const normalizedReason = reason.trim();
+    if (!normalizedId) {
+      setLoadError("请先选择要驳回的任务汇报");
+      return false;
+    }
+    if (normalizedReason.length < 2) {
+      setLoadError("请填写驳回原因");
+      return false;
+    }
+
+    setIsSaving(true);
+    try {
+      await requestJson(`/api/teacher-training/submissions/${encodeURIComponent(normalizedId)}/reject`, {
+        method: "POST",
+        body: JSON.stringify({ reason: normalizedReason }),
+      });
+      showSuccessToast("汇报已驳回", "仅退回本次汇报，提交人会收到通知并可重新提交。");
+      refreshWorkspace("teacherTraining");
+      return true;
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "汇报驳回失败");
       return false;
     } finally {
       setIsSaving(false);
@@ -9024,6 +9059,8 @@ function useWorkspaceController({
     markNotificationAsRead,
     markAllNotificationsAsRead,
     openNotification,
+    teacherTrainingFocusTaskId,
+    setTeacherTrainingFocusTaskId,
     openTodoItem,
     openCreateTaskModal,
     openEditTaskModal,
@@ -9095,6 +9132,7 @@ function useWorkspaceController({
     deleteTeacherTrainingTasks,
     saveTeacherTrainingSubmission,
     reviewTeacherTrainingSubmission,
+    rejectTeacherTrainingSubmission,
     runTeacherTrainingTaskAiReview,
     updateTeacherTrainingProfile,
     publishAnnouncement,

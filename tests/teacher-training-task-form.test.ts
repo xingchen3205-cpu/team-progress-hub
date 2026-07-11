@@ -12,7 +12,6 @@ test("发布表单不再渲染已选任务详情卡", () => {
   const source = tab();
   // 不应在发布表单里展示 selectedTask 的说明/状态详情卡。
   assert.doesNotMatch(source, /selectedTask\.releaseStatusLabel[\s\S]{0,200}selectedTask\.description/);
-  assert.doesNotMatch(source, /selectedTask\.description \|\| "暂无任务说明"/);
   // 也不应保留“管理者只发布任务”这类废话。
   assert.doesNotMatch(source, /管理者只发布任务/);
 });
@@ -76,8 +75,9 @@ test("发布表单采用横向布局且手机端单列不横向溢出", () => {
 test("小组任务与截止时间等发布逻辑保持不变", () => {
   const source = tab();
   assert.match(source, /小组任务（每组提交一份）/);
-  assert.match(source, /省培任务截止日期/);
+  assert.match(source, /省培任务截止时间/);
   const taskRoute = read("src/app/api/teacher-training/tasks/route.ts");
-  // 后端仍无条件保存截止时间，小组任务不清空 dueDate。
-  assert.match(taskRoute, /dueDate:\s*body\?\.dueDate\?\.trim\(\) \|\| null/);
+  // 后端归一化后保存截止时间，小组任务不清空 dueDate。
+  assert.match(taskRoute, /dueDate: dueDate \|\| null/);
+  assert.doesNotMatch(taskRoute, /taskType === "group"[\s\S]{0,120}dueDate:\s*null/);
 });

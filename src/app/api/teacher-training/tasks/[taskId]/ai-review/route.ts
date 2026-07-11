@@ -278,9 +278,20 @@ export async function POST(request: NextRequest, context: RouteContext) {
     return NextResponse.json({ message: "该任务未开启 AI 辅助评分" }, { status: 400 });
   }
 
-  const submissions = requestedSubmissionId
-    ? task.submissions.filter((submission) => submission.id === requestedSubmissionId)
-    : task.submissions;
+  const requestedSubmission = requestedSubmissionId
+    ? task.submissions.find((submission) => submission.id === requestedSubmissionId)
+    : null;
+  if (requestedSubmission?.status === "rejected") {
+    return NextResponse.json(
+      { message: "该汇报已驳回，请等待教师重新提交后再进行 AI 评分" },
+      { status: 409 },
+    );
+  }
+  const submissions = task.submissions.filter(
+    (submission) =>
+      submission.status !== "rejected" &&
+      (!requestedSubmissionId || submission.id === requestedSubmissionId),
+  );
   if (requestedSubmissionId && submissions.length === 0) {
     return NextResponse.json({ message: "该汇报不属于当前任务" }, { status: 404 });
   }

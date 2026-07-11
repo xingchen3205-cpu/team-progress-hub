@@ -99,8 +99,8 @@ test("同一组每项小组任务只保留一份有效提交", () => {
 
 test("小组任务允许保存截止时间，不被清空", () => {
   const taskRoute = read("src/app/api/teacher-training/tasks/route.ts");
-  // dueDate 无条件按输入写入，未对 group 类型做隐藏或清空处理。
-  assert.match(taskRoute, /dueDate:\s*body\?\.dueDate\?\.trim\(\) \|\| null/);
+  // dueDate 归一化后按输入写入，未对 group 类型做隐藏或清空处理。
+  assert.match(taskRoute, /dueDate: dueDate \|\| null/);
   assert.doesNotMatch(taskRoute, /taskType === "group"[\s\S]{0,120}dueDate:\s*null/);
 });
 

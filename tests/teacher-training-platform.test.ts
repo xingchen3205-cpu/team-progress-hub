@@ -181,7 +181,9 @@ test("teacher training APIs support admin-managed courses, check-in, tasks, subm
   assert.match(mainRoute, /enableAiReview:\s*false/);
   assert.match(mainRoute, /scoringRubric:\s*null/);
   assert.match(mainRoute, /aiScore:\s*null/);
-  assert.match(mainRoute, /finalScore:\s*null/);
+  // 教师端仅隐藏 AI 初评；保留本人/本组的人工终评分与驳回原因（需求二十三/十三）。
+  assert.match(mainRoute, /aiComment:\s*null/);
+  assert.match(mainRoute, /aiReviewedAt:\s*null/);
   assert.match(courseRoute, /createdById:\s*user\.id/);
   assert.match(checkInRoute, /createdById:\s*user\.id/);
   assert.match(checkInRoute, /请同时填写纬度和经度/);
@@ -993,7 +995,7 @@ test("teacher training teacher-facing forms keep visible field labels on mobile"
   assert.match(tabSource, /teacherTaskActionHint/);
   assert.match(tabSource, /确认我的汇报身份/);
   assert.match(tabSource, /填写后保存汇报/);
-  assert.match(tabSource, /teacherSubmittedTaskIds/);
+  assert.match(tabSource, /teacherSubmittedTaskCount/);
   assert.match(tabSource, /teacherPendingTaskCount/);
   assert.match(tabSource, /teacherTaskProgressItems/);
   assert.match(tabSource, /teacherTaskCompletionPercent/);
@@ -1056,8 +1058,8 @@ test("teacher training teacher-facing forms keep visible field labels on mobile"
   assert.match(tabSource, /待提交/);
   assert.match(tabSource, /已提交/);
   assert.match(tabSource, /我的任务/);
-  assert.match(tabSource, /任务已提交/);
-  assert.match(tabSource, /任务待提交/);
+  assert.match(tabSource, /已提交，待审核/);
+  assert.match(tabSource, /本组已提交/);
   assert.match(tabSource, /暂无任务发布/);
   assert.match(tabSource, /继续填写汇报/);
   assert.match(tabSource, /更新汇报/);
@@ -1110,7 +1112,7 @@ test("teacher training manager forms keep visible field labels on mobile", () =>
     "酒店房号",
     "报到材料是否齐全",
     "报到备注",
-    "省培任务截止日期",
+    "省培任务截止时间",
     "省培任务附件要求",
   ]) {
     assert.match(tabSource, new RegExp(`<span className=\\{teacherTrainingFieldLabelClassName\\}>${label}<\\/span>`));

@@ -122,6 +122,11 @@ export type TeacherTrainingSubmissionItem = {
   attachmentLabel: string;
   attachmentFile: TeacherTrainingSubmissionAttachmentItem | null;
   status: string;
+  statusLabel: string;
+  isRejected: boolean;
+  rejectionReason: string;
+  rejectedByName: string;
+  rejectedAt: string;
   submittedAt: string;
   submittedByName: string;
   aiScore: number | null;
@@ -147,8 +152,12 @@ export type TeacherTrainingTaskItem = {
   title: string;
   description: string;
   dueDate: string | null;
+  dueDateInputValue: string;
+  dueLabel: string;
+  isPastDue: boolean;
   taskType: string;
   taskTypeLabel: string;
+  isGroupTask: boolean;
   releaseMode: TeacherTrainingTaskReleaseMode;
   releaseAt: string;
   availableAt: string;
@@ -161,6 +170,11 @@ export type TeacherTrainingTaskItem = {
   createdAt: string;
   createdByName: string;
   submissions: TeacherTrainingSubmissionItem[];
+  completionSubmitted: number;
+  completionTotal: number;
+  completionUnit: "组" | "份";
+  completionLabel: string;
+  validGroupCount: number;
 };
 
 export type TeacherTrainingCourseSessionItem = {
@@ -375,6 +389,7 @@ export type TeacherTrainingParticipantItem = {
 export type TeacherTrainingCohortItem = {
   id: string;
   includeDetails?: boolean;
+  currentParticipantGroupHasLeader?: boolean | null;
   title: string;
   location: string;
   startDate: string;
@@ -1071,6 +1086,138 @@ export const isTeacherTrainingTaskReleased = (
   return now.getTime() >= releaseDate.getTime();
 };
 
+// 截止时间兼容：旧的纯日期 YYYY-MM-DD 视为当天 23:59（Asia/Shanghai），新值精确到分钟。
+export const getTeacherTrainingTaskDueAt = (dueDate?: string | null): Date | null => {
+  const trimmed = (dueDate ?? "").trim();
+  if (!trimmed) return null;
+  if (teacherTrainingDateOnlyPattern.test(trimmed)) {
+    return new Date(`${trimmed}T23:59:00+08:00`);
+  }
+  return parseTeacherTrainingBeijingDateTime(trimmed);
+};
+
+// 已过截止时间（按 Asia/Shanghai，无截止时间恒为 false）。
+export const isTeacherTrainingTaskPastDue = (dueDate?: string | null, now = new Date()): boolean => {
+  const dueAt = getTeacherTrainingTaskDueAt(dueDate);
+  if (!dueAt) return false;
+  return now.getTime() > dueAt.getTime();
+};
+
+// datetime-local 输入回显：旧纯日期补 T23:59，新值用 T 连接到分钟。
+export const toTeacherTrainingDueDateInputValue = (dueDate?: string | null): string => {
+  const trimmed = (dueDate ?? "").trim();
+  if (!trimmed) return "";
+  if (teacherTrainingDateOnlyPattern.test(trimmed)) return `${trimmed}T23:59`;
+  const match = normalizeTeacherTrainingTaskDateTime(trimmed).match(teacherTrainingDateTimePattern);
+  return match ? `${match[1]}T${match[2]}` : "";
+};
+
+// 保存归一：datetime-local -> YYYY-MM-DDTHH:mm；旧纯日期保持不改写。
+export const normalizeTeacherTrainingDueDateForSave = (value?: string | null): string => {
+  const trimmed = (value ?? "").trim();
+  if (!trimmed) return "";
+  const match = trimmed.match(teacherTrainingDateTimePattern);
+  if (match) return `${match[1]}T${match[2]}`;
+  if (teacherTrainingDateOnlyPattern.test(trimmed)) return trimmed;
+  return trimmed;
+};
+
+const shanghaiDateTimeFormatter = new Intl.DateTimeFormat("en-CA", {
+  timeZone: "Asia/Shanghai",
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  hour12: false,
+});
+
+// 截止时间统一展示为 "YYYY-MM-DD HH:mm"（Asia/Shanghai）。
+export const formatTeacherTrainingDueLabel = (dueDate?: string | null): string => {
+  const dueAt = getTeacherTrainingTaskDueAt(dueDate);
+  if (!dueAt) return "";
+  return shanghaiDateTimeFormatter.format(dueAt).replace(", ", " ").replace(",", " ");
+};
+
+// 校验截止时间必须晚于开放时间/课程结束时间（都用 Asia/Shanghai 判断）。
+export const validateTeacherTrainingDueAgainstRelease = (task: {
+  dueDate?: string | null;
+  releaseMode?: string | null;
+  releaseAt?: string | null;
+  courseSession?: {
+    courseDate?: string | null;
+    startTime?: string | null;
+    endTime?: string | null;
+  } | null;
+}): string => {
+  const dueAt = getTeacherTrainingTaskDueAt(task.dueDate);
+  if (!dueAt) return "";
+  const availableAt = getTeacherTrainingTaskAvailableAt(task);
+  const releaseDate = parseTeacherTrainingBeijingDateTime(availableAt);
+  if (releaseDate && dueAt.getTime() <= releaseDate.getTime()) {
+    const releaseMode = normalizeTeacherTrainingTaskReleaseMode(task.releaseMode);
+    return releaseMode === "after_course"
+      ? "截止时间必须晚于课程结束时间"
+      : "截止时间必须晚于开放时间";
+  }
+  return "";
+};
+
+// 汇报是否计入"已提交"：被驳回(rejected)不计。
+export const isTeacherTrainingSubmissionEffective = (submission: { status?: string | null }): boolean =>
+  (submission.status ?? "submitted") !== "rejected";
+
+// 当前班次有效小组名称（非空 groupName 去重 + 自然排序）。
+export const getTeacherTrainingValidGroupNames = (
+  participants: Array<{ groupName?: string | null }>,
+): string[] => {
+  const groups = new Set<string>();
+  for (const participant of participants) {
+    const groupName = (participant.groupName ?? "").trim();
+    if (groupName) groups.add(groupName);
+  }
+  return [...groups].sort(compareTeacherTrainingGroupNames);
+};
+
+export type TeacherTrainingTaskCompletion = {
+  isGroupTask: boolean;
+  submitted: number;
+  total: number;
+  unit: "组" | "份";
+  label: string;
+};
+
+// 统计口径：小组任务按有效小组数(每组一次,驳回不计)，其它任务按参训教师人数。
+export const computeTeacherTrainingTaskCompletion = (
+  task: { taskType?: string | null; submissions: Array<{ participantId: string; status?: string | null }> },
+  participants: Array<{ id: string; groupName?: string | null }>,
+): TeacherTrainingTaskCompletion => {
+  const isGroupTask = (task.taskType ?? "") === "group";
+  if (isGroupTask) {
+    const groupByParticipant = new Map(
+      participants.map((participant) => [participant.id, (participant.groupName ?? "").trim()]),
+    );
+    const validGroups = new Set(getTeacherTrainingValidGroupNames(participants));
+    const submittedGroups = new Set<string>();
+    for (const submission of task.submissions) {
+      if (!isTeacherTrainingSubmissionEffective(submission)) continue;
+      const groupName = groupByParticipant.get(submission.participantId) ?? "";
+      if (groupName && validGroups.has(groupName)) submittedGroups.add(groupName);
+    }
+    const total = validGroups.size;
+    const submitted = submittedGroups.size;
+    return { isGroupTask, submitted, total, unit: "组", label: `${submitted}/${total}组` };
+  }
+  const submitted = task.submissions.filter(isTeacherTrainingSubmissionEffective).length;
+  const total = participants.length;
+  return { isGroupTask, submitted, total, unit: "份", label: `${submitted}/${total}份` };
+};
+
+export const teacherTrainingSubmissionStatusLabels: Record<string, string> = {
+  submitted: "已提交",
+  rejected: "已驳回，待重新提交",
+};
+
 export const validateTeacherTrainingLeaveRange = ({
   startDate,
   endDate,
@@ -1377,6 +1524,7 @@ export const buildTeacherTrainingAccountMessage = ({
 
 type TeacherTrainingCohortRecord = {
   id: string;
+  currentParticipantGroupHasLeader?: boolean | null;
   title: string;
   location?: string | null;
   startDate: string;
@@ -1605,17 +1753,29 @@ export const serializeTeacherTrainingSubmission = (
         }
       : null,
     status: submission.status,
+    statusLabel: teacherTrainingSubmissionStatusLabels[submission.status] ?? "已提交",
+    isRejected: submission.status === "rejected",
+    // 被驳回时，finalComment/finalReviewedBy/finalReviewedAt 复用为驳回原因/驳回人/驳回时间。
+    rejectionReason: submission.status === "rejected" ? submission.finalComment ?? "" : "",
+    rejectedByName: submission.status === "rejected" ? submission.finalReviewer?.name ?? "" : "",
+    rejectedAt: submission.status === "rejected" ? toDateTimeLabel(submission.finalReviewedAt ?? null) : "",
     submittedAt: toDateTimeLabel(submission.submittedAt),
     submittedByName: submission.submittedBy?.name ?? "工作人员",
-    aiScore: typeof submission.aiScore === "number" ? submission.aiScore : null,
-    aiComment: submission.aiComment ?? "",
-    aiReviewedAt: toDateTimeLabel(submission.aiReviewedAt ?? null),
-    finalScore: typeof submission.finalScore === "number" ? submission.finalScore : null,
-    finalComment: submission.finalComment ?? "",
-    finalReviewedById: submission.finalReviewedById ?? null,
-    finalReviewedByName: submission.finalReviewer?.name ?? "",
-    finalReviewedAt: toDateTimeLabel(submission.finalReviewedAt ?? null),
-    reviewStatusLabel: typeof submission.finalScore === "number" ? "已确认终评分" : "待人工确认",
+    aiScore: submission.status === "rejected" ? null : typeof submission.aiScore === "number" ? submission.aiScore : null,
+    aiComment: submission.status === "rejected" ? "" : submission.aiComment ?? "",
+    aiReviewedAt: submission.status === "rejected" ? "" : toDateTimeLabel(submission.aiReviewedAt ?? null),
+    // 被驳回的记录不再把旧分数当作有效终评分。
+    finalScore: submission.status === "rejected" ? null : typeof submission.finalScore === "number" ? submission.finalScore : null,
+    finalComment: submission.status === "rejected" ? "" : submission.finalComment ?? "",
+    finalReviewedById: submission.status === "rejected" ? null : submission.finalReviewedById ?? null,
+    finalReviewedByName: submission.status === "rejected" ? "" : submission.finalReviewer?.name ?? "",
+    finalReviewedAt: submission.status === "rejected" ? "" : toDateTimeLabel(submission.finalReviewedAt ?? null),
+    reviewStatusLabel:
+      submission.status === "rejected"
+        ? "已驳回，待重新提交"
+        : typeof submission.finalScore === "number"
+          ? "已确认终评分"
+          : "待人工确认",
   };
 };
 
@@ -1752,12 +1912,21 @@ export const serializeTeacherTrainingCohort = (
     createdByName: task.creator?.name ?? "管理员",
     records: (task.records ?? []).map(serializeTeacherTrainingCheckInRecord),
   }));
+  const progressParticipants = (cohort.participants ?? []).map((participant) => ({
+    id: participant.id,
+    groupName: participant.groupName ?? "",
+  }));
+  const validGroupCount = getTeacherTrainingValidGroupNames(progressParticipants).length;
   const tasks = (cohort.tasks ?? []).map((task) => {
     const releaseMode = normalizeTeacherTrainingTaskReleaseMode(task.releaseMode);
     const taskType = task.taskType || (task.courseSessionId ? "course" : "cohort");
     const availableAt = getTeacherTrainingTaskAvailableAt(task);
     const isReleased = isTeacherTrainingTaskReleased(task);
     const availableAtLabel = formatTeacherTrainingTaskDateTimeLabel(availableAt);
+    const completion = computeTeacherTrainingTaskCompletion(
+      { taskType, submissions: task.submissions ?? [] },
+      progressParticipants,
+    );
 
     return {
       id: task.id,
@@ -1769,8 +1938,12 @@ export const serializeTeacherTrainingCohort = (
       title: task.title,
       description: task.description,
       dueDate: task.dueDate ?? null,
+      dueDateInputValue: toTeacherTrainingDueDateInputValue(task.dueDate),
+      dueLabel: formatTeacherTrainingDueLabel(task.dueDate),
+      isPastDue: isTeacherTrainingTaskPastDue(task.dueDate),
       taskType,
       taskTypeLabel: teacherTrainingTaskTypeLabels[taskType] ?? "班级任务",
+      isGroupTask: taskType === "group",
       releaseMode,
       releaseAt: normalizeTeacherTrainingTaskDateTime(task.releaseAt),
       availableAt,
@@ -1787,6 +1960,11 @@ export const serializeTeacherTrainingCohort = (
       createdAt: toDateTimeLabel(task.createdAt),
       createdByName: task.creator?.name ?? "管理员",
       submissions: (task.submissions ?? []).map(serializeTeacherTrainingSubmission),
+      completionSubmitted: completion.submitted,
+      completionTotal: completion.total,
+      completionUnit: completion.unit,
+      completionLabel: completion.label,
+      validGroupCount,
     };
   });
   const participants = (cohort.participants ?? []).map((participant) => {
@@ -1835,11 +2013,15 @@ export const serializeTeacherTrainingCohort = (
       return attendance ? [attendance.participantId] : [];
     }),
   );
-  const submissionCount = tasks.reduce((total, task) => total + task.submissions.length, 0);
+  const submissionCount = tasks.reduce(
+    (total, task) => total + task.submissions.filter(isTeacherTrainingSubmissionEffective).length,
+    0,
+  );
   const checkInRecordCount = checkInTasks.reduce((total, task) => total + task.records.length, 0);
 
   return {
     id: cohort.id,
+    currentParticipantGroupHasLeader: cohort.currentParticipantGroupHasLeader ?? null,
     title: cohort.title,
     location: cohort.location ?? "",
     startDate: cohort.startDate,

@@ -11,6 +11,7 @@ import {
 } from "@/lib/teacher-training-access";
 import {
   isTeacherTrainingTaskReleased,
+  parseTeacherTrainingParticipantExtraInfo,
   serializeTeacherTrainingCohort,
   type TeacherTrainingCohortItem,
 } from "@/lib/teacher-training";
@@ -294,7 +295,9 @@ const buildTeacherTrainingSummaryInclude = () =>
 
 type TeacherTrainingCohortWithRelations = Prisma.TeacherTrainingCohortGetPayload<{
   include: ReturnType<typeof buildTeacherTrainingInclude>;
-}>;
+}> & {
+  currentParticipantGroupHasLeader?: boolean | null;
+};
 
 type TeacherTrainingCohortSummaryWithRelations = Prisma.TeacherTrainingCohortGetPayload<{
   include: ReturnType<typeof buildTeacherTrainingSummaryInclude>;
@@ -385,6 +388,12 @@ const filterCohortForParticipantOnly = (
       .filter((participant) => participant.accountUserId === accountUserId && participant.groupName?.trim())
       .map((participant) => participant.groupName?.trim() || ""),
   );
+  const currentParticipantGroupHasLeader = cohort.participants.some(
+    (participant) =>
+      Boolean(participant.groupName?.trim()) &&
+      participantGroupNames.has(participant.groupName?.trim() || "") &&
+      parseTeacherTrainingParticipantExtraInfo(participant.extraInfo).isGroupLeader,
+  );
   const groupParticipantIds = new Set(
     cohort.participants
       .filter((participant) => participant.groupName && participantGroupNames.has(participant.groupName.trim()))
@@ -393,6 +402,7 @@ const filterCohortForParticipantOnly = (
 
   return {
     ...cohort,
+    currentParticipantGroupHasLeader,
     participants: cohort.participants.filter((participant) => participantIds.has(participant.id)),
     attendances: cohort.attendances.filter((attendance) => participantIds.has(attendance.participantId)),
     checkInTasks: cohort.checkInTasks.map((task) => ({
@@ -412,16 +422,13 @@ const filterCohortForParticipantOnly = (
               ? groupParticipantIds.has(submission.participantId)
               : participantIds.has(submission.participantId),
           )
+          // 仅隐藏 AI 初评（教师不展示）；保留本人/本组的人工终评分与驳回原因，
+          // 以便教师看到自己的最终得分、评语以及"汇报被驳回"的原因。
           .map((submission) => ({
             ...submission,
             aiScore: null,
             aiComment: null,
             aiReviewedAt: null,
-            finalScore: null,
-            finalComment: null,
-            finalReviewedById: null,
-            finalReviewedAt: null,
-            finalReviewer: null,
           })),
       })),
   };
@@ -613,11 +620,9 @@ export async function GET(request: NextRequest) {
     ? cohorts
     : isManager
     ? cohorts
-    : isParticipantOnly
-      ? cohorts
-      : (cohorts as TeacherTrainingCohortWithRelations[]).map((cohort) =>
-          filterCohortForParticipantOnly(cohort, user.id, managedCohortIds),
-        );
+    : (cohorts as TeacherTrainingCohortWithRelations[]).map((cohort) =>
+        filterCohortForParticipantOnly(cohort, user.id, managedCohortIds),
+      );
 
   return NextResponse.json({
     cohorts: shouldLoadSummary

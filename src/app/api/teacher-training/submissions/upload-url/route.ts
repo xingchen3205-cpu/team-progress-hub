@@ -10,7 +10,11 @@ import {
   validateTeacherTrainingSubmissionAttachmentMeta,
 } from "@/lib/teacher-training-submission-attachments";
 import { hasTeacherTrainingCohortManageAccess } from "@/lib/teacher-training-access";
-import { isTeacherTrainingTaskReleased, parseTeacherTrainingParticipantExtraInfo } from "@/lib/teacher-training";
+import {
+  isTeacherTrainingTaskPastDue,
+  isTeacherTrainingTaskReleased,
+  parseTeacherTrainingParticipantExtraInfo,
+} from "@/lib/teacher-training";
 import { buildStoredObjectKey } from "@/lib/uploads";
 
 export const runtime = "nodejs";
@@ -62,6 +66,7 @@ export async function POST(request: NextRequest) {
       taskType: true,
       releaseMode: true,
       releaseAt: true,
+      dueDate: true,
       courseSession: {
         select: {
           courseDate: true,
@@ -95,6 +100,26 @@ export async function POST(request: NextRequest) {
   }
   if (task.taskType === "group" && !parseTeacherTrainingParticipantExtraInfo(participant.extraInfo).isGroupLeader) {
     return NextResponse.json({ message: "小组任务仅限本组组长上传和提交" }, { status: 403 });
+  }
+
+  // 截止后不再签发上传地址（管理员除外；被驳回的记录即使超期仍可重新上传）。
+  if (!canManageCohort && isTeacherTrainingTaskPastDue(task.dueDate)) {
+    const groupParticipantIdsForDue =
+      task.taskType === "group"
+        ? (
+            await prisma.teacherTrainingParticipant.findMany({
+              where: { cohortId: task.cohortId, groupName: participant.groupName?.trim() || "" },
+              select: { id: true },
+            })
+          ).map((item) => item.id)
+        : [participant.id];
+    const dueExisting = await prisma.teacherTrainingSubmission.findFirst({
+      where: { taskId, participantId: { in: groupParticipantIdsForDue } },
+      select: { status: true },
+    });
+    if (!dueExisting || dueExisting.status !== "rejected") {
+      return NextResponse.json({ message: "任务已截止，无法提交或替换附件。" }, { status: 403 });
+    }
   }
 
   const { objectKey } = buildStoredObjectKey({

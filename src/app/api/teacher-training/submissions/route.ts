@@ -2,7 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { getSessionUser } from "@/lib/auth";
 import { hasTeacherTrainingCohortManageAccess } from "@/lib/teacher-training-access";
-import { isTeacherTrainingTaskReleased, parseTeacherTrainingParticipantExtraInfo } from "@/lib/teacher-training";
+import {
+  isTeacherTrainingTaskPastDue,
+  isTeacherTrainingTaskReleased,
+  parseTeacherTrainingParticipantExtraInfo,
+} from "@/lib/teacher-training";
 import { prisma } from "@/lib/prisma";
 import { HeadObjectCommand, R2_BUCKET, r2Client } from "@/lib/r2";
 import {
@@ -51,6 +55,7 @@ export async function POST(request: NextRequest) {
       requireAttachment: true,
       releaseMode: true,
       releaseAt: true,
+      dueDate: true,
       courseSession: {
         select: {
           courseDate: true,
@@ -88,6 +93,27 @@ export async function POST(request: NextRequest) {
   }
   if (task.taskType === "group" && !parseTeacherTrainingParticipantExtraInfo(participant.extraInfo).isGroupLeader) {
     return NextResponse.json({ message: "小组任务仅限本组组长提交或替换附件" }, { status: 403 });
+  }
+
+  // 截止时间校验（后端强制，不只靠前端）。管理员不受限；被驳回(rejected)的记录即使超期仍可重新提交，
+  // 其它情况（首次提交或替换有效汇报）超期一律拒绝。
+  const groupParticipantIdsForDue =
+    task.taskType === "group"
+      ? (
+          await prisma.teacherTrainingParticipant.findMany({
+            where: { cohortId: task.cohortId, groupName },
+            select: { id: true },
+          })
+        ).map((item) => item.id)
+      : [participantId];
+  if (!canManageCohort && isTeacherTrainingTaskPastDue(task.dueDate)) {
+    const dueExisting = await prisma.teacherTrainingSubmission.findFirst({
+      where: { taskId, participantId: { in: groupParticipantIdsForDue } },
+      select: { status: true },
+    });
+    if (!dueExisting || dueExisting.status !== "rejected") {
+      return NextResponse.json({ message: "任务已截止，无法提交或替换附件。" }, { status: 403 });
+    }
   }
 
   const attachmentFile = attachment ? decodeTeacherTrainingSubmissionAttachmentFile(attachment) : null;
@@ -144,16 +170,8 @@ export async function POST(request: NextRequest) {
   let submission;
   try {
     submission = await prisma.$transaction(async (tx) => {
-      const groupParticipantIds = task.taskType === "group"
-        ? (
-            await tx.teacherTrainingParticipant.findMany({
-              where: { cohortId: task.cohortId, groupName },
-              select: { id: true },
-            })
-          ).map((item) => item.id)
-        : [participantId];
       const existingSubmission = await tx.teacherTrainingSubmission.findFirst({
-        where: { taskId, participantId: { in: groupParticipantIds } },
+        where: { taskId, participantId: { in: groupParticipantIdsForDue } },
         select: { attachment: true, participantId: true },
       });
       previousAttachmentFilePath =
@@ -166,19 +184,27 @@ export async function POST(request: NextRequest) {
             participantId: existingSubmission?.participantId ?? participantId,
           },
         },
+        // 重新提交视为新的有效汇报：恢复 submitted，并清空旧的 AI/人工评分与驳回信息，等待重新审核。
         update: {
           content,
           attachment: attachment || null,
-          status: body?.status?.trim() || "submitted",
+          status: "submitted",
           submittedById: user.id,
           submittedAt: new Date(),
+          aiScore: null,
+          aiComment: null,
+          aiReviewedAt: null,
+          finalScore: null,
+          finalComment: null,
+          finalReviewedById: null,
+          finalReviewedAt: null,
         },
         create: {
           taskId,
           participantId,
           content,
           attachment: attachment || null,
-          status: body?.status?.trim() || "submitted",
+          status: "submitted",
           submittedById: user.id,
         },
       });

@@ -4,8 +4,10 @@ import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { hasTeacherTrainingCohortManageAccess } from "@/lib/teacher-training-access";
 import {
+  normalizeTeacherTrainingDueDateForSave,
   normalizeTeacherTrainingTaskDateTime,
   normalizeTeacherTrainingTaskReleaseMode,
+  validateTeacherTrainingDueAgainstRelease,
 } from "@/lib/teacher-training";
 import { decodeTeacherTrainingSubmissionAttachmentFile } from "@/lib/teacher-training-submission-attachments";
 import { deleteStoredFile } from "@/lib/uploads";
@@ -37,16 +39,19 @@ const validateTeacherTrainingTaskOptions = async ({
   courseSessionId,
   releaseMode,
   releaseAt,
+  dueDate,
 }: {
   cohortId: string;
   courseSessionId: string | null;
   releaseMode: ReturnType<typeof normalizeTeacherTrainingTaskReleaseMode>;
   releaseAt: string;
+  dueDate: string;
 }) => {
+  let courseSession: { courseDate: string; startTime: string | null; endTime: string | null } | null = null;
   if (courseSessionId) {
-    const courseSession = await prisma.teacherTrainingCourseSession.findFirst({
+    courseSession = await prisma.teacherTrainingCourseSession.findFirst({
       where: { id: courseSessionId, cohortId, deletedAt: null },
-      select: { id: true },
+      select: { courseDate: true, startTime: true, endTime: true },
     });
     if (!courseSession) {
       return "关联课程不存在或不属于当前班次";
@@ -59,6 +64,12 @@ const validateTeacherTrainingTaskOptions = async ({
 
   if (releaseMode === "scheduled" && !releaseAt) {
     return "指定时间开放必须填写开放时间";
+  }
+
+  // 截止时间必须晚于开放时间/课程结束时间（Asia/Shanghai）。
+  const dueError = validateTeacherTrainingDueAgainstRelease({ dueDate, releaseMode, releaseAt, courseSession });
+  if (dueError) {
+    return dueError;
   }
 
   return "";
@@ -77,6 +88,7 @@ export async function POST(request: NextRequest) {
   const courseSessionId = body?.courseSessionId?.trim() || null;
   const releaseMode = normalizeTeacherTrainingTaskReleaseMode(body?.releaseMode);
   const releaseAt = normalizeTeacherTrainingTaskDateTime(body?.releaseAt);
+  const dueDate = normalizeTeacherTrainingDueDateForSave(body?.dueDate);
   const taskType = normalizeTeacherTrainingTaskType(body?.taskType, courseSessionId);
 
   if (!cohortId || !title || !description) {
@@ -95,10 +107,16 @@ export async function POST(request: NextRequest) {
   }
   if (taskType === "group") {
     const groupedParticipantCount = await prisma.teacherTrainingParticipant.count({
-      where: { cohortId, groupName: { not: null } },
+      where: {
+        cohortId,
+        AND: [{ groupName: { not: null } }, { groupName: { not: "" } }],
+      },
     });
     if (!groupedParticipantCount) {
-      return NextResponse.json({ message: "请先在参训教师中完成随机分组" }, { status: 400 });
+      return NextResponse.json(
+        { message: "当前班次尚未完成分组，请先在参训教师中保存分组。" },
+        { status: 400 },
+      );
     }
   }
   const optionError = await validateTeacherTrainingTaskOptions({
@@ -106,6 +124,7 @@ export async function POST(request: NextRequest) {
     courseSessionId,
     releaseMode,
     releaseAt,
+    dueDate,
   });
   if (optionError) {
     return NextResponse.json({ message: optionError }, { status: 400 });
@@ -117,7 +136,7 @@ export async function POST(request: NextRequest) {
       courseSessionId,
       title,
       description,
-      dueDate: body?.dueDate?.trim() || null,
+      dueDate: dueDate || null,
       taskType,
       releaseMode,
       releaseAt: releaseMode === "scheduled" ? releaseAt : null,
@@ -144,6 +163,7 @@ export async function PATCH(request: NextRequest) {
   const courseSessionId = body?.courseSessionId?.trim() || null;
   const releaseMode = normalizeTeacherTrainingTaskReleaseMode(body?.releaseMode);
   const releaseAt = normalizeTeacherTrainingTaskDateTime(body?.releaseAt);
+  const dueDate = normalizeTeacherTrainingDueDateForSave(body?.dueDate);
   const taskType = normalizeTeacherTrainingTaskType(body?.taskType, courseSessionId);
 
   if (!id || !title || !description) {
@@ -162,10 +182,16 @@ export async function PATCH(request: NextRequest) {
   }
   if (taskType === "group") {
     const groupedParticipantCount = await prisma.teacherTrainingParticipant.count({
-      where: { cohortId: existing.cohortId, groupName: { not: null } },
+      where: {
+        cohortId: existing.cohortId,
+        AND: [{ groupName: { not: null } }, { groupName: { not: "" } }],
+      },
     });
     if (!groupedParticipantCount) {
-      return NextResponse.json({ message: "请先在参训教师中完成随机分组" }, { status: 400 });
+      return NextResponse.json(
+        { message: "当前班次尚未完成分组，请先在参训教师中保存分组。" },
+        { status: 400 },
+      );
     }
   }
   const optionError = await validateTeacherTrainingTaskOptions({
@@ -173,6 +199,7 @@ export async function PATCH(request: NextRequest) {
     courseSessionId,
     releaseMode,
     releaseAt,
+    dueDate,
   });
   if (optionError) {
     return NextResponse.json({ message: optionError }, { status: 400 });
@@ -184,7 +211,7 @@ export async function PATCH(request: NextRequest) {
       courseSessionId,
       title,
       description,
-      dueDate: body?.dueDate?.trim() || null,
+      dueDate: dueDate || null,
       taskType,
       releaseMode,
       releaseAt: releaseMode === "scheduled" ? releaseAt : null,
