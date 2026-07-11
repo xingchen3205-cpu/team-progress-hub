@@ -4668,7 +4668,7 @@ a:hover {
   background:
     linear-gradient(90deg, rgba(5, 30, 77, 0.9) 0%, rgba(8, 58, 126, 0.66) 38%, rgba(5, 73, 133, 0.08) 80%),
     url("/teacher-training-campus-hero.png") center / 100% 100% no-repeat;
-  padding: 54px max(40px, calc((100vw - 1488px) / 2 + 34px));
+  padding: 24px max(40px, calc((100vw - 1488px) / 2 + 34px));
 }
 .tt-portal-hero::after {
   content: "";
@@ -5226,7 +5226,7 @@ a:hover {
       linear-gradient(180deg, rgba(5, 30, 77, 0.92) 0%, rgba(8, 49, 110, 0.72) 46%, rgba(8, 58, 126, 0.38) 100%),
       url("/teacher-training-campus-hero.png") center bottom / 100% auto no-repeat,
       linear-gradient(180deg, #0b3776 0%, #0d4388 100%);
-    padding: 30px 18px 24px;
+    padding: 20px 18px 24px;
   }
   .tt-portal-grid {
     grid-template-columns: 1fr;

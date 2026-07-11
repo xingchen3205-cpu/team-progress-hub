@@ -2913,14 +2913,20 @@ export default function TeacherTrainingTab() {
     }
   };
 
-  const openManualCheckIn = (
+  const openManualCheckIn = async (
     task: Workspace.TeacherTrainingCheckInTaskItem,
     participant: Workspace.TeacherTrainingParticipantItem,
   ) => {
-    setManualCheckInDraft({
+    const note = window.prompt(`为“${participant.name}”人工补签，请填写原因：`, "定位失败，现场人工确认");
+    if (note === null) return;
+    if (!note.trim()) {
+      setLoadError("请填写人工补签原因");
+      return;
+    }
+    await manualSignTeacherTrainingCheckIn({
       checkInTaskId: task.id,
       participantId: participant.id,
-      note: "定位失败，现场人工确认",
+      note: note.trim(),
     });
   };
 

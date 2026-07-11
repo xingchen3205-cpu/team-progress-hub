@@ -86,3 +86,10 @@ test("a single check-in task can export its roster with login accounts", () => {
   assert.match(exportRoute, /accountUsername/);
   assert.match(tabSource, /导出本场名单/);
 });
+
+test("manual check-in gives immediate feedback instead of opening a form below a long roster", () => {
+  const tabSource = read("src/components/tabs/teacher-training-tab.tsx");
+
+  assert.match(tabSource, /window\.prompt\(`为“\$\{participant\.name\}”人工补签/);
+  assert.match(tabSource, /manualSignTeacherTrainingCheckIn\(\{[\s\S]*checkInTaskId:\s*task\.id/);
+});
