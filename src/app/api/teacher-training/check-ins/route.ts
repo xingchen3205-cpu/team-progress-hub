@@ -6,7 +6,7 @@ import {
   TEACHER_TRAINING_CHECK_IN_DEFAULT_RADIUS_METERS,
   areValidTeacherTrainingCoordinates,
   isTeacherTrainingDateKey,
-  parseTeacherTrainingTimeToMinutes,
+  validateTeacherTrainingSessionTimeRange,
 } from "@/lib/teacher-training";
 import { hasTeacherTrainingCohortManageAccess } from "@/lib/teacher-training-access";
 
@@ -65,13 +65,9 @@ export async function POST(request: NextRequest) {
   if (!isTeacherTrainingDateKey(signDate)) {
     return NextResponse.json({ message: "签到日期格式不正确" }, { status: 400 });
   }
-  const startMinutes = parseTeacherTrainingTimeToMinutes(startTime);
-  const endMinutes = parseTeacherTrainingTimeToMinutes(endTime);
-  if ((startTime && startMinutes === null) || (endTime && endMinutes === null)) {
-    return NextResponse.json({ message: "签到时间格式不正确" }, { status: 400 });
-  }
-  if (startMinutes !== null && endMinutes !== null && endMinutes < startMinutes) {
-    return NextResponse.json({ message: "签到结束时间不能早于开始时间" }, { status: 400 });
+  const timeRangeError = validateTeacherTrainingSessionTimeRange(startTime, endTime);
+  if (timeRangeError) {
+    return NextResponse.json({ message: timeRangeError }, { status: 400 });
   }
 
   const cohort = await prisma.teacherTrainingCohort.findFirst({
@@ -148,13 +144,9 @@ export async function PATCH(request: NextRequest) {
   if (!isTeacherTrainingDateKey(signDate)) {
     return NextResponse.json({ message: "签到日期格式不正确" }, { status: 400 });
   }
-  const startMinutes = parseTeacherTrainingTimeToMinutes(startTime);
-  const endMinutes = parseTeacherTrainingTimeToMinutes(endTime);
-  if ((startTime && startMinutes === null) || (endTime && endMinutes === null)) {
-    return NextResponse.json({ message: "签到时间格式不正确" }, { status: 400 });
-  }
-  if (startMinutes !== null && endMinutes !== null && endMinutes < startMinutes) {
-    return NextResponse.json({ message: "签到结束时间不能早于开始时间" }, { status: 400 });
+  const timeRangeError = validateTeacherTrainingSessionTimeRange(startTime, endTime);
+  if (timeRangeError) {
+    return NextResponse.json({ message: timeRangeError }, { status: 400 });
   }
 
   const existing = await prisma.teacherTrainingCheckInTask.findFirst({

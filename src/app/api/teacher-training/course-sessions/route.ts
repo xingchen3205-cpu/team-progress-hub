@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { getSessionUser } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
+import { validateTeacherTrainingSessionTimeRange } from "@/lib/teacher-training";
 import { hasTeacherTrainingCohortManageAccess } from "@/lib/teacher-training-access";
 
 type TeacherTrainingCourseSessionInput = {
@@ -56,6 +57,20 @@ export async function POST(request: NextRequest) {
     if (rows.length === 0 || rows.some((course) => !course.title || !course.courseDate)) {
       return NextResponse.json({ message: "导入课程需包含课程名称和日期" }, { status: 400 });
     }
+    const invalidTimeRangeIndex = rows.findIndex((course) =>
+      Boolean(validateTeacherTrainingSessionTimeRange(course.startTime, course.endTime)),
+    );
+    if (invalidTimeRangeIndex >= 0) {
+      const invalidCourse = rows[invalidTimeRangeIndex];
+      const timeRangeError = validateTeacherTrainingSessionTimeRange(
+        invalidCourse.startTime,
+        invalidCourse.endTime,
+      );
+      return NextResponse.json(
+        { message: `第 ${invalidTimeRangeIndex + 1} 行课程：${timeRangeError}` },
+        { status: 400 },
+      );
+    }
 
     await prisma.teacherTrainingCourseSession.createMany({
       data: rows.map((course) => ({
@@ -71,9 +86,15 @@ export async function POST(request: NextRequest) {
   const cohortId = body?.cohortId?.trim();
   const title = body?.title?.trim();
   const courseDate = body?.courseDate?.trim();
+  const startTime = body?.startTime?.trim() || null;
+  const endTime = body?.endTime?.trim() || null;
 
   if (!cohortId || !title || !courseDate) {
     return NextResponse.json({ message: "请填写班次、课程名称和上课日期" }, { status: 400 });
+  }
+  const timeRangeError = validateTeacherTrainingSessionTimeRange(startTime, endTime);
+  if (timeRangeError) {
+    return NextResponse.json({ message: timeRangeError }, { status: 400 });
   }
 
   const cohort = await prisma.teacherTrainingCohort.findFirst({
@@ -92,8 +113,8 @@ export async function POST(request: NextRequest) {
       cohortId,
       title,
       courseDate,
-      startTime: body?.startTime?.trim() || null,
-      endTime: body?.endTime?.trim() || null,
+      startTime,
+      endTime,
       location: body?.location?.trim() || null,
       instructor: body?.instructor?.trim() || null,
       description: body?.description?.trim() || null,
@@ -114,8 +135,14 @@ export async function PATCH(request: NextRequest) {
   const id = body?.id?.trim();
   const title = body?.title?.trim();
   const courseDate = body?.courseDate?.trim();
+  const startTime = body?.startTime?.trim() || null;
+  const endTime = body?.endTime?.trim() || null;
   if (!id || !title || !courseDate) {
     return NextResponse.json({ message: "请填写课程、课程名称和上课日期" }, { status: 400 });
+  }
+  const timeRangeError = validateTeacherTrainingSessionTimeRange(startTime, endTime);
+  if (timeRangeError) {
+    return NextResponse.json({ message: timeRangeError }, { status: 400 });
   }
 
   const existing = await prisma.teacherTrainingCourseSession.findFirst({
@@ -134,8 +161,8 @@ export async function PATCH(request: NextRequest) {
     data: {
       title,
       courseDate,
-      startTime: body?.startTime?.trim() || null,
-      endTime: body?.endTime?.trim() || null,
+      startTime,
+      endTime,
       location: body?.location?.trim() || null,
       instructor: body?.instructor?.trim() || null,
       description: body?.description?.trim() || null,

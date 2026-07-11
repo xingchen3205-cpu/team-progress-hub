@@ -24,6 +24,8 @@ import {
 type AttendanceStatus = Workspace.TeacherTrainingAttendanceStatus;
 type AttendanceOverviewFilter = "all" | "registered" | "pending" | "online" | "leave" | "absent";
 type CheckInWindowState = Workspace.TeacherTrainingCheckInWindowState;
+type CheckInStatusFilter = "all" | "open" | "not_started" | "ended";
+type CheckInPeopleFilter = "signed" | "unsigned";
 type SubmissionOverviewFilter = "all" | "submitted";
 type TeacherTrainingLeavePanelKey = "pending" | "all" | "rules";
 type TeacherTrainingImportPreview<T> = {
@@ -124,6 +126,24 @@ const getFileNameFromContentDisposition = (contentDisposition: string | null, fa
   const quotedFileName = contentDisposition?.match(/filename="([^"]+)"/i)?.[1];
   return quotedFileName || fallbackName;
 };
+
+const buildTeacherTrainingWordPreviewDocument = (body: string) => `<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'; base-uri 'none'; form-action 'none'" />
+    <style>
+      * { box-sizing: border-box; }
+      body { margin: 0; padding: 28px; color: #0f172a; background: #fff; font: 15px/1.8 -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Microsoft YaHei', sans-serif; }
+      img { max-width: 100%; height: auto; }
+      table { width: 100%; border-collapse: collapse; }
+      th, td { border: 1px solid #cbd5e1; padding: 8px 10px; vertical-align: top; }
+      @media (max-width: 640px) { body { padding: 16px; } }
+    </style>
+  </head>
+  <body>${body || "<p>文档暂无可预览内容。</p>"}</body>
+</html>`;
 
 const parseTeacherTrainingImportFile = async (kind: "participants" | "courses", file: File) => {
   const formData = new FormData();
@@ -915,6 +935,7 @@ export default function TeacherTrainingTab() {
     runTeacherTrainingTaskAiReview,
     updateTeacherTrainingProfile,
     loadTeacherTrainingCohortDetails,
+    handlePreviewDocument,
     handleLogout,
     setLoadError,
   } = Workspace.useWorkspaceContext();
@@ -1040,9 +1061,15 @@ export default function TeacherTrainingTab() {
   const [attendanceSearch, setAttendanceSearch] = useState("");
   const [attendanceOverviewFilter, setAttendanceOverviewFilter] = useState<AttendanceOverviewFilter>("all");
   const [checkInSearch, setCheckInSearch] = useState("");
+  const [checkInTaskSearch, setCheckInTaskSearch] = useState("");
+  const [checkInStatusFilter, setCheckInStatusFilter] = useState<CheckInStatusFilter>("all");
+  const [checkInPeopleFilter, setCheckInPeopleFilter] = useState<CheckInPeopleFilter>("signed");
+  const [activeCheckInTaskId, setActiveCheckInTaskId] = useState("");
+  const [checkInEditorOpen, setCheckInEditorOpen] = useState(false);
   const [leaveSearch, setLeaveSearch] = useState("");
   const [submissionSearch, setSubmissionSearch] = useState("");
   const [submissionOverviewFilter, setSubmissionOverviewFilter] = useState<SubmissionOverviewFilter>("all");
+  const [activeSubmissionTaskId, setActiveSubmissionTaskId] = useState("");
   const [teacherTrainingDetailViewTitle, setTeacherTrainingDetailViewTitle] = useState("");
   const [accountEditParticipantId, setAccountEditParticipantId] = useState("");
   const [accountEditDraft, setAccountEditDraft] = useState({
@@ -1124,7 +1151,6 @@ export default function TeacherTrainingTab() {
   const [submissionReviewDrafts, setSubmissionReviewDrafts] = useState<
     Record<string, { finalScore: string; finalComment: string }>
   >({});
-  const [previewTeacherTrainingSubmissionId, setPreviewTeacherTrainingSubmissionId] = useState("");
   const [courseImportText, setCourseImportText] = useState("");
   const [courseImportStatus, setCourseImportStatus] = useState("");
   const [courseImportLoading, setCourseImportLoading] = useState(false);
@@ -1141,6 +1167,8 @@ export default function TeacherTrainingTab() {
   });
   const [submissionAttachmentFile, setSubmissionAttachmentFile] = useState<File | null>(null);
   const [submissionAttachmentPreviewUrl, setSubmissionAttachmentPreviewUrl] = useState("");
+  const [submissionAttachmentWordPreviewHtml, setSubmissionAttachmentWordPreviewHtml] = useState("");
+  const [submissionAttachmentPreviewLoading, setSubmissionAttachmentPreviewLoading] = useState(false);
   const [submissionAttachmentProgress, setSubmissionAttachmentProgress] = useState<number | null>(null);
   const [submissionAttachmentError, setSubmissionAttachmentError] = useState("");
   const [submissionSaveStatus, setSubmissionSaveStatus] = useState("");
@@ -1208,10 +1236,26 @@ export default function TeacherTrainingTab() {
     selectedCohortTasksForCurrentUser.find((task) => task.id === submissionDraft.taskId) ??
     selectedCohortTasksForCurrentUser[0] ??
     null;
-  const selectedParticipant =
-    selectedCohort?.participants.find((participant) => participant.id === submissionDraft.participantId) ??
-    selectedCohort?.participants[0] ??
-    null;
+  const currentAccountParticipants =
+    selectedCohort?.participants.filter((participant) => participant.accountUserId === currentUser?.id) ?? [];
+  const currentAccountNamedParticipants = currentAccountParticipants.filter(
+    (participant) => participant.name.trim() === currentUser?.profile.name?.trim(),
+  );
+  const currentAccountParticipant =
+    currentAccountParticipants.length === 1
+      ? currentAccountParticipants[0]
+      : currentAccountNamedParticipants.length === 1
+        ? currentAccountNamedParticipants[0]
+        : null;
+  const participantBindingIssue =
+    !canManageTeacherTraining && currentAccountParticipants.length > 1 && !currentAccountParticipant
+      ? "当前账号关联了多位参训教师，请联系系统管理员核对账号绑定后再提交"
+      : "";
+  const selectedParticipant = canManageTeacherTraining
+    ? selectedCohort?.participants.find((participant) => participant.id === submissionDraft.participantId) ??
+      selectedCohort?.participants.at(0) ??
+      null
+    : currentAccountParticipant;
   const selectedSubmission =
     selectedTask?.submissions.find((submission) => submission.participantId === selectedParticipant?.id) ?? null;
   const savedSubmissionAttachment = selectedSubmission?.attachment ?? "";
@@ -1239,20 +1283,18 @@ export default function TeacherTrainingTab() {
   );
   const courseImportFieldSummary = useMemo(() => buildCourseImportFieldSummary(courseImportText), [courseImportText]);
   const checkInNow = useMemo(() => new Date(checkInClock), [checkInClock]);
-  const currentCourseDateKey = getDateInputValue(checkInNow);
-  const currentCourseTimeKey = getTimeInputValue(checkInNow);
   const teacherCourseTimeline = [...courseSessions].sort((first, second) =>
     `${first.courseDate} ${first.startTime || "00:00"}`.localeCompare(
       `${second.courseDate} ${second.startTime || "00:00"}`,
     ),
   );
   const teacherNextCourse =
-    teacherCourseTimeline.find((course) => {
-      if (course.courseDate > currentCourseDateKey) return true;
-      if (course.courseDate < currentCourseDateKey) return false;
-
-      return (course.endTime || course.startTime || "23:59") >= currentCourseTimeKey;
-    }) ?? null;
+    teacherCourseTimeline.find(
+      (course) => Workspace.getTeacherTrainingCourseWindowState(course, checkInNow) !== "ended",
+    ) ?? null;
+  const teacherNextCourseState = teacherNextCourse
+    ? Workspace.getTeacherTrainingCourseWindowState(teacherNextCourse, checkInNow)
+    : null;
   const effectiveProfileDraft =
     selectedParticipant && profileDraft.participantId !== selectedParticipant.id
       ? {
@@ -1285,6 +1327,7 @@ export default function TeacherTrainingTab() {
   const participantSearchKeyword = normalizeSearchText(participantSearch);
   const attendanceSearchKeyword = normalizeSearchText(attendanceSearch);
   const checkInSearchKeyword = normalizeSearchText(checkInSearch);
+  const checkInTaskSearchKeyword = normalizeSearchText(checkInTaskSearch);
   const leaveSearchKeyword = normalizeSearchText(leaveSearch);
   const submissionSearchKeyword = normalizeSearchText(submissionSearch);
   const getParticipantAttendanceRecord = (
@@ -1522,47 +1565,17 @@ export default function TeacherTrainingTab() {
   };
   const submissionTaskPool = canManage ? selectedCohort?.tasks ?? [] : selectedCohortTasksForCurrentUser;
   const filteredSubmissionTasks = submissionTaskPool.filter(matchesSubmissionSearch);
+  const activeSubmissionTask =
+    filteredSubmissionTasks.find((task) => task.id === activeSubmissionTaskId) ?? filteredSubmissionTasks[0] ?? null;
   const filteredCheckInTasks = (selectedCohort?.checkInTasks ?? []).filter((task) => {
-    if (!checkInSearchKeyword) return true;
-    return [
-      task.title,
-      task.signDate,
-      task.locationName,
-      ...(selectedCohort?.participants ?? []).flatMap((participant) => [
-        participant.name,
-        participant.organization,
-        participant.groupName,
-        participant.title,
-        participant.email,
-        participant.gender,
-        participant.age,
-        participant.personnelCategory,
-        participant.subject,
-        participant.professionalTitle,
-        participant.city,
-      ]),
-      ...task.records.flatMap((record) => {
-        const participant = participantById.get(record.participantId);
-        return [
-          record.participantName,
-          participant?.organization ?? "",
-          participant?.groupName ?? "",
-          participant?.title ?? "",
-          participant?.email ?? "",
-          participant?.gender ?? "",
-          participant?.age ?? "",
-          participant?.personnelCategory ?? "",
-          participant?.subject ?? "",
-          participant?.professionalTitle ?? "",
-          participant?.city ?? "",
-          record.signedAt,
-          record.note,
-        ];
-      }),
-    ]
+    const windowState = Workspace.getTeacherTrainingCheckInWindowState(task, checkInNow);
+    if (checkInStatusFilter !== "all" && windowState !== checkInStatusFilter) return false;
+    if (!checkInTaskSearchKeyword) return true;
+    const course = courseSessions.find((item) => item.id === task.courseSessionId);
+    return [task.title, task.signDate, task.startTime, task.endTime, task.locationName, course?.title ?? ""]
       .join(" ")
       .toLocaleLowerCase("zh-CN")
-      .includes(checkInSearchKeyword);
+      .includes(checkInTaskSearchKeyword);
   });
   const getVisibleCheckInRecords = (task: Workspace.TeacherTrainingCheckInTaskItem) => {
     const records = checkInSearchKeyword
@@ -1589,7 +1602,7 @@ export default function TeacherTrainingTab() {
         })
       : task.records;
 
-    return records.slice(0, checkInSearchKeyword ? 8 : 3);
+    return records;
   };
   const getUnsignedCheckInParticipants = (task: Workspace.TeacherTrainingCheckInTaskItem) => {
     const signedParticipantIds = new Set(task.records.map((record) => record.participantId));
@@ -1615,8 +1628,10 @@ export default function TeacherTrainingTab() {
         .includes(checkInSearchKeyword);
     });
 
-    return participants.slice(0, checkInSearchKeyword ? 8 : 4);
+    return participants;
   };
+  const activeCheckInTask =
+    filteredCheckInTasks.find((task) => task.id === activeCheckInTaskId) ?? filteredCheckInTasks[0] ?? null;
   const teacherReleasedTasks = (selectedCohort?.tasks ?? []).filter((task) => task.isReleased);
   const teacherWaitingReleaseTasks = (selectedCohort?.tasks ?? []).filter((task) => !task.isReleased);
   const teacherSubmittedTaskIds = new Set(
@@ -1800,12 +1815,14 @@ export default function TeacherTrainingTab() {
     canManage,
   );
   const profileDisabledReason = getTeacherTrainingProfileDisabledReason(effectiveProfileDraft, teacherPasswordChangeRequired);
-  const submissionDisabledReason = getTeacherTrainingSubmissionDisabledReason(
-    Boolean(selectedTask),
-    hasSelectedParticipant,
-    canManage,
-    Boolean(submissionAttachmentFile || currentSubmissionAttachmentFile),
-  );
+  const submissionDisabledReason =
+    participantBindingIssue ||
+    getTeacherTrainingSubmissionDisabledReason(
+      Boolean(selectedTask),
+      hasSelectedParticipant,
+      canManage,
+      Boolean(submissionAttachmentFile || currentSubmissionAttachmentFile),
+    );
   const defaultLeaveFlowSteps = useMemo<Workspace.TeacherTrainingLeaveFlowStep[]>(
     () => [],
     [],
@@ -2295,6 +2312,11 @@ export default function TeacherTrainingTab() {
 
   const submitCourseSession = async () => {
     if (!selectedCohort) return;
+    const timeRangeError = Workspace.validateTeacherTrainingSessionTimeRange(courseDraft.startTime, courseDraft.endTime);
+    if (timeRangeError) {
+      setLoadError(timeRangeError);
+      return;
+    }
     const ok = await createTeacherTrainingCourseSession({
       ...courseDraft,
       cohortId: selectedCohort.id,
@@ -2383,7 +2405,11 @@ export default function TeacherTrainingTab() {
     }
   };
 
-  const downloadTeacherTrainingExport = async (type: TeacherTrainingExportType, label: string) => {
+  const downloadTeacherTrainingExport = async (
+    type: TeacherTrainingExportType,
+    label: string,
+    options?: { checkInTaskId?: string },
+  ) => {
     if (!exportBaseUrl || !selectedCohort) return;
 
     setExportingTeacherTrainingType(type);
@@ -2393,7 +2419,9 @@ export default function TeacherTrainingTab() {
     const exportTimeoutId = window.setTimeout(() => exportController.abort(), TEACHER_TRAINING_EXPORT_TIMEOUT_MS);
 
     try {
-      const response = await fetch(`${exportBaseUrl}&type=${type}`, {
+      const exportUrl = new URL(`${exportBaseUrl}&type=${type}`, window.location.origin);
+      if (options?.checkInTaskId) exportUrl.searchParams.set("checkInTaskId", options.checkInTaskId);
+      const response = await fetch(exportUrl.toString(), {
         credentials: "same-origin",
         cache: "no-store",
         signal: exportController.signal,
@@ -2557,6 +2585,8 @@ export default function TeacherTrainingTab() {
   const resetSubmissionAttachmentState = () => {
     setSubmissionAttachmentFile(null);
     setSubmissionAttachmentPreviewUrl("");
+    setSubmissionAttachmentWordPreviewHtml("");
+    setSubmissionAttachmentPreviewLoading(false);
     setSubmissionAttachmentProgress(null);
     setSubmissionAttachmentError("");
     setSubmissionSaveStatus("");
@@ -2570,11 +2600,13 @@ export default function TeacherTrainingTab() {
     resetSubmissionAttachmentState();
   };
 
-  const handleSubmissionAttachmentFile = (file: File | null) => {
+  const handleSubmissionAttachmentFile = async (file: File | null) => {
     setSubmissionAttachmentProgress(null);
     if (!file) {
       setSubmissionAttachmentFile(null);
       setSubmissionAttachmentPreviewUrl("");
+      setSubmissionAttachmentWordPreviewHtml("");
+      setSubmissionAttachmentPreviewLoading(false);
       setSubmissionAttachmentError("");
       return;
     }
@@ -2587,16 +2619,31 @@ export default function TeacherTrainingTab() {
     if (validationError) {
       setSubmissionAttachmentFile(null);
       setSubmissionAttachmentPreviewUrl("");
+      setSubmissionAttachmentWordPreviewHtml("");
+      setSubmissionAttachmentPreviewLoading(false);
       setSubmissionAttachmentError(validationError);
       return;
     }
 
     setSubmissionAttachmentFile(file);
-    setSubmissionAttachmentPreviewUrl(
-      Workspace.isTeacherTrainingSubmissionAttachmentPdfFile(file.name) ? URL.createObjectURL(file) : "",
-    );
+    const isPdf = Workspace.isTeacherTrainingSubmissionAttachmentPdfFile(file.name);
+    const isDocx = file.name.toLocaleLowerCase("zh-CN").endsWith(".docx");
+    setSubmissionAttachmentPreviewUrl(isPdf ? URL.createObjectURL(file) : "");
+    setSubmissionAttachmentWordPreviewHtml("");
     setSubmissionAttachmentError("");
     setSubmissionDraft((current) => ({ ...current, attachment: "" }));
+    if (isDocx) {
+      setSubmissionAttachmentPreviewLoading(true);
+      try {
+        const mammoth = await import("mammoth");
+        const converted = await mammoth.convertToHtml({ arrayBuffer: await file.arrayBuffer() });
+        setSubmissionAttachmentWordPreviewHtml(buildTeacherTrainingWordPreviewDocument(converted.value));
+      } catch {
+        setSubmissionAttachmentError("Word 文档预览生成失败，文件仍可保存，请重新选择或改用 PDF");
+      } finally {
+        setSubmissionAttachmentPreviewLoading(false);
+      }
+    }
   };
 
   const uploadSubmissionAttachmentIfNeeded = async (taskId: string, participantId: string) => {
@@ -2701,6 +2748,8 @@ export default function TeacherTrainingTab() {
         setSubmissionDraft((current) => ({ ...current, taskId, participantId, attachment }));
         setSubmissionAttachmentFile(null);
         setSubmissionAttachmentPreviewUrl("");
+        setSubmissionAttachmentWordPreviewHtml("");
+        setSubmissionAttachmentPreviewLoading(false);
         setSubmissionAttachmentProgress(null);
         setSubmissionAttachmentError("");
         setSubmissionSaveStatus(
@@ -2849,12 +2898,18 @@ export default function TeacherTrainingTab() {
 
   const submitCheckInTask = async () => {
     if (!selectedCohort) return;
+    const timeRangeError = Workspace.validateTeacherTrainingSessionTimeRange(checkInDraft.startTime, checkInDraft.endTime);
+    if (timeRangeError) {
+      setLoadError(timeRangeError);
+      return;
+    }
     const ok = await createTeacherTrainingCheckInTask({
       ...checkInDraft,
       cohortId: selectedCohort.id,
     });
     if (ok) {
       setCheckInDraft(createDefaultCheckInTaskDraft());
+      setCheckInEditorOpen(false);
     }
   };
 
@@ -2896,6 +2951,7 @@ export default function TeacherTrainingTab() {
       longitude: task.longitude === null ? "" : String(task.longitude),
       radiusMeters: String(task.radiusMeters),
     });
+    setCheckInEditorOpen(true);
   };
 
   const removeCheckInTask = async (task: Workspace.TeacherTrainingCheckInTaskItem) => {
@@ -3757,7 +3813,7 @@ export default function TeacherTrainingTab() {
         : "items-start";
   const teacherTaskWorkbenchClassName =
     !canManage && showTeacherTrainingSubmissionForm
-      ? "grid items-stretch gap-4 xl:grid-cols-[minmax(300px,0.38fr)_minmax(0,0.62fr)]"
+      ? "grid items-start gap-4"
       : "grid items-start gap-4";
   const getCheckInProgress = (task: Workspace.TeacherTrainingCheckInTaskItem) => {
     const total = selectedCohort?.participants.length ?? 0;
@@ -4231,7 +4287,9 @@ export default function TeacherTrainingTab() {
                     </div>
                     {teacherNextCourse ? (
                       <div className="tt-portal-course-row">
-                        <span className="tt-portal-course-date">{teacherNextCourse.courseDate}</span>
+                        <span className="tt-portal-course-date">
+                          {teacherNextCourseState === "in_progress" ? "进行中" : teacherNextCourse.courseDate}
+                        </span>
                         <div className="min-w-0">
                           <p className="truncate text-sm font-bold text-slate-950">{teacherNextCourse.title}</p>
                           <p className="mt-1 truncate text-xs text-slate-500">
@@ -4361,7 +4419,6 @@ export default function TeacherTrainingTab() {
               <main className="tt-portal-page-main">
                 <section className="tt-portal-hero tt-portal-hero-manager" aria-label="当前培训班">
                   <div className="tt-portal-hero-copy">
-                    <span className="tt-portal-kicker">江苏省职业院校教师培训管理系统</span>
                     <h3>{teacherTrainingPortalCohortTitle}</h3>
                     <div className="tt-portal-hero-meta">
                       <span>
@@ -5657,7 +5714,17 @@ export default function TeacherTrainingTab() {
                   {courseSessions.length === 0 ? (
                     <EmptyState description="管理员发布课程后，这里会显示你的课程安排。" icon={CalendarDays} title="暂无课程安排" />
                   ) : (
-                    teacherCourseTimeline.map((course, index) => (
+                    teacherCourseTimeline.map((course, index) => {
+                      const courseState = Workspace.getTeacherTrainingCourseWindowState(course, checkInNow);
+                      const courseStateLabel =
+                        courseState === "ended" ? "已结束" : courseState === "in_progress" ? "进行中" : "未开始";
+                      const courseStateClassName =
+                        courseState === "ended"
+                          ? "bg-slate-100 text-slate-600"
+                          : courseState === "in_progress"
+                            ? "bg-emerald-50 text-emerald-700"
+                            : "bg-blue-50 text-blue-700";
+                      return (
                       <article
                         key={course.id}
                         className="grid gap-3 rounded-2xl border border-slate-200/75 bg-white/78 p-4 shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-blue-200 hover:shadow-lg hover:shadow-blue-950/8 sm:grid-cols-[88px_minmax(0,1fr)]"
@@ -5676,11 +5743,9 @@ export default function TeacherTrainingTab() {
                         <div className="min-w-0">
                           <div className="flex flex-wrap items-center gap-2">
                             <p className="font-semibold text-slate-950">{course.title}</p>
-                            {teacherNextCourse?.id === course.id ? (
-                              <span className="rounded-full bg-emerald-50 px-2 py-0.5 text-xs font-bold text-emerald-700">
-                                下一节课
-                              </span>
-                            ) : null}
+                            <span className={`rounded-full px-2 py-0.5 text-xs font-bold ${courseStateClassName}`}>
+                              {courseStateLabel}
+                            </span>
                           </div>
                           <p className="mt-1 text-sm text-slate-500">
                             {[course.location, course.instructor].filter(Boolean).join(" · ") || "课程信息待补充"}
@@ -5690,7 +5755,8 @@ export default function TeacherTrainingTab() {
                           ) : null}
                         </div>
                       </article>
-                    ))
+                      );
+                    })
                   )}
                 </div>
               </section>
@@ -5714,6 +5780,17 @@ export default function TeacherTrainingTab() {
                     <span className="tt-pill">{selectedCohort.checkInTasks.length} 个任务</span>
                     {canManage ? (
                       <>
+                        <button
+                          className="inline-flex h-8 items-center gap-1.5 rounded-lg bg-blue-600 px-3 text-xs font-semibold text-white"
+                          onClick={() => {
+                            setCheckInDraft(createDefaultCheckInTaskDraft());
+                            setCheckInEditorOpen((current) => !current);
+                          }}
+                          type="button"
+                        >
+                          <Plus className="h-3.5 w-3.5" />
+                          {checkInEditorOpen ? "收起发布表单" : "发布新签到"}
+                        </button>
                         <button
                           className="inline-flex h-8 items-center rounded-lg border border-blue-100 bg-white px-3 text-xs font-semibold text-blue-700"
                           disabled={filteredCheckInTasks.length === 0}
@@ -5743,7 +5820,8 @@ export default function TeacherTrainingTab() {
                 </div>
 
                 {canManage ? (
-                  <div className="mt-4 grid items-stretch gap-4 xl:grid-cols-[minmax(0,1fr)_420px]">
+                  <div className="mt-4 grid gap-4">
+                    {checkInEditorOpen || checkInDraft.id ? (
                     <div className="grid content-start gap-3 md:grid-cols-2">
                       <label className={teacherTrainingFieldShellClassName}>
                         <span className={teacherTrainingFieldLabelClassName}>签到标题</span>
@@ -5873,7 +5951,10 @@ export default function TeacherTrainingTab() {
                         {checkInDraft.id ? (
                           <button
                             className="depth-button-secondary inline-flex h-10 items-center rounded-lg px-4 text-sm font-semibold"
-                            onClick={() => setCheckInDraft(createDefaultCheckInTaskDraft())}
+                            onClick={() => {
+                              setCheckInDraft(createDefaultCheckInTaskDraft());
+                              setCheckInEditorOpen(false);
+                            }}
                             type="button"
                           >
                             取消修改
@@ -5882,19 +5963,84 @@ export default function TeacherTrainingTab() {
                       </div>
                       {locationMessage ? <p className="text-xs text-slate-500 md:col-span-2">{locationMessage}</p> : null}
                     </div>
+                    ) : null}
 
                     <div className="tt-subcard flex min-h-0 flex-col p-4">
                       <div className="flex items-center justify-between gap-3">
                         <p className="text-[15px] font-bold text-slate-950">签到进度</p>
                         <span className="tt-pill">{selectedCohort.checkInTasks.length} 场</span>
                       </div>
-                      <label className={`${teacherTrainingFieldShellClassName} mt-3`}>
-                        <span className={teacherTrainingFieldLabelClassName}>搜索课程签到教师</span>
+                      <div className="mt-3 grid gap-3 lg:grid-cols-[minmax(0,1fr)_auto] lg:items-end">
+                      <label className={teacherTrainingFieldShellClassName}>
+                        <span className={teacherTrainingFieldLabelClassName}>搜索签到场次</span>
                         <input
                           className={fieldClassName}
-                          {...fieldHint("搜索课程签到教师")}
+                          {...fieldHint("搜索签到场次")}
+                          onChange={(event) => setCheckInTaskSearch(event.target.value)}
+                          placeholder="按标题、课程、日期或地点搜索"
+                          value={checkInTaskSearch}
+                        />
+                      </label>
+                      <div className="flex flex-wrap gap-2">
+                        {([
+                          ["all", "全部"],
+                          ["not_started", "未开始"],
+                          ["open", "进行中"],
+                          ["ended", "已结束"],
+                        ] as const).map(([value, label]) => (
+                          <button
+                            key={value}
+                            className={`h-9 rounded-lg border px-3 text-xs font-semibold ${
+                              checkInStatusFilter === value
+                                ? "border-blue-600 bg-blue-600 text-white"
+                                : "border-slate-200 bg-white text-slate-600"
+                            }`}
+                            onClick={() => setCheckInStatusFilter(value)}
+                            type="button"
+                          >
+                            {label}
+                          </button>
+                        ))}
+                      </div>
+                      </div>
+                      {filteredCheckInTasks.length > 0 ? (
+                        <div className="mt-3 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                          {filteredCheckInTasks.map((task) => {
+                            const progress = getCheckInProgress(task);
+                            const windowState = Workspace.getTeacherTrainingCheckInWindowState(task, checkInNow);
+                            const isActive = activeCheckInTask?.id === task.id;
+                            return (
+                              <button
+                                key={task.id}
+                                className={`rounded-xl border p-3 text-left transition ${
+                                  isActive ? "border-blue-500 bg-blue-50 shadow-sm" : "border-slate-200 bg-white hover:border-blue-200"
+                                }`}
+                                onClick={() => {
+                                  setActiveCheckInTaskId(task.id);
+                                  setCheckInPeopleFilter("signed");
+                                  setCheckInSearch("");
+                                }}
+                                type="button"
+                              >
+                                <div className="flex items-center justify-between gap-2">
+                                  <span className="truncate text-sm font-bold text-slate-900">{task.title}</span>
+                                  <span className={`shrink-0 rounded-full border px-2 py-0.5 text-[11px] font-bold ${checkInWindowStyleMap[windowState]}`}>
+                                    {Workspace.getTeacherTrainingCheckInWindowLabel(windowState)}
+                                  </span>
+                                </div>
+                                <p className="mt-1 text-xs text-slate-500">{task.signDate} · {progress.signed}/{progress.total} 人已签到</p>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      ) : null}
+                      <label className={`${teacherTrainingFieldShellClassName} mt-3`}>
+                        <span className={teacherTrainingFieldLabelClassName}>搜索本场教师</span>
+                        <input
+                          className={fieldClassName}
+                          {...fieldHint("搜索本场教师")}
                           onChange={(event) => setCheckInSearch(event.target.value)}
-                          placeholder="按教师姓名、单位、分组或签到记录搜索"
+                          placeholder="按教师姓名、单位或签到记录搜索"
                           value={checkInSearch}
                         />
                       </label>
@@ -5919,7 +6065,7 @@ export default function TeacherTrainingTab() {
                             <p className="max-w-[240px] text-xs leading-5 text-slate-400">发布签到任务后，这里会显示各场签到进度。</p>
                           </div>
                         ) : (
-                          filteredCheckInTasks.map((task) => {
+                          filteredCheckInTasks.filter((task) => task.id === activeCheckInTask?.id).map((task) => {
                             const windowState = Workspace.getTeacherTrainingCheckInWindowState(task, checkInNow);
                             const progress = getCheckInProgress(task);
                             const visibleRecords = getVisibleCheckInRecords(task);
@@ -5979,6 +6125,19 @@ export default function TeacherTrainingTab() {
                                     <Trash2 className="h-3.5 w-3.5" />
                                     删除
                                   </button>
+                                  <button
+                                    className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-2.5 text-xs font-semibold text-blue-700"
+                                    disabled={exportingTeacherTrainingType === "checkIns"}
+                                    onClick={() =>
+                                      void downloadTeacherTrainingExport("checkIns", `${task.title}-签到名单`, {
+                                        checkInTaskId: task.id,
+                                      })
+                                    }
+                                    type="button"
+                                  >
+                                    <Download className="h-3.5 w-3.5" />
+                                    导出本场名单
+                                  </button>
                                 </div>
                                 <div className="mt-3 flex items-center gap-3">
                                   <div
@@ -6011,7 +6170,24 @@ export default function TeacherTrainingTab() {
                                   <span className="text-slate-300">/</span>
                                   <span>范围 {task.radiusMeters} 米</span>
                                 </div>
-                                {visibleRecords.length > 0 ? (
+                                <div className="mt-3 flex gap-2 border-b border-slate-100 pb-3">
+                                  {([
+                                    ["signed", `已签到 ${visibleRecords.length}`],
+                                    ["unsigned", `未签到 ${visibleUnsignedParticipants.length}`],
+                                  ] as const).map(([value, label]) => (
+                                    <button
+                                      key={value}
+                                      className={`h-8 rounded-lg px-3 text-xs font-semibold ${
+                                        checkInPeopleFilter === value ? "bg-blue-600 text-white" : "bg-slate-100 text-slate-600"
+                                      }`}
+                                      onClick={() => setCheckInPeopleFilter(value)}
+                                      type="button"
+                                    >
+                                      {label}
+                                    </button>
+                                  ))}
+                                </div>
+                                {checkInPeopleFilter === "signed" && visibleRecords.length > 0 ? (
                                   <div className="mt-3 grid gap-2">
                                     {visibleRecords.map((record) => {
                                       const participant = participantById.get(record.participantId);
@@ -6031,7 +6207,7 @@ export default function TeacherTrainingTab() {
                                     这个签到任务下没有匹配的教师记录。
                                   </p>
                                 ) : null}
-                                {visibleUnsignedParticipants.length > 0 ? (
+                                {checkInPeopleFilter === "unsigned" && visibleUnsignedParticipants.length > 0 ? (
                                   <div className="mt-3 rounded-xl border border-amber-100 bg-amber-50/70 p-3">
                                     <div className="flex flex-wrap items-center justify-between gap-2">
                                       <p className="text-xs font-bold text-amber-800">未签到教师</p>
@@ -8495,6 +8671,22 @@ export default function TeacherTrainingTab() {
                         <option value="stage">阶段任务</option>
                       </select>
                     </label>
+                    {selectedTask ? (
+                      <div className="rounded-xl border border-blue-100 bg-blue-50/60 px-4 py-3">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="text-sm font-bold text-slate-950">{selectedTask.title}</p>
+                          <span className="tt-pill">{selectedTask.releaseStatusLabel}</span>
+                        </div>
+                        <p className="mt-2 whitespace-pre-wrap text-sm leading-6 text-slate-700">
+                          {selectedTask.description || "暂无任务说明"}
+                        </p>
+                        <p className="mt-2 text-xs text-slate-500">
+                          {[selectedTask.courseTitle, selectedTask.dueDate ? `截止 ${selectedTask.dueDate}` : ""]
+                            .filter(Boolean)
+                            .join(" · ")}
+                        </p>
+                      </div>
+                    ) : null}
                     {taskDraft.taskType === "course" ? (
                       <label className={teacherTrainingFieldShellClassName}>
                         <span className={teacherTrainingFieldLabelClassName}>关联课程</span>
@@ -8644,7 +8836,7 @@ export default function TeacherTrainingTab() {
                         style={{ width: `${teacherTaskCompletionPercent}%` }}
                       />
                     </div>
-                    <div className="mt-4 grid gap-2">
+                    <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
                       {teacherTaskProgressItems.length === 0 ? (
                         <div className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-3 text-sm font-semibold text-slate-500">
                           暂无任务
@@ -8731,10 +8923,15 @@ export default function TeacherTrainingTab() {
                     ) : (
                       <div className={teacherTrainingFieldShellClassName}>
                         <span className={teacherTrainingFieldLabelClassName}>我的汇报身份</span>
-                        <div className="mt-1 rounded-xl border border-blue-100 bg-blue-50/70 px-3 py-2">
+                        <div
+                          className={`mt-1 rounded-xl border px-3 py-2 ${
+                            participantBindingIssue ? "border-rose-200 bg-rose-50" : "border-blue-100 bg-blue-50/70"
+                          }`}
+                        >
                           <p className="text-sm font-semibold text-slate-950">{selectedParticipant?.name ?? "未绑定参训教师"}</p>
                           <p className="mt-0.5 text-xs leading-5 text-slate-500">
-                            {selectedParticipant?.organization || "单位待补充"} · 已按当前省培账号锁定
+                            {participantBindingIssue ||
+                              `${selectedParticipant?.organization || "单位待补充"} · 已按当前省培账号锁定`}
                           </p>
                         </div>
                       </div>
@@ -8754,7 +8951,7 @@ export default function TeacherTrainingTab() {
                           type="file"
                           onChange={(event) => {
                             const file = event.target.files?.[0] ?? null;
-                            handleSubmissionAttachmentFile(file);
+                            void handleSubmissionAttachmentFile(file);
                             event.currentTarget.value = "";
                           }}
                         />
@@ -8768,7 +8965,7 @@ export default function TeacherTrainingTab() {
                             </div>
                             <button
                               className="inline-flex h-8 items-center justify-center rounded-lg border border-slate-200 px-2.5 text-xs font-semibold text-slate-600"
-                              onClick={() => handleSubmissionAttachmentFile(null)}
+                              onClick={() => void handleSubmissionAttachmentFile(null)}
                               type="button"
                             >
                               移除
@@ -8843,23 +9040,48 @@ export default function TeacherTrainingTab() {
                                 {submissionAttachmentFile ? "本地文件" : "已上传附件"}
                               </span>
                             </div>
-                            {submissionAttachmentPreviewUrl ||
-                            (currentSubmissionAttachmentFile &&
-                              Workspace.isTeacherTrainingSubmissionAttachmentPdfFile(currentSubmissionAttachmentFile.fileName)) ? (
+                            {submissionAttachmentPreviewLoading ? (
+                              <div className="flex min-h-[180px] items-center justify-center gap-2 text-sm text-slate-500">
+                                <Loader2 className="h-5 w-5 animate-spin text-blue-600" />
+                                正在生成站内预览
+                              </div>
+                            ) : submissionAttachmentPreviewUrl ? (
                               <iframe
                                 className="h-[420px] w-full bg-white"
-                                src={submissionAttachmentPreviewUrl || currentSubmissionAttachmentFile!.downloadUrl}
+                                src={submissionAttachmentPreviewUrl}
                                 title="PDF 汇报预览"
                               />
+                            ) : submissionAttachmentWordPreviewHtml ? (
+                              <iframe
+                                className="h-[420px] w-full bg-white"
+                                sandbox=""
+                                srcDoc={submissionAttachmentWordPreviewHtml}
+                                title="Word 汇报预览"
+                              />
+                            ) : currentSubmissionAttachmentFile && selectedSubmission ? (
+                              <div className="flex min-h-[180px] flex-col items-center justify-center gap-3 px-4 py-8 text-center">
+                                <FileText className="h-8 w-8 text-blue-500" />
+                                <p className="text-sm font-semibold text-slate-700">附件已保存，可在当前页面打开</p>
+                                <button
+                                  className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-blue-200 bg-blue-50 px-3 text-xs font-semibold text-blue-700"
+                                  onClick={() =>
+                                    handlePreviewDocument({
+                                      downloadUrl: `/api/teacher-training/submissions/${selectedSubmission.id}/preview`,
+                                      fileName: currentSubmissionAttachmentFile.fileName,
+                                      mimeType: currentSubmissionAttachmentFile.mimeType,
+                                      title: `${selectedTask?.title ?? "任务汇报"} · 附件预览`,
+                                    })
+                                  }
+                                  type="button"
+                                >
+                                  <FileText className="h-3.5 w-3.5" />
+                                  站内预览
+                                </button>
+                              </div>
                             ) : (
                               <div className="flex min-h-[180px] flex-col items-center justify-center gap-2 px-4 py-8 text-center text-sm text-slate-500">
                                 <FileText className="h-8 w-8 text-blue-500" />
-                                <p className="font-semibold text-slate-700">Word 文件请下载后查看</p>
-                                <p className="text-xs leading-5 text-slate-500">
-                                  {submissionAttachmentFile
-                                    ? "本地 Word 文件已选择，保存后管理员可随归档一起导出。"
-                                    : "已上传的 Word 汇报不会在网页中硬预览，可通过上方下载按钮查看。"}
-                                </p>
+                                <p className="font-semibold text-slate-700">当前附件暂时无法生成预览</p>
                               </div>
                             )}
                           </div>
@@ -9004,6 +9226,31 @@ export default function TeacherTrainingTab() {
                     {teacherTrainingDownloadStatus}
                   </p>
                 ) : null}
+                {canManage && filteredSubmissionTasks.length > 0 ? (
+                  <div className="mt-4 grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                    {filteredSubmissionTasks.map((task) => {
+                      const isActive = activeSubmissionTask?.id === task.id;
+                      return (
+                        <button
+                          key={task.id}
+                          className={`rounded-xl border p-3 text-left transition ${
+                            isActive ? "border-blue-500 bg-blue-50 shadow-sm" : "border-slate-200 bg-white hover:border-blue-200"
+                          }`}
+                          onClick={() => setActiveSubmissionTaskId(task.id)}
+                          type="button"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <span className="truncate text-sm font-bold text-slate-900">{task.title}</span>
+                            <span className="tt-pill shrink-0">{task.submissions.length}/{selectedCohort.participants.length} 份</span>
+                          </div>
+                          <p className="mt-1 line-clamp-2 text-xs leading-5 text-slate-500">
+                            {task.description || "暂无任务说明"}
+                          </p>
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : null}
                 <div className="mt-4 grid gap-3">
                   {filteredSubmissionTasks.length === 0 ? (
                     <EmptyState
@@ -9012,7 +9259,9 @@ export default function TeacherTrainingTab() {
                       title="暂无任务"
                     />
                   ) : (
-                    filteredSubmissionTasks.map((task) => {
+                    filteredSubmissionTasks
+                      .filter((task) => !canManage || task.id === activeSubmissionTask?.id)
+                      .map((task) => {
                       const teacherSubmission = task.submissions.find(
                         (submission) => submission.participantId === selectedParticipant?.id,
                       );
@@ -9169,7 +9418,7 @@ export default function TeacherTrainingTab() {
                               const attachmentIsPdf = Workspace.isTeacherTrainingSubmissionAttachmentPdfFile(attachmentFile?.fileName);
                               const reviewDraft = getSubmissionReviewDraft(submission);
                               const participant = participantById.get(submission.participantId);
-                              const previewOpen = previewTeacherTrainingSubmissionId === submission.id;
+                              const previewOpen = false;
 
                               return (
                                 <div key={submission.id} className="rounded-xl border border-slate-100 bg-slate-50/80 p-3 text-sm text-slate-600">
@@ -9196,15 +9445,21 @@ export default function TeacherTrainingTab() {
                                     <div className="flex shrink-0 flex-wrap gap-2">
                                       <button
                                         className="inline-flex h-8 w-fit items-center gap-1 rounded-md border border-slate-200 bg-white px-2 py-1 text-xs font-semibold text-slate-700"
+                                        disabled={!attachmentFile}
                                         onClick={() =>
-                                          setPreviewTeacherTrainingSubmissionId((current) =>
-                                            current === submission.id ? "" : submission.id,
-                                          )
+                                          attachmentFile
+                                            ? handlePreviewDocument({
+                                                downloadUrl: `/api/teacher-training/submissions/${submission.id}/preview`,
+                                                fileName: attachmentFile.fileName,
+                                                mimeType: attachmentFile.mimeType,
+                                                title: `${task.title} · ${submission.participantName}`,
+                                              })
+                                            : undefined
                                         }
                                         type="button"
                                       >
                                         <FileText className="h-3 w-3" />
-                                        {previewOpen ? "收起预览" : "在线预览"}
+                                        站内预览
                                       </button>
                                       {attachmentFile ? (
                                         <button
@@ -9253,7 +9508,7 @@ export default function TeacherTrainingTab() {
                                             <div className="flex h-[420px] flex-col items-center justify-center gap-2 px-4 text-center text-sm text-slate-500">
                                               <FileText className="h-8 w-8 text-blue-500" />
                                               <p className="font-semibold text-slate-700">
-                                                {attachmentFile ? "Word 文件请下载后查看" : "暂无可预览附件"}
+                                                {attachmentFile ? "请点击上方按钮在站内预览" : "暂无可预览附件"}
                                               </p>
                                               {attachmentFile ? (
                                                 <button

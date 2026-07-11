@@ -34,8 +34,12 @@ export async function GET(request: NextRequest) {
 
   const cohortId = request.nextUrl.searchParams.get("cohortId")?.trim();
   const type = request.nextUrl.searchParams.get("type")?.trim() || "attendance";
+  const checkInTaskId = request.nextUrl.searchParams.get("checkInTaskId")?.trim();
   if (!cohortId || !exportTypeSet.has(type)) {
     return NextResponse.json({ message: "导出参数不完整" }, { status: 400 });
+  }
+  if (checkInTaskId && type !== "checkIns") {
+    return NextResponse.json({ message: "签到任务参数仅支持课程签到导出" }, { status: 400 });
   }
   if (!(await hasTeacherTrainingCohortManageAccess(user, cohortId))) {
     return NextResponse.json({ message: "无权限导出该省培班次数据" }, { status: 403 });
@@ -70,7 +74,10 @@ export async function GET(request: NextRequest) {
         },
       },
       checkInTasks: {
-        where: { deletedAt: null },
+        where: {
+          deletedAt: null,
+          ...(checkInTaskId ? { id: checkInTaskId } : {}),
+        },
         orderBy: [{ signDate: "asc" }, { startTime: "asc" }, { createdAt: "asc" }],
         include: {
           creator: { select: { name: true } },
@@ -122,6 +129,10 @@ export async function GET(request: NextRequest) {
 
   if (!cohort) {
     return NextResponse.json({ message: "省培班次不存在" }, { status: 404 });
+  }
+  const checkInTask = checkInTaskId ? cohort.checkInTasks[0] : null;
+  if (checkInTaskId && !checkInTask) {
+    return NextResponse.json({ message: "签到任务不属于当前省培班次" }, { status: 404 });
   }
 
   const serialized = serializeTeacherTrainingCohort(cohort);
@@ -248,10 +259,20 @@ export async function GET(request: NextRequest) {
   }
 
   const csvType = type === "submissionScores" ? "submissions" : type;
-  const csv = `\uFEFF${buildTeacherTrainingCsv({
+  const csvBody = buildTeacherTrainingCsv({
     cohort: serialized,
     type: csvType as "participants" | "attendance" | "checkIns" | "leaves" | "submissions" | "arrivals",
-  })}`;
+  });
+  if (
+    type === "checkIns" &&
+    (!csvBody.split(/\r?\n/, 1)[0]?.includes("登录账号") ||
+      serialized.participants.some(
+        (participant) => participant.accountUsername && !csvBody.includes(participant.accountUsername),
+      ))
+  ) {
+    return NextResponse.json({ message: "签到导出登录账号列生成失败" }, { status: 500 });
+  }
+  const csv = `\uFEFF${csvBody}`;
   const labelMap = {
     participants: "参训名单",
     attendance: "报到信息",
@@ -261,7 +282,9 @@ export async function GET(request: NextRequest) {
     submissionScores: "任务汇报评分表",
     arrivals: "预计到达信息",
   } as const;
-  const fileName = `${serialized.title}-${labelMap[type as keyof typeof labelMap]}.csv`;
+  const fileName = checkInTask
+    ? `${serialized.title}-${checkInTask.signDate}-${checkInTask.title}-签到名单.csv`
+    : `${serialized.title}-${labelMap[type as keyof typeof labelMap]}.csv`;
 
   return new NextResponse(csv, {
     headers: {

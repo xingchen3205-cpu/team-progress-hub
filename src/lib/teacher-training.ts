@@ -1101,7 +1101,68 @@ export const parseTeacherTrainingTimeToMinutes = (value?: string | null) => {
   return Number(match[1]) * 60 + Number(match[2]);
 };
 
+export const validateTeacherTrainingSessionTimeRange = (
+  startTime?: string | null,
+  endTime?: string | null,
+) => {
+  const normalizedStartTime = startTime?.trim() ?? "";
+  const normalizedEndTime = endTime?.trim() ?? "";
+  if (Boolean(normalizedStartTime) !== Boolean(normalizedEndTime)) {
+    return "请同时填写开始时间和结束时间";
+  }
+  if (!normalizedStartTime && !normalizedEndTime) {
+    return "";
+  }
+
+  const startMinutes = parseTeacherTrainingTimeToMinutes(normalizedStartTime);
+  const endMinutes = parseTeacherTrainingTimeToMinutes(normalizedEndTime);
+  if (startMinutes === null || endMinutes === null) {
+    return "时间格式不正确";
+  }
+  if (endMinutes <= startMinutes) {
+    return "结束时间必须晚于开始时间";
+  }
+
+  return "";
+};
+
 export const isTeacherTrainingDateKey = (value?: string | null) => Boolean(value && dateKeyPattern.test(value));
+
+export type TeacherTrainingCourseWindowState = "not_started" | "in_progress" | "ended";
+
+type TeacherTrainingCourseWindowInput = {
+  courseDate: string;
+  startTime?: string | null;
+  endTime?: string | null;
+};
+
+export const getTeacherTrainingCourseWindowState = (
+  course: TeacherTrainingCourseWindowInput,
+  now = new Date(),
+): TeacherTrainingCourseWindowState => {
+  if (!isTeacherTrainingDateKey(course.courseDate)) {
+    return "in_progress";
+  }
+
+  const current = getShanghaiDateParts(now);
+  if (current.dateKey < course.courseDate) {
+    return "not_started";
+  }
+  if (current.dateKey > course.courseDate) {
+    return "ended";
+  }
+
+  const startMinutes = parseTeacherTrainingTimeToMinutes(course.startTime);
+  const endMinutes = parseTeacherTrainingTimeToMinutes(course.endTime);
+  if (startMinutes !== null && current.minuteOfDay < startMinutes) {
+    return "not_started";
+  }
+  if (endMinutes !== null && current.minuteOfDay >= endMinutes) {
+    return "ended";
+  }
+
+  return "in_progress";
+};
 
 export const getTeacherTrainingCheckInWindowState = (
   task: TeacherTrainingCheckInWindowInput,
@@ -2126,6 +2187,7 @@ export const buildTeacherTrainingCsv = ({
         "时间",
         "地点",
         "姓名",
+        "登录账号",
         "单位",
         "分组",
         "性别",
@@ -2150,6 +2212,7 @@ export const buildTeacherTrainingCsv = ({
             [task.startTime, task.endTime].filter(Boolean).join("-"),
             task.locationName,
             participant.name,
+            participant.accountUsername,
             participant.organization,
             participant.groupName,
             participant.gender,

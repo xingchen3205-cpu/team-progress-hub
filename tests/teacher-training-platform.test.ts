@@ -105,7 +105,7 @@ test("teacher training management layout keeps cards aligned without oversized e
   assert.match(tabSource, /teacherTrainingManagementGridClassName[\s\S]*items-stretch xl:grid-cols-\[360px_minmax\(0,1fr\)\]/);
   assert.match(tabSource, /grid items-stretch gap-5 xl:grid-cols-\[minmax\(320px,0\.42fr\)_minmax\(0,0\.58fr\)\]/);
   assert.match(tabSource, /teacherTaskWorkbenchClassName/);
-  assert.match(tabSource, /grid items-stretch gap-4 xl:grid-cols-\[minmax\(300px,0\.38fr\)_minmax\(0,0\.62fr\)\]/);
+  assert.match(tabSource, /!canManage && showTeacherTrainingSubmissionForm[\s\S]*grid items-start gap-4/);
 });
 
 test("teacher training APIs support admin-managed courses, check-in, tasks, submissions, profile, and export", () => {
@@ -352,7 +352,7 @@ test("teacher training search, import, profile title/email, leave approvers, and
   assert.match(tabSource, /submissionSearch/);
   assert.match(tabSource, /搜索参训教师/);
   assert.match(tabSource, /搜索报到登记/);
-  assert.match(tabSource, /搜索课程签到教师/);
+  assert.match(tabSource, /搜索本场教师/);
   assert.match(tabSource, /搜索请假教师/);
   assert.match(tabSource, /搜索汇报教师/);
   assert.match(tabSource, /filteredCheckInTasks/);
@@ -1495,7 +1495,7 @@ test("teacher training teacher task report page uses a horizontal workbench with
 
   assert.match(tabSource, /teacherTaskWorkbenchClassName/);
   assert.match(tabSource, /!canManage && showTeacherTrainingSubmissionForm/);
-  assert.match(tabSource, /xl:grid-cols-\[minmax\(300px,0\.38fr\)_minmax\(0,0\.62fr\)\]/);
+  assert.match(tabSource, /sm:grid-cols-2 xl:grid-cols-3/);
   assert.match(tabSource, /我的任务/);
   assert.match(tabSource, /提交汇报/);
   assert.doesNotMatch(tabSource, /省培平台独立管理班次、参训教师、课程签到、任务汇报、请假审批和导出归档/);
@@ -1911,7 +1911,8 @@ test("teacher training task reports support Word/PDF attachments and preserve ex
   assert.match(submissionsRouteSource, /请上传 Word 或 PDF 汇报附件/);
   assert.match(submissionsRouteSource, /汇报附件：\$\{attachmentFile\.fileName\}/);
   assert.match(tabSource, /选择 Word 或 PDF 文件/);
-  assert.match(tabSource, /Word 文件请下载后查看/);
+  assert.match(tabSource, /\/api\/teacher-training\/submissions\/\$\{submission\.id\}\/preview/);
+  assert.doesNotMatch(tabSource, /Word 文件请下载后查看/);
   assert.match(exportRouteSource, /uniqueParticipantFolder/);
   assert.match(exportRouteSource, /uniqueZipPath/);
   assert.match(exportRouteSource, /任务汇报汇总\.docx/);
