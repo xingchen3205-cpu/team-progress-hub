@@ -6,6 +6,8 @@ import { prisma } from "@/lib/prisma";
 import { hasTeacherTrainingCohortManageAccess } from "@/lib/teacher-training-access";
 import {
   buildTeacherTrainingCsv,
+  buildTeacherTrainingGroupExportFileName,
+  buildTeacherTrainingGroupWorkbook,
   buildTeacherTrainingSubmissionWordDocument,
   serializeTeacherTrainingCohort,
 } from "@/lib/teacher-training";
@@ -24,6 +26,7 @@ const exportTypeSet = new Set([
   "submissions",
   "submissionScores",
   "arrivals",
+  "groups",
 ]);
 
 export async function GET(request: NextRequest) {
@@ -136,6 +139,17 @@ export async function GET(request: NextRequest) {
   }
 
   const serialized = serializeTeacherTrainingCohort(cohort);
+  if (type === "groups") {
+    const workbook = buildTeacherTrainingGroupWorkbook(serialized);
+    const fileName = buildTeacherTrainingGroupExportFileName(serialized.title);
+
+    return new NextResponse(workbook, {
+      headers: {
+        "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+        "Content-Disposition": buildAttachmentDisposition(fileName),
+      },
+    });
+  }
   if (type === "submissions") {
     const maxInlineZipBytes = 4 * 1024 * 1024;
     const cleanPathPart = (value: string) =>

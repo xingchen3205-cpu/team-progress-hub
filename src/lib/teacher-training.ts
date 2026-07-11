@@ -1,4 +1,5 @@
 import { createZipArchive } from "@/lib/zip";
+import { buildSimpleXlsx, type XlsxCell } from "@/lib/xlsx";
 import {
   buildTeacherTrainingSubmissionAttachmentDownloadUrl,
   decodeTeacherTrainingSubmissionAttachmentFile,
@@ -784,6 +785,132 @@ export const mergeTeacherTrainingParticipantExtraInfo = (
   ]
     .filter(Boolean)
     .join("\n");
+};
+
+const chineseNumeralMap: Record<string, number> = {
+  〇: 0,
+  零: 0,
+  一: 1,
+  壹: 1,
+  二: 2,
+  两: 2,
+  贰: 2,
+  三: 3,
+  叁: 3,
+  四: 4,
+  肆: 4,
+  五: 5,
+  伍: 5,
+  六: 6,
+  陆: 6,
+  七: 7,
+  柒: 7,
+  八: 8,
+  捌: 8,
+  九: 9,
+  玖: 9,
+};
+
+const parseChineseNumeral = (value: string): number | null => {
+  if (!value) return null;
+  let total = 0;
+  let section = 0;
+  let matched = false;
+  for (const char of value) {
+    if (char === "十" || char === "拾") {
+      matched = true;
+      section = (section === 0 ? 1 : section) * 10;
+      total += section;
+      section = 0;
+    } else if (chineseNumeralMap[char] !== undefined) {
+      matched = true;
+      section = chineseNumeralMap[char];
+    } else {
+      return null;
+    }
+  }
+  total += section;
+  return matched ? total : null;
+};
+
+// 从分组名里解析用于排序的数值：兼容“第1组/1组/第10组”“一组/第二组”等，识别不到时返回 null。
+export const parseTeacherTrainingGroupOrder = (groupName?: string | null): number | null => {
+  const trimmed = (groupName ?? "").trim();
+  if (!trimmed) return null;
+  const core = trimmed
+    .replace(/^第/, "")
+    .replace(/(小组|组别|組別|[组組队隊班])+$/u, "")
+    .trim();
+  const arabic = core.match(/\d+/);
+  if (arabic) {
+    const parsed = Number.parseInt(arabic[0], 10);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return parseChineseNumeral(core);
+};
+
+// 统一的分组自然排序：能解析出数字的按数字升序（1、2、10），
+// 数字组排在非数字组前面，其余用 zh-CN 本地化排序，保证界面和导出顺序一致。
+export const compareTeacherTrainingGroupNames = (a?: string | null, b?: string | null): number => {
+  const left = (a ?? "").trim();
+  const right = (b ?? "").trim();
+  const leftOrder = parseTeacherTrainingGroupOrder(left);
+  const rightOrder = parseTeacherTrainingGroupOrder(right);
+  if (leftOrder !== null && rightOrder !== null) {
+    if (leftOrder !== rightOrder) return leftOrder - rightOrder;
+    return left.localeCompare(right, "zh-CN");
+  }
+  if (leftOrder !== null) return -1;
+  if (rightOrder !== null) return 1;
+  return left.localeCompare(right, "zh-CN");
+};
+
+export const sortTeacherTrainingGroupNames = (names: Array<string | null | undefined>): string[] =>
+  [...names.map((name) => (name ?? "").trim())].sort(compareTeacherTrainingGroupNames);
+
+// 组内成员排序：组长置顶，其余成员保持传入的稳定顺序（不随刷新变化）。
+export const sortTeacherTrainingParticipantsWithLeaderFirst = <T extends { isGroupLeader: boolean }>(
+  members: T[],
+): T[] => {
+  const leaders = members.filter((member) => member.isGroupLeader);
+  const others = members.filter((member) => !member.isGroupLeader);
+  return [...leaders, ...others];
+};
+
+export type TeacherTrainingParticipantGroup = {
+  name: string;
+  isUngrouped: boolean;
+  members: TeacherTrainingParticipantItem[];
+};
+
+// 把参训教师按分组聚合：分组自然排序、组内组长置顶，未分组可选择放到最后。
+export const buildTeacherTrainingParticipantGroups = (
+  participants: TeacherTrainingParticipantItem[],
+  options?: { includeUngrouped?: boolean; ungroupedName?: string },
+): TeacherTrainingParticipantGroup[] => {
+  const includeUngrouped = options?.includeUngrouped ?? false;
+  const ungroupedName = options?.ungroupedName ?? "未分组";
+  const grouped = new Map<string, TeacherTrainingParticipantItem[]>();
+  const ungrouped: TeacherTrainingParticipantItem[] = [];
+  for (const participant of participants) {
+    const groupName = participant.groupName?.trim() ?? "";
+    if (!groupName) {
+      ungrouped.push(participant);
+      continue;
+    }
+    grouped.set(groupName, [...(grouped.get(groupName) ?? []), participant]);
+  }
+  const namedGroups: TeacherTrainingParticipantGroup[] = [...grouped.entries()]
+    .sort(([leftName], [rightName]) => compareTeacherTrainingGroupNames(leftName, rightName))
+    .map(([name, members]) => ({
+      name,
+      isUngrouped: false,
+      members: sortTeacherTrainingParticipantsWithLeaderFirst(members),
+    }));
+  if (includeUngrouped && ungrouped.length > 0) {
+    namedGroups.push({ name: ungroupedName, isUngrouped: true, members: ungrouped });
+  }
+  return namedGroups;
 };
 
 const toDateTimeLabel = (value: Date | string | null | undefined) => {
@@ -2289,4 +2416,70 @@ export const buildTeacherTrainingCsv = ({
       participant.note,
     ]),
   ]);
+};
+
+export const teacherTrainingGroupExportHeaders = [
+  "序号",
+  "分组",
+  "组内序号",
+  "身份",
+  "姓名",
+  "所在单位",
+  "手机号",
+  "登录账号",
+  "职务",
+  "职称",
+] as const;
+
+const teacherTrainingGroupExportColumnWidths = [6, 12, 10, 8, 14, 30, 16, 20, 14, 14];
+
+// 构建“参训教师分组表”的行数据：分组自然排序、组内组长置顶、未分组排最后。
+// 手机号和登录账号按文本导出，避免 Excel 转成科学计数法；不含密码等敏感字段。
+export const buildTeacherTrainingGroupExportRows = (cohort: TeacherTrainingCohortItem): XlsxCell[][] => {
+  const groups = buildTeacherTrainingParticipantGroups(cohort.participants, { includeUngrouped: true });
+  const rows: XlsxCell[][] = [];
+  let sequence = 0;
+  for (const group of groups) {
+    group.members.forEach((member, memberIndex) => {
+      sequence += 1;
+      const account = member.accountUserId
+        ? member.accountUsername || member.accountName || "已开通账号"
+        : "未开通账号";
+      rows.push([
+        { value: sequence, type: "number" },
+        { value: group.name, type: "text" },
+        { value: memberIndex + 1, type: "number" },
+        { value: group.isUngrouped ? "组员" : member.isGroupLeader ? "组长" : "组员", type: "text" },
+        { value: member.name, type: "text" },
+        { value: member.organization, type: "text" },
+        { value: member.phone, type: "text" },
+        { value: account, type: "text" },
+        { value: member.title, type: "text" },
+        { value: member.professionalTitle, type: "text" },
+      ]);
+    });
+  }
+  return rows;
+};
+
+export const buildTeacherTrainingGroupWorkbook = (cohort: TeacherTrainingCohortItem) =>
+  buildSimpleXlsx({
+    sheetName: "参训教师分组表",
+    headers: [...teacherTrainingGroupExportHeaders],
+    rows: buildTeacherTrainingGroupExportRows(cohort),
+    columnWidths: teacherTrainingGroupExportColumnWidths,
+    freezeHeader: true,
+  });
+
+// 分组导出文件名：班次名称-参训教师分组表-YYYYMMDD.xlsx
+export const buildTeacherTrainingGroupExportFileName = (cohortTitle: string, now: Date = new Date()): string => {
+  const formatter = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Shanghai",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  });
+  const datePart = formatter.format(now).replace(/-/g, "");
+  const safeTitle = (cohortTitle || "省培班次").replace(/[\\/:*?"<>|]/g, " ").trim() || "省培班次";
+  return `${safeTitle}-参训教师分组表-${datePart}.xlsx`;
 };

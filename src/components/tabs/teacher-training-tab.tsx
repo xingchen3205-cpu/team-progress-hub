@@ -97,7 +97,8 @@ type TeacherTrainingExportType =
   | "checkIns"
   | "leaves"
   | "submissions"
-  | "submissionScores";
+  | "submissionScores"
+  | "groups";
 
 const teacherTrainingExportItems: Array<{
   label: string;
@@ -1211,15 +1212,10 @@ export default function TeacherTrainingTab() {
     return teacherTrainingCohorts[0] ?? null;
   }, [selectedCohortId, teacherTrainingCohorts]);
 
-  const existingParticipantGroups = useMemo(() => {
-    const groups = new Map<string, Workspace.TeacherTrainingParticipantItem[]>();
-    for (const participant of selectedCohort?.participants ?? []) {
-      const groupName = participant.groupName.trim();
-      if (!groupName) continue;
-      groups.set(groupName, [...(groups.get(groupName) ?? []), participant]);
-    }
-    return [...groups.entries()].map(([name, members]) => ({ name, members }));
-  }, [selectedCohort?.participants]);
+  const existingParticipantGroups = useMemo(
+    () => Workspace.buildTeacherTrainingParticipantGroups(selectedCohort?.participants ?? []),
+    [selectedCohort?.participants],
+  );
 
   useEffect(() => {
     setGroupLeaderDrafts(
@@ -2294,6 +2290,16 @@ export default function TeacherTrainingTab() {
       setRandomGroupLeaderDrafts({});
       setRandomRegroupOpen(false);
     }
+  };
+
+  const exportTeacherTrainingGroups = async () => {
+    if (!selectedCohort) return;
+    // 只导出已保存的真实分组；存在未保存的随机预览时先提示保存，避免导出临时结果。
+    if (randomGroupPreview.length > 0) {
+      setLoadError("请先保存分组后再导出。");
+      return;
+    }
+    await downloadTeacherTrainingExport("groups", "参训教师分组表");
   };
 
   const saveExistingGroupLeader = async (groupName: string) => {
@@ -7690,15 +7696,33 @@ export default function TeacherTrainingTab() {
                 {randomGroupPanelOpen ? (
                   <div className="mt-4 space-y-4">
                     <div className="rounded-xl border border-blue-100 bg-white p-4">
-                      <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                      <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
                         <div className="min-w-0">
                           <p className="text-sm font-bold text-slate-950">现有分组与组长</p>
                           <p className="mt-1 text-xs leading-5 text-slate-500">
                             在每个分组里指定一名组长，组长负责本组小组任务提交；更换组长后原组长自动取消。
                           </p>
                         </div>
-                        <span className="tt-pill w-fit shrink-0">{existingParticipantGroups.length} 组</span>
+                        <div className="flex flex-wrap items-center gap-2 sm:shrink-0">
+                          <span className="tt-pill w-fit">{existingParticipantGroups.length} 组</span>
+                          <button
+                            className="inline-flex h-9 items-center gap-1.5 rounded-lg border border-blue-200 bg-white px-3 text-xs font-semibold text-blue-700 transition hover:bg-blue-50 disabled:cursor-not-allowed disabled:opacity-50"
+                            disabled={
+                              exportingTeacherTrainingType === "groups" ||
+                              selectedCohort.participants.length === 0
+                            }
+                            onClick={() => void exportTeacherTrainingGroups()}
+                            title="导出当前班次全部已保存分组的 Excel 表"
+                            type="button"
+                          >
+                            <Download className="h-3.5 w-3.5" />
+                            {exportingTeacherTrainingType === "groups" ? "正在导出..." : "导出分组表"}
+                          </button>
+                        </div>
                       </div>
+                      <p className="mt-1 text-[11px] leading-5 text-slate-400">
+                        导出全部分组：按页面顺序导出已保存分组，未保存的随机预览不会导出。
+                      </p>
                       {existingParticipantGroups.length === 0 ? (
                         <p className="mt-3 rounded-lg border border-slate-100 bg-slate-50 px-3 py-3 text-xs leading-5 text-slate-500">
                           还没有分组。可在下方随机分组，或在教师档案里填写分组后再指定组长。
@@ -7712,25 +7736,40 @@ export default function TeacherTrainingTab() {
 
                             return (
                               <section className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm" key={group.name}>
-                                <div className="flex items-center justify-between gap-2">
-                                  <p className="min-w-0 truncate text-sm font-bold text-slate-950">{group.name}</p>
+                                <div className="flex items-start justify-between gap-2">
+                                  <div className="min-w-0">
+                                    <p className="min-w-0 break-words text-sm font-bold text-slate-950">{group.name}</p>
+                                    <p className="mt-0.5 text-[11px] font-semibold">
+                                      {currentLeader ? (
+                                        <span className="text-blue-700">组长：{currentLeader.name}</span>
+                                      ) : (
+                                        <span className="text-slate-400">未指定组长</span>
+                                      )}
+                                    </p>
+                                  </div>
                                   <span className="tt-pill shrink-0">{group.members.length} 人</span>
                                 </div>
                                 <div className="mt-2 space-y-1.5">
                                   {group.members.map((member) => (
                                     <div
-                                      className="flex items-center justify-between gap-2 rounded-lg bg-slate-50 px-2.5 py-2"
+                                      className={`rounded-lg px-2.5 py-2 ${
+                                        member.isGroupLeader
+                                          ? "border border-blue-200 bg-blue-50"
+                                          : "border border-transparent bg-slate-50"
+                                      }`}
                                       key={member.id}
                                     >
-                                      <div className="min-w-0">
-                                        <p className="truncate text-sm font-semibold text-slate-800">{member.name}</p>
-                                        <p className="truncate text-xs text-slate-500">{member.organization}</p>
-                                      </div>
-                                      {member.isGroupLeader ? (
-                                        <span className="shrink-0 rounded-full bg-amber-100 px-2 py-0.5 text-[11px] font-bold text-amber-700">
-                                          组长
+                                      <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                                        <span className="min-w-0 break-words text-sm font-semibold text-slate-800">
+                                          {member.name}
                                         </span>
-                                      ) : null}
+                                        {member.isGroupLeader ? (
+                                          <span className="shrink-0 rounded-full bg-blue-100 px-2 py-0.5 text-[11px] font-bold text-blue-700">
+                                            组长
+                                          </span>
+                                        ) : null}
+                                      </div>
+                                      <p className="mt-0.5 break-words text-xs text-slate-500">{member.organization}</p>
                                     </div>
                                   ))}
                                 </div>
@@ -7819,7 +7858,11 @@ export default function TeacherTrainingTab() {
                           </div>
                           {randomGroupPreview.length ? (
                             <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-                              {randomGroupPreview.map((group) => (
+                              {[...randomGroupPreview]
+                                .sort((left, right) =>
+                                  Workspace.compareTeacherTrainingGroupNames(left.name, right.name),
+                                )
+                                .map((group) => (
                                 <section className="rounded-xl border border-slate-200 bg-white p-3 shadow-sm" key={group.name}>
                                   <div className="flex items-center justify-between gap-2">
                                     <p className="min-w-0 truncate text-sm font-bold text-slate-950">{group.name}</p>
