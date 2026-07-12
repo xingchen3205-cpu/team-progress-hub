@@ -902,8 +902,8 @@ test("teacher training interactions expose clear hints for mobile web users", ()
   assert.match(tabSource, /在参训教师模块添加名单后/);
   assert.match(tabSource, /导出名单、报到信息、课程签到和任务汇报/);
   assert.match(tabSource, /手机端定位签到/);
-  assert.match(tabSource, /aria-label="使用当前位置填入签到坐标"/);
-  assert.match(tabSource, /title="使用当前位置填入签到坐标"/);
+  // 线下签到地点改为地图选点组件（内含"使用当前位置"辅助入口）。
+  assert.match(tabSource, /TeacherTrainingLocationPicker/);
   assert.match(tabSource, /aria-label="发布课程定位签到任务"/);
   assert.match(tabSource, /title="发布课程定位签到任务"/);
   assert.match(tabSource, /aria-label="定位签到，浏览器会请求当前位置权限"/);
@@ -941,7 +941,6 @@ test("teacher training form controls expose stable field hints after mobile inpu
   assert.match(tabSource, /\.\.\.fieldHint\("选择省培班次"\)/);
   assert.match(tabSource, /\.\.\.fieldHint\("培训名称"\)/);
   assert.match(tabSource, /\.\.\.fieldHint\("参训教师姓名"\)/);
-  assert.match(tabSource, /\.\.\.fieldHint\("签到地点"\)/);
   assert.match(tabSource, /\.\.\.fieldHint\("请假原因"\)/);
   assert.match(tabSource, /\.\.\.fieldHint\("省培任务汇报附件"\)/);
 });
@@ -1103,10 +1102,6 @@ test("teacher training manager forms keep visible field labels on mobile", () =>
     "签到日期",
     "签到开始时间",
     "签到结束时间",
-    "签到地点",
-    "签到地点纬度",
-    "签到地点经度",
-    "有效签到范围米数",
     "请假审批步骤名称",
     "请假审批每步通过人数",
     "酒店房号",
@@ -1776,8 +1771,8 @@ test("teacher training check-in and Word/PDF submissions avoid misleading fallba
   const attachmentPolicySource = read("src/lib/teacher-training-submission-attachments.ts");
   const contextSource = read("src/components/workspace-context.tsx");
 
-  assert.match(tabSource, /教师仍需授权定位；系统记录教师当前位置/);
-  assert.match(tabSource, /定位失败时可由管理端人工补签/);
+  assert.match(tabSource, /未选点时教师仍需授权定位，但不做距离校验/);
+  assert.match(tabSource, /定位失败可由管理端人工补签/);
   assert.doesNotMatch(tabSource, /无坐标签到/);
   assert.doesNotMatch(tabSource, /省培平台独立管理班次、参训教师、课程签到、任务汇报、请假审批和导出归档/);
 

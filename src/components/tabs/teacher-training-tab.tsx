@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 
 import * as Workspace from "@/components/workspace-context";
 import { TeacherTrainingCohortDetailLoadingBanner } from "@/components/teacher-training/cohort-detail-loading-banner";
+import { TeacherTrainingLocationPicker } from "@/components/teacher-training/location-picker";
 import {
   getTeacherTrainingCheckInRecordStatusMeta,
   TeacherTrainingCheckInRecordStatusBadge,
@@ -3320,27 +3321,6 @@ export default function TeacherTrainingTab() {
     if (deleted) setSelectedCheckInTaskIds([]);
   };
 
-  const useCurrentLocationForCheckInTask = async () => {
-    if (!navigator.geolocation) {
-      setLocationMessage("当前浏览器不支持读取发布位置；可先不填经纬度发布，教师签到时仍需授权定位。");
-      return;
-    }
-
-    setLocationMessage("正在读取当前位置...");
-    const permissionStatePromise = getBrowserGeolocationPermissionState(navigator.permissions);
-    try {
-      const position = await getReliableBrowserPosition(navigator.geolocation);
-      setCheckInDraft((current) => ({
-        ...current,
-        latitude: String(position.coords.latitude.toFixed(6)),
-        longitude: String(position.coords.longitude.toFixed(6)),
-      }));
-      setLocationMessage("已填入当前位置，可直接发布签到任务。");
-    } catch (error) {
-      const permissionState = await permissionStatePromise;
-      setLocationMessage(`${getBrowserLocationErrorMessage(error, permissionState)} 管理端也可暂不填写坐标发布签到。`);
-    }
-  };
 
   const signWithCurrentLocation = async (checkInTaskId: string) => {
     if (!selectedParticipant) return;
@@ -4918,7 +4898,6 @@ export default function TeacherTrainingTab() {
               <main className="tt-portal-page-main">
                 <section className="tt-portal-hero" aria-label="当前培训班">
                   <div className="tt-portal-hero-copy">
-                    <span className="tt-portal-kicker">江苏省职业院校教师培训服务系统</span>
                     <h3>{teacherTrainingPortalCohortTitle}</h3>
                     <div className="tt-portal-hero-meta">
                       <span>
@@ -6602,62 +6581,24 @@ export default function TeacherTrainingTab() {
                           </label>
                         </div>
                       </div>
-                      <label className={`${teacherTrainingFieldShellClassName} md:col-span-2`}>
-                        <span className={teacherTrainingFieldLabelClassName}>签到地点</span>
-                        <input
-                          className={fieldClassName}
-                          {...fieldHint("签到地点")}
-                          onChange={(event) => setCheckInDraft((current) => ({ ...current, locationName: event.target.value }))}
-                          placeholder="签到地点"
-                          value={checkInDraft.locationName}
-                        />
-                      </label>
-                      <div className="grid gap-3 sm:grid-cols-[1fr_1fr_140px] md:col-span-2">
-                        <label className={teacherTrainingFieldShellClassName}>
-                          <span className={teacherTrainingFieldLabelClassName}>签到地点纬度</span>
-                          <input
-                            className={fieldClassName}
-                            {...fieldHint("签到地点纬度")}
-                            onChange={(event) => setCheckInDraft((current) => ({ ...current, latitude: event.target.value }))}
-                            placeholder="纬度"
-                            value={checkInDraft.latitude}
+                      <div className={`${teacherTrainingFieldShellClassName} md:col-span-2`}>
+                        <span className={teacherTrainingFieldLabelClassName}>签到地点（地图选点）</span>
+                        <div className="mt-1.5">
+                          <TeacherTrainingLocationPicker
+                            onChange={(patch) => setCheckInDraft((current) => ({ ...current, ...patch }))}
+                            value={{
+                              locationName: checkInDraft.locationName,
+                              latitude: checkInDraft.latitude,
+                              longitude: checkInDraft.longitude,
+                              radiusMeters: checkInDraft.radiusMeters,
+                            }}
                           />
-                        </label>
-                        <label className={teacherTrainingFieldShellClassName}>
-                          <span className={teacherTrainingFieldLabelClassName}>签到地点经度</span>
-                          <input
-                            className={fieldClassName}
-                            {...fieldHint("签到地点经度")}
-                            onChange={(event) => setCheckInDraft((current) => ({ ...current, longitude: event.target.value }))}
-                            placeholder="经度"
-                            value={checkInDraft.longitude}
-                          />
-                        </label>
-                        <label className={teacherTrainingFieldShellClassName}>
-                          <span className={teacherTrainingFieldLabelClassName}>有效签到范围米数</span>
-                          <input
-                            className={fieldClassName}
-                            {...fieldHint("有效签到范围米数")}
-                            onChange={(event) => setCheckInDraft((current) => ({ ...current, radiusMeters: event.target.value }))}
-                            placeholder="范围/米"
-                            value={checkInDraft.radiusMeters}
-                          />
-                        </label>
+                        </div>
                       </div>
                       <p className="rounded-xl border border-blue-100 bg-blue-50/75 px-3 py-2 text-xs leading-5 text-blue-700 md:col-span-2">
-                        未填写经纬度时，教师仍需授权定位；系统记录教师当前位置但不做距离校验。定位失败时可由管理端人工补签。
+                        通过搜索或点击地图选点后系统自动记录经纬度；未选点时教师仍需授权定位，但不做距离校验。定位失败可由管理端人工补签。
                       </p>
                       <div className="flex flex-wrap gap-2 md:col-span-2">
-                        <button
-                          className="depth-button-secondary inline-flex h-10 items-center gap-2 rounded-lg px-4 text-sm font-semibold"
-                          aria-label="使用当前位置填入签到坐标"
-                          onClick={useCurrentLocationForCheckInTask}
-                          title="使用当前位置填入签到坐标"
-                          type="button"
-                        >
-                          <Navigation className="h-4 w-4" />
-                          使用当前位置
-                        </button>
                         <ActionButton
                           aria-label="发布课程定位签到任务"
                           loading={isSaving}

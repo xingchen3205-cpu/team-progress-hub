@@ -4657,64 +4657,49 @@ a:hover {
 }
 .tt-portal-hero {
   position: relative;
-  display: grid;
-  min-height: 320px;
-  height: clamp(320px, 26vw, 420px);
-  grid-template-columns: minmax(0, 1fr);
-  align-items: end;
-  gap: 24px;
+  min-height: 300px;
+  height: clamp(300px, 24vw, 400px);
   overflow: hidden;
   border-radius: 0;
+  /* 遮罩从左深到右浅，保证左侧文字清晰，同时保留右侧钟楼与高铁细节。 */
   background:
-    linear-gradient(90deg, rgba(5, 30, 77, 0.9) 0%, rgba(8, 58, 126, 0.66) 38%, rgba(5, 73, 133, 0.08) 80%),
-    url("/teacher-training-campus-hero.png") center / 100% 100% no-repeat;
-  padding: 24px max(40px, calc((100vw - 1488px) / 2 + 34px));
+    linear-gradient(
+      90deg,
+      rgba(4, 26, 68, 0.86) 0%,
+      rgba(6, 44, 104, 0.62) 32%,
+      rgba(6, 66, 126, 0.22) 56%,
+      rgba(6, 66, 126, 0) 78%
+    ),
+    url("/teacher-training-campus-hero.png") center center / cover no-repeat;
 }
-.tt-portal-hero::after {
-  content: "";
-  position: absolute;
-  inset: auto 0 0 0;
-  height: 42px;
-  background: linear-gradient(180deg, transparent, rgba(245, 247, 251, 0.18));
-  pointer-events: none;
-}
+/* 标题信息块置于 Hero 左侧的垂直视觉中心，不贴顶也不压底。 */
 .tt-portal-hero-copy {
-  position: relative;
+  position: absolute;
+  top: 48%;
+  transform: translateY(-50%);
+  left: clamp(20px, calc((100vw - 1488px) / 2 + 34px), 96px);
+  width: clamp(320px, 58%, 760px);
+  max-width: calc(100% - 40px);
   z-index: 1;
-  max-width: 920px;
 }
 .tt-portal-hero-manager .tt-portal-hero-copy {
-  position: absolute;
-  top: 30px;
-  left: max(40px, calc((100vw - 1488px) / 2 + 34px));
-  width: min(980px, 64vw);
-  max-width: calc(100% - 80px);
-}
-.tt-portal-kicker {
-  display: inline-flex;
-  align-items: center;
-  border-left: 4px solid rgba(255, 255, 255, 0.96);
-  background: rgba(7, 25, 59, 0.44);
-  padding: 6px 13px;
-  color: rgba(255, 255, 255, 0.94);
-  font-size: 14px;
-  font-weight: 760;
+  /* 管理端与教师端统一使用垂直居中布局。 */
+  width: clamp(320px, 60%, 780px);
 }
 .tt-portal-hero h3 {
-  max-width: 980px;
-  margin-top: 0;
+  margin: 0;
   color: #ffffff;
-  font-size: clamp(26px, 2.6vw, 42px);
+  font-size: clamp(24px, 2.35vw, 38px);
   font-weight: 900;
   letter-spacing: 0;
-  line-height: 1.22;
-  text-shadow: 0 3px 13px rgba(8, 22, 51, 0.38);
+  line-height: 1.26;
+  text-shadow: 0 3px 14px rgba(8, 22, 51, 0.42);
 }
 .tt-portal-hero-meta {
   display: flex;
   flex-wrap: wrap;
-  gap: 18px;
-  margin-top: 15px;
+  gap: 10px 18px;
+  margin-top: 14px;
   color: rgba(239, 246, 255, 0.96);
   font-size: 14px;
   font-weight: 800;
@@ -5225,22 +5210,36 @@ a:hover {
     padding: 0 0 24px;
   }
   .tt-portal-hero {
-    min-height: 340px;
-    height: auto;
-    grid-template-columns: 1fr;
-    align-items: start;
+    min-height: 248px;
+    height: clamp(248px, 62vw, 320px);
+    /* 手机端焦点优先保留校园钟楼与高铁主体（图片靠右下），上方深色保证标题清晰。 */
     background:
-      linear-gradient(180deg, rgba(5, 30, 77, 0.92) 0%, rgba(8, 49, 110, 0.72) 46%, rgba(8, 58, 126, 0.38) 100%),
-      url("/teacher-training-campus-hero.png") center bottom / 100% auto no-repeat,
+      linear-gradient(180deg, rgba(5, 28, 74, 0.9) 0%, rgba(7, 44, 104, 0.6) 42%, rgba(7, 52, 116, 0.24) 100%),
+      url("/teacher-training-campus-hero.png") 68% center / cover no-repeat,
       linear-gradient(180deg, #0b3776 0%, #0d4388 100%);
-    padding: 20px 18px 24px;
+    padding: 0;
   }
+  .tt-portal-hero-copy,
   .tt-portal-hero-manager .tt-portal-hero-copy {
-    position: relative;
-    top: auto;
-    left: auto;
-    width: 100%;
+    position: absolute;
+    top: 46%;
+    transform: translateY(-50%);
+    left: 18px;
+    right: 18px;
+    width: auto;
     max-width: none;
+  }
+  .tt-portal-hero h3 {
+    font-size: clamp(19px, 5.2vw, 25px);
+    line-height: 1.32;
+    /* 保证最长词句完整换行，不截断、不横向溢出。 */
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+  .tt-portal-hero-meta {
+    gap: 6px 14px;
+    margin-top: 10px;
+    font-size: 12.5px;
   }
   .tt-portal-grid {
     grid-template-columns: 1fr;
@@ -5275,7 +5274,7 @@ a:hover {
     justify-content: flex-start;
   }
   .tt-portal-hero h3 {
-    font-size: 24px;
+    font-size: clamp(18px, 5vw, 23px);
   }
   .tt-portal-service-grid,
   .tt-portal-run-grid,
