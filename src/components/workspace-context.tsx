@@ -337,6 +337,47 @@ export type TeacherTrainingCheckInTaskDraft = {
   radiusMeters: string;
 };
 
+export type TeacherTrainingCheckInImportAttendee = {
+  name: string;
+  phone: string;
+  joinTime: string;
+  leaveTime: string;
+  durationMinutes: number;
+  mergedCount: number;
+};
+
+export type TeacherTrainingCheckInImportMatch = {
+  participantId: string;
+  participantName: string;
+  matchedBy: "phone" | "name";
+  attendee: TeacherTrainingCheckInImportAttendee;
+};
+
+export type TeacherTrainingCheckInImportConflict = {
+  attendee: TeacherTrainingCheckInImportAttendee;
+  candidates: Array<{ id: string; name: string; organization: string }>;
+};
+
+export type TeacherTrainingCheckInImportStats = {
+  totalRows: number;
+  matchedCount: number;
+  mergedCount: number;
+  alreadySignedCount: number;
+  unmatchedCount: number;
+  conflictCount: number;
+  importableCount: number;
+};
+
+export type TeacherTrainingCheckInImportPreview = {
+  fileName: string;
+  stats: TeacherTrainingCheckInImportStats;
+  importable: TeacherTrainingCheckInImportMatch[];
+  alreadySigned: TeacherTrainingCheckInImportMatch[];
+  unmatched: TeacherTrainingCheckInImportAttendee[];
+  conflicts: TeacherTrainingCheckInImportConflict[];
+  message?: string;
+};
+
 export type TeacherTrainingCheckInSignDraft = {
   checkInTaskId: string;
   participantId: string;
@@ -5942,6 +5983,58 @@ function useWorkspaceController({
     }
   };
 
+  const previewTeacherTrainingCheckInImport = async (
+    formData: FormData,
+  ): Promise<TeacherTrainingCheckInImportPreview | null> => {
+    setIsSaving(true);
+    try {
+      const response = await fetch("/api/teacher-training/check-ins/import-preview", {
+        method: "POST",
+        body: formData,
+        credentials: "same-origin",
+      });
+      const payload = (await response.json().catch(() => null)) as
+        | (TeacherTrainingCheckInImportPreview & { message?: string })
+        | null;
+      if (!response.ok) {
+        throw new Error(payload?.message || "签到名单预览失败");
+      }
+      return payload;
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "签到名单预览失败");
+      return null;
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const importTeacherTrainingCheckInList = async (
+    formData: FormData,
+  ): Promise<{ ok: boolean; importedCount: number } | null> => {
+    setIsSaving(true);
+    try {
+      const response = await fetch("/api/teacher-training/check-ins/import", {
+        method: "POST",
+        body: formData,
+        credentials: "same-origin",
+      });
+      const payload = (await response.json().catch(() => null)) as
+        | { ok?: boolean; importedCount?: number; message?: string }
+        | null;
+      if (!response.ok) {
+        throw new Error(payload?.message || "签到名单导入失败");
+      }
+      showSuccessToast("线上名单已导入", `已为 ${payload?.importedCount ?? 0} 名教师记录线上签到。`);
+      refreshWorkspace("teacherTraining");
+      return { ok: true, importedCount: payload?.importedCount ?? 0 };
+    } catch (error) {
+      setLoadError(error instanceof Error ? error.message : "签到名单导入失败");
+      return null;
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   const deleteTeacherTrainingCheckInTask = async (checkInTaskId: string) => {
     if (!checkInTaskId) {
       setLoadError("请先选择要删除的签到任务");
@@ -9110,6 +9203,8 @@ function useWorkspaceController({
     deleteTeacherTrainingCourseSession,
     deleteTeacherTrainingCourseSessions,
     createTeacherTrainingCheckInTask,
+    previewTeacherTrainingCheckInImport,
+    importTeacherTrainingCheckInList,
     deleteTeacherTrainingCheckInTask,
     deleteTeacherTrainingCheckInTasks,
     signTeacherTrainingCheckIn,

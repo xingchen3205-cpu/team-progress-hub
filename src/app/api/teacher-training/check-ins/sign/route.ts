@@ -7,6 +7,7 @@ import {
   calculateDistanceMeters,
   getAllowedTeacherTrainingCheckInDistanceMeters,
   getTeacherTrainingCheckInWindowState,
+  isTeacherTrainingImportOnlyCheckInTask,
   teacherTrainingCheckInWindowMessages,
 } from "@/lib/teacher-training";
 
@@ -72,7 +73,6 @@ export async function POST(request: NextRequest) {
     where: {
       id: checkInTaskId,
       cohortId: participant.cohortId,
-      isActive: true,
       deletedAt: null,
     },
     select: {
@@ -81,12 +81,19 @@ export async function POST(request: NextRequest) {
       startTime: true,
       endTime: true,
       isActive: true,
+      locationName: true,
       latitude: true,
       longitude: true,
       radiusMeters: true,
     },
   });
   if (!checkInTask) {
+    return NextResponse.json({ message: "签到任务不存在" }, { status: 404 });
+  }
+  if (isTeacherTrainingImportOnlyCheckInTask(checkInTask)) {
+    return NextResponse.json({ message: "本场为线上名单签到，无需教师定位" }, { status: 400 });
+  }
+  if (!checkInTask.isActive) {
     return NextResponse.json({ message: "签到任务不存在或已关闭" }, { status: 404 });
   }
 

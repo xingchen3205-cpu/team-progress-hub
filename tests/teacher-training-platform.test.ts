@@ -1437,7 +1437,9 @@ test("teacher training destructive and import paths include reviewer-requested s
 
   assert.doesNotMatch(signRouteSource, /accuracy_review/);
   assert.match(tabSource, /TeacherTrainingCheckInRecordStatusBadge/);
-  assert.match(checkInStatusBadgeSource, /人工确认/);
+  // 签到来源标签统一为 定位签到 / 线上名单导入 / 人工补签。
+  assert.match(checkInStatusBadgeSource, /人工补签/);
+  assert.match(checkInStatusBadgeSource, /线上名单导入/);
   assert.doesNotMatch(checkInStatusBadgeSource, /精度待复核/);
   assert.match(tabSource, /人工补签/);
   assert.match(tabSource, /manualSignTeacherTrainingCheckIn/);

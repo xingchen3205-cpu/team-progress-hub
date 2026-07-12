@@ -206,7 +206,70 @@ export type TeacherTrainingCheckInRecordItem = {
 };
 
 export const getTeacherTrainingCheckInRecordStatusLabel = (status: string) =>
-  status === "manual" ? "人工确认" : "已签到";
+  status === "manual" ? "人工确认" : status === "imported" ? "线上名单导入" : "已签到";
+
+// 签到来源标签：定位签到 / 线上名单导入 / 人工补签。
+export const getTeacherTrainingCheckInRecordSourceLabel = (status: string) =>
+  status === "imported" ? "线上名单导入" : status === "manual" ? "人工补签" : "定位签到";
+
+// 兼容现有表结构的内部标记。只用于系统新建的纯线上名单签到，不向教师端展示。
+export const TEACHER_TRAINING_IMPORT_ONLY_LOCATION_MARKER = "__TT_ONLINE_IMPORT_ONLY__";
+
+export const isTeacherTrainingImportOnlyCheckInTask = (task: { locationName?: string | null }) =>
+  task.locationName === TEACHER_TRAINING_IMPORT_ONLY_LOCATION_MARKER;
+
+// 从线上名单导入备注里解析入会/离会/时长（导入时按固定格式写入），无则留空。
+export const parseTeacherTrainingImportNoteMeta = (note?: string | null) => {
+  const text = note ?? "";
+  const joinTime = text.match(/入会\s+([^；;]+)/)?.[1]?.trim() ?? "";
+  const leaveTime = text.match(/离会\s+([^；;]+)/)?.[1]?.trim() ?? "";
+  const durationMatch = text.match(/时长\s+(\d+)\s*分钟/);
+  const durationLabel = durationMatch ? `${durationMatch[1]} 分钟` : "";
+  return { joinTime, leaveTime, durationLabel };
+};
+
+// 统一的签到任务排序：日期倒序；同日按开始时间升序；开始相同按结束时间升序；
+// 无开始时间排当天最后；仍相同按 createdAt/id 稳定，刷新后不乱序。
+export type TeacherTrainingCheckInTaskSortable = {
+  signDate: string;
+  startTime?: string | null;
+  endTime?: string | null;
+  createdAt?: string | Date | null;
+  id?: string | null;
+};
+
+const toComparableCreatedAt = (value?: string | Date | null): string => {
+  if (!value) return "";
+  if (value instanceof Date) return value.toISOString();
+  return value;
+};
+
+export const compareTeacherTrainingCheckInTasks = (
+  a: TeacherTrainingCheckInTaskSortable,
+  b: TeacherTrainingCheckInTaskSortable,
+): number => {
+  const dateA = (a.signDate ?? "").trim();
+  const dateB = (b.signDate ?? "").trim();
+  if (dateA !== dateB) return dateB.localeCompare(dateA); // 较新的日期在前
+
+  const startA = (a.startTime ?? "").trim();
+  const startB = (b.startTime ?? "").trim();
+  if (Boolean(startA) !== Boolean(startB)) return startA ? -1 : 1; // 无开始时间排当天最后
+  if (startA !== startB) return startA.localeCompare(startB); // 开始时间从早到晚
+
+  const endA = (a.endTime ?? "").trim();
+  const endB = (b.endTime ?? "").trim();
+  if (Boolean(endA) !== Boolean(endB)) return endA ? -1 : 1;
+  if (endA !== endB) return endA.localeCompare(endB); // 结束时间从早到晚
+
+  const createdA = toComparableCreatedAt(a.createdAt);
+  const createdB = toComparableCreatedAt(b.createdAt);
+  if (createdA !== createdB) return createdA.localeCompare(createdB); // 稳定：创建时间
+  return (a.id ?? "").localeCompare(b.id ?? "");
+};
+
+export const sortTeacherTrainingCheckInTasks = <T extends TeacherTrainingCheckInTaskSortable>(tasks: T[]): T[] =>
+  [...tasks].sort(compareTeacherTrainingCheckInTasks);
 
 export type TeacherTrainingCheckInTaskItem = {
   id: string;
@@ -221,6 +284,7 @@ export type TeacherTrainingCheckInTaskItem = {
   longitude: number | null;
   radiusMeters: number;
   isActive: boolean;
+  isImportOnly: boolean;
   createdAt: string;
   createdByName: string;
   records: TeacherTrainingCheckInRecordItem[];
@@ -1895,23 +1959,29 @@ export const serializeTeacherTrainingCohort = (
     title: manager.title || "省培班主任",
     createdAt: toDateTimeLabel(manager.createdAt),
   }));
-  const checkInTasks = (cohort.checkInTasks ?? []).map((task) => ({
-    id: task.id,
-    cohortId: task.cohortId,
-    courseSessionId: task.courseSessionId ?? null,
-    title: task.title,
-    signDate: task.signDate,
-    startTime: task.startTime ?? "",
-    endTime: task.endTime ?? "",
-    locationName: task.locationName ?? "",
-    latitude: task.latitude ?? null,
-    longitude: task.longitude ?? null,
-    radiusMeters: task.radiusMeters,
-    isActive: task.isActive,
-    createdAt: toDateTimeLabel(task.createdAt),
-    createdByName: task.creator?.name ?? "管理员",
-    records: (task.records ?? []).map(serializeTeacherTrainingCheckInRecord),
-  }));
+  const checkInTasks = sortTeacherTrainingCheckInTasks(
+    (cohort.checkInTasks ?? []).map((task) => {
+      const isImportOnly = isTeacherTrainingImportOnlyCheckInTask(task);
+      return {
+        id: task.id,
+        cohortId: task.cohortId,
+        courseSessionId: task.courseSessionId ?? null,
+        title: task.title,
+        signDate: task.signDate,
+        startTime: task.startTime ?? "",
+        endTime: task.endTime ?? "",
+        locationName: isImportOnly ? "线上会议" : task.locationName ?? "",
+        latitude: task.latitude ?? null,
+        longitude: task.longitude ?? null,
+        radiusMeters: task.radiusMeters,
+        isActive: task.isActive,
+        isImportOnly,
+        createdAt: toDateTimeLabel(task.createdAt),
+        createdByName: task.creator?.name ?? "管理员",
+        records: (task.records ?? []).map(serializeTeacherTrainingCheckInRecord),
+      };
+    }),
+  );
   const progressParticipants = (cohort.participants ?? []).map((participant) => ({
     id: participant.id,
     groupName: participant.groupName ?? "",
@@ -2521,6 +2591,10 @@ export const buildTeacherTrainingCsv = ({
         "职称",
         "所属市",
         "签到状态",
+        "签到来源",
+        "入会时间",
+        "离会时间",
+        "参会时长",
         "签到时间",
         "距离米",
         "定位精度米",
@@ -2529,6 +2603,7 @@ export const buildTeacherTrainingCsv = ({
       ...cohort.checkInTasks.flatMap((task) =>
         cohort.participants.map((participant) => {
           const record = task.records.find((item) => item.participantId === participant.id);
+          const importMeta = parseTeacherTrainingImportNoteMeta(record?.note);
           return [
             cohort.title,
             task.title,
@@ -2546,6 +2621,10 @@ export const buildTeacherTrainingCsv = ({
             participant.professionalTitle,
             participant.city,
             record ? getTeacherTrainingCheckInRecordStatusLabel(record.status) : "未签到",
+            record ? getTeacherTrainingCheckInRecordSourceLabel(record.status) : "",
+            importMeta.joinTime,
+            importMeta.leaveTime,
+            importMeta.durationLabel,
             record?.signedAt ?? "",
             record?.distanceMeters ?? "",
             record?.accuracy ?? "",

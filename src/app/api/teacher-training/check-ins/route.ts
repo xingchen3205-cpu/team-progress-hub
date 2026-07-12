@@ -6,6 +6,8 @@ import {
   TEACHER_TRAINING_CHECK_IN_DEFAULT_RADIUS_METERS,
   areValidTeacherTrainingCoordinates,
   isTeacherTrainingDateKey,
+  isTeacherTrainingImportOnlyCheckInTask,
+  TEACHER_TRAINING_IMPORT_ONLY_LOCATION_MARKER,
   validateTeacherTrainingSessionTimeRange,
 } from "@/lib/teacher-training";
 import { hasTeacherTrainingCohortManageAccess } from "@/lib/teacher-training-access";
@@ -151,7 +153,7 @@ export async function PATCH(request: NextRequest) {
 
   const existing = await prisma.teacherTrainingCheckInTask.findFirst({
     where: { id, deletedAt: null },
-    select: { id: true, cohortId: true },
+    select: { id: true, cohortId: true, locationName: true },
   });
   if (!existing) {
     return NextResponse.json({ message: "签到任务不存在" }, { status: 404 });
@@ -159,6 +161,7 @@ export async function PATCH(request: NextRequest) {
   if (!(await hasTeacherTrainingCohortManageAccess(user, existing.cohortId))) {
     return NextResponse.json({ message: "无权限修改该省培班次签到任务" }, { status: 403 });
   }
+  const isImportOnly = isTeacherTrainingImportOnlyCheckInTask(existing);
 
   const courseSessionId = body?.courseSessionId?.trim();
   if (courseSessionId) {
@@ -194,9 +197,11 @@ export async function PATCH(request: NextRequest) {
       signDate,
       startTime,
       endTime,
-      locationName: body?.locationName?.trim() || null,
-      latitude,
-      longitude,
+      locationName: isImportOnly
+        ? TEACHER_TRAINING_IMPORT_ONLY_LOCATION_MARKER
+        : body?.locationName?.trim() || null,
+      latitude: isImportOnly ? null : latitude,
+      longitude: isImportOnly ? null : longitude,
       radiusMeters: clampRadiusMeters(body?.radiusMeters),
     },
   });

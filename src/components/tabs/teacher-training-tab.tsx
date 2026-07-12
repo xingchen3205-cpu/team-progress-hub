@@ -914,6 +914,8 @@ export default function TeacherTrainingTab() {
     deleteTeacherTrainingCourseSession,
     deleteTeacherTrainingCourseSessions,
     createTeacherTrainingCheckInTask,
+    previewTeacherTrainingCheckInImport,
+    importTeacherTrainingCheckInList,
     deleteTeacherTrainingCheckInTask,
     deleteTeacherTrainingCheckInTasks,
     signTeacherTrainingCheckIn,
@@ -1095,6 +1097,22 @@ export default function TeacherTrainingTab() {
   const [checkInDraft, setCheckInDraft] = useState<Workspace.TeacherTrainingCheckInTaskDraft>(
     createDefaultCheckInTaskDraft,
   );
+  // 腾讯会议名单导入：mode "new"=新建纯线上签到；"existing"=向已有任务导入(混合)。
+  const [checkInImportOpen, setCheckInImportOpen] = useState(false);
+  const [checkInImportMode, setCheckInImportMode] = useState<"new" | "existing">("new");
+  const [checkInImportTaskId, setCheckInImportTaskId] = useState("");
+  const [checkInImportStep, setCheckInImportStep] = useState<1 | 2 | 3>(1);
+  const [checkInImportForm, setCheckInImportForm] = useState({
+    title: "",
+    signDate: getDateInputValue(new Date()),
+    startTime: "",
+    endTime: "",
+    courseSessionId: "",
+  });
+  const [checkInImportFile, setCheckInImportFile] = useState<File | null>(null);
+  const [checkInImportPreview, setCheckInImportPreview] = useState<Workspace.TeacherTrainingCheckInImportPreview | null>(null);
+  const [checkInImportResolutions, setCheckInImportResolutions] = useState<Record<string, string>>({});
+  const [checkInImportError, setCheckInImportError] = useState("");
   const [locationMessage, setLocationMessage] = useState("");
   const [accountMessagesByParticipantId, setAccountMessagesByParticipantId] = useState<Record<string, string>>({});
   const [checkInSigningId, setCheckInSigningId] = useState("");
@@ -1608,16 +1626,19 @@ export default function TeacherTrainingTab() {
   const filteredSubmissionTasks = submissionTaskPool.filter(matchesSubmissionSearch);
   const activeSubmissionTask =
     filteredSubmissionTasks.find((task) => task.id === activeSubmissionTaskId) ?? filteredSubmissionTasks[0] ?? null;
-  const filteredCheckInTasks = (selectedCohort?.checkInTasks ?? []).filter((task) => {
-    const windowState = Workspace.getTeacherTrainingCheckInWindowState(task, checkInNow);
-    if (checkInStatusFilter !== "all" && windowState !== checkInStatusFilter) return false;
-    if (!checkInTaskSearchKeyword) return true;
-    const course = courseSessions.find((item) => item.id === task.courseSessionId);
-    return [task.title, task.signDate, task.startTime, task.endTime, task.locationName, course?.title ?? ""]
-      .join(" ")
-      .toLocaleLowerCase("zh-CN")
-      .includes(checkInTaskSearchKeyword);
-  });
+  // 复制后用统一排序，避免对 state 原地排序；日期倒序、同日按开始时间升序。
+  const filteredCheckInTasks = Workspace.sortTeacherTrainingCheckInTasks(
+    (selectedCohort?.checkInTasks ?? []).filter((task) => {
+      const windowState = Workspace.getTeacherTrainingCheckInWindowState(task, checkInNow);
+      if (checkInStatusFilter !== "all" && windowState !== checkInStatusFilter) return false;
+      if (!checkInTaskSearchKeyword) return true;
+      const course = courseSessions.find((item) => item.id === task.courseSessionId);
+      return [task.title, task.signDate, task.startTime, task.endTime, task.locationName, course?.title ?? ""]
+        .join(" ")
+        .toLocaleLowerCase("zh-CN")
+        .includes(checkInTaskSearchKeyword);
+    }),
+  );
   const getVisibleCheckInRecords = (task: Workspace.TeacherTrainingCheckInTaskItem) => {
     const records = checkInSearchKeyword
       ? task.records.filter((record) => {
@@ -1769,15 +1790,17 @@ export default function TeacherTrainingTab() {
       .filter((task) => task.records.some((record) => record.participantId === selectedParticipant?.id))
       .map((task) => task.id),
   );
+  const teacherVisibleCheckInTasks = Workspace.sortTeacherTrainingCheckInTasks(
+    (selectedCohort?.checkInTasks ?? []).filter((task) => !task.isImportOnly),
+  );
   const teacherPendingCheckInCount =
     !canManage && selectedCohort
-      ? selectedCohort.checkInTasks.filter((task) => !teacherSignedCheckInTaskIds.has(task.id)).length
+      ? teacherVisibleCheckInTasks.filter((task) => !teacherSignedCheckInTaskIds.has(task.id)).length
       : 0;
-  const teacherCheckInProgressItems = (selectedCohort?.checkInTasks ?? []).map((task) => {
+  const teacherCheckInProgressItems = teacherVisibleCheckInTasks.map((task) => {
     const signedRecord = task.records.find((record) => record.participantId === selectedParticipant?.id) ?? null;
     const windowState = Workspace.getTeacherTrainingCheckInWindowState(task, checkInNow);
     const isOpen = windowState === "open";
-
     return {
       id: task.id,
       title: task.title,
@@ -1791,12 +1814,12 @@ export default function TeacherTrainingTab() {
       statusLabel: signedRecord
         ? "已完成签到"
         : isOpen
-          ? "现在可签到"
-          : windowState === "not_started"
-            ? "等待开放"
-            : windowState === "ended"
-              ? "签到已结束"
-              : "签到不可用",
+            ? "现在可签到"
+            : windowState === "not_started"
+              ? "等待开放"
+              : windowState === "ended"
+                ? "签到已结束"
+                : "签到不可用",
       toneClassName: signedRecord
         ? "border-emerald-100 bg-emerald-50 text-emerald-700"
         : isOpen
@@ -3131,6 +3154,97 @@ export default function TeacherTrainingTab() {
     }
   };
 
+  const resetCheckInImport = () => {
+    setCheckInImportOpen(false);
+    setCheckInImportStep(1);
+    setCheckInImportFile(null);
+    setCheckInImportPreview(null);
+    setCheckInImportResolutions({});
+    setCheckInImportError("");
+    setCheckInImportTaskId("");
+  };
+
+  const openNewCheckInImport = () => {
+    setCheckInImportMode("new");
+    setCheckInImportTaskId("");
+    setCheckInImportForm({
+      title: "",
+      signDate: getDateInputValue(new Date()),
+      startTime: "",
+      endTime: "",
+      courseSessionId: "",
+    });
+    setCheckInImportFile(null);
+    setCheckInImportPreview(null);
+    setCheckInImportError("");
+    setCheckInImportStep(1);
+    setCheckInImportOpen(true);
+  };
+
+  const openExistingCheckInImport = (task: Workspace.TeacherTrainingCheckInTaskItem) => {
+    setCheckInImportMode("existing");
+    setCheckInImportTaskId(task.id);
+    setCheckInImportFile(null);
+    setCheckInImportPreview(null);
+    setCheckInImportError("");
+    setCheckInImportStep(2);
+    setCheckInImportOpen(true);
+  };
+
+  const buildCheckInImportFormData = () => {
+    if (!selectedCohort || !checkInImportFile) return null;
+    const formData = new FormData();
+    formData.set("file", checkInImportFile);
+    formData.set("cohortId", selectedCohort.id);
+    if (checkInImportMode === "existing" && checkInImportTaskId) {
+      formData.set("checkInTaskId", checkInImportTaskId);
+    } else {
+      formData.set("title", checkInImportForm.title.trim());
+      formData.set("signDate", checkInImportForm.signDate.trim());
+      formData.set("startTime", checkInImportForm.startTime.trim());
+      formData.set("endTime", checkInImportForm.endTime.trim());
+      formData.set("courseSessionId", checkInImportForm.courseSessionId.trim());
+    }
+    return formData;
+  };
+
+  const submitCheckInImportPreview = async () => {
+    setCheckInImportError("");
+    if (!checkInImportFile) {
+      setCheckInImportError("请先上传腾讯会议签到名单文件");
+      return;
+    }
+    if (checkInImportMode === "new" && (!checkInImportForm.title.trim() || !checkInImportForm.signDate.trim())) {
+      setCheckInImportError("请填写签到名称和签到日期");
+      return;
+    }
+    const formData = buildCheckInImportFormData();
+    if (!formData) return;
+    const preview = await previewTeacherTrainingCheckInImport(formData);
+    if (preview) {
+      setCheckInImportPreview(preview);
+      setCheckInImportStep(3);
+    }
+  };
+
+  const confirmCheckInImport = async () => {
+    const formData = buildCheckInImportFormData();
+    if (!formData) return;
+    const resolutions = Object.entries(checkInImportResolutions)
+      .filter(([, participantId]) => participantId)
+      .map(([key, participantId]) => ({ key, participantId }));
+    if (resolutions.length > 0) {
+      formData.set("resolutions", JSON.stringify(resolutions));
+    }
+    const result = await importTeacherTrainingCheckInList(formData);
+    if (result?.ok) {
+      resetCheckInImport();
+    }
+  };
+
+  const checkInImportAttendeeKey = (attendee: { name: string; phone: string }) =>
+    attendee.phone ? `p:${attendee.phone}` : `n:${attendee.name}`;
+
   const openManualCheckIn = async (
     task: Workspace.TeacherTrainingCheckInTaskItem,
     participant: Workspace.TeacherTrainingParticipantItem,
@@ -4406,6 +4520,285 @@ export default function TeacherTrainingTab() {
               >
                 确认驳回
               </ActionButton>
+            </ModalActions>
+          </div>
+        </Modal>
+      ) : null}
+      {checkInImportOpen ? (
+        <Modal
+          onClose={resetCheckInImport}
+          panelClassName="max-w-[min(94vw,640px)]"
+          title="导入线上签到名单"
+        >
+          <div className="space-y-4">
+            <div className="flex flex-wrap items-center gap-2 text-[11px] font-semibold">
+              {[
+                { step: 1, label: "填写签到信息" },
+                { step: 2, label: "上传腾讯会议名单" },
+                { step: 3, label: "预览并确认" },
+              ].map((item) => (
+                <span
+                  key={item.step}
+                  className={`rounded-full px-2.5 py-1 ${
+                    checkInImportStep === item.step
+                      ? "bg-blue-600 text-white"
+                      : checkInImportStep > item.step
+                        ? "bg-emerald-50 text-emerald-700"
+                        : "bg-slate-100 text-slate-500"
+                  }`}
+                >
+                  {item.step}. {item.label}
+                </span>
+              ))}
+            </div>
+
+            {checkInImportStep === 1 ? (
+              <div className="space-y-3">
+                <p className="rounded-lg border border-blue-100 bg-blue-50/70 px-3 py-2 text-xs leading-5 text-blue-700">
+                  线上名单签到不会向教师发布定位签到入口，仅按上传名单记录已签到。
+                </p>
+                <div className="grid gap-3 sm:grid-cols-2">
+                  <label className="block text-sm font-semibold text-slate-600">
+                    签到名称 <span className="text-red-500">*</span>
+                    <input
+                      className={fieldClassName}
+                      {...fieldHint("线上签到名称")}
+                      onChange={(event) => setCheckInImportForm((current) => ({ ...current, title: event.target.value }))}
+                      placeholder="如：7月12日线上培训签到"
+                      value={checkInImportForm.title}
+                    />
+                  </label>
+                  <label className="block text-sm font-semibold text-slate-600">
+                    签到日期 <span className="text-red-500">*</span>
+                    <input
+                      className={fieldClassName}
+                      {...fieldHint("线上签到日期")}
+                      onChange={(event) => setCheckInImportForm((current) => ({ ...current, signDate: event.target.value }))}
+                      type="date"
+                      value={checkInImportForm.signDate}
+                    />
+                  </label>
+                  <label className="block text-sm font-semibold text-slate-600">
+                    开始时间
+                    <input
+                      className={fieldClassName}
+                      {...fieldHint("线上签到开始时间")}
+                      onChange={(event) => setCheckInImportForm((current) => ({ ...current, startTime: event.target.value }))}
+                      type="time"
+                      value={checkInImportForm.startTime}
+                    />
+                  </label>
+                  <label className="block text-sm font-semibold text-slate-600">
+                    结束时间
+                    <input
+                      className={fieldClassName}
+                      {...fieldHint("线上签到结束时间")}
+                      onChange={(event) => setCheckInImportForm((current) => ({ ...current, endTime: event.target.value }))}
+                      type="time"
+                      value={checkInImportForm.endTime}
+                    />
+                  </label>
+                  <label className="block text-sm font-semibold text-slate-600 sm:col-span-2">
+                    关联课程（可选）
+                    <select
+                      className={fieldClassName}
+                      {...fieldHint("线上签到关联课程")}
+                      onChange={(event) => setCheckInImportForm((current) => ({ ...current, courseSessionId: event.target.value }))}
+                      value={checkInImportForm.courseSessionId}
+                    >
+                      <option value="">不关联课程</option>
+                      {courseSessions.map((course) => (
+                        <option key={course.id} value={course.id}>
+                          {course.courseDate} {course.title}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+              </div>
+            ) : null}
+
+            {checkInImportStep === 2 ? (
+              <div className="space-y-3">
+                <label className="flex min-h-[112px] cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-blue-200 bg-blue-50/40 px-4 py-4 text-center">
+                  <Upload className="h-5 w-5 text-blue-600" />
+                  <span className="mt-2 text-sm font-semibold text-slate-900">选择腾讯会议导出的 Excel(.xlsx) 或 CSV</span>
+                  <span className="mt-1 text-xs text-slate-500">单个文件 8MB 以内；识别姓名、手机号、入会/退会时间和参会时长</span>
+                  <input
+                    {...fieldHint("腾讯会议签到名单文件")}
+                    accept=".xlsx,.csv,.tsv,.txt"
+                    className="sr-only"
+                    onChange={(event) => {
+                      setCheckInImportFile(event.target.files?.[0] ?? null);
+                      event.currentTarget.value = "";
+                    }}
+                    type="file"
+                  />
+                </label>
+                {checkInImportFile ? (
+                  <p className="rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-700">
+                    已选择：{checkInImportFile.name}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+
+            {checkInImportStep === 3 && checkInImportPreview ? (
+              <div className="space-y-3">
+                <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                  {[
+                    { label: "文件总行数", value: checkInImportPreview.stats.totalRows },
+                    { label: "成功匹配", value: checkInImportPreview.stats.matchedCount },
+                    { label: "重复合并", value: checkInImportPreview.stats.mergedCount },
+                    { label: "已签到跳过", value: checkInImportPreview.stats.alreadySignedCount },
+                    { label: "未匹配", value: checkInImportPreview.stats.unmatchedCount },
+                    { label: "匹配冲突", value: checkInImportPreview.stats.conflictCount },
+                    { label: "可导入", value: checkInImportPreview.stats.importableCount },
+                  ].map((item) => (
+                    <div key={item.label} className="rounded-xl border border-slate-100 bg-white px-3 py-2 text-center">
+                      <p className="text-lg font-black text-slate-950">{item.value}</p>
+                      <p className="mt-0.5 text-[11px] font-semibold text-slate-500">{item.label}</p>
+                    </div>
+                  ))}
+                </div>
+
+                {checkInImportPreview.importable.length > 0 ? (
+                  <details className="rounded-xl border border-emerald-100 bg-emerald-50/50 px-3 py-2" open>
+                    <summary className="cursor-pointer text-xs font-bold text-emerald-700">
+                      可导入 {checkInImportPreview.importable.length} 人
+                    </summary>
+                    <div className="mt-2 space-y-1">
+                      {checkInImportPreview.importable.map((match) => (
+                        <p key={match.participantId} className="break-words text-xs text-slate-600">
+                          {match.participantName}
+                          <span className="ml-1 text-slate-400">
+                            （{match.matchedBy === "phone" ? "手机号匹配" : "姓名匹配"}
+                            {match.attendee.durationMinutes ? ` · ${match.attendee.durationMinutes}分钟` : ""}）
+                          </span>
+                        </p>
+                      ))}
+                    </div>
+                  </details>
+                ) : null}
+
+                {checkInImportPreview.conflicts.length > 0 ? (
+                  <details className="rounded-xl border border-amber-100 bg-amber-50/60 px-3 py-2" open>
+                    <summary className="cursor-pointer text-xs font-bold text-amber-700">
+                      匹配冲突 {checkInImportPreview.conflicts.length} 人（同名需手动选择）
+                    </summary>
+                    <div className="mt-2 space-y-2">
+                      {checkInImportPreview.conflicts.map((conflict) => {
+                        const key = checkInImportAttendeeKey(conflict.attendee);
+                        return (
+                          <div key={key} className="rounded-lg border border-white bg-white px-2.5 py-2">
+                            <p className="break-words text-xs font-semibold text-slate-800">
+                              {conflict.attendee.name}
+                              {conflict.attendee.phone ? ` · ${conflict.attendee.phone}` : ""}
+                            </p>
+                            <select
+                              className={`${fieldClassName} mt-1`}
+                              {...fieldHint(`选择${conflict.attendee.name}对应教师`)}
+                              onChange={(event) =>
+                                setCheckInImportResolutions((current) => ({ ...current, [key]: event.target.value }))
+                              }
+                              value={checkInImportResolutions[key] ?? ""}
+                            >
+                              <option value="">暂不导入</option>
+                              {conflict.candidates.map((candidate) => (
+                                <option key={candidate.id} value={candidate.id}>
+                                  {candidate.name}
+                                  {candidate.organization ? ` · ${candidate.organization}` : ""}
+                                </option>
+                              ))}
+                            </select>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </details>
+                ) : null}
+
+                {checkInImportPreview.alreadySigned.length > 0 ? (
+                  <details className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2">
+                    <summary className="cursor-pointer text-xs font-bold text-slate-600">
+                      已签到，跳过 {checkInImportPreview.alreadySigned.length} 人
+                    </summary>
+                    <div className="mt-2 space-y-1">
+                      {checkInImportPreview.alreadySigned.map((match) => (
+                        <p key={match.participantId} className="break-words text-xs text-slate-500">
+                          {match.participantName}
+                        </p>
+                      ))}
+                    </div>
+                  </details>
+                ) : null}
+
+                {checkInImportPreview.unmatched.length > 0 ? (
+                  <details className="rounded-xl border border-slate-100 bg-slate-50 px-3 py-2">
+                    <summary className="cursor-pointer text-xs font-bold text-slate-600">
+                      未匹配 {checkInImportPreview.unmatched.length} 人（不会自动新增教师）
+                    </summary>
+                    <div className="mt-2 space-y-1">
+                      {checkInImportPreview.unmatched.map((attendee, index) => (
+                        <p key={`${attendee.name}-${index}`} className="break-words text-xs text-slate-500">
+                          {attendee.name}
+                          {attendee.phone ? ` · ${attendee.phone}` : ""}
+                        </p>
+                      ))}
+                    </div>
+                  </details>
+                ) : null}
+                {checkInImportPreview.message ? (
+                  <p className="rounded-lg border border-amber-100 bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-700">
+                    {checkInImportPreview.message}
+                  </p>
+                ) : null}
+              </div>
+            ) : null}
+
+            {checkInImportError ? (
+              <p className="rounded-lg border border-rose-100 bg-rose-50 px-3 py-2 text-xs leading-5 text-rose-600">
+                {checkInImportError}
+              </p>
+            ) : null}
+
+            <ModalActions>
+              <ActionButton onClick={resetCheckInImport}>取消</ActionButton>
+              {checkInImportStep === 1 ? (
+                <ActionButton
+                  disabled={!checkInImportForm.title.trim() || !checkInImportForm.signDate.trim()}
+                  onClick={() => setCheckInImportStep(2)}
+                  variant="primary"
+                >
+                  下一步
+                </ActionButton>
+              ) : null}
+              {checkInImportStep === 2 ? (
+                <ActionButton
+                  disabled={!checkInImportFile || isSaving}
+                  loading={isSaving}
+                  loadingLabel="识别中"
+                  onClick={() => void submitCheckInImportPreview()}
+                  variant="primary"
+                >
+                  预览匹配结果
+                </ActionButton>
+              ) : null}
+              {checkInImportStep === 3 ? (
+                <ActionButton
+                  disabled={
+                    isSaving ||
+                    ((checkInImportPreview?.stats.importableCount ?? 0) === 0 &&
+                      Object.values(checkInImportResolutions).every((value) => !value))
+                  }
+                  loading={isSaving}
+                  loadingLabel="导入中"
+                  onClick={() => void confirmCheckInImport()}
+                  variant="primary"
+                >
+                  确认导入
+                </ActionButton>
+              ) : null}
             </ModalActions>
           </div>
         </Modal>
@@ -6107,7 +6500,15 @@ export default function TeacherTrainingTab() {
                           type="button"
                         >
                           <Plus className="h-3.5 w-3.5" />
-                          {checkInEditorOpen ? "收起发布表单" : "发布新签到"}
+                          {checkInEditorOpen ? "收起发布表单" : "新建定位签到"}
+                        </button>
+                        <button
+                          className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-blue-200 bg-white px-3 text-xs font-semibold text-blue-700 transition hover:bg-blue-50"
+                          onClick={openNewCheckInImport}
+                          type="button"
+                        >
+                          <Upload className="h-3.5 w-3.5" />
+                          导入线上签到名单
                         </button>
                         <button
                           className="inline-flex h-8 items-center rounded-lg border border-blue-100 bg-white px-3 text-xs font-semibold text-blue-700"
@@ -6456,7 +6857,34 @@ export default function TeacherTrainingTab() {
                                     <Download className="h-3.5 w-3.5" />
                                     导出本场名单
                                   </button>
+                                  <button
+                                    className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-blue-200 bg-white px-2.5 text-xs font-semibold text-blue-700 transition hover:bg-blue-50"
+                                    onClick={() => openExistingCheckInImport(task)}
+                                    type="button"
+                                  >
+                                    <Upload className="h-3.5 w-3.5" />
+                                    导入线上名单
+                                  </button>
                                 </div>
+                                {(() => {
+                                  const locationCount = task.records.filter((record) => record.status === "valid").length;
+                                  const importedCount = task.records.filter((record) => record.status === "imported").length;
+                                  const manualCount = task.records.filter((record) => record.status === "manual").length;
+                                  const unsignedCount = Math.max(0, progress.total - progress.signed);
+                                  return (
+                                    <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] font-semibold text-slate-500">
+                                      <span className={`rounded-full px-2 py-0.5 ${task.isImportOnly ? "bg-slate-100 text-slate-600" : "bg-blue-50 text-blue-700"}`}>
+                                        {task.isImportOnly ? "线上名单签到" : importedCount > 0 ? "混合签到" : "定位签到"}
+                                      </span>
+                                      <span>总 {progress.total} 人</span>
+                                      <span>已签 {progress.signed} 人</span>
+                                      <span>线上导入 {importedCount} 人</span>
+                                      <span>定位 {locationCount} 人</span>
+                                      {manualCount > 0 ? <span>人工补签 {manualCount} 人</span> : null}
+                                      <span>未签 {unsignedCount} 人</span>
+                                    </div>
+                                  );
+                                })()}
                                 <div className="mt-3 flex items-center gap-3">
                                   <div
                                     aria-label={`签到率 ${progress.percent}%`}
@@ -6653,10 +7081,10 @@ export default function TeacherTrainingTab() {
                         )}
                       </div>
                     </div>
-                    {selectedCohort.checkInTasks.length === 0 ? (
+                    {teacherVisibleCheckInTasks.length === 0 ? (
                       <EmptyState description="管理员发布课程签到后，这里会显示定位签到入口。" icon={MapPin} title="暂无签到任务" />
                     ) : (
-                      selectedCohort.checkInTasks.map((task) => {
+                      teacherVisibleCheckInTasks.map((task) => {
                         const signedRecord = task.records.find((record) => record.participantId === selectedParticipant?.id);
                         const windowState = Workspace.getTeacherTrainingCheckInWindowState(task, checkInNow);
                         const isWindowOpen = windowState === "open";
@@ -6707,23 +7135,23 @@ export default function TeacherTrainingTab() {
                               ) : null}
                             </div>
                             <button
-                              className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-[#1f64f2] px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-[#174ecb] disabled:cursor-not-allowed disabled:bg-slate-300"
-                              aria-label="定位签到，浏览器会请求当前位置权限"
-                              disabled={Boolean(checkInDisabledReason || alreadySignedReason) || isSaving || isSigningThisTask}
-                              onClick={() => signWithCurrentLocation(task.id)}
-                              title={checkInDisabledReason || alreadySignedReason || "定位签到，浏览器会请求当前位置权限"}
-                              type="button"
-                            >
-                              {isSigningThisTask ? <Loader2 className="h-4 w-4 animate-spin" /> : <MapPin className="h-4 w-4" />}
-                              {isSigningThisTask
-                                ? "定位中"
-                                : isWindowOpen
-                                  ? signedRecord
-                                    ? signedRecord.status === "manual"
-                                      ? "已补签"
-                                      : "已签到"
-                                    : "定位签到"
-                                  : Workspace.getTeacherTrainingCheckInWindowLabel(windowState)}
+                                className="inline-flex h-10 items-center justify-center gap-2 rounded-lg bg-[#1f64f2] px-4 text-sm font-semibold text-white shadow-sm transition hover:bg-[#174ecb] disabled:cursor-not-allowed disabled:bg-slate-300"
+                                aria-label="定位签到，浏览器会请求当前位置权限"
+                                disabled={Boolean(checkInDisabledReason || alreadySignedReason) || isSaving || isSigningThisTask}
+                                onClick={() => signWithCurrentLocation(task.id)}
+                                title={checkInDisabledReason || alreadySignedReason || "定位签到，浏览器会请求当前位置权限"}
+                                type="button"
+                              >
+                                {isSigningThisTask ? <Loader2 className="h-4 w-4 animate-spin" /> : <MapPin className="h-4 w-4" />}
+                                {isSigningThisTask
+                                  ? "定位中"
+                                  : isWindowOpen
+                                    ? signedRecord
+                                      ? signedRecord.status === "manual"
+                                        ? "已补签"
+                                        : "已签到"
+                                      : "定位签到"
+                                    : Workspace.getTeacherTrainingCheckInWindowLabel(windowState)}
                             </button>
                             {checkInDisabledReason ? (
                               <p className={`${teacherTrainingDisabledHintClassName} lg:col-start-2 lg:max-w-56`}>
